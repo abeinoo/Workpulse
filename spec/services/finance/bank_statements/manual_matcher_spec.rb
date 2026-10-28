@@ -245,4 +245,18 @@ RSpec.describe Finance::BankStatements::ManualMatcher do
       expect(transaction.reload.matched_till_deposit).to eq(other_dep)
     end
   end
+
+  describe "a transaction on a deleted statement" do
+    it "is refused and nothing is linked" do
+      dep = deposit
+      transaction = txn
+      statement.update_columns(deleted_at: Time.current)
+
+      result = described_class.call(transaction.id, till_deposit_id: dep.id, actor: actor, notes: "x")
+
+      expect(result).not_to be_ok
+      expect(result.error).to eq(I18n.t("finance.bank_statements.errors.statement_deleted"))
+      expect(DepositMatch.where(bank_statement_transaction_id: transaction.id)).to be_empty
+    end
+  end
 end

@@ -12,9 +12,24 @@
     </div>
     <div style="display: flex; gap: var(--space-2); align-items: center;">
       <%= render "finance/bank_statements/txn_status_badge", transaction: @transaction %>
-      <%= link_to t("shared.back"), finance_bank_statement_path(@statement), class: "btn btn-ghost" %>
+      <%= link_to t("shared.back"),
+            @statement.deleted? ? finance_bank_statements_path : finance_bank_statement_path(@statement),
+            class: "btn btn-ghost" %>
     </div>
   </div>
+
+  <% if @statement.deleted? %>
+    <div class="card" role="status" style="padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); border: 1px solid rgba(var(--warning-rgb), 0.3);">
+      <p style="font-size: var(--text-sm); font-weight: 600; color: var(--warning); margin: 0 0 var(--space-1);">
+        <%= t("finance.bank_statement_transactions.show.statement_deleted_title", id: @statement.id) %>
+      </p>
+      <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0;">
+        <%= t("finance.bank_statement_transactions.show.statement_deleted_body",
+              date: l(@statement.deleted_at, format: :long),
+              name: @statement.deleted_by&.full_name || "—") %>
+      </p>
+    </div>
+  <% end %>
 
   <%# ── Side-by-side comparison ────────────────────────────────────────── %>
   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-bottom: var(--space-6);">
@@ -135,6 +150,9 @@
               <th><%= t("finance.bank_statement_transactions.show.modal_amount") %></th>
               <th><%= t("finance.bank_statement_transactions.show.modal_date") %></th>
               <th><%= t("finance.bank_statement_transactions.show.modal_reference") %></th>
+              <% if @review_candidates.any? { |c| c["linked_transaction_id"] } %>
+                <th><%= t("finance.bank_statement_transactions.show.candidates_col_linked_to") %></th>
+              <% end %>
             </tr>
           </thead>
           <tbody>
@@ -144,6 +162,20 @@
                 <td style="font-variant-numeric: tabular-nums;"><%= format_currency(c["amount"].to_d) %></td>
                 <td><%= l(Date.parse(c["date"]), format: :short) %></td>
                 <td><code style="font-size: var(--text-xs);"><%= c["reference"].presence || "—" %></code></td>
+                <% if @review_candidates.any? { |rc| rc["linked_transaction_id"] } %>
+                  <td>
+                    <% if c["linked_transaction_id"] %>
+                      <%= link_to t("finance.bank_statement_transactions.show.candidates_linked_to",
+                                    transaction_id: c["linked_transaction_id"], statement_id: c["linked_statement_id"]),
+                                  finance_bank_statement_transaction_path(c["linked_transaction_id"]) %>
+                      <% if c["linked_statement_deleted"] %>
+                        <span class="badge badge-danger"><%= t("finance.bank_statement_transactions.show.candidates_statement_deleted") %></span>
+                      <% end %>
+                    <% else %>
+                      —
+                    <% end %>
+                  </td>
+                <% end %>
               </tr>
             <% end %>
           </tbody>

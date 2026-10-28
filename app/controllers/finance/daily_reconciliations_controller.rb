@@ -44,7 +44,8 @@ class Finance::DailyReconciliationsController < Finance::BaseController
               .order(opened_at: :desc)
               .limit(200)
 
-    query = query.includes(till_deposits: [ :deposit_matches, :bank_statement_transactions, :bank_disputes ]) if @show_verification
+    query = query.includes(till_deposits: [ { deposit_matches: { bank_statement_transaction: :bank_statement } },
+                                            { bank_statement_transactions: :bank_statement }, :bank_disputes ]) if @show_verification
     query = query.includes(:till_deposits) unless @show_verification
 
     # Delegates entirely to DailyReconciliationPolicy::Scope — the single
@@ -323,7 +324,8 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     ids = Array(params[:ids]).map(&:to_i).uniq.reject(&:zero?)
     scope = restrict_to_index_history_window(policy_scope(DailyReconciliation))
               .includes(:branch, till_session: :depositor,
-                        till_deposits: [ :deposit_matches, :bank_statement_transactions ],
+                        till_deposits: [ { deposit_matches: { bank_statement_transaction: :bank_statement } },
+                                         { bank_statement_transactions: :bank_statement } ],
                         remaining_deposit_balances: [])
     scope = ids.any? ? scope.where(id: ids) : apply_dr_filters(scope)
 
@@ -1600,15 +1602,20 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   # this branch + business_date. Mirrors Finance::DepositVerificationsController's
   # query style but narrowed to a single reconciliation.
   def build_bank_deposit_stats
-    deposits = @reconciliation.till_deposits.active.left_joins(:bank_statement_transactions)
+    deposits = @reconciliation.till_deposits.active.left_joins(bank_statement_transactions: :bank_statement)
 
+    # "Matched" / "imported" are CONFIRMED bank evidence only: a linked
+    # transaction that is verified, on a statement that still exists. A link
+    # needing re-verification or left on a deleted statement is neither
+    # confirmed nor unmatched — it is counted in the review figures below.
     # .distinct guards against a deposit matched by more than one transaction
     # being counted once per matching row (a plain LEFT JOIN fans out).
-    @bank_matched_count      = deposits.where(bank_statement_transactions: { status: "verified" }).distinct.count
+    active_statement = { bank_statements: { deleted_at: nil } }
+    confirmed = deposits.where(bank_statement_transactions: { status: "verified" }).where(active_statement)
+    @bank_matched_count      = confirmed.distinct.count
     @bank_needs_review_count = deposits.where(bank_statement_transactions: { status: "needs_manual_review" })
-                                       .distinct.count
-    @bank_imported_sum       = deposits.where(bank_statement_transactions: { status: "verified" })
-                                       .sum("bank_statement_transactions.amount")
+                                       .where(active_statement).distinct.count
+    @bank_imported_sum       = confirmed.sum("bank_statement_transactions.amount")
 
     unmatched = deposits.where(bank_statement_transactions: { id: nil })
 
@@ -1632,27 +1639,46 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     @bank_unexpected_transactions = BankStatementTransaction
       .for_business(@reconciliation.business)
       .joins(:bank_statement)
-      .where(bank_statements: { branch_id: [ nil, @reconciliation.branch_id ] })
+      .where(bank_statements: { branch_id: [ nil, @reconciliation.branch_id ], deleted_at: nil })
       .where.missing(:deposit_matches)
       .where(status: "unexpected", transaction_date: unexpected_dates)
       .includes(:bank_statement)
       .to_a
 
     # Bank transactions linked to any of this DR's deposits that need review —
-    # voided deposits included, so a needs_reverification transaction still
-    # linked to a voided deposit (voids before matches were released on void)
-    # can never drop out of view.
+    # flagged for review or re-verification, or sitting on a deleted statement
+    # (whatever their status). Voided deposits included, so a link left on a
+    # voided deposit (voids before matches were released on void) can never
+    # drop out of view.
     all_deposit_ids = @all_deposits.map(&:id)
     @bank_review_transactions = if all_deposit_ids.any?
       BankStatementTransaction
-        .joins(:deposit_matches)
-        .where(deposit_matches: { till_deposit_id: all_deposit_ids },
-               status: %w[needs_manual_review needs_reverification])
+        .joins(:deposit_matches, :bank_statement)
+        .where(deposit_matches: { till_deposit_id: all_deposit_ids })
+        .where("bank_statement_transactions.status IN (?) OR bank_statements.deleted_at IS NOT NULL",
+               %w[needs_manual_review needs_reverification])
         .distinct
         .includes(:bank_statement, :till_deposits)
         .to_a
     else
       []
+    end
+
+    # Linked-but-unconfirmed figures for the summary, over active deposits:
+    # links on a deleted statement (cleanup) and links needing re-verification
+    # on a live statement. Plus, per deposit, the transaction to open — its
+    # page carries the Unmatch / review actions that match_status
+    # (fully_matched) otherwise hides on this page.
+    active_ids = @all_deposits.reject(&:voided?).map(&:id).to_set
+    attention  = @bank_review_transactions.select(&:link_needs_attention?)
+                                          .select { |t| t.till_deposits.any? { |d| active_ids.include?(d.id) } }
+    stale, reverify = attention.partition { |t| t.bank_statement.deleted? }
+    @bank_stale_count          = stale.size
+    @bank_stale_amount         = stale.sum(&:amount)
+    @bank_reverification_count  = reverify.size
+    @bank_reverification_amount = reverify.sum(&:amount)
+    @bank_attention_by_deposit = attention.each_with_object({}) do |txn, by_deposit|
+      txn.till_deposits.each { |d| by_deposit[d.id] ||= txn if active_ids.include?(d.id) }
     end
 
     @bank_difference = @total_deposited - @bank_imported_sum
@@ -1662,9 +1688,17 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   def build_exceptions
     @exceptions = []
 
+    # One row per transaction, in the most specific category: a deleted
+    # statement first (cleanup), then re-verification, then manual review.
     (@bank_review_transactions || []).each do |txn|
-      type = txn.needs_reverification? ? :bank_needs_reverification : :bank_needs_review
-      @exceptions << { type: type, record: txn, amount: txn.amount, severity: :warning }
+      type, severity = if txn.bank_statement.deleted?
+        [ :bank_stale_link, :danger ]
+      elsif txn.needs_reverification?
+        [ :bank_needs_reverification, :warning ]
+      else
+        [ :bank_needs_review, :warning ]
+      end
+      @exceptions << { type: type, record: txn, amount: txn.amount, severity: severity }
     end
     (@bank_unexpected_transactions || []).each do |txn|
       @exceptions << { type: :bank_unexpected, record: txn, amount: txn.amount, severity: :danger }

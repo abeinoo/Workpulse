@@ -43,6 +43,7 @@ here only so its stable ID and history are kept.
 | BUG-017 | Concurrent voids of a stock issue, transfer or adjustment duplicate its stock reversal | Inventory & Purchasing | High (stock quantity / cost integrity) | Confirmed (two-connection reproduction) | **Resolved** (`6c2a20e`, PR #61; row lock in `Inventory::DocumentVoider#call`) | — |
 | BUG-020 | Admin dashboard shows staff, requests and payroll periods outside the viewer's scope | Reporting (admin dashboard) | **High — critical (unauthorized access, cross-branch)** | Confirmed (request spec on the unchanged code) | **Resolved** (`60d851b`, PR #76; was Escalated) | — |
 | BUG-021 | Deposit Verification "Missing" tab compares statement dates with the UTC date of `deposited_at` | Finance & Sales (deposit verification) | Medium (wrong missing-from-bank list around business midnight) | Confirmed (request reproduction) | Open | Next finance fix |
+| BUG-022 | Deposit Verification has no tab or count for bank lines needing re-verification | Finance & Sales (deposit verification) | Low (visibility; shown elsewhere) | Improvement | Deferred | Next finance fix |
 
 ---
 
@@ -544,4 +545,26 @@ here only so its stable ID and history are kept.
   `business.timezone_object` (as `MatchingEngine#load_deposits` now does).
 * **Regression tests:** a request spec for the Missing tab with a deposit just after local midnight, statements
   covering the local day and the UTC day, at fixed instants either side of business midnight.
+* **Review milestone:** next finance fix.
+
+## BUG-022 — Deposit Verification has no tab or count for bank lines needing re-verification
+
+* **Source:** new (bank-statement deletion / matching review, branch `fix/bank-statement-deletion-releases-matches`).
+  **Discovered:** 2026-10-27. **Status:** Deferred.
+* **Domain / files:** Finance & Sales — `app/controllers/finance/deposit_verifications_controller.rb`
+  (`#load_needs_review_transactions`, `#build_stats`: `needs_manual_review` only).
+* **Observed:** a linked line in `needs_reverification` on an active statement (its deposit changed after matching)
+  appears in no Deposit Verification transaction tab, and the header counts include it only in the imported total.
+* **Expected vs actual:** financial state needing action is surfaced where reviewers work; today these lines surface
+  on the DR page (badge, exception row, "Review bank match"), the statement page (count and status filter) and the
+  deposit's own Deposit Verification badge — not as a Deposit Verification line list or count.
+* **Impact:** visibility only — a reviewer working only from the transaction tabs can miss them; matching, totals and
+  the DR status already treat them as unconfirmed.
+* **Evidence:** Improvement — code review.
+* **Reason for deferral:** kept out of the deletion / matching fix to avoid changing the Needs review tab that bulk
+  ignore also uses.
+* **Recommended fix:** list `needs_reverification` with `needs_manual_review` in the Needs review tab and its count.
+  Keep `BULK_IGNORE_TABS["needs_review"]` at `needs_manual_review` (these lines are linked, so never bulk-ignorable).
+* **Regression tests:** a request spec: the line is listed and counted under Needs review, and its bulk-ignore
+  checkbox stays disabled.
 * **Review milestone:** next finance fix.

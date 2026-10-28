@@ -56,6 +56,15 @@
           <% if @bank_needs_review_count.positive? %>
             <span class="badge badge-warning"><%= t("finance.daily_reconciliations.show.sections.bank.needs_review", count: @bank_needs_review_count) %></span>
           <% end %>
+          <%# Linked but not confirmed — neither matched nor missing, never silent. %>
+          <% if @bank_reverification_count.positive? %>
+            <span class="badge badge-warning"><%= t("finance.daily_reconciliations.show.sections.bank.needs_reverification",
+                                                    count: @bank_reverification_count, amount: format_currency(@bank_reverification_amount)) %></span>
+          <% end %>
+          <% if @bank_stale_count.positive? %>
+            <span class="badge badge-danger"><%= t("finance.daily_reconciliations.show.sections.bank.stale_link",
+                                                   count: @bank_stale_count, amount: format_currency(@bank_stale_amount)) %></span>
+          <% end %>
           <% if @bank_missing_count.positive? %>
             <span class="badge badge-danger"><%= t("finance.daily_reconciliations.show.sections.bank.missing", count: @bank_missing_count) %></span>
           <% end %>
@@ -185,6 +194,15 @@
                   authorization enforced regardless of entry point. Hidden
                   once the deposit is already fully/over matched, since there
                   is nothing left to match. ── %>
+              <%# A link needing re-verification or left on a deleted statement keeps
+                  the deposit "fully matched" (so Manual Match stays hidden); the
+                  transaction's page carries the review / Unmatch actions. %>
+              <% if @can_view_deposit_verification && (attention_txn = @bank_attention_by_deposit&.dig(deposit.id)) %>
+                <%= link_to t("finance.daily_reconciliations.show.sections.bank.review_match_action"),
+                      finance_bank_statement_transaction_path(attention_txn),
+                      class: "btn btn-warning btn-sm" %>
+              <% end %>
+
               <% if deposit.active? && deposit.open_bank_dispute.blank? &&
                     ![ :fully_matched, :over_matched ].include?(deposit.match_status) &&
                     policy(deposit).match? %>

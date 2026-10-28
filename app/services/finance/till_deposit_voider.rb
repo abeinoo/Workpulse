@@ -42,27 +42,35 @@ module Finance
                   .find(@till_deposit_id)
 
       result = nil
-      deposit.daily_reconciliation.with_lock do
-        if deposit.voided?
-          result = Result.new(ok: false, error: I18n.t("till_deposits.errors.already_voided"))
-          next
+      ActiveRecord::Base.transaction do
+        # Lock order, shared by every bank-match path: bank transactions (by
+        # id) first, then the DR / deposit. MatchingEngine holds a statement's
+        # transactions while it locks a deposit; taking the deposit first here
+        # would deadlock with a Rematch of a statement linked to this deposit.
+        lock_linked_transactions!(deposit)
+
+        deposit.daily_reconciliation.with_lock do
+          if deposit.voided?
+            result = Result.new(ok: false, error: I18n.t("till_deposits.errors.already_voided"))
+            next
+          end
+
+          # Row lock on the deposit too: ManualMatcher and MatchingEngine lock it
+          # before linking a transaction, so a concurrent match either commits
+          # first (and is released below) or sees the void and backs off.
+          deposit.lock!
+          release_bank_matches!(deposit)
+
+          deposit.update!(voided_at: Time.current, voided_by: @actor, void_reason: @void_reason)
+
+          log_audit(actor: @actor, auditable: deposit, action: "void",
+                    metadata: { void_reason: @void_reason, amount: deposit.amount.to_s,
+                                 daily_reconciliation_id: deposit.daily_reconciliation_id })
+
+          revert_deposited_state!(deposit.daily_reconciliation)
+
+          result = Result.new(ok: true, deposit: deposit)
         end
-
-        # Row lock on the deposit too: ManualMatcher and MatchingEngine lock it
-        # before linking a transaction, so a concurrent match either commits
-        # first (and is released below) or sees the void and backs off.
-        deposit.lock!
-        release_bank_matches!(deposit)
-
-        deposit.update!(voided_at: Time.current, voided_by: @actor, void_reason: @void_reason)
-
-        log_audit(actor: @actor, auditable: deposit, action: "void",
-                  metadata: { void_reason: @void_reason, amount: deposit.amount.to_s,
-                               daily_reconciliation_id: deposit.daily_reconciliation_id })
-
-        revert_deposited_state!(deposit.daily_reconciliation)
-
-        result = Result.new(ok: true, deposit: deposit)
       end
       result
     rescue ActiveRecord::RecordInvalid => e
@@ -70,6 +78,14 @@ module Finance
     end
 
     private
+
+    # The transactions linked to the deposit when the void starts, locked by
+    # id before anything else (see #call). release_bank_matches! re-reads the
+    # links under the deposit lock, so one added meanwhile is still released.
+    def lock_linked_transactions!(deposit)
+      ids = DepositMatch.where(till_deposit_id: deposit.id).pluck(:bank_statement_transaction_id)
+      BankStatementTransaction.where(id: ids).order(:id).lock.pluck(:id) if ids.any?
+    end
 
     # A voided deposit can no longer back a bank transaction. Each match is
     # released through Unmatcher's shared release step — the transaction is

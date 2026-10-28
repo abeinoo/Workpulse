@@ -204,13 +204,17 @@ class Finance::BankStatementsController < Finance::BaseController
     @statement = find_statement
     authorize @statement
 
-    @statement.soft_destroy!(
+    result = Finance::BankStatements::Deleter.call(
+      @statement.id,
       actor: current_user,
       notes: params[:deletion_notes].presence
     )
-    redirect_to finance_bank_statements_path, notice: t("finance.bank_statements.deleted")
-  rescue ActiveRecord::RecordNotDestroyed => e
-    redirect_to finance_bank_statement_path(@statement), alert: e.message
+
+    if result.ok?
+      redirect_to finance_bank_statements_path, notice: t("finance.bank_statements.deleted")
+    else
+      redirect_to finance_bank_statement_path(@statement), alert: result.error
+    end
   end
 
   private

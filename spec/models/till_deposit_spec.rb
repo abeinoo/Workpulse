@@ -82,5 +82,24 @@ RSpec.describe TillDeposit, type: :model do
       expect(results).to include(unmatched, partial)
       expect(results).not_to include(full)
     end
+
+    # The manual-match modal's composition: there, includes resolves to a JOIN-based
+    # eager load, so every included table's columns enter the SELECT.
+    # A GROUP BY in the scope made PostgreSQL reject that (PG::GroupingError on
+    # daily_reconciliations.id).
+    it "composes with eager-loaded joined tables, once per deposit" do
+      partial = deposit(amount: 11_700)
+      link!(partial, txn(7_000))
+      link!(partial, txn(2_000))
+
+      results = TillDeposit.joins(:daily_reconciliation)
+                           .where(daily_reconciliations: { business_id: partial.daily_reconciliation.business_id })
+                           .not_fully_matched
+                           .eager_load(:payment_method, :deposited_by, daily_reconciliation: :branch)
+                           .order(deposited_at: :desc)
+
+      expect { results.to_a }.not_to raise_error
+      expect(results.to_a.map(&:id)).to eq([ partial.id ])
+    end
   end
 end

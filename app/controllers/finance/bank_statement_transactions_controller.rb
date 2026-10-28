@@ -3,6 +3,10 @@ class Finance::BankStatementTransactionsController < Finance::BaseController
     @transaction       = find_transaction
     authorize @transaction
     @deposit           = @transaction.matched_till_deposit
+    # Historical display: the plain association, not policy_scope(BankStatement)
+    # — a soft-deleted statement stays hidden from navigation but still names
+    # its own lines' origin. The view shows the deletion; the policy blocks
+    # match/ignore on such a line.
     @statement         = @transaction.bank_statement
     @audit_logs        = AuditLog.for_auditable(@transaction).includes(:actor).recent
     @review_candidates = review_candidates if @transaction.needs_manual_review?

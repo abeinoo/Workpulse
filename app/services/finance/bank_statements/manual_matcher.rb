@@ -57,14 +57,29 @@ module Finance
         linked = []
 
         ActiveRecord::Base.transaction do
+          # Lock order, shared by every bank-match path: the transactions (by
+          # id) first, then the deposit — MatchingEngine and TillDepositVoider
+          # take them in the same order, so they serialize instead of
+          # deadlocking. Their statement is read after the lock: a statement
+          # deleted meanwhile has already released its matches and must not
+          # gain a new one.
+          txns = BankStatementTransaction.where(id: txns.map(&:id)).order(:id)
+                                         .lock.includes(:bank_statement).to_a
+
           # Lock the deposit row before checking availability to eliminate the
-          # TOCTOU window between "how much is left?" and "claim it".
+          # TOCTOU window between "how much is left?" and "claim it". Only the
+          # deposit: a plain FOR UPDATE would also lock the joined DR, deposit
+          # first — the reverse of TillDepositVoider (DR, then deposit), a
+          # deadlock. The deposit lock alone serializes with a void, which
+          # locks the deposit before voiding it.
           deposit = TillDeposit
                       .joins(:daily_reconciliation)
                       .where(daily_reconciliations: { business_id: @actor.business.id })
                       .where(voided_at: nil)
-                      .lock
+                      .lock("FOR UPDATE OF till_deposits")
                       .find(@till_deposit_id)
+
+          raise StatementDeletedError if txns.any? { |t| t.bank_statement.deleted? }
 
           already_matched = txns.select(&:matched?)
           if already_matched.any? { |t| t.matched_till_deposit&.id != deposit.id }
@@ -92,12 +107,16 @@ module Finance
         err("already_matched_to_another_deposit")
       rescue OverMatchError
         err("exceeds_deposit_amount")
+      rescue StatementDeletedError
+        err("statement_deleted")
       rescue ActiveRecord::RecordNotFound
         Result.new(ok: false, transaction: nil, transactions: [], error: I18n.t("errors.messages.not_found"))
       rescue ActiveRecord::RecordInvalid => e
         Result.new(ok: false, transaction: nil, transactions: [], error: e.message)
-      rescue ActiveRecord::StatementInvalid
-        # Unique index violation: another request claimed this transaction concurrently.
+      rescue ActiveRecord::RecordNotUnique
+        # Unique index on deposit_matches.bank_statement_transaction_id (the only
+        # unique index this transaction writes to): another request claimed
+        # this transaction concurrently. Any other database error propagates.
         err("already_matched_to_another_deposit")
       end
 
@@ -105,6 +124,7 @@ module Finance
 
       AlreadyMatchedElsewhereError = Class.new(StandardError)
       OverMatchError               = Class.new(StandardError)
+      StatementDeletedError        = Class.new(StandardError)
 
       def link!(txn, deposit, reason:, running_total:)
         was_unmatched = !txn.matched?
