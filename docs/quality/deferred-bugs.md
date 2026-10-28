@@ -24,7 +24,7 @@ here only so its stable ID and history are kept.
 |---|---|---|---|---|---|---|
 | BUG-001 | Laundry branch consumption report shows every branch when no branch is chosen | Inventory & Purchasing (Laundry) | **High — critical (unauthorized access)** | Confirmed | **Resolved** (`3139cf4`, was Escalated) | — |
 | BUG-002 | Concurrent check-outs on one attendance record: last commit wins | Attendance & Payroll | Medium | Confirmed (reasoning) | Deferred | After Pilot 12 |
-| BUG-003 | Audit failures inside a transaction are swallowed | Shared (`AuditLoggable`) | Medium (low likelihood) | Confirmed (real PostgreSQL failure, `audit_loggable_spec.rb`) | In Progress (core fix `7437e29`, local branch; callers not yet migrated) | Fail-closed caller migration |
+| BUG-003 | Audit failures inside a transaction are swallowed | Shared (`AuditLoggable`) | Medium (low likelihood) | Confirmed (real PostgreSQL failure, `audit_loggable_spec.rb`) | In Progress (`7437e29` + caller migration `382caa9`, not merged; 4 owner decisions open) | Owner decisions, then merge |
 | BUG-004 | Manual-entry / CSV attendance check the payroll lock without a row lock | Attendance & Payroll | Low | Suspected | Deferred | After Pilot 12 |
 | BUG-005 | Permission payroll effect reads the open period without a lock | Attendance & Payroll | Low | Suspected | Deferred | After Pilot 12 |
 | BUG-006 | Device punch reuses a soft-deleted attendance record | Attendance & Payroll | Low | Confirmed (pinned) | Open | Behaviour decision (before API punching) |
@@ -95,11 +95,11 @@ here only so its stable ID and history are kept.
 
 ## BUG-003 — Audit failures inside a transaction are swallowed
 
-* **Source:** F-A4 (§29). **Discovered:** 2026-10-20. **Status:** **In Progress** — core fix `7437e29` committed on
-  the local branch `fix/bug-003-audit-savepoint` (not merged); the fail-closed caller migration and the commit-path
-  test below are outstanding, so the bug is not resolved.
-* **Domain / files:** shared — `app/models/concerns/audit_loggable.rb` (`log_audit`, `log_audit!`); its 121 call sites
-  (static scan, 2026-10-28), 80 of them inside a `transaction` / `with_lock` block.
+* **Source:** F-A4 (§29). **Discovered:** 2026-10-20. **Status:** **In Progress** — core fix `7437e29` and the
+  fail-closed caller migration `382caa9` are on `fix/bug-003-audit-savepoint` (not merged). The owner decisions under
+  *Remaining work* are open, so the bug is not resolved.
+* **Domain / files:** shared — `app/models/concerns/audit_loggable.rb` (`log_audit`, `log_audit!`); 123 call sites
+  after `382caa9` (static scan, 2026-10-28): 10 `log_audit!` (two of them conditional) and 113 `log_audit`.
 * **Observed (before `7437e29`):** `log_audit` rescued and logged any exception. A database-level `AuditLog` insert
   failure inside a PostgreSQL transaction aborts it, but the rescue hid that; when the audit was the last statement,
   the COMMIT silently became a ROLLBACK while the service returned success (when SQL followed, it raised instead).
@@ -131,36 +131,71 @@ here only so its stable ID and history are kept.
   * `log_audit` still returns the `AuditLog`, or `nil` on an audit-only failure. New `log_audit!` raises
     `AuditLoggable::AuditWriteFailed` (an `ActiveRecord::ActiveRecordError`; the original error is its `cause`) after
     the same single report, for operations whose audit entry must exist.
-  * **No caller changed.** The services with an explicit `raise … unless logged` (`Finance::DepositorAssigner`,
-    `DepositResponsibilityTransferRequester`, `…Rejecter`) behave as before; `OrganizationAccess::DeleteUser` and the
-    `finance.rake` backfill write `AuditLog.create!` directly and are untouched.
-* **Verification (local, 2026-10-28; CI not yet run on the branch):** the new spec — 17 examples, 0 failures (real
-  foreign-key violation inside and outside a caller transaction, audit as the final statement, later SQL after a
-  failure, one report without values, `log_audit!` cause, lost / unresponsive connection, already-aborted and unusable
-  caller transaction); 770 examples, 0 failures across it, the existing audit-failure specs, the bank-statement
-  services, `TillDepositVoider`, `SessionAmountsEditor`, `DayCloseEditor`, `BankDisputes::CaseUpdater`, the
-  two-connection concurrency specs and `spec/architecture`; RuboCop clean on both files; Brakeman 0 warnings. The
-  full suite was not run.
+  * No caller changed in `7437e29`; the caller migration below is `382caa9`.
+* **Caller migration — `382caa9`** "fix: enforce audit persistence for critical business operations (BUG-003)".
+  Fail-closed (`log_audit!`; a failed audit rolls the operation back and the service returns a failed Result, message
+  `audit_log.errors.write_failed` unless noted) where the audit row is the only record of the change:
+  * `Finance::SessionAmountsEditor`, `Finance::DayCloseEditor` — amounts overwritten in place; the entry holds their
+    previous values.
+  * `Finance::BankStatements::Unmatcher#release!` — the match row is hard-deleted; the entry is the only record of the
+    released deposit. Shared by `Unmatcher`, `Deleter` (nothing released, statement not deleted), `TillDepositVoider`
+    (deposit not voided) and `StaleMatchRepair` (outcome `:failed`; the entry is the repair's evidence).
+  * `BankStatements::Ignorer`, only for a matched line (it deletes the match); the entry now also records
+    `previous_till_deposit_id`. Unmatched lines — and so `BulkIgnorer` — stay fail-open.
+  * `BankDisputes::CaseUpdater` case notes — stored only in the entry (a failure rolls back the whole update call).
+  * `Employee::InsuranceProfileUpdater` updates — contribution amounts overwritten in place; creation stays fail-open.
+  * `Inventory::GoodsReceiptCancelledApprovalNormalizer` — repair evidence; the receipt is reported as failed and
+    left unchanged.
+  * `Finance::DepositorAssigner` and `DepositResponsibilityTransferRequester` / `…Rejecter` — already fail-closed;
+    their `raise … unless logged` became `log_audit!`, same `deposit_transfer_audit_failed` message.
+  * Unchanged and already fail-closed: `OrganizationAccess::DeleteUser` and the `finance.rake` backfill
+    (`AuditLog.create!` directly). Every other call site is fail-open: its change is recorded on its own rows
+    (stamped columns, ledgers, child records) or it is a view audit.
+* **Verification (local, 2026-10-28; CI runs on the pull request):**
+  * `spec/models/concerns/audit_loggable_spec.rb` 17 / 0; `audit_loggable_commit_path_spec.rb` 2 / 0 — the production
+    COMMIT path without the transactional fixture: against the old `log_audit` body its fail-open example fails
+    exactly as in production (the service reports success, the committed row is unchanged).
+  * Caller examples with a real PostgreSQL failure of the audit insert (`spec/support/audit_failure_helpers.rb`, a
+    foreign-key violation): every migrated caller refuses and leaves no partial change; with `log_audit!` made
+    fail-open, 15 of the 19 selected examples fail (the four that pass are the fail-open ones). Fail-open examples:
+    unmatched ignore, bulk ignore with failures on later lines inside the batch transaction, the deposit `void` entry
+    followed by more SQL, a ticket number, a new insurance profile.
+  * Regression run — `spec/models/concerns`, `spec/services/{finance,employee,inventory}`, `spec/requests/finance`,
+    the goods-receipt status, user-deletion and insurance request specs, `spec/characterization/{workforce,
+    inventory_purchasing}`, the advance-payment concurrency spec and `spec/architecture`: 3,169 examples, 1 failure —
+    `spec/characterization/workforce/request_validation_reads_spec.rb:530`, an order-dependent assertion on the
+    recent check-in hint (`Requests::RequestFormReads#recent_check_ins` returns rows "in the order the store returns
+    them"; the spec pins a byte-exact order); it passes 3 / 3 alone and is unrelated to auditing.
+  * One earlier combined run had an unreproduced failure in
+    `spec/services/finance/bank_statements/match_concurrency_spec.rb:392` whose cleanup was skipped, leaving rows that
+    failed later examples; the cause was not captured. The spec passed 13 / 0 in four further runs and the same
+    combined set passed 320 / 0.
+  * RuboCop: no offenses on the 31 changed Ruby files; Brakeman: 0 warnings. The full suite was not run locally.
 * **Risk:** `Rails.error.report` receives the original exception, whose message can include PostgreSQL's DETAIL line
   (row values). No error subscriber is configured in `app/`, `config/`, `lib/` or the `Gemfile` (checked 2026-10-28),
   so today the report reaches nothing beyond the log line; any subscriber added later must scrub messages.
-* **Remaining work:**
-  * Migrate the fail-closed callers to `log_audit!`, each with a service example and a "history could not be recorded"
-    result rescued outside its transaction: `Finance::SessionAmountsEditor`, `Finance::DayCloseEditor`,
-    `Finance::BankStatements::Unmatcher#release!` (shared by `Unmatcher`, `Deleter`, `TillDepositVoider`,
-    `StaleMatchRepair`; match rows are hard-deleted), `BankStatements::Ignorer` when the line was matched,
-    `BankDisputes::CaseUpdater` case notes (stored only in the audit), `Employee::InsuranceProfileUpdater`,
-    `Inventory::GoodsReceiptCancelledApprovalNormalizer`; move the three `logged` checks to `log_audit!`.
-  * A non-transactional example of the production COMMIT path — deferred until a shared cleanup helper for
-    non-transactional specs exists (S12; today the guard is copied into each concurrency spec).
-  * Owner decisions: `Salary::ProfileCorrector` (in-place salary edit, audit records field names only; TD-AP4),
-    `Payroll::ObligationEditor` (amount overwrite outside a transaction), `Finance::OpeningFloatAmountsEditor` (audit
-    holds no values), `Inventory::StockIssueEditor` (reopen clears an approval; line edits); whether the transfer
-    requester / rejecter stay fail-closed; whether view audits (`Payroll::EntryViewAudit`, `Salary::ViewAudit`) must
-    fail closed; whether logs may carry filtered values. The other call sites are fail-open.
-* **Regression tests:** `spec/models/concerns/audit_loggable_spec.rb`; to add: a service example per migrated caller
-  and the commit-path example above.
-* **Review milestone:** the fail-closed caller migration (next BUG-003 commit).
+* **Remaining work — owner decisions** (each caller stays fail-open until decided):
+  * `Salary::ProfileCorrector` — edits salary amounts in place and its entry records changed field names only, so
+    fail-closed would protect no values: record before / after values and fail closed, or make corrections
+    append-only (TD-AP4).
+  * `Payroll::ObligationEditor` — overwrites obligation amounts with before / after values in its entry, but the
+    update, payroll recalculation and audit are not in one transaction, so fail-closed needs that restructuring.
+  * `Finance::OpeningFloatAmountsEditor` — overwrites staged opening-float amounts; its entry holds only a count, no
+    values (no spec covers this service).
+  * `Inventory::StockIssueEditor` — reopening clears an approval decision and line edits overwrite lines; whether that
+    approval and line history must be retained.
+  * Also: whether the transfer requester / rejecter stay fail-closed (their rows record the change); whether view
+    audits (`Payroll::EntryViewAudit`, `Salary::ViewAudit`) must fail closed; whether logs may carry filtered values.
+  * Not BUG-003: a Rematch deletes earlier auto-matches (`DepositVerification::MatchingEngine#reset_rematchable!`) and
+    audits only changed new matches, so a lost earlier match is never audited — to be registered separately.
+* **Regression tests:** `spec/models/concerns/audit_loggable_spec.rb`, `audit_loggable_commit_path_spec.rb`, and the
+  BUG-003 examples in the migrated callers' specs (`spec/services/finance/{session_amounts_editor,day_close_editor,
+  till_deposit_voider,depositor_assigner,deposit_responsibility_transfer_requester,…_rejecter}_spec.rb`,
+  `spec/services/finance/bank_statements/{unmatcher,ignorer,bulk_ignorer,deleter,stale_match_repair}_spec.rb`,
+  `spec/services/finance/bank_disputes/case_updater_spec.rb`,
+  `spec/services/employee/insurance_profile_updater_spec.rb`,
+  `spec/requests/inventory/goods_receipt_status_consistency_spec.rb`).
+* **Review milestone:** the owner decisions above, then resolution after the pull request merges with green CI.
 
 ## BUG-004 — Manual-entry / CSV attendance check the payroll lock without a row lock
 
