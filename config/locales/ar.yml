@@ -6501,6 +6501,7 @@ ar:
               sales_import: "التحقق من معاملات المبيعات"
               pos_import: "استيراد معاملات نقاط البيع"
               bank_statement: "استيراد كشف الحساب البنكي"
+              bank_matching: "مطابقة الإيداعات البنكية"
               documentation: "توثيق المطابقة"
           empty_states:
             waiting_for_deposit: "لا توجد إيداعات بانتظار التسجيل."

@@ -42,11 +42,11 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
   def keys_of(result) = result[:steps].map { |s| s[:key] }
   def current_key(result) = result[:steps].find { |s| !s[:complete] }&.dig(:key)
 
-  it "returns all 7 steps in the fixed order — no separate Deposit Review step" do
+  it "returns all 8 steps in the fixed order — no separate Deposit Review step" do
     dr = make_dr(state: "waiting_for_opening", business_date: Date.yesterday)
 
     expect(keys_of(dr.workflow_progress(no_perms_user))).to eq(
-      %i[opening_float close_handover deposit sales_import pos_import bank_statement documentation]
+      %i[opening_float close_handover deposit sales_import pos_import bank_statement bank_matching documentation]
     )
   end
 
@@ -85,7 +85,7 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
     it "marks every later step incomplete too, even though their own individual conditions might coincidentally hold" do
       result = dr.workflow_progress(no_perms_user)
 
-      expect(result[:steps].map { |s| s[:complete] }).to eq([ false, false, false, false, false, false, false ])
+      expect(result[:steps].map { |s| s[:complete] }).to eq(Array.new(DailyReconciliation::WORKFLOW_STEPS.size, false))
     end
   end
 
@@ -191,7 +191,7 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
   end
 
   # ── Step 5: POS Import ──────────────────────────────────────────────────
-  describe "step 6 — pos_import" do
+  describe "step 5 — pos_import" do
     let(:depositor) { create(:user, business: business) }
     let(:dr) { make_dr(state: "deposited", depositor: depositor) }
 
@@ -223,8 +223,10 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
     end
   end
 
-  # ── Step 6: Bank Statement (import + matching + dispute resolution) ─────
-  describe "step 7 — bank_statement" do
+  def step(result, key) = result[:steps].find { |s| s[:key] == key }
+
+  # ── Step 6: Bank Statement Import ───────────────────────────────────────
+  describe "step 6 — bank_statement (import)" do
     let(:depositor) { create(:user, business: business) }
     let(:dr) { make_dr(state: "deposited", depositor: depositor) }
 
@@ -236,29 +238,78 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
       result = dr.workflow_progress(user, bank_status: "waiting_for_bank_statement", sales_imported: true, pos_imported: true)
 
       expect(current_key(result)).to eq(:bank_statement)
+      expect(step(result, :bank_statement)[:complete]).to be false
       expect(result[:action]).to eq(
         label: "Import Bank Statement", path: new_finance_bank_statement_path, style: "btn btn-primary btn-sm"
       )
     end
 
+    it "is not complete without bank status data (no applicable import)" do
+      result = dr.workflow_progress(no_perms_user, bank_status: nil, sales_imported: true, pos_imported: true)
+
+      expect(step(result, :bank_statement)[:complete]).to be false
+      expect(current_key(result)).to eq(:bank_statement)
+    end
+
+    (DailyReconciliation::BANK_STATUSES_AFTER_IMPORT).each do |status|
+      it "is complete for bank_status=#{status}, even while POS Import is incomplete", :aggregate_failures do
+        result = dr.workflow_progress(no_perms_user, bank_status: status, sales_imported: true, pos_imported: false)
+
+        expect(step(result, :bank_statement)[:complete]).to be true
+        expect(step(result, :pos_import)[:complete]).to be false
+        expect(current_key(result)).to eq(:pos_import)
+      end
+    end
+
+    it "is complete while matching is still pending, and Next Step moves on to matching", :aggregate_failures do
+      result = dr.workflow_progress(no_perms_user, bank_status: "waiting_for_matching", sales_imported: true, pos_imported: true)
+
+      expect(step(result, :bank_statement)[:complete]).to be true
+      expect(step(result, :bank_matching)[:complete]).to be false
+      expect(current_key(result)).to eq(:bank_matching)
+    end
+  end
+
+  # ── Step 7: Bank Matching (matching + dispute resolution) ───────────────
+  describe "step 7 — bank_matching" do
+    let(:depositor) { create(:user, business: business) }
+    let(:dr) { make_dr(state: "deposited", depositor: depositor) }
+
+    before { deposit!(dr, amount: 100, depositor: depositor) }
+
     it "is not reachable until pos_import is complete, even if bank_status is otherwise clean" do
       result = dr.workflow_progress(no_perms_user, bank_status: "completed", sales_imported: true, pos_imported: false)
 
       expect(current_key(result)).to eq(:pos_import)
+      expect(step(result, :bank_matching)[:complete]).to be false
     end
 
-    %w[needs_review waiting_for_matching difference_found partially_matched].each do |status|
-      it "returns the bank_statement action (pointing at matching) for bank_status=#{status}" do
+    it "is never complete while the statement is not imported yet" do
+      result = dr.workflow_progress(no_perms_user, bank_status: "waiting_for_bank_statement", sales_imported: true, pos_imported: true)
+
+      expect(step(result, :bank_matching)[:complete]).to be false
+      expect(current_key(result)).to eq(:bank_statement)
+    end
+
+    DailyReconciliation::BANK_MATCHING_STATUSES.each do |status|
+      it "is the current step with the matching action for bank_status=#{status}" do
         user = user_with("manual_match_deposits", "verify_deposits", "view_deposit_verification")
 
         result = dr.workflow_progress(user, bank_status: status, sales_imported: true, pos_imported: true)
 
-        expect(current_key(result)).to eq(:bank_statement)
+        expect(current_key(result)).to eq(:bank_matching)
         expect(result[:action]).to eq(
-          label: "Import Bank Statement", path: finance_daily_reconciliation_path(dr, anchor: "bank-deposits"),
+          label: "Match Bank Deposits", path: finance_daily_reconciliation_path(dr, anchor: "bank-deposits"),
           style: "btn btn-primary btn-sm"
         )
       end
+    end
+
+    it "returns no matching action for a user who cannot match deposits" do
+      result = dr.workflow_progress(no_perms_user, bank_status: "waiting_for_matching", sales_imported: true, pos_imported: true)
+
+      expect(current_key(result)).to eq(:bank_matching)
+      expect(result[:action]).to be_nil
     end
 
     it "returns a warning-styled action for an open bank dispute even though bank_status is otherwise clean" do
@@ -271,21 +322,113 @@ RSpec.describe DailyReconciliation, "#workflow_progress" do
 
       result = dr.workflow_progress(user, bank_status: "completed", open_disputes: [ dispute ], sales_imported: true, pos_imported: true)
 
-      expect(current_key(result)).to eq(:bank_statement)
+      expect(step(result, :bank_statement)[:complete]).to be true
+      expect(current_key(result)).to eq(:bank_matching)
       expect(result[:action]).to eq(
-        label: "Import Bank Statement", path: finance_daily_reconciliation_path(dr, anchor: "bank-deposits"),
+        label: "Match Bank Deposits", path: finance_daily_reconciliation_path(dr, anchor: "bank-deposits"),
         style: "btn btn-warning btn-sm"
       )
     end
 
-    it "is complete once bank_status is completed and there are no open disputes" do
+    it "is complete once bank_status is completed and there are no open disputes", :aggregate_failures do
       result = dr.workflow_progress(no_perms_user, bank_status: "completed", sales_imported: true, pos_imported: true)
 
-      expect(current_key(result)).not_to eq(:bank_statement)
+      expect(step(result, :bank_statement)[:complete]).to be true
+      expect(step(result, :bank_matching)[:complete]).to be true
+      expect(current_key(result)).to eq(:documentation)
     end
   end
 
-  # ── Step 7: Documentation (Verify) ──────────────────────────────────────
+  # ── Cash-only day (no bank deposit expected) ────────────────────────────
+  describe "cash-only day (no_bank_transactions)" do
+    let(:depositor) { create(:user, business: business) }
+    let(:dr) { make_dr(state: "deposited", depositor: depositor) }
+
+    it "completes both bank steps once POS Import is done, without a matching requirement", :aggregate_failures do
+      result = dr.workflow_progress(no_perms_user, bank_status: "no_bank_transactions", sales_imported: true, pos_imported: true)
+
+      expect(step(result, :bank_statement)[:complete]).to be true
+      expect(step(result, :bank_matching)[:complete]).to be true
+      expect(current_key(result)).to eq(:documentation)
+    end
+
+    it "keeps its previous handling: neither bank step is complete before POS Import", :aggregate_failures do
+      result = dr.workflow_progress(no_perms_user, bank_status: "no_bank_transactions", sales_imported: true, pos_imported: false)
+
+      expect(step(result, :bank_statement)[:complete]).to be false
+      expect(step(result, :bank_matching)[:complete]).to be false
+      expect(current_key(result)).to eq(:pos_import)
+    end
+  end
+
+  # ── Import completion from persisted statements (end to end) ────────────
+  describe "bank statement import derived from persisted statements" do
+    let(:depositor) { create(:user, business: business) }
+    let(:dr) { make_dr(state: "deposited", depositor: depositor) }
+    let(:deposit_day) { Time.current.to_date }
+
+    before do
+      collect_cash!(dr, 100)
+      deposit!(dr, amount: 100, depositor: depositor)
+    end
+
+    def import_step_complete?
+      result = dr.reload.workflow_progress(no_perms_user, bank_status: dr.bank_reconciliation_status,
+                                                          sales_imported: true, pos_imported: false)
+      step(result, :bank_statement)[:complete]
+    end
+
+    it "is not complete before any statement is imported" do
+      expect(import_step_complete?).to be false
+    end
+
+    it "is complete after a successful import covering the deposit for this branch, before POS Import" do
+      create(:bank_statement, business: business, branch: branch,
+                              statement_from: deposit_day - 1, statement_to: deposit_day + 1)
+
+      expect(import_step_complete?).to be true
+    end
+
+    it "is complete for a business-wide statement (no branch) covering the deposit" do
+      create(:bank_statement, business: business, branch: nil,
+                              statement_from: deposit_day - 1, statement_to: deposit_day + 1)
+
+      expect(import_step_complete?).to be true
+    end
+
+    it "is not complete for a statement of another branch" do
+      create(:bank_statement, business: business, branch: create(:branch, business: business),
+                              statement_from: deposit_day - 1, statement_to: deposit_day + 1)
+
+      expect(import_step_complete?).to be false
+    end
+
+    it "is not complete for a statement that does not cover the deposit date" do
+      create(:bank_statement, business: business, branch: branch,
+                              statement_from: deposit_day - 10, statement_to: deposit_day - 2)
+
+      expect(import_step_complete?).to be false
+    end
+
+    it "is not complete for a failed or still-pending import", :aggregate_failures do
+      create(:bank_statement, :failed, business: business, branch: branch,
+                                       statement_from: deposit_day - 1, statement_to: deposit_day + 1)
+      expect(import_step_complete?).to be false
+
+      create(:bank_statement, :pending, business: business, branch: branch,
+                                        statement_from: deposit_day - 1, statement_to: deposit_day + 1)
+      expect(import_step_complete?).to be false
+    end
+
+    it "is not complete for a deleted statement" do
+      create(:bank_statement, business: business, branch: branch, deleted_at: Time.current,
+                              statement_from: deposit_day - 1, statement_to: deposit_day + 1)
+
+      expect(import_step_complete?).to be false
+    end
+  end
+
+  # ── Step 8: Documentation (Verify) ──────────────────────────────────────
   describe "step 8 — documentation" do
     let(:depositor) { create(:user, business: business) }
     let(:dr) { make_dr(state: "deposited", depositor: depositor) }
