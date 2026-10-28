@@ -6446,6 +6446,7 @@ en:
               sales_import: "Verify Sales Transactions"
               pos_import: "Import POS Transactions"
               bank_statement: "Import Bank Statement"
+              bank_matching: "Match Bank Deposits"
               documentation: "Document Reconciliation"
           empty_states:
             waiting_for_deposit: "No deposits waiting."

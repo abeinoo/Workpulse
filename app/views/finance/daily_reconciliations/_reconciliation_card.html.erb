@@ -45,9 +45,9 @@
 
   # Unified "Next Step" — single source of truth is
   # DailyReconciliation#workflow_progress, which replaces the old, separate
-  # next_action_for + required_actions with ONE strictly sequential 8-step
-  # workflow (opening float → close/handover → deposit → deposit review →
-  # sales import → bank statement → POS import → documentation). Only ever
+  # next_action_for + required_actions with ONE sequential 8-step workflow
+  # (opening float → close/handover → deposit → sales import → POS import →
+  # bank statement import → bank matching → documentation). Only ever
   # ONE action button anywhere on the card: the first incomplete step's
   # action, or nil if that step exists but the current user lacks
   # permission for it (never cascades to a lower-priority action — see the

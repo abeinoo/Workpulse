@@ -378,7 +378,16 @@ class DailyReconciliation < ApplicationRecord
   # required_actions — no new authorization logic, only re-sequenced
   # presentation.
   WORKFLOW_STEPS = %i[opening_float close_handover deposit
-                       sales_import pos_import bank_statement documentation].freeze
+                       sales_import pos_import bank_statement bank_matching documentation].freeze
+
+  # bank_reconciliation_status values that #bank_reconciliation_status only
+  # returns AFTER its "a statement was imported" check (an active, completed
+  # statement for this branch covers the deposits, or a deposit is already
+  # matched) — the same check as #bank_statement_imported?. So these alone
+  # prove the Bank Statement Import step is done.
+  BANK_STATUSES_AFTER_IMPORT = %w[needs_review waiting_for_matching difference_found
+                                  partially_matched completed].freeze
+  BANK_MATCHING_STATUSES     = %w[needs_review waiting_for_matching difference_found partially_matched].freeze
 
   # ── Single source of truth for "which stage of the core DR lifecycle is
   # this" — opening float → open (cashier working) → awaiting deposit →
@@ -427,9 +436,16 @@ class DailyReconciliation < ApplicationRecord
     deposit_complete = stage_index >= 3
     sales_complete   = deposit_complete && sales_imported
     pos_complete     = sales_complete && pos_imported
-    bank_complete    = pos_complete &&
+    # Import is done once a statement is imported, independent of POS Import.
+    # A cash-only day has nothing to import; it keeps its previous handling
+    # (done once POS Import is), so it never turns green mid-day.
+    import_complete  = BANK_STATUSES_AFTER_IMPORT.include?(bank_status) ||
+                        (pos_complete && bank_status == "no_bank_transactions")
+    # Unchanged rule of the former single bank step: still sequential, so the
+    # Next Step can never skip pending matching or an open bank dispute.
+    matching_complete = pos_complete && import_complete &&
                         %w[completed no_bank_transactions].include?(bank_status) && open_disputes.empty?
-    doc_complete     = bank_complete && verified?
+    doc_complete     = matching_complete && verified?
 
     steps = [
       { key: :opening_float,  complete: opening_complete },
@@ -437,7 +453,8 @@ class DailyReconciliation < ApplicationRecord
       { key: :deposit,        complete: deposit_complete },
       { key: :sales_import,   complete: sales_complete },
       { key: :pos_import,     complete: pos_complete },
-      { key: :bank_statement, complete: bank_complete },
+      { key: :bank_statement, complete: import_complete },
+      { key: :bank_matching,  complete: matching_complete },
       { key: :documentation,  complete: doc_complete }
     ].map { |s| s.merge(label: label.call(s[:key])) }
 
@@ -489,18 +506,20 @@ class DailyReconciliation < ApplicationRecord
       { label: label.call(:pos_import), path: routes.new_finance_pos_import_path, style: primary_style }
 
     when :bank_statement
-      if bank_status == "waiting_for_bank_statement"
-        return nil unless user.can?(:import_bank_statement)
+      return nil unless bank_status == "waiting_for_bank_statement"
+      return nil unless user.can?(:import_bank_statement)
 
-        { label: label.call(:bank_statement), path: routes.new_finance_bank_statement_path, style: primary_style }
-      elsif %w[needs_review waiting_for_matching difference_found partially_matched].include?(bank_status)
+      { label: label.call(:bank_statement), path: routes.new_finance_bank_statement_path, style: primary_style }
+
+    when :bank_matching
+      if BANK_MATCHING_STATUSES.include?(bank_status)
         return nil unless TillDepositPolicy.new(user, unsaved_till_deposit_for_policy).match?
 
-        { label: label.call(:bank_statement), path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"), style: primary_style }
+        { label: label.call(:bank_matching), path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"), style: primary_style }
       elsif open_disputes.any?
         return nil unless BankDisputePolicy.new(user, open_disputes.first).update_case?
 
-        { label: label.call(:bank_statement), path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"), style: "btn btn-warning btn-sm" }
+        { label: label.call(:bank_matching), path: routes.finance_daily_reconciliation_path(self, anchor: "bank-deposits"), style: "btn btn-warning btn-sm" }
       end
 
     when :documentation
