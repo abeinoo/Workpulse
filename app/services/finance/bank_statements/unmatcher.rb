@@ -45,6 +45,8 @@ module Finance
         Result.new(ok: false, transaction: nil, error: I18n.t("errors.messages.not_found"))
       rescue ActiveRecord::RecordInvalid => e
         Result.new(ok: false, transaction: nil, error: e.message)
+      rescue AuditLoggable::AuditWriteFailed
+        Result.new(ok: false, transaction: nil, error: I18n.t("audit_log.errors.write_failed"))
       end
 
       # The release step itself, shared with Finance::TillDepositVoider (which
@@ -67,7 +69,10 @@ module Finance
         txn.bank_statement.decrement!(:matched_rows)
         txn.bank_statement.increment!(:unmatched_rows)
 
-        log_audit(
+        # Fail-closed (BUG-003): the match row is hard-deleted above, so this
+        # entry is the only record of which deposit the line was matched to.
+        # AuditWriteFailed rolls back the caller's whole release.
+        log_audit!(
           actor:     @actor,
           auditable: txn,
           action:    action,

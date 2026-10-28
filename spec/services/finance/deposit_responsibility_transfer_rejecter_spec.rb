@@ -41,6 +41,17 @@ RSpec.describe Finance::DepositResponsibilityTransferRejecter, type: :model do
     expect(log.metadata["reason"]).to eq("I'm off tomorrow")
   end
 
+  it "rolls the rejection back when its audit entry cannot be written (BUG-003, fail-closed)" do
+    fail_audit_writes!(:reject)
+
+    result = reject
+
+    expect(result).not_to be_ok
+    expect(result.error).to eq(I18n.t("finance.daily_reconciliations.errors.deposit_transfer_audit_failed"))
+    expect(transfer.reload).to be_pending
+    expect(AuditLog.where(auditable: transfer, action: "reject")).to be_empty
+  end
+
   it "frees the DR for a new transfer request" do
     reject
     expect { DepositResponsibilityTransfer.create!(daily_reconciliation: dr, from_user: from_user, to_user: manager) }

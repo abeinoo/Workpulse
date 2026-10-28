@@ -214,4 +214,27 @@ RSpec.describe Finance::BankStatements::Deleter do
     expect(DepositMatch.joins(:bank_statement_transaction)
                       .where(bank_statement_transactions: { bank_statement_id: st.id }).count).to eq(1)
   end
+
+  # BUG-003: releases are fail-closed (Unmatcher#release!). The first release is
+  # written, the second cannot be audited: everything rolls back, including the
+  # first release and its entry.
+  it "deletes and releases nothing when one release cannot be audited (fail-closed)", :aggregate_failures do
+    st = statement!
+    dep_a, dep_b = deposit!(100), deposit!(200)
+    txn_a, txn_b = line!(st, 100), line!(st, 200)
+    auto_match!(st)
+    expect([ txn_a.reload.matched_till_deposit, txn_b.reload.matched_till_deposit ]).to eq([ dep_a, dep_b ])
+    fail_audit_writes!(:released_by_statement_deletion, skip: 1)
+
+    result = delete!(st)
+
+    expect(result).not_to be_ok
+    expect(result.error).to eq(I18n.t("audit_log.errors.write_failed"))
+    expect(result.released_count).to eq(0)
+    expect(st.reload).not_to be_deleted
+    expect([ txn_a.reload.matched_till_deposit, txn_b.reload.matched_till_deposit ]).to eq([ dep_a, dep_b ])
+    expect(st.matched_rows).to eq(2)
+    expect(release_audits).to be_empty
+    expect(AuditLog.where(auditable: st, action: "bank_statement_deleted")).to be_empty
+  end
 end

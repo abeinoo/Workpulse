@@ -40,9 +40,11 @@ module Finance
                       metadata: { bank_ticket_number: @bank_ticket_number })
           end
 
+          # Fail-closed (BUG-003): a case note is stored only in its audit
+          # entry, so without the entry nothing would be saved.
           if @case_note
-            log_audit(actor: @actor, auditable: dispute, action: "case_note_added",
-                      metadata: { category: @case_note_category, note: @case_note })
+            log_audit!(actor: @actor, auditable: dispute, action: "case_note_added",
+                       metadata: { category: @case_note_category, note: @case_note })
           end
 
           if @photos.any?
@@ -55,6 +57,8 @@ module Finance
         end
       rescue ActiveRecord::RecordInvalid => e
         Result.new(ok: false, dispute: dispute, error: e.record.errors.full_messages.to_sentence)
+      rescue AuditLoggable::AuditWriteFailed
+        Result.new(ok: false, dispute: dispute, error: I18n.t("audit_log.errors.write_failed"))
       end
 
       private

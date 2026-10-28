@@ -71,4 +71,27 @@ RSpec.describe Finance::BankDisputes::CaseUpdater do
     expect(result.ok?).to be false
     expect(AuditLog.where(auditable: dispute, action: "case_note_added")).to be_empty
   end
+
+  # BUG-003: a case note is stored only in its audit entry (fail-closed); the
+  # ticket number lives on the dispute row (fail-open).
+  describe "when an audit entry cannot be written" do
+    it "refuses a case note, and rolls back the rest of the same update" do
+      fail_audit_writes!(:case_note_added)
+
+      result = update(bank_ticket_number: "TCK-7", case_note: "Called the bank", case_note_category: "bank_called_back")
+
+      expect(result.ok?).to be false
+      expect(result.error).to eq(I18n.t("audit_log.errors.write_failed"))
+      expect(dispute.reload.bank_ticket_number).to be_nil
+      expect(AuditLog.where(auditable: dispute)).to be_empty
+    end
+
+    it "still saves a ticket number whose entry cannot be written (fail-open)" do
+      fail_audit_writes!(:bank_ticket_number_added)
+
+      expect(update(bank_ticket_number: "TCK-8").ok?).to be true
+      expect(dispute.reload.bank_ticket_number).to eq("TCK-8")
+      expect(AuditLog.where(auditable: dispute)).to be_empty
+    end
+  end
 end

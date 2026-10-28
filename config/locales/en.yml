@@ -3,6 +3,9 @@ en:
     breadcrumb: "Breadcrumb"
     nav_label: "%{name} sections"
     more: "More"
+  audit_log:
+    errors:
+      write_failed: "The change could not be recorded in the audit history, so it was not saved. Please try again."
   app_name: "WorkPulse"
   app_tagline: "Employee attendance & HR management"
 

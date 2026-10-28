@@ -180,6 +180,14 @@ RSpec.describe Finance::DepositorAssigner, type: :model do
       expect(result.error).to eq(I18n.t("finance.daily_reconciliations.errors.deposit_transfer_audit_failed"))
       expect(session.reload.depositor).to eq(ahmed)
     end
+
+    it "rolls the reassignment back on a real database failure of the audit insert (BUG-003)" do
+      fail_audit_writes!(:assign_depositor)
+      result = transfer(to: mohamed)
+      expect(result.error).to eq(I18n.t("finance.daily_reconciliations.errors.deposit_transfer_audit_failed"))
+      expect(session.reload.depositor).to eq(ahmed)
+      expect(AuditLog.where(action: "assign_depositor")).to be_empty
+    end
   end
 
   describe "concurrent transfers" do

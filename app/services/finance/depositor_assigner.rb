@@ -62,7 +62,7 @@ module Finance
 
         session.update!(depositor: depositor)
 
-        logged = log_audit(
+        log_audit!(
           actor: @actor, auditable: @dr, action: "assign_depositor",
           changes:  { depositor_id: [ previous&.id, depositor.id ] },
           metadata: {
@@ -73,7 +73,6 @@ module Finance
             notes:                   @notes
           }.compact
         )
-        raise ArgumentError, error_text(:deposit_transfer_audit_failed) unless logged
       end
 
       Result.new(ok: true, depositor: depositor, previous_depositor: previous)
@@ -81,6 +80,8 @@ module Finance
       Result.new(ok: false, error: e.message)
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
+    rescue AuditLoggable::AuditWriteFailed
+      Result.new(ok: false, error: error_text(:deposit_transfer_audit_failed))
     end
 
     private

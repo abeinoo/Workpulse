@@ -80,6 +80,11 @@ module Finance
                    error: I18n.t("finance.bank_statements.errors.already_deleted"))
       rescue ActiveRecord::RecordInvalid => e
         Result.new(ok: false, bank_statement: statement, released_count: 0, error: e.message)
+      rescue AuditLoggable::AuditWriteFailed
+        # A match release could not be audited (Unmatcher#release! is
+        # fail-closed): nothing was released and the statement is not deleted.
+        Result.new(ok: false, bank_statement: statement, released_count: 0,
+                   error: I18n.t("audit_log.errors.write_failed"))
       end
 
       AlreadyDeletedError = Class.new(StandardError)

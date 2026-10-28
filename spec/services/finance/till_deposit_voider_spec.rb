@@ -284,5 +284,39 @@ RSpec.describe Finance::TillDepositVoider, type: :model do
       expect(release_audits).to be_empty
       expect(AuditLog.where(auditable: d, action: "void")).to be_empty
     end
+
+    # BUG-003: the match release is fail-closed (its row is hard-deleted, so
+    # the entry is the only record of the link) — the void is refused.
+    it "refuses the void and keeps the match when the release cannot be audited (fail-closed)" do
+      d = deposit(amount: 17_900)
+      t = bank_txn(amount: 17_900)
+      auto_match!
+      fail_audit_writes!(:released_by_deposit_void)
+
+      result = void(d)
+
+      expect(result).not_to be_ok
+      expect(result.error).to eq(I18n.t("audit_log.errors.write_failed"))
+      expect(d.reload).not_to be_voided
+      expect(t.reload.matched_till_deposit).to eq(d)
+      expect(statement.reload.matched_rows).to eq(1)
+      expect(release_audits).to be_empty
+    end
+
+    # The void itself is stamped on the deposit (voided_at / voided_by /
+    # void_reason): its entry is fail-open. SQL still runs after it
+    # (revert_deposited_state!), proving the transaction stays usable.
+    it "voids the deposit and reverts the DR when only the void entry cannot be written (fail-open)" do
+      d = deposit(amount: 17_900)
+      expect(dr.reload).to be_deposited
+      fail_audit_writes!(:void)
+
+      expect(void(d)).to be_ok
+
+      expect(d.reload).to be_voided
+      expect(dr.reload.state).to eq("closed")
+      expect(AuditLog.where(auditable: d, action: "void")).to be_empty
+      expect(AuditLog.where(auditable: dr, action: "deposited_state_reverted").count).to eq(1)
+    end
   end
 end

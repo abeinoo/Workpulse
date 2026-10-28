@@ -213,5 +213,21 @@ RSpec.describe "Goods receipt approval/receiving status consistency", type: :req
 
       expect(Inventory::GoodsReceiptCancelledApprovalNormalizer.candidates).to be_empty
     end
+
+    # BUG-003: the entry is the repair's only evidence (fail-closed): a receipt
+    # whose entry cannot be written is reported as failed and left unchanged.
+    it "apply leaves a receipt unchanged and reports it when its audit entry cannot be written" do
+      fail_audit_writes!(:normalize_cancelled_approval, skip: 1)
+
+      result = Inventory::GoodsReceiptCancelledApprovalNormalizer.new(apply: true).call
+
+      expect(result.updated.size).to eq(1)
+      expect(result.failed.size).to eq(1)
+      failed_receipt, message = result.failed.sole
+      expect(message).to include("could not be written")
+      expect(failed_receipt.reload.approval_status).to be_in(%w[pending_approval draft])
+      expect(AuditLog.where(auditable: failed_receipt, action: "normalize_cancelled_approval")).to be_empty
+      expect(AuditLog.where(action: "normalize_cancelled_approval").count).to eq(1)
+    end
   end
 end

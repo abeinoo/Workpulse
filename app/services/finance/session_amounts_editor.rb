@@ -72,7 +72,9 @@ module Finance
           Finance::TillHandoverCreator.sync_session_amounts!(@dr, handover)
           Finance::EmployeeReconciliationSummarizer.new(@dr).persist!
 
-          log_audit(
+          # Fail-closed (BUG-003): the amounts are overwritten in place, so this
+          # entry is the only record of their previous values.
+          log_audit!(
             actor:     @actor,
             auditable: @dr,
             action:    "edit_session_totals",
@@ -85,6 +87,8 @@ module Finance
       end
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
+    rescue AuditLoggable::AuditWriteFailed
+      Result.new(ok: false, error: I18n.t("audit_log.errors.write_failed"))
     end
   end
 end

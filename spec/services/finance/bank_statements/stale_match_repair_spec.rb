@@ -127,4 +127,17 @@ RSpec.describe Finance::BankStatements::StaleMatchRepair do
     expect(repair.repair!(match_ids: [ match.id ], execute: true).sole.result).to eq(:released)
     expect(match.bank_statement_transaction.reload.status).to eq("unexpected")
   end
+
+  # BUG-003: the release audit is the repair's evidence (fail-closed).
+  it "reports a release that cannot be audited as failed and leaves the match in place" do
+    match = stale_match!(6_100)
+    fail_audit_writes!(:released_by_statement_deletion)
+
+    outcome = repair.repair!(match_ids: [ match.id ], execute: true).sole
+
+    expect(outcome.result).to eq(:failed)
+    expect(outcome.reason).to include("AuditLoggable::AuditWriteFailed")
+    expect(DepositMatch.exists?(match.id)).to be true
+    expect(release_audits).to be_empty
+  end
 end

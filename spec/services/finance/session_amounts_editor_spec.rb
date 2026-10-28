@@ -152,4 +152,20 @@ RSpec.describe Finance::SessionAmountsEditor, type: :model do
       end
     end
   end
+
+  # BUG-003: the amounts are overwritten in place, so the audit entry is the
+  # only record of their previous values — no entry, no edit.
+  describe "when the audit entry cannot be written (fail-closed)" do
+    it "refuses the edit and leaves the handover, session amounts and summary unchanged" do
+      fail_audit_writes!(:edit_session_totals)
+
+      result = edit
+
+      expect(result.ok?).to be false
+      expect(result.error).to eq(I18n.t("audit_log.errors.write_failed"))
+      expect(cash_amount.reload.collected_amount).to eq(370)
+      expect(dr.session_amounts.find_by(payment_method: cash_pm).collected_amount).to eq(370)
+      expect(AuditLog.where(auditable: dr)).to be_empty
+    end
+  end
 end
