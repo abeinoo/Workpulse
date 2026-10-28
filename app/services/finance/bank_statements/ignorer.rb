@@ -12,14 +12,16 @@ module Finance
         def ok? = ok
       end
 
-      def self.call(transaction_id, actor:, reason: nil)
-        new(transaction_id, actor: actor, reason: reason).call
+      # metadata: extra audit context from a caller (e.g. BulkIgnorer's batch tag).
+      def self.call(transaction_id, actor:, reason: nil, metadata: {})
+        new(transaction_id, actor: actor, reason: reason, metadata: metadata).call
       end
 
-      def initialize(transaction_id, actor:, reason: nil)
+      def initialize(transaction_id, actor:, reason: nil, metadata: {})
         @transaction_id = transaction_id
         @actor          = actor
         @reason         = reason
+        @metadata       = metadata
       end
 
       def call
@@ -52,7 +54,7 @@ module Finance
             actor:     @actor,
             auditable: txn,
             action:    :ignored,
-            metadata:  { reason: @reason, was_matched: was_matched }
+            metadata:  { reason: @reason, was_matched: was_matched, **@metadata }
           )
         end
 

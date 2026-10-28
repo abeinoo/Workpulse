@@ -115,9 +115,15 @@
           deposits: @deposits,
           empty_key: "finance.deposit_verifications.empty.ignored" %>
   <% when "unexpected", "needs_review", "mismatches" %>
-    <%= render "finance/deposit_verifications/transactions_table",
-          transactions: @transactions,
-          empty_key: "finance.deposit_verifications.empty.#{@active_tab}" %>
+    <% if @bulk_ignore_eligible_ids %>
+      <%= render "finance/deposit_verifications/bulk_ignore",
+            transactions: @transactions,
+            empty_key: "finance.deposit_verifications.empty.#{@active_tab}" %>
+    <% else %>
+      <%= render "finance/deposit_verifications/transactions_table",
+            transactions: @transactions,
+            empty_key: "finance.deposit_verifications.empty.#{@active_tab}" %>
+    <% end %>
   <% else %>
     <%= render "finance/deposit_verifications/deposits_table",
           deposits: @deposits,

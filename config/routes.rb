@@ -590,10 +590,15 @@ Rails.application.routes.draw do
         patch :match
         patch :unmatch
         patch :ignore
+        patch :unignore
       end
     end
 
-    resources :deposit_verifications, only: %i[index]
+    resources :deposit_verifications, only: %i[index] do
+      collection do
+        post :bulk_ignore
+      end
+    end
   end
 
   # ── Laundry Operations ─────────────────────────────────────────────────────

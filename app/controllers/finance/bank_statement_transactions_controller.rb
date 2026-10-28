@@ -76,6 +76,25 @@ class Finance::BankStatementTransactionsController < Finance::BaseController
     end
   end
 
+  def unignore
+    @transaction = find_transaction
+    authorize @transaction, :unignore?
+
+    result = Finance::BankStatements::Unignorer.call(
+      @transaction.id,
+      actor:  current_user,
+      reason: params[:unignore_reason]
+    )
+
+    if result.ok?
+      redirect_to finance_bank_statement_transaction_path(@transaction),
+                  notice: t("finance.bank_statement_transactions.unignored")
+    else
+      redirect_to finance_bank_statement_transaction_path(@transaction),
+                  alert: result.error
+    end
+  end
+
   private
 
   def find_transaction
