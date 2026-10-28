@@ -32,12 +32,13 @@ module Employee
       ActiveRecord::Base.transaction do
         profile.save!
 
-        log_audit(
-          actor:     @actor,
-          auditable: profile,
-          action:    was_new ? "insurance_profile_created" : "insurance_profile_updated",
-          changes:   { before: before, after: profile.attributes.slice(*before.keys) }
-        )
+        # An update overwrites contribution amounts in place, so its entry is
+        # the only record of the previous values: fail-closed (BUG-003). A new
+        # profile records its own creator: fail-open.
+        audit = { actor: @actor, auditable: profile,
+                  action:  was_new ? "insurance_profile_created" : "insurance_profile_updated",
+                  changes: { before: before, after: profile.attributes.slice(*before.keys) } }
+        was_new ? log_audit(**audit) : log_audit!(**audit)
       end
 
       recalculate_open_periods(user)
@@ -47,6 +48,8 @@ module Employee
       Result.new(ok: false, profile: e.record, error: e.record.errors.full_messages.join(", "))
     rescue ActiveRecord::RecordNotFound => e
       Result.new(ok: false, error: e.message)
+    rescue AuditLoggable::AuditWriteFailed
+      Result.new(ok: false, profile: profile, error: I18n.t("audit_log.errors.write_failed"))
     end
 
     private

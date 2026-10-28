@@ -133,4 +133,23 @@ RSpec.describe Finance::BankStatements::BulkIgnorer do
     expect([ a.reload.status, b.reload.status ]).to eq(%w[unexpected unexpected])
     expect(AuditLog.where(action: "ignored")).to be_empty
   end
+
+  # BUG-003: each line goes through Ignorer; bulk-eligible lines are unmatched,
+  # so their entries are fail-open. A failed entry inside the batch transaction
+  # (middle and last line) neither aborts the batch nor reports a false
+  # success: every line is ignored, and only the first line's entry exists.
+  it "ignores the whole batch when some audit entries cannot be written (fail-open)", :aggregate_failures do
+    lines = [ line!(10), line!(20), line!(30) ]
+    counters!
+    fail_audit_writes!(:ignored, skip: 1)
+
+    result = run(lines.map(&:id))
+
+    expect(result).to be_ok
+    expect(result.ignored_count).to eq(3)
+    expect(lines.map { |line| line.reload.status }.uniq).to eq([ "ignored" ])
+    expect(statement.reload.unmatched_rows).to eq(0)
+    audited = AuditLog.where(auditable_type: "BankStatementTransaction", auditable_id: lines.map(&:id), action: "ignored")
+    expect(audited.pluck(:auditable_id)).to eq([ lines.first.id ])
+  end
 end

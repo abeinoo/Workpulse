@@ -136,4 +136,19 @@ RSpec.describe Finance::DayCloseEditor, type: :model do
       end
     end
   end
+
+  # BUG-003: the amounts are overwritten in place, so the audit entry is the
+  # only record of their previous values — no entry, no edit.
+  describe "when the audit entry cannot be written (fail-closed)" do
+    it "refuses the edit and leaves the day-close amounts unchanged" do
+      fail_audit_writes!(:edit_day_close_amounts)
+
+      result = edit
+
+      expect(result.ok?).to be false
+      expect(result.error).to eq(I18n.t("audit_log.errors.write_failed"))
+      expect(cash_amount.reload.collected_amount).to eq(7_225)
+      expect(AuditLog.where(auditable: closing_handover)).to be_empty
+    end
+  end
 end

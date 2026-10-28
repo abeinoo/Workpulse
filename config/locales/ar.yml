@@ -3,6 +3,9 @@ ar:
     breadcrumb: "مسار التنقل"
     nav_label: "أقسام %{name}"
     more: "المزيد"
+  audit_log:
+    errors:
+      write_failed: "تعذّر تسجيل التغيير في سجل التدقيق، لذلك لم يتم حفظه. يرجى المحاولة مرة أخرى."
   app_name: "ووركبلس"
   app_tagline: "إدارة الحضور والموارد البشرية"
 

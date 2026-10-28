@@ -160,4 +160,25 @@ RSpec.describe Finance::BankStatements::Unmatcher do
         .to eq(%w[auto_matched manual_unmatch auto_matched])
     end
   end
+
+  # BUG-003: the match row is hard-deleted on release, so the audit entry is the
+  # only record of which deposit the line was matched to.
+  describe "when the release cannot be audited (fail-closed)" do
+    it "refuses the unmatch and keeps the match, the status and the counters" do
+      dep = deposit
+      transaction = txn
+      link!(dep, transaction)
+      statement.update_columns(matched_rows: 1, unmatched_rows: 0)
+      fail_audit_writes!(:manual_unmatch)
+
+      result = described_class.call(transaction.id, actor: actor, notes: "wrong deposit")
+
+      expect(result).not_to be_ok
+      expect(result.error).to eq(I18n.t("audit_log.errors.write_failed"))
+      expect(transaction.reload.matched_till_deposit).to eq(dep)
+      expect(transaction.status).to eq("verified")
+      expect([ statement.reload.matched_rows, statement.unmatched_rows ]).to eq([ 1, 0 ])
+      expect(AuditLog.where(auditable: transaction)).to be_empty
+    end
+  end
 end

@@ -41,10 +41,9 @@ module Finance
 
         @transfer.update!(rejected_at: Time.current, rejected_by: @actor, rejection_reason: @reason)
 
-        logged = log_audit(actor: @actor, auditable: @transfer, action: "reject",
-                           metadata: { daily_reconciliation_id: @transfer.daily_reconciliation_id,
-                                       reason:                  @reason })
-        raise ArgumentError, I18n.t("finance.daily_reconciliations.errors.deposit_transfer_audit_failed") unless logged
+        log_audit!(actor: @actor, auditable: @transfer, action: "reject",
+                   metadata: { daily_reconciliation_id: @transfer.daily_reconciliation_id,
+                               reason:                  @reason })
       end
 
       Result.new(ok: true)
@@ -52,6 +51,8 @@ module Finance
       Result.new(ok: false, error: e.message)
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
+    rescue AuditLoggable::AuditWriteFailed
+      Result.new(ok: false, error: I18n.t("finance.daily_reconciliations.errors.deposit_transfer_audit_failed"))
     end
 
     private

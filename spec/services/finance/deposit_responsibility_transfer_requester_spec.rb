@@ -130,5 +130,11 @@ RSpec.describe Finance::DepositResponsibilityTransferRequester, type: :model do
       expect(request_transfer(to: mohamed).error).to eq(err(:deposit_transfer_audit_failed))
       expect(DepositResponsibilityTransfer.count).to eq(0)
     end
+
+    it "rolls back on a real database failure of the audit insert (BUG-003)" do
+      fail_audit_writes!(:request)
+      expect(request_transfer(to: mohamed).error).to eq(err(:deposit_transfer_audit_failed))
+      expect(DepositResponsibilityTransfer.count).to eq(0)
+    end
   end
 end

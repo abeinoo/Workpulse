@@ -55,10 +55,13 @@ module Inventory
         # update_columns: a historical receipt may no longer satisfy validations
         # added after it was voided (e.g. invoices); only the approval status moves.
         receipt.update_columns(approval_status: "cancelled", updated_at: Time.current)
-        log_audit(actor: @actor || receipt.voided_by || receipt.business.owner, auditable: receipt, action: "normalize_cancelled_approval",
-                  changes: { approval_status: [ from, "cancelled" ] },
-                  metadata: { reason: "voided receipt left in an undecided approval state",
-                              voided_at: receipt.voided_at&.iso8601 })
+        # Fail-closed (BUG-003): this entry is the repair's only evidence and
+        # the only record of the previous approval status; #call reports the
+        # receipt as failed and leaves it unchanged.
+        log_audit!(actor: @actor || receipt.voided_by || receipt.business.owner, auditable: receipt, action: "normalize_cancelled_approval",
+                   changes: { approval_status: [ from, "cancelled" ] },
+                   metadata: { reason: "voided receipt left in an undecided approval state",
+                               voided_at: receipt.voided_at&.iso8601 })
       end
     end
   end

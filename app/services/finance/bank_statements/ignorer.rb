@@ -34,6 +34,7 @@ module Finance
         ActiveRecord::Base.transaction do
           was_matched   = txn.matched?
           was_unmatched = !txn.matched?
+          previous_deposit_id = txn.matched_till_deposit&.id if was_matched
 
           txn.deposit_matches.destroy_all if was_matched
 
@@ -50,12 +51,13 @@ module Finance
             txn.bank_statement.decrement!(:unmatched_rows)
           end
 
-          log_audit(
-            actor:     @actor,
-            auditable: txn,
-            action:    :ignored,
-            metadata:  { reason: @reason, was_matched: was_matched, **@metadata }
-          )
+          # Ignoring a matched line deletes its match row, so then the entry is
+          # the only record of the released deposit: fail-closed (BUG-003).
+          # An unmatched line keeps its reason on the row: fail-open.
+          metadata = { reason: @reason, was_matched: was_matched, **@metadata }
+          metadata[:previous_till_deposit_id] = previous_deposit_id if was_matched
+          audit = { actor: @actor, auditable: txn, action: :ignored, metadata: metadata }
+          was_matched ? log_audit!(**audit) : log_audit(**audit)
         end
 
         Result.new(ok: true, transaction: txn, error: nil)
@@ -63,6 +65,8 @@ module Finance
         Result.new(ok: false, transaction: nil, error: I18n.t("errors.messages.not_found"))
       rescue ActiveRecord::RecordInvalid => e
         Result.new(ok: false, transaction: nil, error: e.message)
+      rescue AuditLoggable::AuditWriteFailed
+        Result.new(ok: false, transaction: nil, error: I18n.t("audit_log.errors.write_failed"))
       end
 
       private

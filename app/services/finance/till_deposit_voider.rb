@@ -75,6 +75,10 @@ module Finance
       result
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
+    rescue AuditLoggable::AuditWriteFailed
+      # A bank-match release could not be audited (Unmatcher#release! is
+      # fail-closed): the deposit is not voided.
+      Result.new(ok: false, error: I18n.t("audit_log.errors.write_failed"))
     end
 
     private
