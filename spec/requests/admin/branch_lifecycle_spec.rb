@@ -34,6 +34,36 @@ RSpec.describe "Admin branch lifecycle (BUG-026)", type: :request do
       expect(branch.reload).to be_active
     end
 
+    context "with staff assignments at the branch" do
+      let(:business_day) { BusinessDay.current(context: business) }
+      let(:shift)        { create(:shift, :fixed_time, business: business) }
+
+      it "refuses while an assignment is still in effect and explains what to do" do
+        assignment = create(:shift_assignment, user: employee, shift: shift, branch: branch,
+                                               effective_from: business_day - 10)
+
+        patch deactivate_admin_branch_path(branch), params: { reason: "Closed" }
+
+        expect(response).to redirect_to(admin_branch_path(branch))
+        expect(flash[:alert]).to eq(I18n.t("admin.branches.lifecycle.errors.active_assignments"))
+        expect(flash[:notice]).to be_nil
+        expect(branch.reload).to be_active
+        expect(assignment.reload).to have_attributes(branch_id: branch.id, effective_to: nil)
+        expect(audits_for(branch, "deactivate")).to be_empty
+      end
+
+      it "deactivates when only ended assignments remain, keeping them" do
+        assignment = create(:shift_assignment, user: employee, shift: shift, branch: branch,
+                                               effective_from: business_day - 40, effective_to: business_day - 1)
+
+        patch deactivate_admin_branch_path(branch), params: { reason: "Closed" }
+
+        expect(flash[:notice]).to eq(I18n.t("flash.branch_deactivated"))
+        expect(branch.reload).not_to be_active
+        expect(assignment.reload.branch_id).to eq(branch.id)
+      end
+    end
+
     it "refuses the last active branch without a success message or audit entry" do
       main_branch.update_column(:active, false)
 

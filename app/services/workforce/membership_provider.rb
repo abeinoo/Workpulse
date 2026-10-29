@@ -14,5 +14,9 @@ module Workforce
     def current_member_ids(branch_ids)
       BranchMembership.current_member_ids(branch_ids)
     end
+
+    def effective_assignments_at?(branch_id, on:)
+      BranchMembership.effective_assignments_at?(branch_id, on: on)
+    end
   end
 end

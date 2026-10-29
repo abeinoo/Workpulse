@@ -2389,6 +2389,7 @@ en:
         errors:
           reason_required: "Enter a reason."
           last_active_branch: "This is the business's last active branch. Activate or create another branch first."
+          active_assignments: "Staff are still assigned to this branch (current or upcoming shift assignments). End or move those assignments first, then deactivate the branch."
           has_history: "This branch has history (attendance, payroll, shifts, cash or financial records), so it cannot be permanently deleted. Deactivate it instead."
           already_inactive: "This branch is already inactive."
           already_active: "This branch is already active."

@@ -117,6 +117,47 @@ RSpec.describe OrganizationAccess::MembershipProvider do
     end
   end
 
+  # BUG-026 Decision 1: branch deactivation asks whether staff assignments are
+  # still in effect at the branch on a given business day.
+  describe "effective_assignments_at?" do
+    let(:day) { Date.new(2026, 10, 15) }
+
+    it "counts current and upcoming assignments, including one ending that day" do
+      assign(employee, branch_a, from: day - 30)
+      expect(described_class.effective_assignments_at?(branch_a.id, on: day)).to be(true)
+
+      ending = create(:user, business: business)
+      assign(ending, branch_b, from: day - 30, to: day)
+      expect(described_class.effective_assignments_at?(branch_b.id, on: day)).to be(true)
+
+      third = create(:branch, business: business)
+      assign(create(:user, business: business), third, from: day + 5)
+      expect(described_class.effective_assignments_at?(third.id, on: day)).to be(true)
+    end
+
+    it "ignores ended assignments and other branches' assignments" do
+      assign(employee, branch_a, from: day - 60, to: day - 1)
+      assign(create(:user, business: business), branch_b, from: day - 30)
+
+      expect(described_class.effective_assignments_at?(branch_a.id, on: day)).to be(false)
+    end
+
+    it "decides on the day it is given, not the calendar day" do
+      assign(employee, branch_a, from: day - 60, to: day - 1)
+
+      expect(described_class.effective_assignments_at?(branch_a.id, on: day - 1)).to be(true)
+      expect(described_class.effective_assignments_at?(branch_a.id, on: day)).to be(false)
+    end
+
+    it "dispatches to the registered provider with the branch and day unchanged" do
+      provider = double("provider", current_branch_ids: [], current_member_ids: nil, effective_assignments_at?: :answer)
+      with_provider(provider) do
+        expect(described_class.effective_assignments_at?(7, on: day)).to eq(:answer)
+      end
+      expect(provider).to have_received(:effective_assignments_at?).with(7, on: day)
+    end
+  end
+
   it "keeps the Organization & Access contract free of Workforce names" do
     source = File.read(Rails.root.join("app/services/organization_access/membership_provider.rb"))
     code   = source.each_line.reject { |line| line.lstrip.start_with?("#") }.join

@@ -27,10 +27,14 @@ RSpec.describe "Branch lifecycle services (BUG-026)" do
     action ? scope.where(action: action) : scope
   end
 
+  def business_day = BusinessDay.current(context: business)
+
   # Attendance + raw punch + legacy branch-linked payroll + an expense + the
-  # shift assignment the attendance factory creates at the branch.
+  # shift assignment the attendance factory creates at the branch — ended
+  # before today's business day, so it is history.
   def with_history
     record = create(:attendance_record, :checked_out, business: business, user: employee, branch: branch)
+    record.shift_assignment.update_column(:effective_to, business_day - 1)
     punch  = create(:biometric_punch_log, business: business, employee: employee, attendance_record: record)
     period = create(:payroll_period, :finalized, business: business, branch: branch)
     entry  = create(:payroll_entry, payroll_period: period, user: employee)
@@ -83,6 +87,64 @@ RSpec.describe "Branch lifecycle services (BUG-026)" do
       expect(result.error).to eq(:last_active_branch)
       expect(branch.reload).to be_active
       expect(branch_audits).to be_empty
+    end
+
+    describe "staff assignments still in effect (Decision 1)" do
+      let(:shift) { create(:shift, :fixed_time, business: business) }
+
+      def assign(from:, to: nil)
+        create(:shift_assignment, user: create(:user, business: business), shift: shift, branch: branch,
+                                  effective_from: from, effective_to: to)
+      end
+
+      shared_examples "refused while staff are assigned" do
+        it "refuses, leaves the branch active and the assignment untouched, and writes no audit entry" do
+          before_state = assignment.reload.attributes
+
+          result = deactivate
+
+          expect(result.error).to eq(:active_assignments)
+          expect(branch.reload).to be_active
+          expect(assignment.reload.attributes).to eq(before_state)
+          expect(branch_audits).to be_empty
+        end
+      end
+
+      context "with a current open-ended assignment" do
+        let!(:assignment) { assign(from: business_day - 30) }
+
+        it_behaves_like "refused while staff are assigned"
+      end
+
+      context "with an assignment ending today (still in effect)" do
+        let!(:assignment) { assign(from: business_day - 30, to: business_day) }
+
+        it_behaves_like "refused while staff are assigned"
+      end
+
+      context "with an upcoming assignment" do
+        let!(:assignment) { assign(from: business_day + 7) }
+
+        it_behaves_like "refused while staff are assigned"
+      end
+
+      context "with only ended assignments" do
+        let!(:assignment) { assign(from: business_day - 60, to: business_day - 1) }
+
+        it "deactivates and keeps the ended assignment and its branch" do
+          expect(deactivate).to be_ok
+          expect(branch.reload).not_to be_active
+          expect(assignment.reload).to have_attributes(branch_id: branch.id, effective_to: business_day - 1)
+          expect(branch_audits("deactivate").count).to eq(1)
+        end
+      end
+
+      it "is not blocked by another branch's current assignments" do
+        create(:shift_assignment, user: create(:user, business: business), shift: shift, branch: other_active_branch,
+                                  effective_from: business_day - 30)
+
+        expect(deactivate).to be_ok
+      end
     end
 
     it "refuses an already inactive branch without a second audit entry" do

@@ -188,7 +188,8 @@ RSpec.describe "Architecture: Organization & Access ↔ Workforce membership bou
 
   it "the Workforce implementation stays a delegation to the Workforce membership owner" do
     code = boundary.code_lines("app/services/workforce/membership_provider.rb").map(&:first).join
-    expect(code).to include("BranchMembership.current_branch_ids(user)", "BranchMembership.current_member_ids(branch_ids)")
+    expect(code).to include("BranchMembership.current_branch_ids(user)", "BranchMembership.current_member_ids(branch_ids)",
+                            "BranchMembership.effective_assignments_at?(branch_id, on: on)")
     expect(code).not_to match(/\bEmployeeScope\b|\bBranchScope\b|OrganizationAccess::MembershipProvider/)
   end
 
