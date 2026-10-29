@@ -5532,6 +5532,7 @@ en:
           shift_not_in_business: "The selected shift does not belong to your business."
           branch_not_in_business: "The selected branch does not belong to your business."
           branch_inactive: "The selected branch is inactive and takes no new assignments."
+          branch_inactive_reopen: "This assignment's branch is inactive: the assignment cannot be reopened or extended. It can still be ended or shortened."
           shift_rule_profile_not_in_business: "The selected shift rule profile does not belong to your business."
           coverage_branch_not_allowed: "Choose a coverage branch other than your own branch."
           employee_not_available_for_assignment:

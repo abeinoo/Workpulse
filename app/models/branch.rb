@@ -77,6 +77,18 @@ class Branch < ApplicationRecord
   # explicit support before participating in any laundry workflow.
   scope :laundry_transfer_eligible, -> { where(branch_type: %w[sales laundry]) }
 
+  # Whether the branch is active, read under a shared row lock (FOR SHARE) held
+  # until the caller's transaction ends (BUG-026). It conflicts with the
+  # FOR UPDATE lock OrganizationAccess::DeactivateBranch takes on the branch, so
+  # a write that depends on the branch being active serializes with a
+  # deactivation: started during one, it waits and then reads the committed
+  # result; started first, the deactivation waits for it and then sees the row
+  # it wrote. Shared locks do not block each other. Call it inside the
+  # transaction that performs the dependent write.
+  def self.active_under_share_lock?(id)
+    where(id: id).lock("FOR SHARE").pick(:active) == true
+  end
+
   private
 
   def managers_in_same_business

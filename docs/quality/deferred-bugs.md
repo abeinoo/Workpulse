@@ -50,6 +50,7 @@ here only so its stable ID and history are kept.
 | BUG-026 | Deleting a branch hard-deletes its attendance, device punches and legacy payroll periods | Organization & Access (branches) | **High — critical (irreversible data loss)** | Confirmed (characterization spec) | **In Progress** (adopted lifecycle committed on `fix/inventory-isolation-branch-lifecycle`, `bc47ad7` + `b82c6b8`; tests and full suite run; not reviewed, not merged — **Escalated**) | Review and merge |
 | BUG-027 | Remaining models take business-owned foreign keys without a same-business guard | Cross-domain (≈33 models) | Medium (tenant isolation, per path) | Suspected (static inventory; inventory paths fixed under BUG-025) | Open | Before multi-business use |
 | BUG-028 | `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change | Test suite (sign-up) | Low (local runs in a DST time zone, a few days a year) | Confirmed (reproduced 2026-10-29; time-travel arithmetic shown) | Open | Next test-suite fix |
+| BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by code reading (2026-10-29), not reproduced by spec | Open (in-flight policy decision needed) | Follow-up to BUG-026 |
 
 ---
 
@@ -830,6 +831,27 @@ here only so its stable ID and history are kept.
   * Active-assignment rule (follow-up commit): `DeactivateBranch` refuses with `:active_assignments` when
     `OrganizationAccess::MembershipProvider.effective_assignments_at?(branch.id, on: business day)` is true — a new
     read-only operation of the existing membership contract, implemented by Workforce (`BranchMembership`).
+  * Assignment race and reopening (follow-up commit, ledger `next-pilot-selection.md` §50.4):
+    * **Race (reproduced):** `ShiftAssignment#branch_active` read `branches.active` without a lock. A request whose
+      validation ran while a deactivation held the branch lock read the last committed value (`true`); its INSERT
+      then waited only on the foreign key's `FOR KEY SHARE` lock and went ahead once the deactivation committed — an
+      assignment in effect at an inactive branch. Reproduced with two connections (deactivation paused after its
+      check, `Shifts::Assigner` on the second connection: deactivation ok, assignment created). An INSERT that ran
+      before the deactivation locked the branch was already safe (its `FOR KEY SHARE` lock made the deactivation wait
+      and then see the row); the gap was a validation before the deactivation committed and an INSERT after it
+      locked the branch.
+    * **Fix:** `Branch.active_under_share_lock?(id)` reads `active` with `FOR SHARE`; `ShiftAssignment#branch_active`
+      uses it. Validations run inside `save`'s transaction (`ActiveRecord::Transactions#save` wraps validation and
+      write), so the shared lock is held through the INSERT / UPDATE and its commit. It conflicts with the
+      `FOR UPDATE` lock `DeactivateBranch` takes on the branch: an assignment started during a deactivation waits and
+      then reads `false`; a deactivation started during an assignment waits and then sees the committed row (its
+      `EXISTS` check is a new statement under READ COMMITTED). Shared locks do not block each other, so assignments
+      at one branch still run in parallel. No schema change, no new dependency.
+    * **Reopening gap (code reading, now covered):** the guard ran only when `branch_id` changed, so the edit form
+      and the API (`effective_to` is editable) could clear or move an end date and bring an assignment at an inactive
+      branch back into effect. The guard now also runs when an end date is cleared, or moved later to a date on or
+      after the current business day (`branch_inactive_reopen`, EN + AR). Ending, shortening, and correcting an end
+      date that stays in the past are still allowed; no assignment is ended, moved or rewritten automatically.
 * **Verification (2026-10-29, seed 20261006 unless noted):** the lifecycle, request, schema and regression specs
   59 / 0; the two-connection concurrency spec 2 / 0 (seeds 20261006 and 12345), and it fails when the business-row
   lock is removed (checked by hand, then restored); `spec/architecture` 420 / 0; first full-suite run 10 398
@@ -841,12 +863,14 @@ here only so its stable ID and history are kept.
   concurrency 2 / 0; `spec/architecture` 420 / 0; BUG-025 tenant-isolation regression (web + API security, IP-1
   specs, inventory requests / services / models) 1841 / 0; full suite 10 410 examples, 1 failure —
   `registrations_spec.rb:141` (BUG-028, unrelated). RuboCop clean on changed files; `git diff --check` clean.
-* **Follow-ups (not done here):** server-side inactive-branch checks for the other entry points that accept any
-  branch of the business — towel transfers and adjustments (`Laundry::TowelTransfersController`,
-  `Laundry::TowelAdjustmentsController`) and the stock-issue import branch (`StockIssuesController#load_import_context`)
-  — their pickers already list active branches only; a shift assignment created concurrently with a deactivation
-  is not serialized against it (the assignment checks `branch.active` without a lock — a narrow race, not
-  reproduced); production data was not checked for branches already deleted with their history.
+  After the race and reopening fix: the two-connection spec 4 / 0 — both new orderings (deactivation first,
+  assignment first) fail against the previous models (no backend waits on the branch lock) and pass with the fix;
+  the five new reopen / extend examples (model, web, API) fail against the previous models; lifecycle, assignment
+  model and request, shift templates, template applier / previewer / conflict detector, `spec/services/shifts`, API
+  assigner and OA characterization 706 / 0; `spec/architecture` 420 / 0; full suite 10 422 examples, 1 failure —
+  `registrations_spec.rb:141` (BUG-028, unrelated). RuboCop clean on changed files; `git diff --check` clean.
+* **Follow-ups (not done here):** server-side inactive-branch enforcement for laundry and stock-issue entry points
+  is BUG-029; production data was not checked for branches already deleted with their history.
 * **Review milestone:** review and merge of `fix/inventory-isolation-branch-lifecycle`; mark Resolved only once merged.
 
 ## BUG-027 — Remaining models take business-owned foreign keys without a same-business guard
@@ -889,3 +913,32 @@ here only so its stable ID and history are kept.
 * **Recommended fix:** travel by an absolute duration that does not depend on local calendar days (e.g. from a
   fixed `Time.current` anchor or with `freeze_time` + seconds), as done for BUG-018 / BUG-023.
 * **Review milestone:** next test-suite fix.
+
+## BUG-029 — Laundry and stock-issue entry points accept an inactive branch for new operations
+
+* **Source:** PR #87 review (follow-up to BUG-026), 2026-10-29. **Discovered:** 2026-10-29. **Status:** Open —
+  deliberately kept out of PR #87.
+* **Domain / files:** Laundry — `Laundry::TowelTransfersController#create` / `Laundry::TowelTransferCreator`
+  (create, dispatch, receive, cancel), `Laundry::TowelAdjustmentsController#create` / `Laundry::TowelAdjuster`;
+  Inventory & Purchasing — `Inventory::StockIssuesController#create` (manual stock issue) and
+  `#load_import_context` → `Inventory::Imports::StockIssueImporter` (CSV import, runs in the request; no job).
+* **Observed (code reading, not reproduced by spec):** each path resolves the branch with
+  `current_user.business.branches.find` / `find_by(id:)`, which includes inactive branches, and the models check
+  only that the branch is in the same business (`TowelTransfer`, `TowelAdjustment`, `TowelLedgerEntry`,
+  `StockIssue`). The selectors list active branches only, so an inactive branch is reachable through a crafted
+  request. None of these paths has an API endpoint. Inventory `StockAdjustment` has no branch (warehouse only) and
+  is not affected.
+* **Expected:** an inactive branch takes no **new** laundry or stock-issue operation; reading history (index, show,
+  reports, filters) stays available for inactive branches.
+* **Decisions needed before fixing (in-flight documents):**
+  1. A towel transfer created or dispatched before the deactivation: may it still be dispatched, received at an
+     inactive destination (towels physically in transit), or cancelled (cancel posts compensating entries at the
+     inactive branch)?
+  2. A draft / pending / approved stock issue for a branch deactivated afterwards: may it still be approved, edited
+     or posted (consumption attributed to an inactive branch)?
+  3. A towel adjustment or loss record at an inactive branch: refused, or allowed as a closing correction?
+  4. Should deactivation itself refuse while such documents are open (as it does for staff assignments)?
+* **Recommended fix:** after the decisions, an `other_business`-style model guard on create (branch must be active
+  when the branch reference is written), a service-level check for the transitions the decisions forbid, and
+  two-request specs per path. Consider the same FOR SHARE read as BUG-026 if the rule must hold under concurrency.
+* **Review milestone:** follow-up to BUG-026, after PR #87 is merged.

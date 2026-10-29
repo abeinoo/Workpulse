@@ -7077,3 +7077,46 @@ implementation stays a delegation), `spec/architecture` 420 / 0.
 `app/models/branch.rb` `has_many :shift_assignments` (class E, §20) changed from `dependent: :nullify` to
 `dependent: :restrict_with_error`: the reference is unchanged; the change removes OA's write into Workforce rows
 (see the §20 table note).
+
+### 50.4 Assignment / deactivation serialization — shared-lock exception (approved 2026-10-29)
+
+**Problem (reproduced).** `ShiftAssignment#branch_active` read `branches.active` without a lock. With
+`DeactivateBranch` holding the branch `FOR UPDATE` (after its assignment check, before commit), a new assignment's
+validation still read the last committed `active = true`; its INSERT waited only on the foreign key's `FOR KEY SHARE`
+lock and succeeded once the deactivation committed — an effective assignment at an inactive branch, breaking rule 3
+of §50.1. Two-connection reproduction: deactivation ok, assignment created.
+
+**Resolution.** `Branch.active_under_share_lock?(id)` (Organization & Access) reads `active` with `FOR SHARE`;
+`ShiftAssignment#branch_active` (Workforce) calls it. Validations run inside `save`'s transaction, so the lock is held
+through the write and its commit.
+
+* Deactivation first: the assignment's `FOR SHARE` waits on the deactivation's `FOR UPDATE`, then reads the
+  committed `false` and is refused.
+* Assignment first: the deactivation's `FOR UPDATE` waits on the assignment's `FOR SHARE`, then its `EXISTS` check
+  (a new statement under READ COMMITTED) sees the committed assignment and refuses with `:active_assignments`.
+* Concurrent assignments at the same branch hold compatible shared locks and still run in parallel.
+* Lock order: deactivation takes business → branch and never locks assignment rows; an assignment takes only the
+  branch (after, in `Shifts::Assigner`, the user's previous assignment row). No cycle.
+
+**Exception to the record-transition locking convention.** The convention is to lock only the aggregate row being
+transitioned. Here Workforce takes a **shared** lock on an Organization & Access row (`branches`) that it does not
+transition. Why it is necessary: rule 3 is a cross-row invariant (no effective assignment at an inactive branch)
+between two aggregates owned by different domains; an application-level check alone cannot hold it under
+concurrency, and the foreign key's own lock covers only one of the two interleavings. Why this shape: the lock is
+encapsulated in an OA-owned method next to the deactivation it pairs with; Workforce already references `Branch`
+(allowed WF → OA edge); a row lock is not a write; no schema change, trigger, new contract, dependency edge or D4
+exception. Scope: only `ShiftAssignment#branch_active`; do not extend to other callers without a decision.
+
+**Reopening gap.** The guard ran only when `branch_id` changed; `effective_to` is editable (web edit form, API
+update), so an ended assignment at an inactive branch could be reopened or extended back into effect. The guard now
+also runs when an end date is cleared, or moved later to a date on or after the current business day. Ending,
+shortening, and correcting an end date that stays in the past remain allowed; no assignment is changed
+automatically.
+
+**Proof.** `spec/services/organization_access/branch_lifecycle_concurrency_spec.rb` (both orderings, two connections,
+Queue handshakes, lock-wait assertions; both fail against the previous code); `spec/models/shift_assignment_spec.rb`
+and `spec/requests/admin/branch_lifecycle_spec.rb` (reopen / extend refused on model, web and API; end and shorten
+allowed; active branches unaffected); `spec/architecture` 420 / 0 — membership contract unchanged.
+
+**Deferred.** Inactive-branch enforcement for towel transfers / adjustments, manual stock issues and the stock-issue
+CSV import is BUG-029 (in-flight document decisions needed); not part of this change.

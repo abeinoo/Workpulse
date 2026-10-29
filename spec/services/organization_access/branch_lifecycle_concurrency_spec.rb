@@ -163,4 +163,84 @@ RSpec.describe "Branch lifecycle — last active branch under concurrency (two c
     expect(Branch.exists?(second.id)).to be(true)
     expect(Branch.find(second.id)).to be_active
   end
+
+  # A new shift assignment and a deactivation of its branch serialize on the
+  # branch row: the assignment's validation reads `active` under FOR SHARE,
+  # held through its INSERT; the deactivation holds FOR UPDATE.
+  describe "a shift assignment racing a deactivation of its branch" do
+    let!(:shift)    { create(:shift, business: business) }
+    let!(:employee) { create(:user, business: business) }
+
+    def assign_at(branch)
+      Shifts::Assigner.call(business: business,
+                            params: { user_id: employee.id, shift_id: shift.id, branch_id: branch.id,
+                                      effective_from: BusinessDay.current(context: business) })
+    end
+
+    def effective_assignments_at(branch)
+      ShiftAssignment.where(branch_id: branch.id)
+                     .where("effective_to IS NULL OR effective_to >= ?", BusinessDay.current(context: business))
+    end
+
+    # Pauses the FIRST ShiftAssignment save right after its validations — the
+    # save's transaction open, the row not yet written — until released.
+    def pause_first_assignment_after_validation
+      reached = Queue.new
+      release = Queue.new
+      calls   = 0
+      allow_any_instance_of(ShiftAssignment).to receive(:valid?).and_wrap_original do |original, *args|
+        calls += 1
+        outcome = original.call(*args)
+        if calls == 1
+          reached << true
+          release.pop
+        end
+        outcome
+      end
+      @releases = (@releases || []) << release
+      [ reached, release ]
+    end
+
+    it "deactivation first: the assignment waits on the branch, then is refused and nothing is written" do
+      owner
+      reached, release = pause_first_audit_of(OrganizationAccess::DeactivateBranch)
+      deactivation = on_other_connection { deactivate(first) }
+      wait_for(reached) # assignments checked, branch written inactive, business + branch locked — not committed
+
+      assignment = on_other_connection { assign_at(first) }
+      expect(wait_until_lock_waits("%branches%FOR SHARE%")).to match(/FOR SHARE/)
+      expect(assignment.join(0)).to be_nil
+
+      release << true
+      expect(result_of(deactivation)).to be_ok
+      outcome = result_of(assignment)
+      expect(outcome).not_to be_success
+      expect(outcome.error).to eq(I18n.t("activerecord.errors.models.shift_assignment.branch_inactive"))
+
+      expect(Branch.find(first.id)).not_to be_active
+      expect(ShiftAssignment.where(branch_id: first.id)).to be_empty
+    end
+
+    it "assignment first: the deactivation waits on the branch, then is refused and the branch stays active" do
+      owner
+      reached, release = pause_first_assignment_after_validation
+      assignment = on_other_connection do
+        ShiftAssignment.new(user: employee, shift: shift, branch: first,
+                            effective_from: BusinessDay.current(context: business)).save
+      end
+      wait_for(reached) # branch read active under FOR SHARE, row not yet written — not committed
+
+      deactivation = on_other_connection { deactivate(first) }
+      expect(wait_until_lock_waits("%branches%FOR UPDATE%")).to match(/FOR UPDATE/)
+      expect(deactivation.join(0)).to be_nil
+
+      release << true
+      expect(result_of(assignment)).to be(true)
+      expect(result_of(deactivation).error).to eq(:active_assignments)
+
+      expect(Branch.find(first.id)).to be_active
+      expect(effective_assignments_at(first).count).to eq(1)
+      expect(AuditLog.where(auditable_type: "Branch", action: "deactivate")).to be_empty
+    end
+  end
 end

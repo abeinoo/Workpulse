@@ -28,9 +28,10 @@ class ShiftAssignment < ApplicationRecord
   validate  :effective_to_after_effective_from
   validate  :no_overlapping_assignment
   validate  :no_overlapping_shift_time
-  # A deactivated branch takes no new assignments (BUG-026); existing ones there
-  # keep their branch and can still be ended.
-  validate  :branch_active, if: :will_save_change_to_branch_id?
+  # A deactivated branch takes no new assignments and no assignment there is
+  # reopened or extended into effect (BUG-026); existing ones keep their branch
+  # and can still be ended or shortened.
+  validate  :branch_active, if: -> { will_save_change_to_branch_id? || extends_into_effect? }
 
   # ── Scopes ──────────────────────────────────────────────────────────────────
 
@@ -192,8 +193,26 @@ class ShiftAssignment < ApplicationRecord
     errors.add(:effective_to, "must be on or after start date") if effective_to < effective_from
   end
 
+  # Validations run inside save's transaction, so the shared branch lock is held
+  # through the INSERT / UPDATE and its commit — a concurrent deactivation can
+  # neither slip in between the check and the write nor miss the written row.
   def branch_active
-    errors.add(:base, :branch_inactive) if branch && !branch.active?
+    return if branch.nil?
+
+    errors.add(:base, will_save_change_to_branch_id? ? :branch_inactive : :branch_inactive_reopen) unless Branch.active_under_share_lock?(branch_id)
+  end
+
+  # An end date cleared, or moved later, so that the assignment is in effect on
+  # or after the current business day. Ending, shortening, or correcting a date
+  # that stays in the past is not.
+  def extends_into_effect?
+    return false unless persisted? && will_save_change_to_effective_to?
+
+    previous = effective_to_in_database
+    return false if previous.nil? # was open-ended: any end date ends or shortens it
+    return true  if effective_to.nil?
+
+    effective_to > previous && branch.present? && effective_to >= BusinessDay.current(context: branch.business)
   end
 
   def no_overlapping_assignment

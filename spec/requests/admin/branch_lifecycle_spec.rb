@@ -227,5 +227,37 @@ RSpec.describe "Admin branch lifecycle (BUG-026)", type: :request do
 
       expect(assignment.reload).to have_attributes(branch_id: branch.id, effective_to: Date.current)
     end
+
+    describe "an ended assignment there" do
+      let(:business_day) { BusinessDay.current(context: business) }
+      let(:ended_on)     { business_day - 10 }
+      let!(:assignment) do
+        branch.update_column(:active, true)
+        create(:shift_assignment, user: employee, shift: shift, branch: branch,
+                                  effective_from: business_day - 60, effective_to: ended_on)
+          .tap { branch.update_column(:active, false) }
+      end
+
+      it "cannot be reopened from the web edit form" do
+        sign_in owner
+
+        patch shift_assignment_path(assignment), params: { shift_assignment: { effective_to: "" } }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(assignment.reload.effective_to).to eq(ended_on)
+      end
+
+      it "cannot be extended into effect through the API" do
+        sign_in owner
+
+        patch "/api/v1/shift_assignments/#{assignment.id}",
+              params: { shift_assignment: { effective_to: business_day + 30 } }, as: :json
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(response.parsed_body["errors"])
+          .to include(I18n.t("activerecord.errors.models.shift_assignment.branch_inactive_reopen"))
+        expect(assignment.reload.effective_to).to eq(ended_on)
+      end
+    end
   end
 end

@@ -5601,6 +5601,7 @@ ar:
           shift_not_in_business: "الوردية المحددة لا تنتمي إلى شركتك."
           branch_not_in_business: "الفرع المحدد لا ينتمي إلى شركتك."
           branch_inactive: "الفرع المحدد غير نشط ولا يقبل تعيينات جديدة."
+          branch_inactive_reopen: "فرع هذا التعيين غير نشط: لا يمكن إعادة فتح التعيين أو تمديده. لا يزال من الممكن إنهاؤه أو تقصيره."
           shift_rule_profile_not_in_business: "ملف قواعد الوردية المحدد لا ينتمي إلى شركتك."
           coverage_branch_not_allowed: "اختر فرع تغطية غير فرعك."
           employee_not_available_for_assignment:
