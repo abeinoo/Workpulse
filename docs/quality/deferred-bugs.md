@@ -24,7 +24,7 @@ here only so its stable ID and history are kept.
 |---|---|---|---|---|---|---|
 | BUG-001 | Laundry branch consumption report shows every branch when no branch is chosen | Inventory & Purchasing (Laundry) | **High — critical (unauthorized access)** | Confirmed | **Resolved** (`3139cf4`, was Escalated) | — |
 | BUG-002 | Concurrent check-outs on one attendance record: last commit wins | Attendance & Payroll | Medium | Confirmed (reasoning) | Deferred | After Pilot 12 |
-| BUG-003 | Audit failures inside a transaction are swallowed | Shared (`AuditLoggable`) | Medium (low likelihood) | Confirmed (real PostgreSQL failure, `audit_loggable_spec.rb`) | In Progress (`7437e29` + caller migration `382caa9`, not merged; 4 owner decisions open) | Owner decisions, then merge |
+| BUG-003 | Audit failures inside a transaction are swallowed | Shared (`AuditLoggable`) | Medium (low likelihood) | Confirmed (real PostgreSQL failure, `audit_loggable_spec.rb`) | In Progress (`7437e29` + caller migration `382caa9` merged to `main` in PR #84, `3ab5277`; 4 owner decisions open) | Owner decisions |
 | BUG-004 | Manual-entry / CSV attendance check the payroll lock without a row lock | Attendance & Payroll | Low | Suspected | Deferred | After Pilot 12 |
 | BUG-005 | Permission payroll effect reads the open period without a lock | Attendance & Payroll | Low | Suspected | Deferred | After Pilot 12 |
 | BUG-006 | Device punch reuses a soft-deleted attendance record | Attendance & Payroll | Low | Confirmed (pinned) | Open | Behaviour decision (before API punching) |
@@ -96,8 +96,8 @@ here only so its stable ID and history are kept.
 ## BUG-003 — Audit failures inside a transaction are swallowed
 
 * **Source:** F-A4 (§29). **Discovered:** 2026-10-20. **Status:** **In Progress** — core fix `7437e29` and the
-  fail-closed caller migration `382caa9` are on `fix/bug-003-audit-savepoint` (not merged). The owner decisions under
-  *Remaining work* are open, so the bug is not resolved.
+  fail-closed caller migration `382caa9` were merged to `main` on 2026-10-28 (PR #84, merge commit `3ab5277`). The
+  owner decisions under *Remaining work* are open, so the bug is not resolved.
 * **Domain / files:** shared — `app/models/concerns/audit_loggable.rb` (`log_audit`, `log_audit!`); 123 call sites
   after `382caa9` (static scan, 2026-10-28): 10 `log_audit!` (two of them conditional) and 113 `log_audit`.
 * **Observed (before `7437e29`):** `log_audit` rescued and logged any exception. A database-level `AuditLog` insert
@@ -151,7 +151,7 @@ here only so its stable ID and history are kept.
   * Unchanged and already fail-closed: `OrganizationAccess::DeleteUser` and the `finance.rake` backfill
     (`AuditLog.create!` directly). Every other call site is fail-open: its change is recorded on its own rows
     (stamped columns, ledgers, child records) or it is a view audit.
-* **Verification (local, 2026-10-28; CI runs on the pull request):**
+* **Verification (local, 2026-10-28, before the merge):**
   * `spec/models/concerns/audit_loggable_spec.rb` 17 / 0; `audit_loggable_commit_path_spec.rb` 2 / 0 — the production
     COMMIT path without the transactional fixture: against the old `log_audit` body its fail-open example fails
     exactly as in production (the service reports success, the committed row is unchanged).
@@ -171,6 +171,11 @@ here only so its stable ID and history are kept.
     failed later examples; the cause was not captured. The spec passed 13 / 0 in four further runs and the same
     combined set passed 320 / 0.
   * RuboCop: no offenses on the 31 changed Ruby files; Brakeman: 0 warnings. The full suite was not run locally.
+* **Merge (2026-10-28):** PR #84 (https://github.com/abeinoo/Workpulse/pull/84), `fix/bug-003-audit-savepoint` →
+  `main`, merge commit `3ab5277aa85fd89a2461554c6556f014306355f2` on base `48dbf02`, with all four BUG-003 commits
+  (`7437e29`, `9d3ec75`, `382caa9`, `d03777f`). CI on the pull request head `d03777f`: 5 / 5 jobs green. Post-merge
+  CI on `3ab5277`: `test` 10,062 examples / 0 failures, `system-test` 221 / 0, `scan_ruby` no security warnings or
+  vulnerable gems, `lint` and `scan_js` passed. Not deployed; no production verification yet.
 * **Risk:** `Rails.error.report` receives the original exception, whose message can include PostgreSQL's DETAIL line
   (row values). No error subscriber is configured in `app/`, `config/`, `lib/` or the `Gemfile` (checked 2026-10-28),
   so today the report reaches nothing beyond the log line; any subscriber added later must scrub messages.
@@ -186,8 +191,11 @@ here only so its stable ID and history are kept.
     approval and line history must be retained.
   * Also: whether the transfer requester / rejecter stay fail-closed (their rows record the change); whether view
     audits (`Payroll::EntryViewAudit`, `Salary::ViewAudit`) must fail closed; whether logs may carry filtered values.
-  * Not BUG-003: a Rematch deletes earlier auto-matches (`DepositVerification::MatchingEngine#reset_rematchable!`) and
-    audits only changed new matches, so a lost earlier match is never audited — to be registered separately.
+* **Separate follow-ups** (not BUG-003; they do not block its resolution):
+  * A Rematch deletes earlier auto-matches (`DepositVerification::MatchingEngine#reset_rematchable!`) and audits only
+    changed new matches, so a lost earlier match is never audited — to be registered separately.
+  * The order-dependent `request_validation_reads_spec.rb:530` and the unreproduced `match_concurrency_spec.rb:392`
+    failure whose cleanup was skipped (both under *Verification*) — not yet registered.
 * **Regression tests:** `spec/models/concerns/audit_loggable_spec.rb`, `audit_loggable_commit_path_spec.rb`, and the
   BUG-003 examples in the migrated callers' specs (`spec/services/finance/{session_amounts_editor,day_close_editor,
   till_deposit_voider,depositor_assigner,deposit_responsibility_transfer_requester,…_rejecter}_spec.rb`,
@@ -195,7 +203,7 @@ here only so its stable ID and history are kept.
   `spec/services/finance/bank_disputes/case_updater_spec.rb`,
   `spec/services/employee/insurance_profile_updater_spec.rb`,
   `spec/requests/inventory/goods_receipt_status_consistency_spec.rb`).
-* **Review milestone:** the owner decisions above, then resolution after the pull request merges with green CI.
+* **Review milestone:** the owner decisions above (the merge with green CI is done: PR #84, `3ab5277`).
 
 ## BUG-004 — Manual-entry / CSV attendance check the payroll lock without a row lock
 
