@@ -805,7 +805,9 @@ here only so its stable ID and history are kept.
   reassigned, nulled or deleted; a business always keeps at least one active branch (safe under concurrency);
   permanent deletion only for a branch with no history, decided by the data model; successful deactivation,
   reactivation and deletion are audited, failures are not; the user sees the real outcome; an inactive branch takes
-  no new operations where that breaks the rules, while its history stays visible.
+  no new operations where that breaks the rules, while its history stays visible. Added 2026-10-29: a branch cannot
+  be deactivated while staff assignments there are still in effect (current or upcoming); ended assignments do not
+  block, and deactivation never ends or reassigns anyone (ledger `next-pilot-selection.md` §50).
 * **Fix (`bc47ad7`):**
   * `Branch` — `attendance_records`, `payroll_periods`, `shift_assignments` are `restrict_with_error` (were `destroy`,
     `destroy`, `nullify`). Pinned with the foreign-key assumptions by `spec/models/branch_deletion_constraints_spec.rb`:
@@ -825,20 +827,26 @@ here only so its stable ID and history are kept.
     EN + AR.
   * The membership boundary spec's classified `Branch has_many :shift_assignments` exception now pins
     `dependent: :restrict_with_error` (the previous `:nullify` wrote into Workforce rows; the reference is unchanged).
+  * Active-assignment rule (follow-up commit): `DeactivateBranch` refuses with `:active_assignments` when
+    `OrganizationAccess::MembershipProvider.effective_assignments_at?(branch.id, on: business day)` is true — a new
+    read-only operation of the existing membership contract, implemented by Workforce (`BranchMembership`).
 * **Verification (2026-10-29, seed 20261006 unless noted):** the lifecycle, request, schema and regression specs
   59 / 0; the two-connection concurrency spec 2 / 0 (seeds 20261006 and 12345), and it fails when the business-row
   lock is removed (checked by hand, then restored); `spec/architecture` 420 / 0; first full-suite run 10 398
   examples, 4 failures — `branch_spec.rb:8`, `:9` (association matchers pinning `dependent: :destroy`) and
   `laundry_cost_summary_report_guards_spec.rb:70` (created a shift assignment on an already inactive branch), all
   three updated in `bc47ad7`, and `registrations_spec.rb:141`, unrelated (BUG-028). Final full-suite run on the
-  committed branch (`b82c6b8`): 10 399 examples, 1 failure — `registrations_spec.rb:141` (BUG-028). RuboCop clean on
-  changed files; `git diff --check` clean.
+  committed branch (`b82c6b8`): 10 399 examples, 1 failure — `registrations_spec.rb:141` (BUG-028). After the
+  active-assignment rule (`470bfd5`): branch lifecycle, membership contract and OA characterization 294 / 0;
+  concurrency 2 / 0; `spec/architecture` 420 / 0; BUG-025 tenant-isolation regression (web + API security, IP-1
+  specs, inventory requests / services / models) 1841 / 0; full suite 10 410 examples, 1 failure —
+  `registrations_spec.rb:141` (BUG-028, unrelated). RuboCop clean on changed files; `git diff --check` clean.
 * **Follow-ups (not done here):** server-side inactive-branch checks for the other entry points that accept any
   branch of the business — towel transfers and adjustments (`Laundry::TowelTransfersController`,
   `Laundry::TowelAdjustmentsController`) and the stock-issue import branch (`StockIssuesController#load_import_context`)
-  — their pickers already list active branches only; whether deactivation should be refused while current or future
-  shift assignments remain at the branch (today they stay, keep their branch and can be ended); production data was
-  not checked for branches already deleted with their history.
+  — their pickers already list active branches only; a shift assignment created concurrently with a deactivation
+  is not serialized against it (the assignment checks `branch.active` without a lock — a narrow race, not
+  reproduced); production data was not checked for branches already deleted with their history.
 * **Review milestone:** review and merge of `fix/inventory-isolation-branch-lifecycle`; mark Resolved only once merged.
 
 ## BUG-027 — Remaining models take business-owned foreign keys without a same-business guard

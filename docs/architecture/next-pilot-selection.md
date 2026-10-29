@@ -7039,3 +7039,41 @@ commits after it change no tested file.
 gate: BUG-019 (English table overflow at list widths ~860–900 px, UX decision), BUG-011 (intermittent CI WebDriver
 failure, not seen in this run), and the deferred items of §47. Nothing is pushed, merged or published; API work has not
 started.
+
+## 50. Branch lifecycle decisions and the membership-contract extension (2026-10-29, BUG-026)
+
+Maintenance work after the migration (branch `fix/inventory-isolation-branch-lifecycle`), not a migration step.
+
+### 50.1 Owner decisions
+
+1. A branch is retired by **deactivation** (`branches.active`); history is never deleted, reassigned or detached.
+2. A business always keeps **at least one active branch** (deactivation and deletion lock the business row first).
+3. **A branch cannot be deactivated while staff assignments there are still in effect** — current or upcoming
+   (`effective_to` NULL or on / after the business day). Ended assignments are history and do not block.
+   Deactivation never ends or reassigns anyone; the user is told to end or move the assignments first.
+4. Permanent deletion only for a never-used branch (restrict associations, foreign keys without `ON DELETE`, no
+   lifecycle audit history).
+5. Reasons: required for deactivation and deletion, optional for reactivation. Only completed transitions are
+   audited (`log_audit!`, fail-closed).
+
+### 50.2 Contract extension
+
+Rule 3 needs a Workforce fact (assignments at a branch) in Organization & Access. It is read through the existing
+Pilot 5 contract, extended by one read-only operation — same direction (OA defines, WF implements), no new
+dependency edge, no new D4 exception:
+
+* `OrganizationAccess::MembershipProvider.effective_assignments_at?(branch_id, on:)` → Boolean;
+* `Workforce::MembershipProvider` → `BranchMembership.effective_assignments_at?` (one `EXISTS` on
+  `shift_assignments`);
+* the caller (`OrganizationAccess::DeactivateBranch`) passes `BusinessDay.current(context: business)`; the existing
+  operations keep their calendar-day semantics unchanged.
+
+Proof: `spec/services/organization_access/membership_provider_spec.rb` (current, ending-that-day and upcoming count;
+ended and other branches do not; the given day decides; dispatch), the membership boundary spec (the WF
+implementation stays a delegation), `spec/architecture` 420 / 0.
+
+### 50.3 Related change to a classified exception
+
+`app/models/branch.rb` `has_many :shift_assignments` (class E, §20) changed from `dependent: :nullify` to
+`dependent: :restrict_with_error`: the reference is unchanged; the change removes OA's write into Workforce rows
+(see the §20 table note).
