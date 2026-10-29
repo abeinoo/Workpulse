@@ -24,7 +24,7 @@ here only so its stable ID and history are kept.
 |---|---|---|---|---|---|---|
 | BUG-001 | Laundry branch consumption report shows every branch when no branch is chosen | Inventory & Purchasing (Laundry) | **High — critical (unauthorized access)** | Confirmed | **Resolved** (`3139cf4`, was Escalated) | — |
 | BUG-002 | Concurrent check-outs on one attendance record: last commit wins | Attendance & Payroll | Medium | Confirmed (reasoning) | Deferred | After Pilot 12 |
-| BUG-003 | Audit failures inside a transaction are swallowed | Shared (`AuditLoggable`) | Medium (low likelihood) | Confirmed (real PostgreSQL failure, `audit_loggable_spec.rb`) | In Progress (`7437e29` + caller migration `382caa9`, not merged; 4 owner decisions open) | Owner decisions, then merge |
+| BUG-003 | Audit failures inside a transaction are swallowed | Shared (`AuditLoggable`) | Medium (low likelihood) | Confirmed (real PostgreSQL failure, `audit_loggable_spec.rb`) | In Progress (`7437e29` + caller migration `382caa9` merged to `main` in PR #84, `3ab5277`; 4 owner decisions open) | Owner decisions |
 | BUG-004 | Manual-entry / CSV attendance check the payroll lock without a row lock | Attendance & Payroll | Low | Suspected | Deferred | After Pilot 12 |
 | BUG-005 | Permission payroll effect reads the open period without a lock | Attendance & Payroll | Low | Suspected | Deferred | After Pilot 12 |
 | BUG-006 | Device punch reuses a soft-deleted attendance record | Attendance & Payroll | Low | Confirmed (pinned) | Open | Behaviour decision (before API punching) |
@@ -44,7 +44,8 @@ here only so its stable ID and history are kept.
 | BUG-020 | Admin dashboard shows staff, requests and payroll periods outside the viewer's scope | Reporting (admin dashboard) | **High — critical (unauthorized access, cross-branch)** | Confirmed (request spec on the unchanged code) | **Resolved** (`60d851b`, PR #76; was Escalated) | — |
 | BUG-021 | Deposit Verification "Missing" tab compares statement dates with the UTC date of `deposited_at` | Finance & Sales (deposit verification) | Medium (wrong missing-from-bank list around business midnight) | Confirmed (request reproduction) | Open | Next finance fix |
 | BUG-022 | Deposit Verification has no tab or count for bank lines needing re-verification | Finance & Sales (deposit verification) | Low (visibility; shown elsewhere) | Improvement | Deferred | Next finance fix |
-| BUG-023 | `auto_generator_spec.rb` fails all 11 examples on days 29–31 of the month (business timezone) | Test suite (payroll auto-generation) | Medium (CI fails on every branch three days a month) | Confirmed (CI run 40805819874; reproduced with a fixed clock) | **Resolved** on `fix/auto-generator-spec-day-29` (pull request open, not merged) | — |
+| BUG-023 | `auto_generator_spec.rb` fails all 11 examples on days 29–31 of the month (business timezone) | Test suite (payroll auto-generation) | Medium (CI fails on every branch three days a month) | Confirmed (CI run 40805819874; reproduced with a fixed clock) | **Resolved** (`d3261b4`, PR #86) | — |
+| BUG-024 | Concurrency spec cleanup can find a worker connection still in use, skip truncation and cascade | Test suite (two-connection concurrency harnesses) | Medium (intermittent CI failure; leftover rows fail later specs) | Observed (CI run 40813098019); cause unconfirmed, not reproduced | Open | Next test-harness fix |
 
 ---
 
@@ -97,8 +98,8 @@ here only so its stable ID and history are kept.
 ## BUG-003 — Audit failures inside a transaction are swallowed
 
 * **Source:** F-A4 (§29). **Discovered:** 2026-10-20. **Status:** **In Progress** — core fix `7437e29` and the
-  fail-closed caller migration `382caa9` are on `fix/bug-003-audit-savepoint` (not merged). The owner decisions under
-  *Remaining work* are open, so the bug is not resolved.
+  fail-closed caller migration `382caa9` were merged to `main` on 2026-10-28 (PR #84, merge commit `3ab5277`). The
+  owner decisions under *Remaining work* are open, so the bug is not resolved.
 * **Domain / files:** shared — `app/models/concerns/audit_loggable.rb` (`log_audit`, `log_audit!`); 123 call sites
   after `382caa9` (static scan, 2026-10-28): 10 `log_audit!` (two of them conditional) and 113 `log_audit`.
 * **Observed (before `7437e29`):** `log_audit` rescued and logged any exception. A database-level `AuditLog` insert
@@ -152,7 +153,7 @@ here only so its stable ID and history are kept.
   * Unchanged and already fail-closed: `OrganizationAccess::DeleteUser` and the `finance.rake` backfill
     (`AuditLog.create!` directly). Every other call site is fail-open: its change is recorded on its own rows
     (stamped columns, ledgers, child records) or it is a view audit.
-* **Verification (local, 2026-10-28; CI runs on the pull request):**
+* **Verification (local, 2026-10-28, before the merge):**
   * `spec/models/concerns/audit_loggable_spec.rb` 17 / 0; `audit_loggable_commit_path_spec.rb` 2 / 0 — the production
     COMMIT path without the transactional fixture: against the old `log_audit` body its fail-open example fails
     exactly as in production (the service reports success, the committed row is unchanged).
@@ -172,6 +173,11 @@ here only so its stable ID and history are kept.
     failed later examples; the cause was not captured. The spec passed 13 / 0 in four further runs and the same
     combined set passed 320 / 0.
   * RuboCop: no offenses on the 31 changed Ruby files; Brakeman: 0 warnings. The full suite was not run locally.
+* **Merge (2026-10-28):** PR #84 (https://github.com/abeinoo/Workpulse/pull/84), `fix/bug-003-audit-savepoint` →
+  `main`, merge commit `3ab5277aa85fd89a2461554c6556f014306355f2` on base `48dbf02`, with all four BUG-003 commits
+  (`7437e29`, `9d3ec75`, `382caa9`, `d03777f`). CI on the pull request head `d03777f`: 5 / 5 jobs green. Post-merge
+  CI on `3ab5277`: `test` 10,062 examples / 0 failures, `system-test` 221 / 0, `scan_ruby` no security warnings or
+  vulnerable gems, `lint` and `scan_js` passed. Not deployed; no production verification yet.
 * **Risk:** `Rails.error.report` receives the original exception, whose message can include PostgreSQL's DETAIL line
   (row values). No error subscriber is configured in `app/`, `config/`, `lib/` or the `Gemfile` (checked 2026-10-28),
   so today the report reaches nothing beyond the log line; any subscriber added later must scrub messages.
@@ -187,8 +193,11 @@ here only so its stable ID and history are kept.
     approval and line history must be retained.
   * Also: whether the transfer requester / rejecter stay fail-closed (their rows record the change); whether view
     audits (`Payroll::EntryViewAudit`, `Salary::ViewAudit`) must fail closed; whether logs may carry filtered values.
-  * Not BUG-003: a Rematch deletes earlier auto-matches (`DepositVerification::MatchingEngine#reset_rematchable!`) and
-    audits only changed new matches, so a lost earlier match is never audited — to be registered separately.
+* **Separate follow-ups** (not BUG-003; they do not block its resolution):
+  * A Rematch deletes earlier auto-matches (`DepositVerification::MatchingEngine#reset_rematchable!`) and audits only
+    changed new matches, so a lost earlier match is never audited — to be registered separately.
+  * The order-dependent `request_validation_reads_spec.rb:530` (under *Verification*) — not yet registered.
+  * The unreproduced `match_concurrency_spec.rb:392` failure whose cleanup was skipped — see BUG-024.
 * **Regression tests:** `spec/models/concerns/audit_loggable_spec.rb`, `audit_loggable_commit_path_spec.rb`, and the
   BUG-003 examples in the migrated callers' specs (`spec/services/finance/{session_amounts_editor,day_close_editor,
   till_deposit_voider,depositor_assigner,deposit_responsibility_transfer_requester,…_rejecter}_spec.rb`,
@@ -196,7 +205,7 @@ here only so its stable ID and history are kept.
   `spec/services/finance/bank_disputes/case_updater_spec.rb`,
   `spec/services/employee/insurance_profile_updater_spec.rb`,
   `spec/requests/inventory/goods_receipt_status_consistency_spec.rb`).
-* **Review milestone:** the owner decisions above, then resolution after the pull request merges with green CI.
+* **Review milestone:** the owner decisions above (the merge with green CI is done: PR #84, `3ab5277`).
 
 ## BUG-004 — Manual-entry / CSV attendance check the payroll lock without a row lock
 
@@ -653,7 +662,7 @@ here only so its stable ID and history are kept.
 ## BUG-023 — `auto_generator_spec.rb` fails all 11 examples on days 29–31 of the month (business timezone)
 
 * **Source:** new (CI failure on PR #85, a documentation-only change). **Discovered:** 2026-10-29. **Status:**
-  **Resolved** on `fix/auto-generator-spec-day-29` (pull request open, not merged).
+  **Resolved** by `d3261b4` (merged into `main` in PR #86, merge commit `b88ec03`).
 * **Domain / files:** test suite — `spec/services/payroll/auto_generator_spec.rb`; validation in
   `app/models/business.rb` (`payroll_auto_generate_day`, 1–28).
 * **Observed:** CI run 40805819874 (2026-10-29 02:21 UTC, 29 October in Asia/Riyadh): 10,062 examples, 11 failures —
@@ -671,3 +680,36 @@ here only so its stable ID and history are kept.
   2026-10-29 02:21Z, 2026-10-30 21:30Z and 2026-10-31 20:59Z and passes at 2026-11-15 12:00Z, 2026-11-28 20:59Z and
   2026-12-31 21:00Z; the fixed spec passes 11 / 0 at all six.
 * **Review milestone:** — (resolved).
+
+## BUG-024 — Concurrency spec cleanup can find a worker connection still in use, skip truncation and cascade
+
+* **Source:** new (CI run 40813098019 on PR #85, a documentation-only change). **Discovered:** 2026-10-29.
+  **Status:** Open.
+* **Domain / files:** test suite — the two-connection concurrency harness copied into seven specs (empty-database
+  guard, worker threads on their own connections, truncation in `after`), here
+  `spec/characterization/inventory_purchasing/purchase_request_advance_concurrency_spec.rb`; also the guard in
+  `spec/support/non_transactional_database.rb`.
+* **Observed (facts):** in run 40813098019 (`test` job, its own PostgreSQL service container, one RSpec process) the
+  example "two confirmations: the second waits on the request row, then is refused — custody is debited once"
+  failed only in its `after` hook: "concurrency cleanup: 1 worker connection(s) still checked out; 1 other database
+  session(s) still active or in a transaction — truncation SKIPPED". No worker thread survived shutdown and none
+  raised; both worker results had been awaited. The rows it committed stayed in the test database, and 50 examples
+  in 14 spec files failed after it: 30 refused at the empty-database guard (the same spec's next two examples and
+  six other non-transactional specs, among them BUG-003's `audit_loggable_commit_path_spec.rb`); 19 in Purchase
+  Request specs failed count or `sole` expectations on the leftover rows. That run also had BUG-023's 11 failures,
+  because it tested the stale merge `922cec0`.
+* **Not shown:** the cause. The cascade affected only the CI test database; nothing indicates an application defect.
+  The failure did not recur in runs 40805819874, 40722956476, 40812521136 or 40813934325. A local run on
+  2026-10-28 had a similar unreproduced failure in `spec/services/finance/bank_statements/match_concurrency_spec.rb:392`
+  whose cleanup was skipped (BUG-003 *Verification*); that it has the same cause is a hypothesis.
+* **Hypotheses (unverified):** a worker's connection is returned to the pool, or its backend session finishes,
+  slightly after the thread's result is available; or a connection leased inside a worker is kept past
+  `with_connection`. The cleanup checks once, without a retry or details of the remaining session.
+* **Impact:** an intermittent red CI run with a misleading cascade; safe by design (truncation is skipped rather than
+  run while another session may still write).
+* **Recommended next step:** improve worker-connection cleanup and diagnostics in the shared harness — explicitly
+  release each worker's connection, re-check the pool and `pg_stat_activity` for a short bounded period before
+  reporting, and print the remaining session's pid, state, `xact_start` and query when cleanup is skipped.
+* **Regression tests:** to define with the fix; the concurrency specs must still refuse to truncate while another
+  session is active.
+* **Review milestone:** next test-harness fix.
