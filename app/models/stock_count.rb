@@ -35,6 +35,7 @@ class StockCount < ApplicationRecord
   validates :counted_on, presence: true
   validate  :has_at_least_one_item
   validate  :products_are_unique
+  validate  :warehouse_in_same_business, if: :will_save_change_to_warehouse_id?
 
   scope :for_business, ->(business) { where(business: business) }
   scope :recent,       -> { order(counted_on: :desc, id: :desc) }
@@ -118,6 +119,14 @@ class StockCount < ApplicationRecord
   def products_are_unique
     ids = items.reject(&:marked_for_destruction?).map(&:product_id).compact
     errors.add(:base, :duplicate_product) if ids.size != ids.uniq.size
+  end
+
+  # The warehouse id comes straight from form params — never trust one that
+  # belongs to another business (IP-1).
+  def warehouse_in_same_business
+    return if warehouse.nil? || business_id.nil?
+
+    errors.add(:warehouse_id, :other_business) if warehouse.business_id != business_id
   end
 
   # Block edits to an already-approved count, while still allowing the

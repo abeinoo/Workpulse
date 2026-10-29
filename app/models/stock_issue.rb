@@ -67,6 +67,7 @@ class StockIssue < ApplicationRecord
   # terminal record — nothing was going to be issued anyway.
   validate  :has_at_least_one_item, unless: -> { draft? || cancelled? }
   validate  :branch_in_same_business
+  validate  :warehouse_in_same_business, if: :will_save_change_to_warehouse_id?
   validate  :issued_only_from_approved, if: -> { will_save_change_to_status?(to: "issued") }
 
   before_create :assign_issue_number
@@ -168,5 +169,13 @@ class StockIssue < ApplicationRecord
     return if branch.nil? || business_id.nil?
 
     errors.add(:branch, :invalid) if branch.business_id != business_id
+  end
+
+  # The warehouse id comes straight from form params — never trust one that
+  # belongs to another business (IP-1).
+  def warehouse_in_same_business
+    return if warehouse.nil? || business_id.nil?
+
+    errors.add(:warehouse_id, :other_business) if warehouse.business_id != business_id
   end
 end

@@ -43,6 +43,12 @@ class InventoryMovement < ApplicationRecord
   validates :quantity, numericality: { greater_than: 0 }
   validates :unit_cost, numericality: { greater_than_or_equal_to: 0 }
   validates :occurred_on, presence: true
+  # Last line of defence for every posting path (IP-1): stock sums are keyed by
+  # product and warehouse alone, so a row naming another business's product or
+  # warehouse would silently change that business's on-hand and valuation. The
+  # documents validate their own references first; this refuses the write if
+  # any path ever skips them.
+  validate  :references_in_same_business, on: :create
 
   scope :for_business, ->(business) { where(business: business) }
   scope :chronological, -> { order(:occurred_on, :id) }
@@ -55,5 +61,14 @@ class InventoryMovement < ApplicationRecord
   # Signed quantity: positive for IN, negative for OUT — used by stock sums.
   def signed_quantity
     direction_in? ? quantity : -quantity
+  end
+
+  private
+
+  def references_in_same_business
+    return if business_id.nil?
+
+    errors.add(:product_id, :other_business)   if product   && product.business_id   != business_id
+    errors.add(:warehouse_id, :other_business) if warehouse && warehouse.business_id != business_id
   end
 end

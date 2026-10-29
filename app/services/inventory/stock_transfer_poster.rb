@@ -58,10 +58,13 @@ module Inventory
     end
 
     # Surfaces the "same warehouse" validation early so availability isn't even
-    # checked against a nonsensical source == destination.
+    # checked against a nonsensical source == destination — and refuses any
+    # warehouse or product of another business before availability reads (and
+    # reports) that business's on-hand (IP-1).
     def valid_warehouses?
       @transfer.valid?
-      @transfer.errors[:destination_warehouse_id].empty?
+      @transfer.errors[:destination_warehouse_id].empty? &&
+        @transfer.errors.none? { |error| error.type == :other_business }
     end
 
     # Sums requested quantity per product and compares against on-hand in the

@@ -13,6 +13,7 @@ class GoodsReceiptItem < ApplicationRecord
   validates :quantity,  numericality: { greater_than: 0 }
   validates :unit_cost, numericality: { greater_than_or_equal_to: 0 }
   validate  :product_is_transactable
+  validate  :product_in_same_business, if: :will_save_change_to_product_id?
   validate  :product_matches_purchase_request_item
   validate  :purchase_request_item_consistent_with_receipt
   # Soft, non-locking check for early feedback while a draft is being
@@ -23,6 +24,14 @@ class GoodsReceiptItem < ApplicationRecord
   def product_is_transactable
     return unless product
     errors.add(:product_id, :parent_not_allowed) if Product.where(parent_product_id: product.id).exists?
+  end
+
+  # Line product ids come straight from form params — never trust one that
+  # belongs to another business (IP-1).
+  def product_in_same_business
+    return if product.nil? || goods_receipt.nil? || goods_receipt.business_id.nil?
+
+    errors.add(:product_id, :other_business) if product.business_id != goods_receipt.business_id
   end
 
   before_validation :compute_total_cost

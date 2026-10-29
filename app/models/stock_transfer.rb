@@ -19,6 +19,8 @@ class StockTransfer < ApplicationRecord
   validates :transferred_on, presence: true
   validate  :has_at_least_one_item
   validate  :distinct_warehouses
+  validate  :warehouses_in_same_business,
+            if: -> { will_save_change_to_source_warehouse_id? || will_save_change_to_destination_warehouse_id? }
 
   scope :for_business, ->(business) { where(business: business) }
   scope :recent,       -> { order(transferred_on: :desc, id: :desc) }
@@ -47,5 +49,16 @@ class StockTransfer < ApplicationRecord
   def distinct_warehouses
     return if source_warehouse_id.blank? || destination_warehouse_id.blank?
     errors.add(:destination_warehouse_id, :same_as_source) if source_warehouse_id == destination_warehouse_id
+  end
+
+  # Both warehouse ids come straight from form params — never trust one that
+  # belongs to another business (IP-1).
+  def warehouses_in_same_business
+    return if business_id.nil?
+
+    errors.add(:source_warehouse_id, :other_business) if source_warehouse && source_warehouse.business_id != business_id
+    if destination_warehouse && destination_warehouse.business_id != business_id
+      errors.add(:destination_warehouse_id, :other_business)
+    end
   end
 end

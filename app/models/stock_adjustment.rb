@@ -28,6 +28,7 @@ class StockAdjustment < ApplicationRecord
   validates :reason, presence: true
   validate  :has_at_least_one_item
   validate  :opening_balance_lines_require_cost
+  validate  :warehouse_in_same_business, if: :will_save_change_to_warehouse_id?
 
   scope :for_business, ->(business) { where(business: business) }
   scope :recent,       -> { order(adjusted_on: :desc, id: :desc) }
@@ -72,5 +73,13 @@ class StockAdjustment < ApplicationRecord
       next unless item.quantity_difference.to_d.positive?
       errors.add(:base, :opening_balance_needs_cost, product: item.product&.name) if item.unit_cost.to_d <= 0
     end
+  end
+
+  # The warehouse id comes straight from form params — never trust one that
+  # belongs to another business (IP-1).
+  def warehouse_in_same_business
+    return if warehouse.nil? || business_id.nil?
+
+    errors.add(:warehouse_id, :other_business) if warehouse.business_id != business_id
   end
 end
