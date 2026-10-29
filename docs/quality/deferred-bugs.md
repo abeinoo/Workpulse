@@ -44,6 +44,7 @@ here only so its stable ID and history are kept.
 | BUG-020 | Admin dashboard shows staff, requests and payroll periods outside the viewer's scope | Reporting (admin dashboard) | **High — critical (unauthorized access, cross-branch)** | Confirmed (request spec on the unchanged code) | **Resolved** (`60d851b`, PR #76; was Escalated) | — |
 | BUG-021 | Deposit Verification "Missing" tab compares statement dates with the UTC date of `deposited_at` | Finance & Sales (deposit verification) | Medium (wrong missing-from-bank list around business midnight) | Confirmed (request reproduction) | Open | Next finance fix |
 | BUG-022 | Deposit Verification has no tab or count for bank lines needing re-verification | Finance & Sales (deposit verification) | Low (visibility; shown elsewhere) | Improvement | Deferred | Next finance fix |
+| BUG-023 | `auto_generator_spec.rb` fails all 11 examples on days 29–31 of the month (business timezone) | Test suite (payroll auto-generation) | Medium (CI fails on every branch three days a month) | Confirmed (CI run 40805819874; reproduced with a fixed clock) | **Resolved** on `fix/auto-generator-spec-day-29` (pull request open, not merged) | — |
 
 ---
 
@@ -656,3 +657,25 @@ here only so its stable ID and history are kept.
 * **Regression tests:** a request spec: the line is listed and counted under Needs review, and its bulk-ignore
   checkbox stays disabled.
 * **Review milestone:** next finance fix.
+
+## BUG-023 — `auto_generator_spec.rb` fails all 11 examples on days 29–31 of the month (business timezone)
+
+* **Source:** new (CI failure on PR #85, a documentation-only change). **Discovered:** 2026-10-29. **Status:**
+  **Resolved** on `fix/auto-generator-spec-day-29` (pull request open, not merged).
+* **Domain / files:** test suite — `spec/services/payroll/auto_generator_spec.rb`; validation in
+  `app/models/business.rb` (`payroll_auto_generate_day`, 1–28).
+* **Observed:** CI run 40805819874 (2026-10-29 02:21 UTC, 29 October in Asia/Riyadh): 10,062 examples, 11 failures —
+  every example in the spec, each `ActiveRecord::RecordInvalid: Payroll auto generate day must be less than or equal
+  to 28` from the `let(:business)` factory call. The same suite passed on `main` the day before (run 40722956476).
+* **Cause:** the spec sets `payroll_auto_generate_day` to today's day of month in the business timezone, so on the
+  29th–31st the business record itself is invalid. BUG-018's fix (`48240b7`) moved the spec to the business
+  timezone but kept the real clock; none of its clock points fell on the 29th–31st in Riyadh.
+* **Not the cause:** the PostgreSQL errors in the job's "Stop containers" output are the database server log of
+  expected negative-path examples (unique and foreign-key violations, lock timeouts, BUG-003's `actor_id = -1`
+  audit failures); their counts by type are identical in the green run 40722956476.
+* **Fix:** the spec pins the clock (`around` + `travel_to`, 2026-09-15 09:00 UTC = 12:00 in Riyadh). All 11
+  examples and their assertions are unchanged; no application change.
+* **Regression tests:** the spec itself. With an outer fixed clock (scratch harness), the old spec fails 11 / 11 at
+  2026-10-29 02:21Z, 2026-10-30 21:30Z and 2026-10-31 20:59Z and passes at 2026-11-15 12:00Z, 2026-11-28 20:59Z and
+  2026-12-31 21:00Z; the fixed spec passes 11 / 0 at all six.
+* **Review milestone:** — (resolved).

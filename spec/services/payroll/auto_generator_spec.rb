@@ -3,7 +3,12 @@ require "rails_helper"
 RSpec.describe Payroll::AutoGenerator do
   # The generator decides on today in the business timezone
   # (Payroll::AutoGenerator#today_in_tz), never the UTC calendar day — they
-  # differ every evening (21:00–24:00 UTC for Asia/Riyadh).
+  # differ every evening (21:00–24:00 UTC for Asia/Riyadh). The clock is
+  # pinned to a day of month <= 28: the generate day is set to today's day and
+  # Business caps payroll_auto_generate_day at 28, so on the 29th–31st the
+  # business record itself would be invalid (BUG-023).
+  around { |example| travel_to(Time.utc(2026, 9, 15, 9, 0)) { example.run } } # 12:00 on 15 September in Riyadh
+
   let(:timezone)       { "Asia/Riyadh" }
   let(:business_today) { ActiveSupport::TimeZone[timezone].today }
   let(:business)       { create(:business, timezone: timezone, payroll_auto_generate_day: business_today.day) }
