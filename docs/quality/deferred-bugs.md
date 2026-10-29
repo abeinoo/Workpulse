@@ -44,7 +44,8 @@ here only so its stable ID and history are kept.
 | BUG-020 | Admin dashboard shows staff, requests and payroll periods outside the viewer's scope | Reporting (admin dashboard) | **High — critical (unauthorized access, cross-branch)** | Confirmed (request spec on the unchanged code) | **Resolved** (`60d851b`, PR #76; was Escalated) | — |
 | BUG-021 | Deposit Verification "Missing" tab compares statement dates with the UTC date of `deposited_at` | Finance & Sales (deposit verification) | Medium (wrong missing-from-bank list around business midnight) | Confirmed (request reproduction) | Open | Next finance fix |
 | BUG-022 | Deposit Verification has no tab or count for bank lines needing re-verification | Finance & Sales (deposit verification) | Low (visibility; shown elsewhere) | Improvement | Deferred | Next finance fix |
-| BUG-023 | `auto_generator_spec.rb` fails all 11 examples on days 29–31 of the month (business timezone) | Test suite (payroll auto-generation) | Medium (CI fails on every branch three days a month) | Confirmed (CI run 40805819874; reproduced with a fixed clock) | **Resolved** on `fix/auto-generator-spec-day-29` (pull request open, not merged) | — |
+| BUG-023 | `auto_generator_spec.rb` fails all 11 examples on days 29–31 of the month (business timezone) | Test suite (payroll auto-generation) | Medium (CI fails on every branch three days a month) | Confirmed (CI run 40805819874; reproduced with a fixed clock) | **Resolved** (`d3261b4`, PR #86) | — |
+| BUG-024 | Concurrency spec cleanup can find a worker connection still in use, skip truncation and cascade | Test suite (two-connection concurrency harnesses) | Medium (intermittent CI failure; leftover rows fail later specs) | Observed (CI run 40813098019); cause unconfirmed, not reproduced | Open | Next test-harness fix |
 
 ---
 
@@ -195,8 +196,8 @@ here only so its stable ID and history are kept.
 * **Separate follow-ups** (not BUG-003; they do not block its resolution):
   * A Rematch deletes earlier auto-matches (`DepositVerification::MatchingEngine#reset_rematchable!`) and audits only
     changed new matches, so a lost earlier match is never audited — to be registered separately.
-  * The order-dependent `request_validation_reads_spec.rb:530` and the unreproduced `match_concurrency_spec.rb:392`
-    failure whose cleanup was skipped (both under *Verification*) — not yet registered.
+  * The order-dependent `request_validation_reads_spec.rb:530` (under *Verification*) — not yet registered.
+  * The unreproduced `match_concurrency_spec.rb:392` failure whose cleanup was skipped — see BUG-024.
 * **Regression tests:** `spec/models/concerns/audit_loggable_spec.rb`, `audit_loggable_commit_path_spec.rb`, and the
   BUG-003 examples in the migrated callers' specs (`spec/services/finance/{session_amounts_editor,day_close_editor,
   till_deposit_voider,depositor_assigner,deposit_responsibility_transfer_requester,…_rejecter}_spec.rb`,
@@ -661,7 +662,7 @@ here only so its stable ID and history are kept.
 ## BUG-023 — `auto_generator_spec.rb` fails all 11 examples on days 29–31 of the month (business timezone)
 
 * **Source:** new (CI failure on PR #85, a documentation-only change). **Discovered:** 2026-10-29. **Status:**
-  **Resolved** on `fix/auto-generator-spec-day-29` (pull request open, not merged).
+  **Resolved** by `d3261b4` (merged into `main` in PR #86, merge commit `b88ec03`).
 * **Domain / files:** test suite — `spec/services/payroll/auto_generator_spec.rb`; validation in
   `app/models/business.rb` (`payroll_auto_generate_day`, 1–28).
 * **Observed:** CI run 40805819874 (2026-10-29 02:21 UTC, 29 October in Asia/Riyadh): 10,062 examples, 11 failures —
@@ -679,3 +680,36 @@ here only so its stable ID and history are kept.
   2026-10-29 02:21Z, 2026-10-30 21:30Z and 2026-10-31 20:59Z and passes at 2026-11-15 12:00Z, 2026-11-28 20:59Z and
   2026-12-31 21:00Z; the fixed spec passes 11 / 0 at all six.
 * **Review milestone:** — (resolved).
+
+## BUG-024 — Concurrency spec cleanup can find a worker connection still in use, skip truncation and cascade
+
+* **Source:** new (CI run 40813098019 on PR #85, a documentation-only change). **Discovered:** 2026-10-29.
+  **Status:** Open.
+* **Domain / files:** test suite — the two-connection concurrency harness copied into seven specs (empty-database
+  guard, worker threads on their own connections, truncation in `after`), here
+  `spec/characterization/inventory_purchasing/purchase_request_advance_concurrency_spec.rb`; also the guard in
+  `spec/support/non_transactional_database.rb`.
+* **Observed (facts):** in run 40813098019 (`test` job, its own PostgreSQL service container, one RSpec process) the
+  example "two confirmations: the second waits on the request row, then is refused — custody is debited once"
+  failed only in its `after` hook: "concurrency cleanup: 1 worker connection(s) still checked out; 1 other database
+  session(s) still active or in a transaction — truncation SKIPPED". No worker thread survived shutdown and none
+  raised; both worker results had been awaited. The rows it committed stayed in the test database, and 50 examples
+  in 14 spec files failed after it: 30 refused at the empty-database guard (the same spec's next two examples and
+  six other non-transactional specs, among them BUG-003's `audit_loggable_commit_path_spec.rb`); 19 in Purchase
+  Request specs failed count or `sole` expectations on the leftover rows. That run also had BUG-023's 11 failures,
+  because it tested the stale merge `922cec0`.
+* **Not shown:** the cause. The cascade affected only the CI test database; nothing indicates an application defect.
+  The failure did not recur in runs 40805819874, 40722956476, 40812521136 or 40813934325. A local run on
+  2026-10-28 had a similar unreproduced failure in `spec/services/finance/bank_statements/match_concurrency_spec.rb:392`
+  whose cleanup was skipped (BUG-003 *Verification*); that it has the same cause is a hypothesis.
+* **Hypotheses (unverified):** a worker's connection is returned to the pool, or its backend session finishes,
+  slightly after the thread's result is available; or a connection leased inside a worker is kept past
+  `with_connection`. The cleanup checks once, without a retry or details of the remaining session.
+* **Impact:** an intermittent red CI run with a misleading cascade; safe by design (truncation is skipped rather than
+  run while another session may still write).
+* **Recommended next step:** improve worker-connection cleanup and diagnostics in the shared harness — explicitly
+  release each worker's connection, re-check the pool and `pg_stat_activity` for a short bounded period before
+  reporting, and print the remaining session's pid, state, `xact_start` and query when cleanup is skipped.
+* **Regression tests:** to define with the fix; the concurrency specs must still refuse to truncate while another
+  session is active.
+* **Review milestone:** next test-harness fix.
