@@ -5,8 +5,10 @@ RSpec.describe Branch, type: :model do
 
   describe "associations" do
     it { is_expected.to belong_to(:business) }
-    it { is_expected.to have_many(:attendance_records).dependent(:destroy) }
-    it { is_expected.to have_many(:payroll_periods).dependent(:destroy) }
+    # History is never deleted or detached with its branch (BUG-026).
+    it { is_expected.to have_many(:attendance_records).dependent(:restrict_with_error) }
+    it { is_expected.to have_many(:payroll_periods).dependent(:restrict_with_error) }
+    it { is_expected.to have_many(:shift_assignments).dependent(:restrict_with_error) }
   end
 
   describe "validations" do

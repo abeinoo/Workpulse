@@ -28,6 +28,9 @@ class ShiftAssignment < ApplicationRecord
   validate  :effective_to_after_effective_from
   validate  :no_overlapping_assignment
   validate  :no_overlapping_shift_time
+  # A deactivated branch takes no new assignments (BUG-026); existing ones there
+  # keep their branch and can still be ended.
+  validate  :branch_active, if: :will_save_change_to_branch_id?
 
   # ── Scopes ──────────────────────────────────────────────────────────────────
 
@@ -187,6 +190,10 @@ class ShiftAssignment < ApplicationRecord
     return unless effective_to.present? && effective_from.present?
 
     errors.add(:effective_to, "must be on or after start date") if effective_to < effective_from
+  end
+
+  def branch_active
+    errors.add(:base, :branch_inactive) if branch && !branch.active?
   end
 
   def no_overlapping_assignment

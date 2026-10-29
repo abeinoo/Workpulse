@@ -68,11 +68,14 @@ RSpec.describe Finance::Reports::LaundryCostSummary, type: :model do
     end
 
     it "ignores an inactive second laundry branch, and its payroll, expenses and materials" do
-      old_laundry = create(:branch, :inactive, business: business, branch_type: "laundry")
+      # Its history was recorded while it was active; it was deactivated
+      # afterwards (an inactive branch takes no new shift assignments — BUG-026).
+      old_laundry = create(:branch, business: business, branch_type: "laundry")
       laundry_payroll!(branch: old_laundry, net_salary: 900)
       create(:expense, :approved, business: business, branch: old_laundry, expense_category: category,
                                   amount: 70, expense_date: from + 2.days)
       material_issue!(branch: old_laundry)
+      old_laundry.update_column(:active, false)
 
       laundry_payroll!(branch: laundry_branch, net_salary: 1000)
       create(:expense, :approved, business: business, branch: laundry_branch, expense_category: category,

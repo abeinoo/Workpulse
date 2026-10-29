@@ -74,8 +74,10 @@ module ArchitectureSpecs
       },
       "app/models/branch.rb" => {
         classes: "E",
-        reason: "Branch has_many :shift_assignments (inverse association, dependent: :nullify)",
-        shapes: [ /\Ahas_many :shift_assignments,\s+dependent: :nullify\z/ ]
+        # Was dependent: :nullify (a write into Workforce rows); BUG-026 made it
+        # restrict_with_error — an existence check only, so history is never detached.
+        reason: "Branch has_many :shift_assignments (inverse association, dependent: :restrict_with_error)",
+        shapes: [ /\Ahas_many :shift_assignments,\s+dependent: :restrict_with_error\z/ ]
       },
       "app/controllers/admin/branches_controller.rb" => {
         classes: "F",

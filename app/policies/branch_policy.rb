@@ -4,6 +4,8 @@ class BranchPolicy < ApplicationPolicy
   def create?  = can?(:manage_branches)
   def update?  = can?(:manage_branches)
   def destroy? = can?(:manage_branches)
+  def deactivate? = can?(:manage_branches)
+  def reactivate? = can?(:manage_branches)
 
   class Scope < ApplicationPolicy::Scope
     def resolve

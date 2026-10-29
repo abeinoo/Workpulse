@@ -18,9 +18,29 @@
         <%= @branch.active? ? t("admin.branches.active") : t("admin.branches.inactive") %>
       </span>
       <%= link_to t("admin.branches.edit_action"), edit_admin_branch_path(@branch), class: "btn btn-ghost btn-sm" %>
-      <%= button_to t("admin.branches.delete"), admin_branch_path(@branch), method: :delete,
-            class: "btn btn-danger btn-sm",
-            data: { turbo_confirm: t("forms.confirm_delete", name: @branch.name) } %>
+      <%# Lifecycle (BUG-026): retire by deactivation; delete only a never-used branch. %>
+      <% if @branch.active? %>
+        <%= render "lifecycle_dialog",
+              id: "branch-deactivate", trigger_label: t("admin.branches.lifecycle.deactivate"),
+              trigger_class: "btn btn-ghost btn-sm",
+              title: t("admin.branches.lifecycle.deactivate_title", name: @branch.name),
+              url: deactivate_admin_branch_path(@branch), method: :patch,
+              hint: t("admin.branches.lifecycle.deactivate_hint"),
+              submit_label: t("admin.branches.lifecycle.deactivate"),
+              confirm: t("admin.branches.lifecycle.deactivate_confirm") %>
+      <% else %>
+        <%= button_to t("admin.branches.lifecycle.reactivate"), reactivate_admin_branch_path(@branch), method: :patch,
+              class: "btn btn-primary btn-sm",
+              data: { turbo_confirm: t("admin.branches.lifecycle.reactivate_confirm") } %>
+      <% end %>
+      <%= render "lifecycle_dialog",
+            id: "branch-delete", trigger_label: t("admin.branches.lifecycle.delete"),
+            trigger_class: "btn btn-danger btn-sm",
+            title: t("admin.branches.lifecycle.delete_title", name: @branch.name),
+            url: admin_branch_path(@branch), method: :delete,
+            hint: t("admin.branches.lifecycle.delete_hint"),
+            submit_label: t("admin.branches.lifecycle.delete"),
+            confirm: t("admin.branches.lifecycle.delete_confirm") %>
     </div>
   </div>
 

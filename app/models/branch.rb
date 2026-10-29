@@ -23,9 +23,12 @@ class Branch < ApplicationRecord
   belongs_to :business
   belongs_to :branch_manager, class_name: "User", optional: true
   belongs_to :area_manager,   class_name: "User", optional: true
-  has_many :shift_assignments,   dependent: :nullify
-  has_many :attendance_records,  dependent: :destroy
-  has_many :payroll_periods,     dependent: :destroy
+  # History is never deleted or detached with its branch (BUG-026): a branch
+  # with any of these is retired by deactivation instead
+  # (OrganizationAccess::DeactivateBranch / DeleteBranch).
+  has_many :shift_assignments,   dependent: :restrict_with_error
+  has_many :attendance_records,  dependent: :restrict_with_error
+  has_many :payroll_periods,     dependent: :restrict_with_error
   # Primary supplying warehouse (reporting relationship only — the branch owns no stock).
   has_one :warehouse_supply, class_name: "WarehouseBranchSupply", dependent: :destroy
 
