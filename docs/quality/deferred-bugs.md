@@ -46,6 +46,10 @@ here only so its stable ID and history are kept.
 | BUG-022 | Deposit Verification has no tab or count for bank lines needing re-verification | Finance & Sales (deposit verification) | Low (visibility; shown elsewhere) | Improvement | Deferred | Next finance fix |
 | BUG-023 | `auto_generator_spec.rb` fails all 11 examples on days 29–31 of the month (business timezone) | Test suite (payroll auto-generation) | Medium (CI fails on every branch three days a month) | Confirmed (CI run 40805819874; reproduced with a fixed clock) | **Resolved** (`d3261b4`, PR #86) | — |
 | BUG-024 | Concurrency spec cleanup can find a worker connection still in use, skip truncation and cascade | Test suite (two-connection concurrency harnesses) | Medium (intermittent CI failure; leftover rows fail later specs) | Observed (CI run 40813098019); cause unconfirmed, not reproduced | Open | Next test-harness fix |
+| BUG-025 | Inventory documents accept another business's warehouses and products (owner / unassigned users) | Inventory & Purchasing | **High — critical (cross-business stock writes and disclosure)** | Confirmed (request reproduction) | **In Progress** (fix committed on `fix/inventory-isolation-branch-lifecycle`, `45c3693`; tests and full suite run; not reviewed, not merged — **Escalated**) | Review and merge |
+| BUG-026 | Deleting a branch hard-deletes its attendance, device punches and legacy payroll periods | Organization & Access (branches) | **High — critical (irreversible data loss)** | Confirmed (characterization spec) | **In Progress** (adopted lifecycle committed on `fix/inventory-isolation-branch-lifecycle`, `bc47ad7` + `b82c6b8`; tests and full suite run; not reviewed, not merged — **Escalated**) | Review and merge |
+| BUG-027 | Remaining models take business-owned foreign keys without a same-business guard | Cross-domain (≈33 models) | Medium (tenant isolation, per path) | Suspected (static inventory; inventory paths fixed under BUG-025) | Open | Before multi-business use |
+| BUG-028 | `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change | Test suite (sign-up) | Low (local runs in a DST time zone, a few days a year) | Confirmed (reproduced 2026-10-29; time-travel arithmetic shown) | Open | Next test-suite fix |
 
 ---
 
@@ -713,3 +717,167 @@ here only so its stable ID and history are kept.
 * **Regression tests:** to define with the fix; the concurrency specs must still refuse to truncate while another
   session is active.
 * **Review milestone:** next test-harness fix.
+
+## BUG-025 — Inventory documents accept another business's warehouses and products (owner / unassigned users)
+
+* **Source:** IP-1 (SaaS architecture audit Phase 1, 2026-10-29). **Discovered:** 2026-10-29. **Status:** **In
+  Progress** — implemented and committed on branch `fix/inventory-isolation-branch-lifecycle` (tests `ca37afe`, fix
+  `45c3693`); focused, regression and full-suite verification run (see *Verification*); **not reviewed, not merged,
+  not deployed**. **Escalated** — critical under the policy (cross-business writes to the stock ledger and valuation;
+  cross-business disclosure).
+* **Domain / files:** Inventory & Purchasing — `app/controllers/inventory/{stock_transfers,stock_adjustments,stock_counts,goods_receipts,stock_issues}_controller.rb`,
+  `Inventory::BaseController#ensure_warehouses_accessible!`, `User#inventory_warehouse_ids`,
+  `Inventory::StockTransferPoster`, `Inventory::AdjustmentPoster`, `Inventory::StockLevels#in_warehouse`.
+* **Observed (before the fix):** warehouse and line-product ids are taken from form params. The only check,
+  `ensure_warehouses_accessible!`, returns early when `inventory_warehouse_ids` is `nil` — the business owner and
+  any user with no warehouse assignment. No model or policy checked that the warehouse (transfer, adjustment, count,
+  goods receipt, stock issue) or the line product (transfer, adjustment, count, goods receipt) belonged to the
+  document's business. Stock sums are keyed by product and warehouse only.
+* **Expected vs actual:** a reference to another business's warehouse or product is refused with nothing written;
+  instead the documents were accepted (302) and posted. As business A's owner: a transfer out of business B's
+  warehouse lowered B's on-hand (4321 → 4316); an opening-balance adjustment on B's product re-averaged B's cost
+  (7.00 → 8.1466); drafts referencing B's warehouse or product were created for counts, goods receipts and stock
+  issues (to be posted into B's ledger on approval); and the transfer / adjustment availability checks, which run
+  before validation, put B's on-hand quantity in the refusal message.
+* **Impact:** only reachable with a second business in the database (production is single-business as far as
+  known); a blocker for any multi-business deployment. Restricted users (with warehouse assignments) were not
+  affected — `WarehouseAssignment` is guarded to the user's business.
+* **Evidence:** `spec/requests/security/inventory_cross_business_references_spec.rb` — on the unchanged code 22 of
+  52 examples fail (11 per actor: owner and a manager with no warehouse assignment); with the fix 52 / 0.
+* **Fix (`45c3693`):** a new `other_business` validation type (`activerecord.errors.messages.other_business`,
+  EN + AR) used by: warehouse guards on `StockTransfer` (source and destination), `StockAdjustment`, `StockCount`,
+  `GoodsReceipt`, `StockIssue`; product guards on `StockTransferItem`, `StockAdjustmentItem`, `StockCountItem`,
+  `GoodsReceiptItem` (`StockIssueItem` already had one); a source-warehouse guard on `PurchaseRequestItem` (it
+  pre-fills the receipt's warehouse); and an `InventoryMovement` backstop on create (product and warehouse must
+  belong to the row's business). The guards run when the reference is written (`will_save_change_to_*?`).
+  `StockTransferPoster` and `AdjustmentPoster` refuse `other_business` errors **before** their availability checks,
+  so no other business's on-hand is read or reported. `StockCountsController#preload_products` skips the on-hand
+  snapshot for another business's warehouse (it read that warehouse's ledger before validation refused the session —
+  shown by a failing example, nothing rendered) — the only controller change. No policy, route or schema change.
+* **Verification (2026-10-29, seed 20261006 unless noted):** the two IP-1 specs 69 / 0; inventory, security,
+  laundry, IP characterization, all policies, finance services and finance requests 4412 / 0;
+  `spec/architecture` 420 / 0; RuboCop clean on changed files; `git diff --check` clean. Full suite: see BUG-026
+  *Verification* (one run covers both fixes).
+* **Not in scope / remaining:** `StockIssueImportBatch` (its warehouse is resolved through the business-scoped
+  `accessible_warehouses`); existing rows were **not audited** — a document written before the guards that names
+  another business's warehouse cannot be posted (the `InventoryMovement` backstop refuses it, pinned by a spec), but
+  voiding such a document is refused the same way and would need a data repair; the other models with unguarded
+  business-owned foreign keys are BUG-027.
+* **Regression tests:** `spec/requests/security/inventory_cross_business_references_spec.rb` (54: both actors, every
+  document, no disclosure, no read of the other warehouse's stock), `spec/models/inventory_cross_business_guards_spec.rb`
+  (15: each guard, the movement backstop, the goods-receipt poster path and a pre-existing draft, positive
+  same-business controls).
+* **Review milestone:** review and merge of `fix/inventory-isolation-branch-lifecycle`; mark Resolved only once merged.
+
+## BUG-026 — Deleting a branch hard-deletes its attendance, device punches and legacy payroll periods
+
+* **Source:** OA-6 (SaaS architecture audit Phase 1, 2026-10-29). **Discovered:** 2026-10-29. **Status:** **In
+  Progress** — the adopted lifecycle (see *Decisions* and *Fix*) is implemented and committed on branch
+  `fix/inventory-isolation-branch-lifecycle` (characterization `5e7b0c1`, fix `bc47ad7`, regression tests `b82c6b8`);
+  verification run (see *Verification*); **not reviewed, not merged, not deployed**. **Escalated** (irreversible data
+  loss).
+* **Domain / files:** Organization & Access — `app/controllers/admin/branches_controller.rb#destroy`,
+  `app/models/branch.rb` (`has_many :attendance_records, dependent: :destroy`, `has_many :payroll_periods,
+  dependent: :destroy`, `has_many :shift_assignments, dependent: :nullify`); cascades through
+  `AttendanceRecord` (`attendance_adjustments`, `biometric_punch_logs`) and `PayrollPeriod` (`payroll_entries` →
+  `payroll_line_items`, branch reviews, obligation deductions, snapshots). `BranchPolicy#destroy?` =
+  `can?(:manage_branches)`.
+* **Observed (characterization, unchanged code):**
+  * a branch whose history is attendance records and device punches (no manager correction, no financial record)
+    is deleted: its attendance records and raw `biometric_punch_logs` are hard-deleted, its shift assignments keep
+    their rows but lose `branch_id` (set to NULL), and no audit entry is written;
+  * a legacy branch-linked payroll period is hard-deleted with its entries and line items — **including a finalized
+    period**;
+  * an attendance record with a manager correction cannot be destroyed (`AttendanceAdjustment` aborts destroy), so the
+    branch delete silently fails and everything is kept; the same with an expense (`restrict_with_error`); in both
+    cases the controller ignores the result and still shows "Branch removed.";
+  * a table that references the branch by foreign key only (e.g. a daily reconciliation) makes the database refuse
+    the delete (`ActiveRecord::InvalidForeignKey`, rolled back); through the controller this is an unrescued error
+    (not exercised by request).
+* **Expected (per CLAUDE.md "audit-first", "never delete historical data"):** branch history is never hard-deleted;
+  the outcome shown to the user matches what happened; the action is audited.
+* **Impact:** irreversible loss of attendance, device-punch and payroll history for a branch deleted before it had
+  corrections or financial records (e.g. a laundry / HQ / newly opened branch); loss of historical branch attribution
+  on shift assignments; misleading success messages. Production data not checked.
+* **Evidence:** `spec/characterization/organization_access/branch_deletion_spec.rb` as committed in `5e7b0c1`
+  (10 / 0 pinning the unchanged behaviour); turned into regression examples by `bc47ad7`.
+* **Decisions (owner, 2026-10-29):** prefer deactivation over deletion (`branches.active`); no historical record is
+  reassigned, nulled or deleted; a business always keeps at least one active branch (safe under concurrency);
+  permanent deletion only for a branch with no history, decided by the data model; successful deactivation,
+  reactivation and deletion are audited, failures are not; the user sees the real outcome; an inactive branch takes
+  no new operations where that breaks the rules, while its history stays visible.
+* **Fix (`bc47ad7`):**
+  * `Branch` — `attendance_records`, `payroll_periods`, `shift_assignments` are `restrict_with_error` (were `destroy`,
+    `destroy`, `nullify`). Pinned with the foreign-key assumptions by `spec/models/branch_deletion_constraints_spec.rb`:
+    every branch reference has a foreign key without `ON DELETE`, and `Branch` destroys only configuration
+    (`warehouse_supply`).
+  * `OrganizationAccess::DeactivateBranch` / `ReactivateBranch` / `DeleteBranch` — branch loaded by id inside the
+    actor's business; reason required for deactivation and deletion (optional for reactivation); business row locked,
+    then the branch, so two requests retiring the last two active branches serialize and the second is refused;
+    `log_audit!` (fail-closed) for a completed transition only, deletion with a snapshot of the branch. Deletion is
+    refused (and rolled back) for restrict errors, `ActiveRecord::InvalidForeignKey`, or lifecycle audit history.
+  * `Admin::BranchesController` — `deactivate` / `reactivate` member actions (`manage_branches`, as before);
+    `destroy` reports the real result (no false "Branch removed", no error page on a foreign-key refusal); `active` no
+    longer editable through the edit form.
+  * `ShiftAssignment` — no new assignment at an inactive branch (web, API and template paths); existing ones keep their
+    branch and can still be ended.
+  * Branch page — Deactivate / Reactivate and Delete permanently with a reason dialog; status read-only in the form;
+    EN + AR.
+  * The membership boundary spec's classified `Branch has_many :shift_assignments` exception now pins
+    `dependent: :restrict_with_error` (the previous `:nullify` wrote into Workforce rows; the reference is unchanged).
+* **Verification (2026-10-29, seed 20261006 unless noted):** the lifecycle, request, schema and regression specs
+  59 / 0; the two-connection concurrency spec 2 / 0 (seeds 20261006 and 12345), and it fails when the business-row
+  lock is removed (checked by hand, then restored); `spec/architecture` 420 / 0; first full-suite run 10 398
+  examples, 4 failures — `branch_spec.rb:8`, `:9` (association matchers pinning `dependent: :destroy`) and
+  `laundry_cost_summary_report_guards_spec.rb:70` (created a shift assignment on an already inactive branch), all
+  three updated in `bc47ad7`, and `registrations_spec.rb:141`, unrelated (BUG-028). Final full-suite run on the
+  committed branch (`b82c6b8`): 10 399 examples, 1 failure — `registrations_spec.rb:141` (BUG-028). RuboCop clean on
+  changed files; `git diff --check` clean.
+* **Follow-ups (not done here):** server-side inactive-branch checks for the other entry points that accept any
+  branch of the business — towel transfers and adjustments (`Laundry::TowelTransfersController`,
+  `Laundry::TowelAdjustmentsController`) and the stock-issue import branch (`StockIssuesController#load_import_context`)
+  — their pickers already list active branches only; whether deactivation should be refused while current or future
+  shift assignments remain at the branch (today they stay, keep their branch and can be ended); production data was
+  not checked for branches already deleted with their history.
+* **Review milestone:** review and merge of `fix/inventory-isolation-branch-lifecycle`; mark Resolved only once merged.
+
+## BUG-027 — Remaining models take business-owned foreign keys without a same-business guard
+
+* **Source:** SaaS architecture audit Phase 1 (IP-2, 2026-10-29), follow-up of BUG-025. **Discovered:** 2026-10-29.
+  **Status:** Open.
+* **Domain / files:** cross-domain — models that reference business-owned records but have no model-level
+  same-business validation (static inventory on `main` `e7dddb5`): `attendance_record`, `bank_dispute`,
+  `bank_statement`, `daily_reconciliation`, `deposit_responsibility_transfer`,
+  `employee_reconciliation_summary(_amount)`, `laundry_batch_consumption`, `payroll_period`,
+  `payroll_period_branch_review`, `penalty_rule`, `pos_transaction`, `product_barcode`,
+  `remaining_deposit_balance(_transaction)`, `sales_transaction`, `shift_assignment`, `shift_template_entry`,
+  `stock_issue_import_batch` / `_row`, `till_deposit`, `till_handover(_amount)`, `till_refund`, `till_session(_amount)`.
+  The inventory documents and lines of that inventory were fixed under BUG-025.
+* **Observed:** isolation for these rows relies on the write path (services resolving ids inside the actor's
+  business, controller checks such as `ShiftAssignmentsController#assignment_resources_in_business?`). Many are
+  written only by services through an already-scoped parent, so this is **not** a confirmed defect per model — each
+  param-fed path needs checking. The ~30 one-off `spec/requests/security/*_business_scope_spec.rb` files show the same
+  class of defect being fixed one model at a time.
+* **Impact:** a path that accepts a foreign id without a scoped lookup would write across businesses (cf. BUG-025).
+  Only reachable with a second business.
+* **Recommended fix:** triage each model: list its writers, mark those fed by request params, reproduce with a
+  two-business spec, then add the same-business guard (the `other_business` validation type from BUG-025) where a
+  path is open. Not a blanket change.
+* **Regression tests:** to define per path (two similarly shaped businesses).
+* **Review milestone:** before any multi-business use.
+
+## BUG-028 — `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change
+
+* **Source:** new (full-suite run on `fix/inventory-isolation-branch-lifecycle`, 2026-10-29). **Discovered:**
+  2026-10-29. **Status:** Open.
+* **Domain / files:** test suite — `spec/requests/users/registrations_spec.rb:141`; `User`
+  `generates_token_for :account_claim, expires_in: 7.days`.
+* **Observed (facts):** the example fails deterministically on 2026-10-29 (local run), with 422 instead of a redirect.
+  A probe showed `travel 7.days - 1.minute` moving the clock by 7 days **and 59 minutes** (06:49 → 07:48 UTC), so
+  the 7-day token had expired. `Time.zone` is UTC and no application code assigns it; the extra hour is consistent
+  with `travel` adding calendar days to the machine's local time across a daylight-saving change (inferred, not
+  proven). Unrelated to the branch's changes (no branch, inventory or lifecycle code on that path).
+* **Impact:** a red local run for a few days a year in a DST-observing time zone; CI (UTC) unaffected as far as known.
+* **Recommended fix:** travel by an absolute duration that does not depend on local calendar days (e.g. from a
+  fixed `Time.current` anchor or with `freeze_time` + seconds), as done for BUG-018 / BUG-023.
+* **Review milestone:** next test-suite fix.

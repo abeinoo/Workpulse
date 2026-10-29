@@ -3024,7 +3024,7 @@ macros (comments, `t(...)` keys and the `include_shift_assignments` keyword are 
   | File | Class | Allowed lines |
   |---|---|---|
   | `app/models/user.rb` | E + F | `has_many :shift_assignments, dependent: :destroy` (inverse; documented User cascade); `Shifts::AssignmentResolver.for(...)` in `#effective_shift_assignment_on` (User / Employee stewardship helper) |
-  | `app/models/branch.rb` | E | `has_many :shift_assignments, dependent: :nullify` |
+  | `app/models/branch.rb` | E | `has_many :shift_assignments, dependent: :nullify` — since 2026-10-29 `dependent: :restrict_with_error` (BUG-026: branch history is never detached; the option change removes the write into Workforce rows, the reference is unchanged) |
   | `app/controllers/admin/branches_controller.rb` | F (read-only) | Branch staff view `#show`: current employees (`ShiftAssignment.user_ids_for_branches([ @branch.id ])`, twice) and `@branch.shift_assignments.current` — a cross-domain dashboard (target: Reporting / composition) |
   | `app/controllers/api/v1/sessions_controller.rb` | F (read-only) | Login payload `checkin_branch_ids: ShiftAssignment.current…` — the documented mixed OA / WF / AP session payload (`module-boundaries.md` §17); API unchanged |
 
