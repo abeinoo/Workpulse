@@ -51,6 +51,7 @@ here only so its stable ID and history are kept.
 | BUG-027 | Remaining models take business-owned foreign keys without a same-business guard | Cross-domain (≈33 models) | Medium (tenant isolation, per path) | Suspected (static inventory; inventory paths fixed under BUG-025) | Open | Before multi-business use |
 | BUG-028 | `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change | Test suite (sign-up) | Low (local runs in a DST time zone, a few days a year) | Confirmed (reproduced 2026-10-29; time-travel arithmetic shown) | Open | Next test-suite fix |
 | BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by spec (2026-10-30: 21 refusal examples fail on the unchanged code) | In Progress (fix and deactivation towel warning on `fix/bug-029-inactive-branch-enforcement`, PR #88) | Follow-up to BUG-026 |
+| BUG-030 | Imported stock issues (and product-import opening balances) are dated with the UTC calendar date, not the business day | Inventory & Purchasing | Low (date-boundary window; period attribution in reports) | Confirmed (code; formula evaluated outside the app, no spec) | Open | Next Inventory & Purchasing fix |
 
 ---
 
@@ -999,3 +1000,47 @@ here only so its stable ID and history are kept.
   * The stock-issue importer's `issued_on: Date.current` (not the business day) is a separate defect, not part of this
     fix.
 * **Review milestone:** review and merge of `fix/bug-029-inactive-branch-enforcement`; mark Resolved only once merged.
+
+## BUG-030 — Imported stock issues (and product-import opening balances) are dated with the UTC calendar date, not the business day
+
+* **Source:** side finding of the BUG-029 audit (2026-10-29), verified against `main` `d108918` (2026-10-30).
+  **Discovered:** 2026-10-29. **Status:** Open — **registered for follow-up only, not fixed**; deliberately kept out of
+  BUG-029 (PR #88).
+* **Domain / files:** Inventory & Purchasing —
+  `app/services/inventory/imports/stock_issue_importer.rb:102` (`issued_on: Date.current`);
+  `app/services/inventory/imports/product_importer.rb:159` (opening-balance `StockAdjustment`, `adjusted_on: Date.current`).
+* **Observed (code, `main` `d108918`):**
+  * `config.time_zone` is not set (`config/application.rb:24` is commented out), so `Date.current` is the **UTC**
+    calendar date. `BusinessDay.current(context: business)` (`app/lib/business_day.rb`) uses the business's
+    `timezone` (default `"UTC"`) and `business_day_start_hour` (default `6`, `db/schema.rb:346`/`351`).
+  * The stock-issue CSV import has no date column or field: `issued_on` is always the importer's `Date.current`. The
+    issue is not posted at import (it goes to approval); on confirmation `StockIssuePoster` copies `issued_on` into
+    `InventoryMovement.occurred_on` (`stock_issue_poster.rb:88`), so the movement carries the import's calendar date
+    whenever it is confirmed.
+  * The product importer posts its opening-balance adjustment immediately; `AdjustmentPoster` copies `adjusted_on`
+    into `occurred_on` (`adjustment_poster.rb:104`). Same root cause, a second occurrence — recorded here, not as a
+    separate bug.
+  * Inventory reports bound periods by the business day: `Inventory::Reports::Period` ("from the business day
+    (BusinessDay), never Date.today"); `DocumentVoider` dates reversals by `BusinessDay`; `ConsumptionLedger` and the
+    finance laundry cost summary filter on `occurred_on` / `issued_on`.
+  * The two dates differ in predictable windows. With the **defaults** (UTC, start hour 6) every day from 00:00 to
+    06:00 UTC: at 2026-10-31 02:00 UTC `Date.current` is 10-31, the business day is 10-30. With Africa/Cairo, start
+    hour 6, at 2026-11-01 01:00 UTC: 11-01 vs **10-31** (a month boundary). With Africa/Cairo, start hour 0, at
+    2026-10-31 22:30 UTC: 10-31 vs **11-01**. (Computed with the `BusinessDay.work_date_for` formula outside the app.)
+  * The manual stock-issue form also defaults to `Date.current` (`stock_issues_controller.rb:80`), but the date is a
+    visible, editable field — not part of this bug.
+  * No spec covers the imported date: `stock_issue_importer_spec.rb` and `product_importer_spec.rb` neither assert
+    `issued_on` / `adjusted_on` nor travel in time.
+* **Impact:** an issue (or opening balance) imported in such a window is dated one day off the business day, so its
+  inventory movement falls in a different day — at a month end, a different month — of date-sensitive reports (a
+  "today" report omits it; monthly consumption and laundry cost shift). An imported issue's date can only be corrected
+  by editing it, which returns it to draft and revokes approval. Production business time zones and start hours were
+  **not** checked.
+* **Recommended fix:** default the imported date to `BusinessDay.current(context: @business)` in both importers (the
+  business day is the intended default — the stock-issue import exposes no date). Leave the manual form defaults and
+  other inventory form defaults to a separate decision; no repository-wide date refactor.
+* **Regression test:** travel to a moment where `Date.current` differs from `BusinessDay.current(context: business)`
+  (e.g. 02:00 UTC for a UTC business with start hour 6); import, approve and confirm a stock issue and assert that
+  `issued_on` and the posted movement's `occurred_on` both equal the business day; likewise `adjusted_on` and the
+  opening-balance movement for the product importer. A control example at a moment where the two dates agree.
+* **Review milestone:** next Inventory & Purchasing fix.
