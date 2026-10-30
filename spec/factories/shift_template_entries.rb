@@ -1,7 +1,7 @@
 FactoryBot.define do
   factory :shift_template_entry do
     association :shift_template
-    association :shift
+    shift         { association :shift, business: shift_template.business }
     branch        { nil }
     starts_on     { Date.current }
     ends_on       { nil }

@@ -132,7 +132,10 @@ RSpec.describe "Characterization: Organization & Access scopes over Workforce me
 
     it "never returns a user of another business, even one assigned to a managed branch" do
       outsider = create(:user, business: create(:business))
-      assign(outsider, create(:branch, business: outsider.business)).update_column(:branch_id, branch_a.id)
+      # A row written before ShiftAssignment's business guard (BUG-031): planted directly.
+      create(:shift_assignment, user: outsider, branch: create(:branch, business: outsider.business),
+                                shift: create(:shift, business: outsider.business), effective_from: 1.month.ago.to_date)
+        .update_column(:branch_id, branch_a.id)
 
       expect(EmployeeScope.new(manager).relation).not_to include(outsider)
       expect(EmployeeScope.new(owner).for_scope("business")).not_to include(outsider)

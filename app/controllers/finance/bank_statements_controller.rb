@@ -37,7 +37,7 @@ class Finance::BankStatementsController < Finance::BaseController
   def new
     @statement = BankStatement.new
     authorize @statement
-    @branches = assignable_branches
+    @branches = importable_branches
   end
 
   def sample_csv
@@ -56,17 +56,26 @@ class Finance::BankStatementsController < Finance::BaseController
     @statement.imported_by = current_user
     authorize @statement
 
+    # A branch of this business outside the importer's branch scope is refused
+    # here (the form lists only importable branches); another business's branch
+    # is refused by BankStatement's own validation (BUG-033).
+    if branch_outside_scope?(@statement)
+      @statement.errors.add(:branch_id, t("finance.bank_statements.errors.branch_outside_scope"))
+      @branches = importable_branches
+      return render :new, status: :unprocessable_entity
+    end
+
     uploaded_file = params[:bank_statement][:file]
 
     unless uploaded_file.present?
       @statement.errors.add(:file, t("finance.bank_statements.errors.file_blank"))
-      @branches = assignable_branches
+      @branches = importable_branches
       return render :new, status: :unprocessable_entity
     end
 
     unless Finance::BankStatements::FileReader.supported?(uploaded_file.original_filename)
       @statement.errors.add(:file, t("finance.bank_statements.errors.unsupported_file_type"))
-      @branches = assignable_branches
+      @branches = importable_branches
       return render :new, status: :unprocessable_entity
     end
 
@@ -74,7 +83,7 @@ class Finance::BankStatementsController < Finance::BaseController
 
     if raw_bytes.blank?
       @statement.errors.add(:file, t("finance.bank_statements.errors.file_empty"))
-      @branches = assignable_branches
+      @branches = importable_branches
       return render :new, status: :unprocessable_entity
     end
 
@@ -82,19 +91,19 @@ class Finance::BankStatementsController < Finance::BaseController
       table = Finance::BankStatements::FileReader.read(raw_bytes, filename: uploaded_file.original_filename)
     rescue Finance::BankStatements::FileReader::Error
       @statement.errors.add(:file, t("finance.bank_statements.errors.file_malformed"))
-      @branches = assignable_branches
+      @branches = importable_branches
       return render :new, status: :unprocessable_entity
     end
 
     if table.headers.empty?
       @statement.errors.add(:file, t("finance.bank_statements.errors.no_header_row"))
-      @branches = assignable_branches
+      @branches = importable_branches
       return render :new, status: :unprocessable_entity
     end
 
     if table.rows.empty?
       @statement.errors.add(:file, t("finance.bank_statements.errors.no_data_rows"))
-      @branches = assignable_branches
+      @branches = importable_branches
       return render :new, status: :unprocessable_entity
     end
 
@@ -115,7 +124,7 @@ class Finance::BankStatementsController < Finance::BaseController
 
       redirect_to edit_column_mapping_finance_bank_statement_path(@statement)
     else
-      @branches = assignable_branches
+      @branches = importable_branches
       render :new, status: :unprocessable_entity
     end
   end
@@ -259,6 +268,22 @@ class Finance::BankStatementsController < Finance::BaseController
 
     permitted = mapping_params.permit(Finance::BankStatements::RowParser::ALL_FIELDS)
     permitted.to_h.reject { |_k, v| v.blank? }
+  end
+
+  def branch_outside_scope?(statement)
+    return false if statement.branch_id.blank?
+    return false unless current_user.business.branches.exists?(statement.branch_id)
+
+    !importable_branches.exists?(statement.branch_id)
+  end
+
+  # Active branches a statement may be imported for: the importer's configured
+  # import_bank_statement branch scope (business → every branch; branch / area →
+  # managed ones; unset → the hierarchy default), as filter_by_branch_scope
+  # resolves branch-scopable permissions. The form lists exactly these.
+  def importable_branches
+    ids = BranchScope.new(current_user).for_scope(current_user.scope_for(:import_bank_statement))
+    current_user.business.branches.active.where(id: ids).order(:name)
   end
 
   def detect_overlapping_statements(statement)

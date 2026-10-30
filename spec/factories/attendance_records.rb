@@ -1,8 +1,15 @@
 FactoryBot.define do
   factory :attendance_record do
     transient do
-      business { create(:business) }
-      shift    { nil }
+      # Follows an explicitly given user or branch, so the generated shift
+      # assignment never mixes businesses (ShiftAssignment refuses that, BUG-031).
+      business do
+        if __override_names__.include?(:user) then user.business
+        elsif __override_names__.include?(:branch) then branch.business
+        else create(:business)
+        end
+      end
+      shift { nil }
     end
 
     user                { create(:user,   business: business) }

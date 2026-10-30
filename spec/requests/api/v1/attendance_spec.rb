@@ -71,7 +71,8 @@ RSpec.describe "API V1 Attendance", type: :request do
       let(:cairo_user)     { create(:user, business: cairo_business, allow_mobile_attendance: true) }
 
       before do
-        create(:shift_assignment, user: cairo_user, branch: cairo_branch, shift: shift,
+        create(:shift_assignment, user: cairo_user, branch: cairo_branch,
+               shift: create(:shift, :fixed_time, business: cairo_business),
                effective_from: assignment_start)
         sign_in cairo_user
       end
@@ -138,7 +139,8 @@ RSpec.describe "API V1 Attendance", type: :request do
       let(:utc_user)     { create(:user, business: utc_business, allow_mobile_attendance: true) }
 
       before do
-        create(:shift_assignment, user: utc_user, branch: utc_branch, shift: shift,
+        create(:shift_assignment, user: utc_user, branch: utc_branch,
+               shift: create(:shift, :fixed_time, business: utc_business),
                effective_from: assignment_start)
         sign_in utc_user
       end
@@ -329,7 +331,8 @@ RSpec.describe "API V1 Attendance", type: :request do
     let(:early_user)     { create(:user, business: early_business, allow_mobile_attendance: true) }
 
     before do
-      create(:shift_assignment, user: early_user, branch: early_branch, shift: shift,
+      create(:shift_assignment, user: early_user, branch: early_branch,
+               shift: create(:shift, :fixed_time, business: early_business),
              effective_from: assignment_start)
       sign_in early_user
     end

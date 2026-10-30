@@ -7619,6 +7619,7 @@ en:
         file_empty: "The file is empty. Please export a statement that contains a header row and at least one data row."
         unsupported_file_type: "Unsupported file type. Please upload a .csv, .xlsx, or .xls file."
         file_malformed: "The file could not be read — it may be corrupt or not a valid CSV/Excel file. Please check the file and try again."
+        branch_outside_scope: "This branch is outside your import scope or is inactive. Choose one of the listed branches, or leave the branch empty."
         no_header_row: "No header row was found. The file must contain a header row as its first line."
         no_data_rows: "The file has a header row but no data rows. Please check your bank export and try again."
         mapping_missing_required: "Transaction date and amount columns are required but could not be mapped. Please go back and check your column mapping."
@@ -8741,6 +8742,7 @@ en:
       invalid_action: "Invalid action."
       amount_required: "Settlement amount must be greater than zero."
       exceeds_balance: "Settlement amount exceeds the outstanding balance."
+      invalid_payment_method: "The selected payment method is not an active payment method of this business."
       same_user: "The new responsible person must be different from the current one."
       invalid_user: "User not found."
     statuses:
