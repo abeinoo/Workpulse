@@ -76,6 +76,46 @@ RSpec.describe "Admin branch lifecycle (BUG-026)", type: :request do
     end
   end
 
+  # BUG-029 — what Laundry still records at the branch, shown in the dialog
+  # through OrganizationAccess::BranchDeactivationNotices, never enforced.
+  describe "the deactivation towel warning" do
+    let(:towel_type) { business.towel_types.create!(name: "Bath Towel") }
+
+    def notice = Nokogiri::HTML(response.body).at_css("[data-testid='branch-deactivate-notice']")
+
+    before do
+      Laundry::TowelAdjuster.new(actor: owner).call(towel_type: towel_type, branch: branch, status: "clean",
+                                                    adjustment_quantity: 12, reason: "setup")
+      sign_in owner
+    end
+
+    it "shows the recorded balances in the deactivation dialog, labelled as information only" do
+      get admin_branch_path(branch)
+
+      expect(response).to have_http_status(:ok)
+      expect(notice).to be_present
+      expect(notice.text).to include(I18n.t("laundry.deactivation_notice.title"),
+                                     I18n.t("laundry.deactivation_notice.summary"),
+                                     I18n.t("admin.branches.lifecycle.notice_not_blocking"),
+                                     "Bath Towel", "12")
+    end
+
+    it "shows no warning for a branch with nothing recorded" do
+      get admin_branch_path(main_branch)
+
+      expect(response).to have_http_status(:ok)
+      expect(notice).to be_nil
+    end
+
+    it "does not prevent deactivation, and leaves the balance untouched" do
+      patch deactivate_admin_branch_path(branch), params: { reason: "Closed" }
+
+      expect(flash[:notice]).to eq(I18n.t("flash.branch_deactivated"))
+      expect(branch.reload).not_to be_active
+      expect(Laundry::TowelBalances.new(towel_type).at_branch(branch, "clean")).to eq(12)
+    end
+  end
+
   describe "PATCH reactivate" do
     before do
       branch.update_column(:active, false)

@@ -4,7 +4,9 @@
   the reason form. Same structure and classes as the shared reason dialogs.
 
   locals: id, trigger_label, trigger_class, title, url, method, hint,
-          submit_label, confirm
+          submit_label, confirm; optional notices — an Array of
+          OrganizationAccess::BranchDeactivationNotices::Notice, shown as
+          information only (BUG-029)
 %>
 <div data-controller="dialog">
   <button type="button" class="<%= trigger_class %>" aria-haspopup="dialog" aria-controls="<%= id %>"
@@ -20,6 +22,18 @@
       </div>
       <%= form_with url: url, method: method do %>
         <p class="form-hint"><%= hint %></p>
+        <% local_assigns.fetch(:notices, []).each do |notice| %>
+          <div class="alert alert-warning" role="note" data-testid="<%= id %>-notice">
+            <strong><%= notice.title %></strong>
+            <p><%= notice.summary %></p>
+            <p><%= t("admin.branches.lifecycle.notice_not_blocking") %></p>
+            <ul>
+              <% notice.lines.each do |line| %>
+                <li><%= line.label %>: <strong><%= number_with_precision(line.value, precision: 2, strip_insignificant_zeros: true, delimiter: ",") %></strong></li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
         <div class="form-group">
           <label class="form-label form-label--required" for="<%= id %>-reason"><%= t("admin.branches.lifecycle.reason_label") %></label>
           <textarea id="<%= id %>-reason" name="reason" rows="3" class="form-control" required

@@ -39,6 +39,9 @@ class TowelAdjustment < ApplicationRecord
   validates :reason, presence: true
   validate  :towel_type_and_branch_in_same_business
   validate  :resulting_quantity_not_negative
+  # No correction, loss or damage record at an inactive branch (BUG-029) —
+  # there is no closing-correction exception.
+  validate  :branch_active, on: :create
 
   scope :for_business, ->(business) { where(business: business) }
 
@@ -52,6 +55,10 @@ class TowelAdjustment < ApplicationRecord
     return if business_id.nil?
     errors.add(:towel_type, :invalid) if towel_type && towel_type.business_id != business_id
     errors.add(:branch, :invalid)     if branch && branch.business_id != business_id
+  end
+
+  def branch_active
+    errors.add(:branch, :branch_inactive) if branch && !branch.active?
   end
 
   def resulting_quantity_not_negative

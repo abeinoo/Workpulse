@@ -2375,6 +2375,7 @@ ar:
         deactivate_title: "إيقاف %{name}"
         deactivate_hint: "يتوقف الفرع عن قبول تسجيل الحضور وتعيينات الورديات الجديدة. يبقى سجل الحضور والرواتب والسجلات المالية مرتبطاً به."
         deactivate_confirm: "هل تريد إيقاف هذا الفرع؟"
+        notice_not_blocking: "هذه معلومات فقط — لا تمنع إلغاء التفعيل."
         reactivate: "إعادة التفعيل"
         reactivate_confirm: "هل تريد إعادة تفعيل هذا الفرع؟"
         delete: "حذف نهائي"
@@ -3360,6 +3361,14 @@ ar:
         damaged: "تالفة"
         disposed: "متلفة"
         lost: "مفقودة"
+
+    deactivation_notice:
+      title: "فوط ما زالت مسجلة في هذا الفرع"
+      summary: "أرصدة مسجلة في الدفتر ومستندات مفتوحة، وليست جرداً فعلياً. إلغاء التفعيل يبقيها مرتبطة بالفرع ولا يغيّر أي رصيد."
+      balance: "%{towel_type} — %{status}"
+      transfers_out: "تحويلات مرسلة من هذا الفرع ولم تُستلم بعد"
+      transfers_in: "تحويلات مرسلة إلى هذا الفرع ولم تُستلم بعد"
+      batches_in_progress: "دفعات غسيل قيد التنفيذ"
 
     dashboard:
       title: "لوحة المغسلة"
@@ -4383,6 +4392,7 @@ ar:
       no_file: "يرجى اختيار ملف CSV للرفع."
       file_and_warehouse_required: "يرجى اختيار مستودع وملف CSV."
       file_warehouse_and_branch_required: "يرجى اختيار مستودع وفرع وملف CSV."
+      branch_inactive: "هذا الفرع غير نشط ولا يقبل أذونات صرف جديدة. اختر فرعاً نشطاً."
       invalid_headers: "ملف CSV ينقصه أعمدة مطلوبة. نزّل النموذج لمعرفة التنسيق المتوقع."
       malformed_csv: "تعذّر تحليل ملف CSV (السطر %{line}): %{content}. احفظ الملف بتنسيق CSV العادي من Excel وأعد الرفع."
       summary_title: "ملخص الاستيراد"
@@ -5575,6 +5585,7 @@ ar:
         blank: "مطلوب"
         taken: "محجوز مسبقاً"
         other_business: "ينتمي إلى منشأة أخرى"
+        branch_inactive: "غير نشط ولا يقبل عمليات جديدة"
         not_a_number: "يجب أن يكون رقماً"
         greater_than: "يجب أن يكون أكبر من %{count}"
         greater_than_or_equal_to: "يجب أن يكون أكبر من أو يساوي %{count}"
