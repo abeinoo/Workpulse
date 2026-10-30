@@ -5575,6 +5575,7 @@ ar:
         blank: "مطلوب"
         taken: "محجوز مسبقاً"
         other_business: "ينتمي إلى منشأة أخرى"
+        branch_inactive: "غير نشط ولا يقبل عمليات جديدة"
         not_a_number: "يجب أن يكون رقماً"
         greater_than: "يجب أن يكون أكبر من %{count}"
         greater_than_or_equal_to: "يجب أن يكون أكبر من أو يساوي %{count}"

@@ -25,6 +25,9 @@ class LaundryBatch < ApplicationRecord
   validates :output_clean_quantity, :damaged_quantity, :disposed_quantity,
             numericality: { greater_than_or_equal_to: 0 }
   validate  :laundry_branch_in_same_business
+  # A new batch is never opened at an inactive branch (BUG-029); existing
+  # batches there keep their lifecycle and history.
+  validate  :laundry_branch_active, if: :will_save_change_to_laundry_branch_id?
   validate  :conservation_balances, if: :completed?
 
   scope :for_business, ->(business) { where(business: business) }
@@ -39,6 +42,10 @@ class LaundryBatch < ApplicationRecord
   def laundry_branch_in_same_business
     return if laundry_branch.nil? || business_id.nil?
     errors.add(:laundry_branch, :invalid) if laundry_branch.business_id != business_id
+  end
+
+  def laundry_branch_active
+    errors.add(:laundry_branch, :branch_inactive) if laundry_branch && !laundry_branch.active?
   end
 
   # Arithmetic conservation, not a business rule: what went in as dirty must be

@@ -5506,6 +5506,7 @@ en:
         blank: "can't be blank"
         taken: "has already been taken"
         other_business: "belongs to another business"
+        branch_inactive: "is inactive and takes no new operations"
         not_a_number: "is not a number"
         greater_than: "must be greater than %{count}"
         greater_than_or_equal_to: "must be greater than or equal to %{count}"

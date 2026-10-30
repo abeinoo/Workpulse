@@ -43,6 +43,13 @@ class TowelTransfer < ApplicationRecord
   validate  :branches_differ
   validate  :branches_in_same_business
   validate  :has_at_least_one_item
+  # An inactive branch takes no new transfer (BUG-029): checked whenever a
+  # branch reference is written. A transfer created before the deactivation
+  # may still be dispatched from an inactive source, but never to an inactive
+  # destination; receiving or cancelling one already in transit stays allowed.
+  validate  :branches_active,
+            if: -> { will_save_change_to_source_branch_id? || will_save_change_to_destination_branch_id? }
+  validate  :destination_active, if: -> { will_save_change_to_status?(to: "dispatched") }
 
   scope :for_business, ->(business) { where(business: business) }
   scope :with_status,  ->(status)    { where(status: status) if status.present? }
@@ -97,6 +104,15 @@ class TowelTransfer < ApplicationRecord
     return if business_id.nil?
     errors.add(:source_branch, :invalid)      if source_branch      && source_branch.business_id != business_id
     errors.add(:destination_branch, :invalid) if destination_branch && destination_branch.business_id != business_id
+  end
+
+  def branches_active
+    errors.add(:source_branch, :branch_inactive)      if source_branch      && !source_branch.active?
+    errors.add(:destination_branch, :branch_inactive) if destination_branch && !destination_branch.active?
+  end
+
+  def destination_active
+    errors.add(:destination_branch, :branch_inactive) if destination_branch && !destination_branch.active?
   end
 
   def has_at_least_one_item
