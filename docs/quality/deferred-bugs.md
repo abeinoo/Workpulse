@@ -50,7 +50,7 @@ here only so its stable ID and history are kept.
 | BUG-026 | Deleting a branch hard-deletes its attendance, device punches and legacy payroll periods | Organization & Access (branches) | **High — critical (irreversible data loss)** | Confirmed (characterization spec) | **In Progress** (adopted lifecycle committed on `fix/inventory-isolation-branch-lifecycle`, `bc47ad7` + `b82c6b8`; tests and full suite run; not reviewed, not merged — **Escalated**) | Review and merge |
 | BUG-027 | Remaining models take business-owned foreign keys without a same-business guard | Cross-domain (≈33 models) | Medium (tenant isolation, per path) | Suspected (static inventory; inventory paths fixed under BUG-025) | Open | Before multi-business use |
 | BUG-028 | `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change | Test suite (sign-up) | Low (local runs in a DST time zone, a few days a year) | Confirmed (reproduced 2026-10-29; time-travel arithmetic shown) | Open | Next test-suite fix |
-| BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by code reading (2026-10-29), not reproduced by spec | Open (in-flight policy decision needed) | Follow-up to BUG-026 |
+| BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by spec (2026-10-30: 21 refusal examples fail on the unchanged code) | In Progress (fix on `fix/bug-029-inactive-branch-enforcement`; deactivation towel warning awaits a boundary decision) | Follow-up to BUG-026 |
 
 ---
 
@@ -916,8 +916,11 @@ here only so its stable ID and history are kept.
 
 ## BUG-029 — Laundry and stock-issue entry points accept an inactive branch for new operations
 
-* **Source:** PR #87 review (follow-up to BUG-026), 2026-10-29. **Discovered:** 2026-10-29. **Status:** Open —
-  deliberately kept out of PR #87.
+* **Source:** PR #87 review (follow-up to BUG-026), 2026-10-29. **Discovered:** 2026-10-29. **Status:** **In
+  Progress** — decisions D1–D6 adopted (2026-10-30, see *Decisions*); the restrictions are implemented and committed on
+  `fix/bug-029-inactive-branch-enforcement` (off `main` `d108918`, the PR #87 merge); verified (see *Verification*);
+  **not reviewed, not merged, not deployed**. The deactivation towel-balance warning is **not** implemented (see
+  *Remaining*).
 * **Domain / files:** Laundry — `Laundry::TowelTransfersController#create` / `Laundry::TowelTransferCreator`
   (create, dispatch, receive, cancel), `Laundry::TowelAdjustmentsController#create` / `Laundry::TowelAdjuster`;
   Inventory & Purchasing — `Inventory::StockIssuesController#create` (manual stock issue) and
@@ -938,7 +941,55 @@ here only so its stable ID and history are kept.
      or posted (consumption attributed to an inactive branch)?
   3. A towel adjustment or loss record at an inactive branch: refused, or allowed as a closing correction?
   4. Should deactivation itself refuse while such documents are open (as it does for staff assignments)?
-* **Recommended fix:** after the decisions, an `other_business`-style model guard on create (branch must be active
-  when the branch reference is written), a service-level check for the transitions the decisions forbid, and
-  two-request specs per path. Consider the same FOR SHARE read as BUG-026 if the rule must hold under concurrency.
-* **Review milestone:** follow-up to BUG-026, after PR #87 is merged.
+* **Decisions (owner, 2026-10-30):**
+  * **D1 transfers** — no new transfer if either branch is inactive; a transfer created before the deactivation may be
+    dispatched from an inactive source to an active destination, never to an inactive destination; receiving one
+    already in transit and cancelling (with its existing reversal) stay allowed.
+  * **D2 adjustments** — no correction, loss or damage record at an inactive branch; no closing-correction exception.
+  * **D3 stock issues** — refused: creating one at an inactive branch, moving one there, submitting, approving
+    (including import-batch completion); allowed: confirming an issue approved before the deactivation, rejecting,
+    cancelling, deleting a draft, voiding.
+  * **D4** — laundry batch creation is in scope. **D5** — no authorization exception for receiving. **D6** —
+    `laundry:reset_test_balances` skips inactive branches.
+  * Answer to question 4: deactivation is **not** refused while such documents are open.
+* **Fix:** a `branch_inactive` validation type (`activerecord.errors.messages.branch_inactive`, EN + AR) on the
+  models, so every caller (controllers, services, import, console) is covered:
+  * `TowelTransfer` — both branches must be active whenever a branch reference is written (create, draft edit); the
+    destination must be active on the transition to `dispatched` (`TowelTransferCreator#dispatch` rolls back the
+    entries it posted). Receive and cancel are unchanged.
+  * `TowelAdjustment` — branch active on create (covers `TowelAdjuster#call` and `#record_loss`).
+  * `LaundryBatch` — laundry branch active when it is written (create); start / complete / reverse unchanged.
+  * `StockIssue` — branch active when it is written (create, edit moving it) and on the transitions to
+    `pending_approval` and `approved` (`StockIssueSubmission`, `StockIssueApproval#approve!`, the importer's own
+    submission and `StockIssueImportBatchCompleter`). A direct `StockIssueImporter#call` raises
+    `ActiveRecord::RecordInvalid` and writes nothing.
+  * `Inventory::StockIssuesController#load_import_context` refuses an inactive branch before the file is read, with
+    its own message (`inventory.imports.branch_inactive`), for preview and import alike.
+  * `laundry:reset_test_balances` — balance snapshot and zeroing iterate active branches only; an in-transit transfer
+    whose source is inactive is not cancelled (its reversal would post there); both are listed as skipped.
+  * Concurrency: plain reads, no new lock. A write that reads the branch as active just before a deactivation commits
+    leaves an open document at a now-inactive branch — the same state as one opened before the deactivation, which
+    the decisions allow — so no FOR SHARE read is needed (unlike BUG-026, where deactivation itself depends on the
+    absence of the row).
+* **Verification (2026-10-30, seed 20261006 unless noted):** the four new spec files 36 / 0, and 21 / 36 fail with the
+  implementation stashed (exactly the refusal examples); RuboCop clean on changed files; `git diff --check` clean;
+  `bin/rails zeitwerk:check` clean. Broader run: see the PR.
+* **Regression tests:** `spec/services/laundry/inactive_branch_guards_spec.rb` (15),
+  `spec/services/inventory/stock_issue_inactive_branch_spec.rb` (13), `spec/requests/inactive_branch_operations_spec.rb`
+  (7), `spec/lib/tasks/laundry_rake_spec.rb` (1).
+* **Remaining:**
+  * **Deactivation towel warning — not implemented, decision needed.** The ledger supports it (recorded on-hand per
+    towel type and status from `Laundry::TowelBalances.totals_for(business, branch_id:)`; counts of dispatched
+    transfers from / to the branch and in-progress batches from document status). But the branch page
+    (`Admin::BranchesController`, Organization & Access) reading Laundry constants is a new cross-domain dependency:
+    either a widened `X-OA-BRANCH-PAGE` exception or a new OA-defined contract implemented by Laundry (the
+    `BranchTerminalSettings` / `Employee::ProfilePanels` pattern). Both are architectural decisions.
+  * A refused import-batch completion shows the existing generic `inventory.imports.complete_failed` message, not the
+    inactive-branch reason.
+  * Closing corrections at an inactive branch (D2) are a possible future enhancement: they would need an explicit
+    permission, a mandatory reason and defined balance-correction rules.
+  * Towels at an inactive branch stay in the ledger; once the branch is inactive the Towel Balances dashboard (active
+    branches only) no longer lists them — the warning above is the intended mitigation.
+  * The stock-issue importer's `issued_on: Date.current` (not the business day) is a separate defect, not part of this
+    fix.
+* **Review milestone:** review and merge of `fix/bug-029-inactive-branch-enforcement`; mark Resolved only once merged.
