@@ -69,6 +69,12 @@ class StockIssue < ApplicationRecord
   validate  :branch_in_same_business
   validate  :warehouse_in_same_business, if: :will_save_change_to_warehouse_id?
   validate  :issued_only_from_approved, if: -> { will_save_change_to_status?(to: "issued") }
+  # An inactive branch takes no new issue, no issue moved to it, and no
+  # submission or approval (BUG-029) — every creation path (manual form, CSV
+  # import, import-batch completion) goes through this. An issue approved
+  # before the deactivation may still be confirmed; rejecting, cancelling,
+  # deleting a draft and voiding stay available.
+  validate  :branch_active, if: :branch_activity_required?
 
   before_create :assign_issue_number
 
@@ -169,6 +175,15 @@ class StockIssue < ApplicationRecord
     return if branch.nil? || business_id.nil?
 
     errors.add(:branch, :invalid) if branch.business_id != business_id
+  end
+
+  def branch_activity_required?
+    will_save_change_to_branch_id? ||
+      will_save_change_to_status?(to: "pending_approval") || will_save_change_to_status?(to: "approved")
+  end
+
+  def branch_active
+    errors.add(:branch, :branch_inactive) if branch && !branch.active?
   end
 
   # The warehouse id comes straight from form params — never trust one that

@@ -286,6 +286,12 @@ class Inventory::StockIssuesController < Inventory::BaseController
       redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.file_warehouse_and_branch_required")
       return false
     end
+    # Refused before the file is even read — preview and import alike; the
+    # StockIssue validation refuses a direct importer call too (BUG-029).
+    unless @branch.active?
+      redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.branch_inactive")
+      return false
+    end
 
     @file_name     = params[:file].respond_to?(:original_filename) ? params[:file].original_filename : params[:file_name].to_s
     @just_uploaded = params[:file].present?

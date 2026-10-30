@@ -4333,6 +4333,7 @@ en:
       no_file: "Please select a CSV file to upload."
       file_and_warehouse_required: "Please choose a warehouse and a CSV file."
       file_warehouse_and_branch_required: "Please choose a warehouse, a branch, and a CSV file."
+      branch_inactive: "This branch is inactive and takes no new stock issues. Choose an active branch."
       invalid_headers: "The CSV is missing required columns. Download the sample to see the expected format."
       malformed_csv: "The CSV could not be parsed (line %{line}): %{content}. Save the file as plain CSV from Excel and re-upload."
       summary_title: "Import Summary"
