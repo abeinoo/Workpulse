@@ -1,0 +1,35 @@
+<%#
+  A branch lifecycle action that needs a written reason (deactivate / delete,
+  BUG-026): a trigger button opening a native <dialog> (dialog controller) with
+  the reason form. Same structure and classes as the shared reason dialogs.
+
+  locals: id, trigger_label, trigger_class, title, url, method, hint,
+          submit_label, confirm
+%>
+<div data-controller="dialog">
+  <button type="button" class="<%= trigger_class %>" aria-haspopup="dialog" aria-controls="<%= id %>"
+          data-action="click->dialog#open" data-testid="<%= id %>-trigger">
+    <%= trigger_label %>
+  </button>
+  <dialog id="<%= id %>" aria-labelledby="<%= id %>-title" data-dialog-target="modal" data-action="click->dialog#backdropClose">
+    <div class="dialog-body">
+      <div class="dialog-header">
+        <h2 class="dialog-title" id="<%= id %>-title"><%= title %></h2>
+        <button type="button" class="btn btn-ghost btn-sm" aria-label="<%= t("forms.cancel") %>"
+                data-action="click->dialog#close">&times;</button>
+      </div>
+      <%= form_with url: url, method: method do %>
+        <p class="form-hint"><%= hint %></p>
+        <div class="form-group">
+          <label class="form-label form-label--required" for="<%= id %>-reason"><%= t("admin.branches.lifecycle.reason_label") %></label>
+          <textarea id="<%= id %>-reason" name="reason" rows="3" class="form-control" required
+                    placeholder="<%= t("admin.branches.lifecycle.reason_placeholder") %>"></textarea>
+        </div>
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-ghost" data-action="click->dialog#close"><%= t("forms.cancel") %></button>
+          <%= button_tag submit_label, type: "submit", class: "btn btn-danger", data: { turbo_confirm: confirm } %>
+        </div>
+      <% end %>
+    </div>
+  </dialog>
+</div>

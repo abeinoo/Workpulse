@@ -74,8 +74,10 @@ module ArchitectureSpecs
       },
       "app/models/branch.rb" => {
         classes: "E",
-        reason: "Branch has_many :shift_assignments (inverse association, dependent: :nullify)",
-        shapes: [ /\Ahas_many :shift_assignments,\s+dependent: :nullify\z/ ]
+        # Was dependent: :nullify (a write into Workforce rows); BUG-026 made it
+        # restrict_with_error — an existence check only, so history is never detached.
+        reason: "Branch has_many :shift_assignments (inverse association, dependent: :restrict_with_error)",
+        shapes: [ /\Ahas_many :shift_assignments,\s+dependent: :restrict_with_error\z/ ]
       },
       "app/controllers/admin/branches_controller.rb" => {
         classes: "F",
@@ -186,7 +188,8 @@ RSpec.describe "Architecture: Organization & Access ↔ Workforce membership bou
 
   it "the Workforce implementation stays a delegation to the Workforce membership owner" do
     code = boundary.code_lines("app/services/workforce/membership_provider.rb").map(&:first).join
-    expect(code).to include("BranchMembership.current_branch_ids(user)", "BranchMembership.current_member_ids(branch_ids)")
+    expect(code).to include("BranchMembership.current_branch_ids(user)", "BranchMembership.current_member_ids(branch_ids)",
+                            "BranchMembership.effective_assignments_at?(branch_id, on: on)")
     expect(code).not_to match(/\bEmployeeScope\b|\bBranchScope\b|OrganizationAccess::MembershipProvider/)
   end
 

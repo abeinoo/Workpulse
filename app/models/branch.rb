@@ -23,9 +23,12 @@ class Branch < ApplicationRecord
   belongs_to :business
   belongs_to :branch_manager, class_name: "User", optional: true
   belongs_to :area_manager,   class_name: "User", optional: true
-  has_many :shift_assignments,   dependent: :nullify
-  has_many :attendance_records,  dependent: :destroy
-  has_many :payroll_periods,     dependent: :destroy
+  # History is never deleted or detached with its branch (BUG-026): a branch
+  # with any of these is retired by deactivation instead
+  # (OrganizationAccess::DeactivateBranch / DeleteBranch).
+  has_many :shift_assignments,   dependent: :restrict_with_error
+  has_many :attendance_records,  dependent: :restrict_with_error
+  has_many :payroll_periods,     dependent: :restrict_with_error
   # Primary supplying warehouse (reporting relationship only — the branch owns no stock).
   has_one :warehouse_supply, class_name: "WarehouseBranchSupply", dependent: :destroy
 
@@ -73,6 +76,18 @@ class Branch < ApplicationRecord
   # branches are deliberately excluded from those selectors; they require
   # explicit support before participating in any laundry workflow.
   scope :laundry_transfer_eligible, -> { where(branch_type: %w[sales laundry]) }
+
+  # Whether the branch is active, read under a shared row lock (FOR SHARE) held
+  # until the caller's transaction ends (BUG-026). It conflicts with the
+  # FOR UPDATE lock OrganizationAccess::DeactivateBranch takes on the branch, so
+  # a write that depends on the branch being active serializes with a
+  # deactivation: started during one, it waits and then reads the committed
+  # result; started first, the deactivation waits for it and then sees the row
+  # it wrote. Shared locks do not block each other. Call it inside the
+  # transaction that performs the dependent write.
+  def self.active_under_share_lock?(id)
+    where(id: id).lock("FOR SHARE").pick(:active) == true
+  end
 
   private
 

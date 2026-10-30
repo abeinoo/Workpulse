@@ -16,6 +16,7 @@ class PurchaseRequestItem < ApplicationRecord
   # before any record is created).
   validates :unit_price, numericality: { greater_than: 0 }
   validate  :product_in_same_business
+  validate  :source_warehouse_in_same_business, if: :will_save_change_to_source_warehouse_id?
 
   before_validation :compute_total_cost
 
@@ -50,5 +51,13 @@ class PurchaseRequestItem < ApplicationRecord
     return if product.nil? || purchase_request&.business_id.nil?
 
     errors.add(:product_id, :invalid) if product.business_id != purchase_request.business_id
+  end
+
+  # The source warehouse id comes straight from form params and pre-fills the
+  # receipt's warehouse — never trust one that belongs to another business (IP-1).
+  def source_warehouse_in_same_business
+    return if source_warehouse.nil? || purchase_request&.business_id.nil?
+
+    errors.add(:source_warehouse_id, :other_business) if source_warehouse.business_id != purchase_request.business_id
   end
 end

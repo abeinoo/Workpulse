@@ -140,8 +140,10 @@ class Inventory::StockCountsController < Inventory::BaseController
   end
 
   # Build a count row for every product, snapshotting its on-hand in the warehouse.
+  # Skipped for another business's warehouse: StockCount's validation refuses it
+  # anyway, and its on-hand must never be read (IP-1 / BUG-025).
   def preload_products(count)
-    return if count.warehouse.nil?
+    return if count.warehouse.nil? || count.warehouse.business_id != count.business_id
     current_user.business.products.transactable.ordered.each do |product|
       count.items.build(product: product, system_quantity: product.stock_in(count.warehouse))
     end

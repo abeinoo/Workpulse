@@ -20,8 +20,13 @@ module OrganizationAccess
   #     — a chainable ActiveRecord::Relation selecting the user ids currently
   #       belonging to any of branch_ids, usable as `WHERE id IN (subquery)`;
   #       never materialized into an Array.
+  #   effective_assignments_at?(branch_id, on:)
+  #     — true when the branch still has a staff assignment in effect on or
+  #       after the business day `on` (current or upcoming: not ended before
+  #       `on`). Ended assignments do not count. Used by branch deactivation
+  #       (BUG-026); the caller passes the business day explicitly.
   module MembershipProvider
-    OPERATIONS = %i[current_branch_ids current_member_ids].freeze
+    OPERATIONS = %i[current_branch_ids current_member_ids effective_assignments_at?].freeze
 
     # Raised when membership is requested before any provider is registered —
     # access scopes must never silently resolve to "no members".
@@ -45,6 +50,10 @@ module OrganizationAccess
 
       def current_member_ids(branch_ids)
         provider.current_member_ids(branch_ids)
+      end
+
+      def effective_assignments_at?(branch_id, on:)
+        provider.effective_assignments_at?(branch_id, on: on)
       end
     end
   end

@@ -64,6 +64,7 @@ class GoodsReceipt < ApplicationRecord
   validate  :funding_source_type_whitelisted
   validate  :purchase_request_supplier_matches
   validate  :supplier_in_same_business
+  validate  :warehouse_in_same_business, if: :will_save_change_to_warehouse_id?
 
   scope :for_business,  ->(business)     { where(business: business) }
   scope :recent,        -> { order(received_on: :desc, id: :desc) }
@@ -180,6 +181,14 @@ class GoodsReceipt < ApplicationRecord
     return if supplier.nil? || business_id.nil?
 
     errors.add(:supplier, :invalid) if supplier.business_id != business_id
+  end
+
+  # The warehouse id comes straight from form params — never trust one that
+  # belongs to another business (IP-1).
+  def warehouse_in_same_business
+    return if warehouse.nil? || business_id.nil?
+
+    errors.add(:warehouse_id, :other_business) if warehouse.business_id != business_id
   end
 
   # has_many_attached can't use the Attachable.validates_attachment helper

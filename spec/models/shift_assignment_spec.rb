@@ -719,4 +719,78 @@ RSpec.describe ShiftAssignment, type: :model do
       expect(a.expiring_soon?).to be false
     end
   end
+
+  # BUG-026 — an inactive branch takes no new assignment, and no assignment there
+  # is reopened or extended into effect; ending and shortening stay possible.
+  describe "at an inactive branch" do
+    let(:business)     { create(:business) }
+    let(:branch)       { create(:branch, business: business) }
+    let(:business_day) { BusinessDay.current(context: business) }
+    let(:reopen_error) { I18n.t("activerecord.errors.models.shift_assignment.branch_inactive_reopen") }
+
+    def assignment_until(effective_to)
+      create(:shift_assignment, business: business, branch: branch,
+                                effective_from: business_day - 60, effective_to: effective_to)
+        .tap { branch.update_column(:active, false) }
+    end
+
+    it "refuses reopening an ended assignment (end date cleared)" do
+      assignment = assignment_until(business_day - 10)
+
+      expect(assignment.update(effective_to: nil)).to be(false)
+      expect(assignment.errors[:base]).to include(reopen_error)
+      expect(assignment.reload.effective_to).to eq(business_day - 10)
+    end
+
+    it "refuses extending an ended assignment into the current business day or later" do
+      assignment = assignment_until(business_day - 10)
+
+      expect(assignment.update(effective_to: business_day)).to be(false)
+      expect(assignment.errors[:base]).to include(reopen_error)
+    end
+
+    it "refuses extending a current assignment further" do
+      assignment = assignment_until(business_day + 5)
+
+      expect(assignment.update(effective_to: business_day + 30)).to be(false)
+      expect(assignment.errors[:base]).to include(reopen_error)
+      expect(assignment.reload.effective_to).to eq(business_day + 5)
+    end
+
+    it "still allows ending an open-ended assignment" do
+      assignment = assignment_until(nil)
+
+      expect(assignment.update(effective_to: business_day)).to be(true)
+      expect(assignment.reload).to have_attributes(branch_id: branch.id, effective_to: business_day)
+    end
+
+    it "still allows shortening an assignment" do
+      assignment = assignment_until(business_day + 30)
+
+      expect(assignment.update(effective_to: business_day + 1)).to be(true)
+    end
+
+    it "allows correcting an end date that stays in the past (history, not reopening)" do
+      assignment = assignment_until(business_day - 10)
+
+      expect(assignment.update(effective_to: business_day - 5)).to be(true)
+    end
+
+    it "refuses a new assignment" do
+      branch.update_column(:active, false)
+      assignment = build(:shift_assignment, business: business, branch: branch, effective_from: business_day)
+
+      expect(assignment).not_to be_valid
+      expect(assignment.errors[:base])
+        .to include(I18n.t("activerecord.errors.models.shift_assignment.branch_inactive"))
+    end
+
+    it "is unaffected at an active branch: reopening and new assignments still work" do
+      assignment = create(:shift_assignment, business: business, branch: branch,
+                                             effective_from: business_day - 60, effective_to: business_day - 10)
+
+      expect(assignment.update(effective_to: nil)).to be(true)
+      expect(build(:shift_assignment, business: business, effective_from: business_day)).to be_valid
+    end
+  end
 end

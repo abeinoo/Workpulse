@@ -20,6 +20,8 @@ module Inventory
 
     def call
       value_items
+      return Result.new(ok: false, adjustment: @adjustment) if foreign_references?
+
       unless availability_ok?
         return Result.new(ok: false, adjustment: @adjustment)
       end
@@ -52,6 +54,17 @@ module Inventory
 
         item.unit_cost = item.product.average_cost_price
       end
+    end
+
+    # A warehouse or product of another business is refused before availability
+    # reads (and reports) that business's on-hand (IP-1). Any other validation
+    # error is left for #save to report, exactly as before.
+    def foreign_references?
+      @adjustment.valid?
+      return true if @adjustment.errors.any? { |error| error.type == :other_business }
+
+      @adjustment.errors.clear
+      false
     end
 
     # Negative lines remove stock — block any that exceed the warehouse on-hand.

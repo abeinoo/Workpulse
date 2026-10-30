@@ -27,6 +27,15 @@ module BranchMembership
     ShiftAssignment.user_ids_for_branches(branch_ids)
   end
 
+  # True when the branch still has an assignment in effect on or after `on` —
+  # current or upcoming, i.e. not ended before `on` (effective_to is inclusive).
+  # An ended assignment is history and does not count.
+  def effective_assignments_at?(branch_id, on:)
+    ShiftAssignment.where(branch_id: branch_id)
+                   .where("effective_to IS NULL OR effective_to >= ?", on)
+                   .exists?
+  end
+
   # The managers of `user`, inferred through the branches they are currently
   # assigned to: each branch's branch_manager_id + area_manager_id. Returns a
   # de-duplicated array of User ids, excluding the user themselves.

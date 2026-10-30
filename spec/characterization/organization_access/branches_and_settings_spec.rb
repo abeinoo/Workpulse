@@ -28,12 +28,19 @@ RSpec.describe "Characterization: Organization & Access branches and settings", 
       expect(response).to redirect_to(admin_branch_path(branch))
     end
 
-    it "new branches are active by default and can be deactivated" do
+    # BUG-026: deactivation goes through PATCH deactivate (reason, last-active
+    # rule, audit — spec/requests/admin/branch_lifecycle_spec.rb); the edit form
+    # no longer changes `active`.
+    it "new branches are active by default and are deactivated only through the lifecycle action" do
+      create(:branch, business: business, name: "Main", active: true)
       post admin_branches_path, params: { branch: { name: "Toggle Branch", branch_type: "sales" } }
       branch = Branch.find_by!(name: "Toggle Branch")
       expect(branch.active).to be(true)
 
       patch admin_branch_path(branch), params: { branch: { active: "0" } }
+      expect(branch.reload.active).to be(true)
+
+      patch deactivate_admin_branch_path(branch), params: { reason: "Closed" }
       expect(branch.reload.active).to be(false)
       expect(Branch.active.for_business(business)).not_to include(branch)
     end
@@ -47,21 +54,25 @@ RSpec.describe "Characterization: Organization & Access branches and settings", 
       expect(manager.manages_branch?).to be(true)
     end
 
-    it "deletes a branch without restricted history" do
+    it "deletes a never-used branch (with a reason; another branch stays active)" do
+      create(:branch, business: business, name: "Main", active: true)
       branch = create(:branch, business: business)
-      delete admin_branch_path(branch)
+      delete admin_branch_path(branch), params: { reason: "Created by mistake" }
       expect(Branch.exists?(branch.id)).to be(false)
+      expect(flash[:notice]).to eq(I18n.t("flash.branch_deleted"))
     end
 
-    # KNOWN DEFECT (existing behaviour): Admin::BranchesController#destroy ignores
-    # the result of destroy. A branch with restricted history (here a POS
-    # terminal, restrict_with_error) is NOT deleted, yet the success notice is shown.
-    it "reports success even when deletion is blocked by restricted history (known defect)" do
+    # Was a known defect (the destroy result was ignored and "Branch removed."
+    # shown); fixed by BUG-026. A branch with restricted history (here a POS
+    # terminal, restrict_with_error) is not deleted, and the user is told why.
+    it "refuses deletion blocked by restricted history and says so" do
+      create(:branch, business: business, name: "Main", active: true)
       branch = create(:branch, business: business)
       branch.pos_terminals.create!(business: business, terminal_id: "T-#{SecureRandom.hex(3)}")
-      delete admin_branch_path(branch)
+      delete admin_branch_path(branch), params: { reason: "Closing" }
       expect(Branch.exists?(branch.id)).to be(true)
-      expect(flash[:notice]).to eq(I18n.t("flash.branch_removed"))
+      expect(flash[:alert]).to eq(I18n.t("admin.branches.lifecycle.errors.has_history"))
+      expect(flash[:notice]).to be_nil
     end
 
     it "branch changes are NOT audited (existing behaviour)" do

@@ -95,11 +95,39 @@ class Admin::BranchesController < Admin::BaseController
     end
   end
 
+  # Permanent deletion is for never-used branches only; anything with history is
+  # refused with an explanation and must be deactivated (BUG-026).
   def destroy
     @branch = find_branch
     authorize @branch
-    @branch.destroy
-    redirect_to admin_branches_path, notice: t("flash.branch_removed")
+    result = OrganizationAccess::DeleteBranch.new(@branch.id, actor: current_user, reason: params[:reason]).call
+    if result.ok?
+      redirect_to admin_branches_path, notice: t("flash.branch_deleted"), status: :see_other
+    else
+      redirect_with_lifecycle_error(result)
+    end
+  end
+
+  def deactivate
+    @branch = find_branch
+    authorize @branch
+    result = OrganizationAccess::DeactivateBranch.new(@branch.id, actor: current_user, reason: params[:reason]).call
+    if result.ok?
+      redirect_to admin_branch_path(@branch), notice: t("flash.branch_deactivated"), status: :see_other
+    else
+      redirect_with_lifecycle_error(result)
+    end
+  end
+
+  def reactivate
+    @branch = find_branch
+    authorize @branch
+    result = OrganizationAccess::ReactivateBranch.new(@branch.id, actor: current_user, reason: params[:reason]).call
+    if result.ok?
+      redirect_to admin_branch_path(@branch), notice: t("flash.branch_reactivated"), status: :see_other
+    else
+      redirect_with_lifecycle_error(result)
+    end
   end
 
   private
@@ -125,15 +153,21 @@ class Admin::BranchesController < Admin::BaseController
     current_user.business.branches.find(params[:id])
   end
 
+  def redirect_with_lifecycle_error(result)
+    redirect_to admin_branch_path(@branch), alert: t("admin.branches.lifecycle.errors.#{result.error}"), status: :see_other
+  end
+
   def load_managers
     all_active = current_user.business.users.active.order(:first_name, :last_name)
     @managers      = all_active
     @area_managers = all_active
   end
 
+  # `active` is not editable here: deactivation / reactivation go through their
+  # own actions (reason, last-active-branch rule, audit — BUG-026).
   def branch_params
     params.require(:branch).permit(
-      :name, :address, :phone_number, :active, :branch_type,
+      :name, :address, :phone_number, :branch_type,
       :branch_manager_id, :area_manager_id,
       :geolocation_enabled, :latitude, :longitude, :radius_meters
     )
