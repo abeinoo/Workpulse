@@ -114,7 +114,10 @@ RSpec.describe "Characterization: BranchMembership (membership primitive)" do
 
     it "is NOT business-scoped: a user of another business assigned to this branch is returned (isolation is the caller's job)" do
       outsider = create(:user, business: create(:business))
-      assign(outsider, create(:branch, business: outsider.business)).update_column(:branch_id, branch_a.id)
+      # A row written before ShiftAssignment's business guard (BUG-031): planted directly.
+      create(:shift_assignment, user: outsider, branch: create(:branch, business: outsider.business),
+                                shift: create(:shift, business: outsider.business), effective_from: 1.month.ago.to_date)
+        .update_column(:branch_id, branch_a.id)
 
       expect(member?(outsider, [ branch_a.id ])).to be(true)
       expect(EmployeeScope.new(create(:user, :owner, business: business)).relation).not_to include(outsider)

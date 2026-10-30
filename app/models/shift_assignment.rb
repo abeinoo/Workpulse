@@ -32,6 +32,12 @@ class ShiftAssignment < ApplicationRecord
   # reopened or extended into effect (BUG-026); existing ones keep their branch
   # and can still be ended or shortened.
   validate  :branch_active, if: -> { will_save_change_to_branch_id? || extends_into_effect? }
+  # Backstop for every write path (web, API, template application, console):
+  # the employee, shift and rule profile must belong to the business that owns
+  # the branch (BUG-031) — attendance penalties and payroll read them.
+  validate  :references_in_branch_business,
+            if: -> { will_save_change_to_branch_id? || will_save_change_to_user_id? ||
+                     will_save_change_to_shift_id? || will_save_change_to_shift_rule_profile_id? }
 
   # ── Scopes ──────────────────────────────────────────────────────────────────
 
@@ -200,6 +206,15 @@ class ShiftAssignment < ApplicationRecord
     return if branch.nil?
 
     errors.add(:base, will_save_change_to_branch_id? ? :branch_inactive : :branch_inactive_reopen) unless Branch.active_under_share_lock?(branch_id)
+  end
+
+  def references_in_branch_business
+    business_id = branch&.business_id
+    return if business_id.nil?
+
+    errors.add(:user_id, :other_business)               if user && user.business_id != business_id
+    errors.add(:shift_id, :other_business)              if shift && shift.business_id != business_id
+    errors.add(:shift_rule_profile_id, :other_business) if rule_profile && rule_profile.business_id != business_id
   end
 
   # An end date cleared, or moved later, so that the assignment is in effect on

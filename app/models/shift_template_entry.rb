@@ -23,6 +23,11 @@ class ShiftTemplateEntry < ApplicationRecord
 
   validate :ends_on_after_starts_on
   validate :effective_to_offset_after_from_offset
+  # Entry ids come from the template form's params, and applying the template
+  # copies them onto real assignments — never trust one that belongs to another
+  # business (BUG-031).
+  validate :references_in_template_business,
+           if: -> { will_save_change_to_shift_id? || will_save_change_to_shift_rule_profile_id? }
 
   delegate :name, to: :shift,  prefix: true
   delegate :name, to: :branch, prefix: true, allow_nil: true
@@ -47,6 +52,14 @@ class ShiftTemplateEntry < ApplicationRecord
   def ends_on_after_starts_on
     return unless ends_on.present? && starts_on.present?
     errors.add(:ends_on, :must_be_on_or_after_starts_on) if ends_on < starts_on
+  end
+
+  def references_in_template_business
+    business_id = shift_template&.business_id
+    return if business_id.nil?
+
+    errors.add(:shift_id, :other_business)              if shift && shift.business_id != business_id
+    errors.add(:shift_rule_profile_id, :other_business) if rule_profile && rule_profile.business_id != business_id
   end
 
   def effective_to_offset_after_from_offset

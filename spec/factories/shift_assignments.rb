@@ -1,7 +1,12 @@
 FactoryBot.define do
   factory :shift_assignment do
     transient do
-      business { create(:business) }
+      # Follows an explicitly given user, branch or shift, so an assignment never
+      # mixes businesses (ShiftAssignment refuses that, BUG-031).
+      business do
+        given = %i[branch user shift].find { |name| __override_names__.include?(name) }
+        given ? public_send(given).business : create(:business)
+      end
     end
 
     user           { create(:user,          business: business) }
