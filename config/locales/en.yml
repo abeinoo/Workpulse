@@ -8741,6 +8741,7 @@ en:
       invalid_action: "Invalid action."
       amount_required: "Settlement amount must be greater than zero."
       exceeds_balance: "Settlement amount exceeds the outstanding balance."
+      invalid_payment_method: "The selected payment method is not an active payment method of this business."
       same_user: "The new responsible person must be different from the current one."
       invalid_user: "User not found."
     statuses:

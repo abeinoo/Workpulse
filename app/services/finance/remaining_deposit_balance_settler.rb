@@ -22,6 +22,7 @@ module Finance
       return err("not_open")       unless @balance.open?
       return err("amount_required") unless @amount > 0
       return err("exceeds_balance") if @amount > @balance.remaining_amount
+      return err("invalid_payment_method") if @payment_method_id && !payment_method_allowed?
 
       ActiveRecord::Base.transaction do
         new_remaining = @balance.remaining_amount - @amount
@@ -54,6 +55,13 @@ module Finance
     end
 
     private
+
+    # A settlement payment method must be an active one of the balance's own
+    # business — the ledger row is append-only and can never be corrected
+    # (BUG-032). Mirrors TillDepositRecorder / TillRefundCreator. Blank is allowed.
+    def payment_method_allowed?
+      PaymentMethod.for_business(@balance.business).active.exists?(id: @payment_method_id)
+    end
 
     def err(key) = Result.new(ok: false, error: I18n.t("remaining_deposit_balances.errors.#{key}"))
   end

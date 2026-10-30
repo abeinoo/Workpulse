@@ -32,10 +32,19 @@ class RemainingDepositBalanceTransaction < ApplicationRecord
   validates :amount, presence: true,
             if: -> { created? || settlement? || write_off? || adjustment? || dispute_reserved? || dispute_released? }
   validates :bank_dispute_id, presence: true, if: -> { dispute_reserved? || dispute_released? }
+  # Backstop for every writer: a ledger row never names another business's
+  # payment method (BUG-032). Rows are append-only, so this runs on create.
+  validate  :payment_method_in_balance_business, on: :create
 
   # Append-only — no record may ever be mutated or destroyed.
   def readonly? = !new_record?
   before_destroy { throw :abort }
+
+  def payment_method_in_balance_business
+    return if payment_method.nil? || remaining_deposit_balance.nil?
+
+    errors.add(:payment_method_id, :other_business) if payment_method.business_id != remaining_deposit_balance.business_id
+  end
 
   scope :ordered,     -> { order(:created_at) }
   scope :settlements, -> { where(transaction_type: "settlement") }
