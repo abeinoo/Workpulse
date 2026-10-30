@@ -1123,7 +1123,7 @@ here only so its stable ID and history are kept.
   (`BranchScope#for_scope`, as `filter_by_branch_scope` does) and the upload form lists exactly those — it used
   `assignable_branches`, which ignores the configured scope, so a business-wide importer who manages no branch now
   sees every branch (behaviour change, noted in the PR). The statements index filter is unchanged.
-* **Verification (2026-10-30, seed 20261006):** new `spec/requests/security/bank_statement_branch_scope_spec.rb` (6);
+* **Verification (2026-10-30, seed 20261006):** new `spec/requests/security/bank_statement_branch_scope_spec.rb` (7);
   3 / 5 of its original examples fail on the unchanged code (the refusals); bank-statement request specs 29 / 0;
   `spec/requests/finance`, `spec/services/finance`, `spec/policies`, `spec/requests/security`: 2761 examples,
   0 failures. read-only checks for rows written before the guard are in the PR description (not run against production).

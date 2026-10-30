@@ -45,6 +45,15 @@ RSpec.describe "Bank statement branch ownership and scope (BUG-033)", type: :req
     expect(response.body).to include(CGI.escapeHTML(I18n.t("finance.bank_statements.errors.branch_outside_scope")))
   end
 
+  it "refuses an inactive branch of the business, even to a business-wide importer, with the same explanation" do
+    sign_in importer(scope: "business")
+    unmanaged.update_column(:active, false)
+
+    expect { upload(unmanaged.id) }.not_to change(BankStatement, :count)
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.body).to include(CGI.escapeHTML(I18n.t("finance.bank_statements.errors.branch_outside_scope")))
+  end
+
   it "accepts a branch the importer manages" do
     sign_in importer
 
