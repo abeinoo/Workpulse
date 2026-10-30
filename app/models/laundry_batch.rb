@@ -25,6 +25,10 @@ class LaundryBatch < ApplicationRecord
   validates :output_clean_quantity, :damaged_quantity, :disposed_quantity,
             numericality: { greater_than_or_equal_to: 0 }
   validate  :laundry_branch_in_same_business
+  # The towel type and operator ids come from the batch form's params — never
+  # trust one that belongs to another business (BUG-034).
+  validate  :towel_type_and_operator_in_same_business,
+            if: -> { will_save_change_to_towel_type_id? || will_save_change_to_operator_id? }
   # A new batch is never opened at an inactive branch (BUG-029); existing
   # batches there keep their lifecycle and history.
   validate  :laundry_branch_active, if: :will_save_change_to_laundry_branch_id?
@@ -42,6 +46,13 @@ class LaundryBatch < ApplicationRecord
   def laundry_branch_in_same_business
     return if laundry_branch.nil? || business_id.nil?
     errors.add(:laundry_branch, :invalid) if laundry_branch.business_id != business_id
+  end
+
+  def towel_type_and_operator_in_same_business
+    return if business_id.nil?
+
+    errors.add(:towel_type_id, :other_business) if towel_type && towel_type.business_id != business_id
+    errors.add(:operator_id, :other_business)   if operator && operator.business_id != business_id
   end
 
   def laundry_branch_active
