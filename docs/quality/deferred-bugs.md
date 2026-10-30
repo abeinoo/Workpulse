@@ -50,7 +50,7 @@ here only so its stable ID and history are kept.
 | BUG-026 | Deleting a branch hard-deletes its attendance, device punches and legacy payroll periods | Organization & Access (branches) | **High — critical (irreversible data loss)** | Confirmed (characterization spec) | **In Progress** (adopted lifecycle committed on `fix/inventory-isolation-branch-lifecycle`, `bc47ad7` + `b82c6b8`; tests and full suite run; not reviewed, not merged — **Escalated**) | Review and merge |
 | BUG-027 | Remaining models take business-owned foreign keys without a same-business guard | Cross-domain (≈33 models) | Medium (tenant isolation, per path) | Suspected (static inventory; inventory paths fixed under BUG-025) | Open | Before multi-business use |
 | BUG-028 | `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change | Test suite (sign-up) | Low (local runs in a DST time zone, a few days a year) | Confirmed (reproduced 2026-10-29; time-travel arithmetic shown) | Open | Next test-suite fix |
-| BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by spec (2026-10-30: 21 refusal examples fail on the unchanged code) | In Progress (fix on `fix/bug-029-inactive-branch-enforcement`; deactivation towel warning awaits a boundary decision) | Follow-up to BUG-026 |
+| BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by spec (2026-10-30: 21 refusal examples fail on the unchanged code) | In Progress (fix and deactivation towel warning on `fix/bug-029-inactive-branch-enforcement`, PR #88) | Follow-up to BUG-026 |
 
 ---
 
@@ -919,8 +919,8 @@ here only so its stable ID and history are kept.
 * **Source:** PR #87 review (follow-up to BUG-026), 2026-10-29. **Discovered:** 2026-10-29. **Status:** **In
   Progress** — decisions D1–D6 adopted (2026-10-30, see *Decisions*); the restrictions are implemented and committed on
   `fix/bug-029-inactive-branch-enforcement` (off `main` `d108918`, the PR #87 merge); verified (see *Verification*);
-  **not reviewed, not merged, not deployed**. The deactivation towel-balance warning is **not** implemented (see
-  *Remaining*).
+  **not reviewed, not merged, not deployed**. The deactivation towel warning is implemented through a new OA contract
+  (see *Deactivation warning*).
 * **Domain / files:** Laundry — `Laundry::TowelTransfersController#create` / `Laundry::TowelTransferCreator`
   (create, dispatch, receive, cancel), `Laundry::TowelAdjustmentsController#create` / `Laundry::TowelAdjuster`;
   Inventory & Purchasing — `Inventory::StockIssuesController#create` (manual stock issue) and
@@ -977,19 +977,25 @@ here only so its stable ID and history are kept.
 * **Regression tests:** `spec/services/laundry/inactive_branch_guards_spec.rb` (15),
   `spec/services/inventory/stock_issue_inactive_branch_spec.rb` (13), `spec/requests/inactive_branch_operations_spec.rb`
   (7), `spec/lib/tasks/laundry_rake_spec.rb` (1).
+* **Deactivation warning (owner decision 2026-10-30: a new OA contract, `X-OA-BRANCH-PAGE` not widened):**
+  `OrganizationAccess::BranchDeactivationNotices` (`notices_for(branch:)` → domain-neutral `Notice` / `Line` data,
+  raises `NotRegistered` without a provider, like the other OA contracts) is implemented by
+  `Laundry::BranchDeactivationNotice` and wired in `config/initializers/branch_deactivation_notices.rb`. The branch
+  page asks once while the branch is active; the deactivation dialog lists the lines as information that does not
+  prevent deactivation. Shown: ledger clean / dirty / damaged per towel type (non-zero, as recorded — disposed and lost
+  are write-off buckets and are left out), transfers dispatched from / to the branch, batches in progress. Drafts have
+  no ledger effect and are not counted. A fixed number of read queries (no query per towel type or document). Tests:
+  `spec/services/organization_access/branch_deactivation_notices_spec.rb` (6),
+  `spec/services/laundry/branch_deactivation_notice_spec.rb` (8, including a fixed query count), three examples in
+  `spec/requests/admin/branch_lifecycle_spec.rb`, `spec/architecture/organization_access_deactivation_notice_boundary_spec.rb` (4).
 * **Remaining:**
-  * **Deactivation towel warning — not implemented, decision needed.** The ledger supports it (recorded on-hand per
-    towel type and status from `Laundry::TowelBalances.totals_for(business, branch_id:)`; counts of dispatched
-    transfers from / to the branch and in-progress batches from document status). But the branch page
-    (`Admin::BranchesController`, Organization & Access) reading Laundry constants is a new cross-domain dependency:
-    either a widened `X-OA-BRANCH-PAGE` exception or a new OA-defined contract implemented by Laundry (the
-    `BranchTerminalSettings` / `Employee::ProfilePanels` pattern). Both are architectural decisions.
   * A refused import-batch completion shows the existing generic `inventory.imports.complete_failed` message, not the
     inactive-branch reason.
   * Closing corrections at an inactive branch (D2) are a possible future enhancement: they would need an explicit
     permission, a mandatory reason and defined balance-correction rules.
   * Towels at an inactive branch stay in the ledger; once the branch is inactive the Towel Balances dashboard (active
-    branches only) no longer lists them — the warning above is the intended mitigation.
+    branches only) no longer lists them — the deactivation warning is the mitigation, and the notice (unlike the
+    dashboard) still reports an inactive branch. Receipt shortfalls are not shown (they are in no balance).
   * The stock-issue importer's `issued_on: Date.current` (not the business day) is a separate defect, not part of this
     fix.
 * **Review milestone:** review and merge of `fix/bug-029-inactive-branch-enforcement`; mark Resolved only once merged.

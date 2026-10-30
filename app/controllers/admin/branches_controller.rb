@@ -36,6 +36,10 @@ class Admin::BranchesController < Admin::BaseController
 
     load_payroll_summary(today)
 
+    # What other domains still record at the branch, shown (never enforced) in
+    # the deactivation dialog — through the OA contract, never their tables (BUG-029).
+    @deactivation_notices = @branch.active? ? OrganizationAccess::BranchDeactivationNotices.notices_for(branch: @branch) : []
+
     branch_user_ids = ShiftAssignment.user_ids_for_branches([ @branch.id ])
 
     @pending_requests = EmployeeRequest

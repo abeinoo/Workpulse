@@ -26,6 +26,7 @@
               title: t("admin.branches.lifecycle.deactivate_title", name: @branch.name),
               url: deactivate_admin_branch_path(@branch), method: :patch,
               hint: t("admin.branches.lifecycle.deactivate_hint"),
+              notices: @deactivation_notices,
               submit_label: t("admin.branches.lifecycle.deactivate"),
               confirm: t("admin.branches.lifecycle.deactivate_confirm") %>
       <% else %>

@@ -2378,6 +2378,7 @@ en:
         deactivate_title: "Deactivate %{name}"
         deactivate_hint: "The branch stops taking new check-ins and shift assignments. Attendance, payroll and financial history stay attached to it."
         deactivate_confirm: "Deactivate this branch?"
+        notice_not_blocking: "This is for information only — it does not prevent deactivation."
         reactivate: "Reactivate"
         reactivate_confirm: "Reactivate this branch?"
         delete: "Delete permanently"
@@ -3318,6 +3319,14 @@ en:
         damaged: "Damaged"
         disposed: "Disposed"
         lost: "Lost"
+
+    deactivation_notice:
+      title: "Towels still recorded at this branch"
+      summary: "Recorded ledger balances and open documents, not a physical count. Deactivation keeps them attached to the branch and changes no balance."
+      balance: "%{towel_type} — %{status}"
+      transfers_out: "Transfers dispatched from this branch, not yet received"
+      transfers_in: "Transfers dispatched to this branch, not yet received"
+      batches_in_progress: "Laundry batches in progress"
 
     dashboard:
       title: "Laundry Dashboard"
