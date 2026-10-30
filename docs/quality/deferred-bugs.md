@@ -50,12 +50,12 @@ here only so its stable ID and history are kept.
 | BUG-026 | Deleting a branch hard-deletes its attendance, device punches and legacy payroll periods | Organization & Access (branches) | **High — critical (irreversible data loss)** | Confirmed (characterization spec) | **In Progress** (adopted lifecycle committed on `fix/inventory-isolation-branch-lifecycle`, `bc47ad7` + `b82c6b8`; tests and full suite run; not reviewed, not merged — **Escalated**) | Review and merge |
 | BUG-027 | Remaining models take business-owned foreign keys without a same-business guard | Cross-domain (≈33 models) | Medium (tenant isolation, per path) | Suspected (static inventory; inventory paths fixed under BUG-025) | Open | Before multi-business use |
 | BUG-028 | `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change | Test suite (sign-up) | Low (local runs in a DST time zone, a few days a year) | Confirmed (reproduced 2026-10-29; time-travel arithmetic shown) | Open | Next test-suite fix |
-| BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by spec (2026-10-30: 21 refusal examples fail on the unchanged code) | In Progress (fix and deactivation towel warning on `fix/bug-029-inactive-branch-enforcement`, PR #88) | Follow-up to BUG-026 |
+| BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by spec (2026-10-30: 21 refusal examples fail on the unchanged code) | **Resolved** (`ce40a61`, `ad5e9dc`, `4d5b442`, `1e6feb3`, PR #88) | — |
 | BUG-030 | Imported stock issues (and product-import opening balances) are dated with the UTC calendar date, not the business day | Inventory & Purchasing | Low (date-boundary window; period attribution in reports) | Confirmed (code; formula evaluated outside the app, no spec) | Open | Next Inventory & Purchasing fix |
-| BUG-031 | Shift templates and template-applied assignments accept another business's shift or rule profile | Workforce (shifts; feeds attendance penalties / payroll) | **High** (cross-business config drives payroll deductions; needs a second business) | Confirmed (reproduced 2026-10-30, rolled-back transaction; regression specs fail on the unchanged code) | In Progress (`857506e` on `fix/bug-027-business-ownership-guards`) | Review / merge of the BUG-027 ownership PR |
-| BUG-032 | Remaining-deposit settlement writes a foreign, inactive or missing payment method into the append-only ledger | Finance & Sales (remaining deposit balances) | Medium (immutable ledger row; name disclosure; 500 on a missing id) | Confirmed (reproduced 2026-10-30) | In Progress (`c866b64` on `fix/bug-027-business-ownership-guards`) | Review / merge of the BUG-027 ownership PR |
-| BUG-033 | Bank statement import accepts another business's branch, and an out-of-scope branch of the same business | Finance & Sales (deposit verification) | Medium (name disclosure; branch-scope bypass) | Confirmed (reproduced 2026-10-30) | In Progress (`5631e9e` on `fix/bug-027-business-ownership-guards`) | Review / merge of the BUG-027 ownership PR |
-| BUG-034 | Laundry batches accept another business's towel type and operator | Inventory & Purchasing (Laundry) | Medium (user-name disclosure; ledger already guarded) | Confirmed (reproduced 2026-10-30) | In Progress (`1b25282` on `fix/bug-027-business-ownership-guards`) | Review / merge of the BUG-027 ownership PR |
+| BUG-031 | Shift templates and template-applied assignments accept another business's shift or rule profile | Workforce (shifts; feeds attendance penalties / payroll) | **High** (cross-business config drives payroll deductions; needs a second business) | Confirmed (reproduced 2026-10-30, rolled-back transaction; regression specs fail on the unchanged code) | **Resolved** (`857506e`, PR #90) | — |
+| BUG-032 | Remaining-deposit settlement writes a foreign, inactive or missing payment method into the append-only ledger | Finance & Sales (remaining deposit balances) | Medium (immutable ledger row; name disclosure; 500 on a missing id) | Confirmed (reproduced 2026-10-30) | **Resolved** (`c866b64`, PR #90) | — |
+| BUG-033 | Bank statement import accepts another business's branch, and an out-of-scope branch of the same business | Finance & Sales (deposit verification) | Medium (name disclosure; branch-scope bypass) | Confirmed (reproduced 2026-10-30) | **Resolved** (`5631e9e`, `3107eb8`, PR #90) | — |
+| BUG-034 | Laundry batches accept another business's towel type and operator | Inventory & Purchasing (Laundry) | Medium (user-name disclosure; ledger already guarded) | Confirmed (reproduced 2026-10-30) | **Resolved** (`1b25282`, PR #90) | — |
 
 ---
 
@@ -936,11 +936,10 @@ here only so its stable ID and history are kept.
 
 ## BUG-029 — Laundry and stock-issue entry points accept an inactive branch for new operations
 
-* **Source:** PR #87 review (follow-up to BUG-026), 2026-10-29. **Discovered:** 2026-10-29. **Status:** **In
-  Progress** — decisions D1–D6 adopted (2026-10-30, see *Decisions*); the restrictions are implemented and committed on
-  `fix/bug-029-inactive-branch-enforcement` (off `main` `d108918`, the PR #87 merge); verified (see *Verification*);
-  **not reviewed, not merged, not deployed**. The deactivation towel warning is implemented through a new OA contract
-  (see *Deactivation warning*).
+* **Source:** PR #87 review (follow-up to BUG-026), 2026-10-29. **Discovered:** 2026-10-29. **Status:**
+  **Resolved** by `ce40a61`, `ad5e9dc`, `4d5b442` (restrictions) and `1e6feb3` (deactivation towel warning through a new
+  OA contract) — merged into `main` in PR #88, merge commit `d792ffe` (2026-10-30); decisions D1–D6 adopted
+  (2026-10-30, see *Decisions*); verified (see *Verification*). Not deployed. *Remaining* items stay open as recorded.
 * **Domain / files:** Laundry — `Laundry::TowelTransfersController#create` / `Laundry::TowelTransferCreator`
   (create, dispatch, receive, cancel), `Laundry::TowelAdjustmentsController#create` / `Laundry::TowelAdjuster`;
   Inventory & Purchasing — `Inventory::StockIssuesController#create` (manual stock issue) and
@@ -1018,7 +1017,7 @@ here only so its stable ID and history are kept.
     dashboard) still reports an inactive branch. Receipt shortfalls are not shown (they are in no balance).
   * The stock-issue importer's `issued_on: Date.current` (not the business day) is a separate defect, not part of this
     fix.
-* **Review milestone:** review and merge of `fix/bug-029-inactive-branch-enforcement`; mark Resolved only once merged.
+* **Review milestone:** — (resolved).
 
 ## BUG-030 — Imported stock issues (and product-import opening balances) are dated with the UTC calendar date, not the business day
 
@@ -1066,8 +1065,9 @@ here only so its stable ID and history are kept.
 
 ## BUG-031 — Shift templates and template-applied assignments accept another business's shift or rule profile
 
-* **Source:** BUG-027 triage (2026-10-30). **Discovered:** 2026-10-30. **Status:** **In Progress** — fixed in
-  `857506e` on `fix/bug-027-business-ownership-guards`; verified (see *Verification*); **not reviewed, not merged, not deployed**.
+* **Source:** BUG-027 triage (2026-10-30). **Discovered:** 2026-10-30. **Status:** **Resolved** by `857506e` — merged
+  into `main` in PR #90, merge commit `87d13c2` (2026-10-30); verified (see *Verification*). Not deployed. Rows
+  written before the guard were not checked (read-only checks pending, see BUG-027).
 * **Domain / files:** Workforce — `Admin::ShiftTemplatesController#template_params` (nested
   `entries_attributes[shift_id, shift_rule_profile_id]`), `ShiftTemplateEntry`, `Scheduling::TemplateApplier`,
   `ShiftAssignment`.
@@ -1086,12 +1086,13 @@ here only so its stable ID and history are kept.
   `spec/requests/security/shift_template_business_scope_spec.rb` (4); every spec using the shift / attendance
   factories plus scheduling, shifts, attendance, payroll, API v1, security, characterization and architecture
   specs: 4949 examples, 0 failures. read-only checks for rows written before the guard are in the PR description (not run against production).
-* **Review milestone:** review and merge of `fix/bug-027-business-ownership-guards`; mark Resolved only once merged.
+* **Review milestone:** — (resolved).
 
 ## BUG-032 — Remaining-deposit settlement writes a foreign, inactive or missing payment method into the append-only ledger
 
-* **Source:** BUG-027 triage (2026-10-30). **Discovered:** 2026-10-30. **Status:** **In Progress** — fixed in
-  `c866b64` on `fix/bug-027-business-ownership-guards`; verified; **not reviewed, not merged, not deployed**.
+* **Source:** BUG-027 triage (2026-10-30). **Discovered:** 2026-10-30. **Status:** **Resolved** by `c866b64` — merged
+  into `main` in PR #90, merge commit `87d13c2` (2026-10-30); verified. Not deployed. Rows written before the guard
+  were not checked (read-only checks pending, see BUG-027).
 * **Domain / files:** Finance & Sales — `Finance::RemainingDepositBalancesController#settle`,
   `Finance::RemainingDepositBalanceSettler`, `RemainingDepositBalanceTransaction`.
 * **Observed (reproduced):** the settle action passed `params[:payment_method_id]` through unchecked: a settlement row
@@ -1106,12 +1107,13 @@ here only so its stable ID and history are kept.
 * **Verification (2026-10-30, seed 20261006):** new `spec/services/finance/remaining_deposit_balance_payment_method_spec.rb`
   (7) and `spec/requests/finance/remaining_deposit_balance_payment_method_spec.rb` (2); `spec/services/finance`,
   `spec/requests/finance`, `spec/policies`: 2228 examples, 0 failures. read-only checks for rows written before the guard are in the PR description (not run against production).
-* **Review milestone:** review and merge of `fix/bug-027-business-ownership-guards`; mark Resolved only once merged.
+* **Review milestone:** — (resolved).
 
 ## BUG-033 — Bank statement import accepts another business's branch, and an out-of-scope branch of the same business
 
-* **Source:** BUG-027 triage (2026-10-30). **Discovered:** 2026-10-30. **Status:** **In Progress** — fixed in
-  `5631e9e` on `fix/bug-027-business-ownership-guards`; verified; **not reviewed, not merged, not deployed**.
+* **Source:** BUG-027 triage (2026-10-30). **Discovered:** 2026-10-30. **Status:** **Resolved** by `5631e9e` (refusal
+  message clarified in `3107eb8`) — merged into `main` in PR #90, merge commit `87d13c2` (2026-10-30); verified. Not
+  deployed. Rows written before the guard were not checked (read-only checks pending, see BUG-027).
 * **Domain / files:** Finance & Sales — `Finance::BankStatementsController#create` / `#new`, `BankStatement`.
 * **Observed (reproduced):** a statement saved for another business's branch (its name then shown on the statements
   pages); `BankStatementPolicy#create?` checks only the permission and the branch list was limited in the form only,
@@ -1127,12 +1129,13 @@ here only so its stable ID and history are kept.
   3 / 5 of its original examples fail on the unchanged code (the refusals); bank-statement request specs 29 / 0;
   `spec/requests/finance`, `spec/services/finance`, `spec/policies`, `spec/requests/security`: 2761 examples,
   0 failures. read-only checks for rows written before the guard are in the PR description (not run against production).
-* **Review milestone:** review and merge of `fix/bug-027-business-ownership-guards`; mark Resolved only once merged.
+* **Review milestone:** — (resolved).
 
 ## BUG-034 — Laundry batches accept another business's towel type and operator
 
-* **Source:** BUG-027 triage (2026-10-30). **Discovered:** 2026-10-30. **Status:** **In Progress** — fixed in
-  `1b25282` on `fix/bug-027-business-ownership-guards`; verified; **not reviewed, not merged, not deployed**.
+* **Source:** BUG-027 triage (2026-10-30). **Discovered:** 2026-10-30. **Status:** **Resolved** by `1b25282` — merged
+  into `main` in PR #90, merge commit `87d13c2` (2026-10-30); verified. Not deployed. Rows written before the guard
+  were not checked (read-only checks pending, see BUG-027).
 * **Domain / files:** Inventory & Purchasing (Laundry) — `Laundry::LaundryBatchesController#create`,
   `Laundry::LaundryBatchService.create`, `LaundryBatch`.
 * **Observed (reproduced):** a batch saved with another business's towel type and operator; the batch pages showed
@@ -1143,4 +1146,4 @@ here only so its stable ID and history are kept.
 * **Verification (2026-10-30, seed 20261006):** new `spec/services/laundry/laundry_batch_business_guards_spec.rb` (4)
   and `spec/requests/laundry/laundry_batch_business_scope_spec.rb` (1); `spec/services/laundry`,
   `spec/requests/laundry`, laundry rake and architecture specs: 655 examples, 0 failures. read-only checks for rows written before the guard are in the PR description (not run against production).
-* **Review milestone:** review and merge of `fix/bug-027-business-ownership-guards`; mark Resolved only once merged.
+* **Review milestone:** — (resolved).
