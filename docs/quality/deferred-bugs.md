@@ -916,6 +916,10 @@ here only so its stable ID and history are kept.
     `payroll_period_branch_review`, `till_session` and the other till models.
   * **Defence-in-depth (Low, open):** `Finance::OpeningFloatReceiver` reads `PaymentMethod.where(id:)` unscoped; its
     input is already restricted to the business's active methods by `OpeningFloatAmountsEditor`.
+* **Existing-data checks (2026-10-30):** read-only queries for rows written before the BUG-029 / BUG-031..034 guards,
+  with a safe execution procedure: [`bug-027-existing-data-runbook.md`](bug-027-existing-data-runbook.md). Prepared and
+  validated against the schema only — **not run against production**; this entry stays Open until they are run and
+  triaged.
 * **Review milestone:** before any multi-business use.
 
 ## BUG-028 — `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change
