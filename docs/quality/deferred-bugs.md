@@ -56,6 +56,7 @@ here only so its stable ID and history are kept.
 | BUG-032 | Remaining-deposit settlement writes a foreign, inactive or missing payment method into the append-only ledger | Finance & Sales (remaining deposit balances) | Medium (immutable ledger row; name disclosure; 500 on a missing id) | Confirmed (reproduced 2026-10-30) | **Resolved** (`c866b64`, PR #90) | — |
 | BUG-033 | Bank statement import accepts another business's branch, and an out-of-scope branch of the same business | Finance & Sales (deposit verification) | Medium (name disclosure; branch-scope bypass) | Confirmed (reproduced 2026-10-30) | **Resolved** (`5631e9e`, `3107eb8`, PR #90) | — |
 | BUG-034 | Laundry batches accept another business's towel type and operator | Inventory & Purchasing (Laundry) | Medium (user-name disclosure; ledger already guarded) | Confirmed (reproduced 2026-10-30) | **Resolved** (`1b25282`, PR #90) | — |
+| BUG-035 | `bank_statement_transaction_deleted_statement_spec.rb` fails when the random reviewer name contains an apostrophe | Test suite (deposit verification request spec) | Low (intermittent CI failure; no application defect) | Confirmed (CI run 41032431369 attempt 1; rendered HTML in the log) | Open | Next test-suite fix |
 
 ---
 
@@ -1151,3 +1152,28 @@ here only so its stable ID and history are kept.
   and `spec/requests/laundry/laundry_batch_business_scope_spec.rb` (1); `spec/services/laundry`,
   `spec/requests/laundry`, laundry rake and architecture specs: 655 examples, 0 failures. read-only checks for rows written before the guard are in the PR description (not run against production).
 * **Review milestone:** — (resolved).
+
+## BUG-035 — `bank_statement_transaction_deleted_statement_spec.rb` fails when the random reviewer name contains an apostrophe
+
+* **Source:** new (CI run 41032431369, attempt 1, on PR #92, a documentation-only change). **Discovered:** 2026-10-30.
+  **Status:** Open.
+* **Domain / files:** test suite — `spec/requests/finance/bank_statement_transaction_deleted_statement_spec.rb:60`
+  (example at line 53); names come from `spec/factories/users.rb` (`Faker::Name.first_name` / `last_name`).
+* **Observed (facts):** the example failed with `expected "<!DOCTYPE html>…" to include "Courtney O'Conner"`. The
+  rendered page did contain the name, HTML-escaped by the view: `Deleted on … by Courtney O&#39;Conner.` (and in the
+  sidebar). The assertion compares the raw `reviewer.full_name` with the response body, so it fails whenever Faker
+  produces a name with an apostrophe (or `&`, `<`, `>`, `"`). The attempt-2 rerun of the same commit passed (10,292
+  examples, 0 failures). The same run's other 20 failures were the BUG-024 cascade, not this issue.
+* **Impact:** an intermittent red CI run; the application escapes the name correctly.
+* **Recommended fix:** compare against the escaped name, matching the file's own convention (line 57 already uses
+  `ERB::Util.html_escape`; `spec/performance/payroll_period_show_query_count_spec.rb:38` does the same for a full
+  name): `expect(response.body).to include(ERB::Util.html_escape(reviewer.full_name))`. `CGI.escapeHTML` gives the
+  same output (`O&#39;Conner`). Note: the reviewer is also the signed-in user, so the name appears in the sidebar and
+  the assertion does not prove the deletion line names them; scoping it to the deletion message would make it
+  meaningful (optional, same fix).
+* **Regression tests:** run the example with a fixed apostrophe name (e.g. `create(:user, last_name: "O'Conner")`
+  for the reviewer) to show it passes.
+* **Same pattern elsewhere (not triaged):** 23 other `include(<record>.full_name)` / `not_to include(…full_name)`
+  assertions on response bodies exist under `spec/` (2026-10-30, e.g. `spec/requests/attendance_records_spec.rb:28`).
+  Positive ones can fail the same way; negative ones pass vacuously for such a name. Review them with the fix.
+* **Review milestone:** next test-suite fix.
