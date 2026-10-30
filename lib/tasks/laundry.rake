@@ -56,6 +56,11 @@ namespace :laundry do
     action is itself a new, audited row. No towel types, branches, users,
     permissions, payroll, attendance, inventory, or expense data is touched.
 
+    Inactive branches are skipped (BUG-029): no adjustment is posted at one,
+    and an in-transit transfer whose source is inactive is left as it is
+    (cancelling it would post reversals at that branch). Their balances are
+    listed as skipped instead.
+
     Runs entirely inside one DB transaction (all-or-nothing) and refuses to
     run outside the development environment.
 
@@ -71,6 +76,8 @@ namespace :laundry do
     before = Hash.new { |h, k| h[k] = {} }
     after  = Hash.new { |h, k| h[k] = {} }
     cancelled_transfer_ids = []
+    skipped_transfer_ids   = []
+    skipped_branches       = []
     adjustment_count = 0
 
     ActiveRecord::Base.transaction do
@@ -85,7 +92,7 @@ namespace :laundry do
 
         business.towel_types.find_each do |towel_type|
           balances = Laundry::TowelBalances.new(towel_type)
-          business.branches.find_each do |branch|
+          business.branches.active.find_each do |branch|
             before[[ business.id, towel_type.id ]][branch.id] = balances.by_status_for_branch(branch)
           end
         end
@@ -93,7 +100,12 @@ namespace :laundry do
         # Step 1 — unwind every in-transit transfer for this business back to
         # its source branch. Must happen before the balance pass below, since
         # cancelling changes the source branch's balance.
-        business.towel_transfers.dispatched.find_each do |transfer|
+        business.towel_transfers.dispatched.includes(:source_branch).find_each do |transfer|
+          unless transfer.source_branch.active?
+            skipped_transfer_ids << transfer.id
+            next
+          end
+
           result = Laundry::TowelTransferCreator.new(transfer).cancel(actor: actor, reason: reason)
           raise "Failed to cancel in-transit transfer ##{transfer.id}: #{result.error}" unless result.ok?
 
@@ -104,7 +116,7 @@ namespace :laundry do
         business.towel_types.find_each do |towel_type|
           balances = Laundry::TowelBalances.new(towel_type)
 
-          business.branches.find_each do |branch|
+          business.branches.active.find_each do |branch|
             by_status = balances.by_status_for_branch(branch)
 
             TowelLedgerEntry::STATUSES.each do |status|
@@ -123,6 +135,8 @@ namespace :laundry do
             after[[ business.id, towel_type.id ]][branch.id] = balances.by_status_for_branch(branch)
           end
         end
+
+        skipped_branches.concat(business.branches.where(active: false).map { |branch| "#{business.name} / #{branch.name}" })
       end
     end
 
@@ -142,6 +156,8 @@ namespace :laundry do
     end
 
     puts "\nCancelled #{cancelled_transfer_ids.size} in-transit transfer(s): #{cancelled_transfer_ids}"
+    puts "Skipped #{skipped_transfer_ids.size} in-transit transfer(s) from inactive branches: #{skipped_transfer_ids}"
+    puts "Skipped inactive branch(es): #{skipped_branches.join(', ').presence || 'none'}"
     puts "Posted #{adjustment_count} balancing adjustment(s), reason: \"#{reason}\"."
     puts "Done."
   end
