@@ -52,6 +52,10 @@ here only so its stable ID and history are kept.
 | BUG-028 | `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change | Test suite (sign-up) | Low (local runs in a DST time zone, a few days a year) | Confirmed (reproduced 2026-10-29; time-travel arithmetic shown) | Open | Next test-suite fix |
 | BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by spec (2026-10-30: 21 refusal examples fail on the unchanged code) | In Progress (fix and deactivation towel warning on `fix/bug-029-inactive-branch-enforcement`, PR #88) | Follow-up to BUG-026 |
 | BUG-030 | Imported stock issues (and product-import opening balances) are dated with the UTC calendar date, not the business day | Inventory & Purchasing | Low (date-boundary window; period attribution in reports) | Confirmed (code; formula evaluated outside the app, no spec) | Open | Next Inventory & Purchasing fix |
+| BUG-031 | Shift templates and template-applied assignments accept another business's shift or rule profile | Workforce (shifts; feeds attendance penalties / payroll) | **High** (cross-business config drives payroll deductions; needs a second business) | Confirmed (reproduced 2026-10-30, rolled-back transaction; regression specs fail on the unchanged code) | In Progress (`857506e` on `fix/bug-027-business-ownership-guards`) | Review / merge of the BUG-027 ownership PR |
+| BUG-032 | Remaining-deposit settlement writes a foreign, inactive or missing payment method into the append-only ledger | Finance & Sales (remaining deposit balances) | Medium (immutable ledger row; name disclosure; 500 on a missing id) | Confirmed (reproduced 2026-10-30) | In Progress (`c866b64` on `fix/bug-027-business-ownership-guards`) | Review / merge of the BUG-027 ownership PR |
+| BUG-033 | Bank statement import accepts another business's branch, and an out-of-scope branch of the same business | Finance & Sales (deposit verification) | Medium (name disclosure; branch-scope bypass) | Confirmed (reproduced 2026-10-30) | In Progress (`5631e9e` on `fix/bug-027-business-ownership-guards`) | Review / merge of the BUG-027 ownership PR |
+| BUG-034 | Laundry batches accept another business's towel type and operator | Inventory & Purchasing (Laundry) | Medium (user-name disclosure; ledger already guarded) | Confirmed (reproduced 2026-10-30) | In Progress (`1b25282` on `fix/bug-027-business-ownership-guards`) | Review / merge of the BUG-027 ownership PR |
 
 ---
 
@@ -897,6 +901,21 @@ here only so its stable ID and history are kept.
   two-business spec, then add the same-business guard (the `other_business` validation type from BUG-025) where a
   path is open. Not a blanket change.
 * **Regression tests:** to define per path (two similarly shaped businesses).
+* **Triage (2026-10-30, `main` `0b6b20c`):** every `*_id` request parameter permitted by a controller (~90), the
+  importers and the models above were traced to their writes.
+  * **Open paths found and fixed** (each its own entry): shift template entries → template-applied assignments
+    (**BUG-031**), remaining-deposit settlement payment method (**BUG-032**), bank statement branch (**BUG-033**),
+    laundry batch towel type / operator (**BUG-034**).
+  * **Checked and safe** (scoped lookup or model guard): inventory documents incl. the goods-receipt ↔
+    purchase-request-item link (transitively, via the product guards); laundry batch consumption; stock-issue
+    import row resolution; till deposits, refunds, handover amounts / recipients, depositor and responsibility
+    transfers, opening-float editing; bank disputes; custody transactions; remaining-balance reassign; API
+    attendance records and punches; manual / CSV attendance; employee requests; `Shifts::Assigner` (API);
+    product barcodes (nested under the product); POS and sales importers.
+  * **Not traced in depth** (service-written only, no request-fed path found): `employee_reconciliation_summary`,
+    `payroll_period_branch_review`, `till_session` and the other till models.
+  * **Defence-in-depth (Low, open):** `Finance::OpeningFloatReceiver` reads `PaymentMethod.where(id:)` unscoped; its
+    input is already restricted to the business's active methods by `OpeningFloatAmountsEditor`.
 * **Review milestone:** before any multi-business use.
 
 ## BUG-028 — `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change
@@ -1044,3 +1063,84 @@ here only so its stable ID and history are kept.
   `issued_on` and the posted movement's `occurred_on` both equal the business day; likewise `adjusted_on` and the
   opening-balance movement for the product importer. A control example at a moment where the two dates agree.
 * **Review milestone:** next Inventory & Purchasing fix.
+
+## BUG-031 — Shift templates and template-applied assignments accept another business's shift or rule profile
+
+* **Source:** BUG-027 triage (2026-10-30). **Discovered:** 2026-10-30. **Status:** **In Progress** — fixed in
+  `857506e` on `fix/bug-027-business-ownership-guards`; verified (see *Verification*); **not reviewed, not merged, not deployed**.
+* **Domain / files:** Workforce — `Admin::ShiftTemplatesController#template_params` (nested
+  `entries_attributes[shift_id, shift_rule_profile_id]`), `ShiftTemplateEntry`, `Scheduling::TemplateApplier`,
+  `ShiftAssignment`.
+* **Observed (reproduced in a rolled-back transaction):** a template entry saved with another business's shift, and
+  applying the template created a `ShiftAssignment` with that shift. The web form
+  (`ShiftAssignmentsController#assignment_resources_in_business?`) and the API (`Shifts::Assigner`) check
+  business; the template path checked neither. Template creation needs only `assign_shifts`.
+* **Impact:** `Attendance::PenaltyCalculator` reads the assignment's shift penalty rules and `Payroll::EntryCalculator`
+  uses it — another business's shift times / penalty rules would drive this business's deductions.
+* **Fix:** `ShiftTemplateEntry` — shift and rule profile must belong to the template's business (`other_business`),
+  checked when either is written; `ShiftAssignment` — backstop on every write path: employee, shift and rule profile
+  must belong to the branch's business, checked when any of those references (or the branch) is written. Test data:
+  the `shift_assignment` / `attendance_record` factories follow an explicitly given user / branch / shift, and the
+  `shift_template_entry` factory uses the template's business (they used to mix businesses silently).
+* **Verification (2026-10-30, seed 20261006):** new `spec/models/shift_template_business_guards_spec.rb` (9) and
+  `spec/requests/security/shift_template_business_scope_spec.rb` (4); every spec using the shift / attendance
+  factories plus scheduling, shifts, attendance, payroll, API v1, security, characterization and architecture
+  specs: 4949 examples, 0 failures. read-only checks for rows written before the guard are in the PR description (not run against production).
+* **Review milestone:** review and merge of `fix/bug-027-business-ownership-guards`; mark Resolved only once merged.
+
+## BUG-032 — Remaining-deposit settlement writes a foreign, inactive or missing payment method into the append-only ledger
+
+* **Source:** BUG-027 triage (2026-10-30). **Discovered:** 2026-10-30. **Status:** **In Progress** — fixed in
+  `c866b64` on `fix/bug-027-business-ownership-guards`; verified; **not reviewed, not merged, not deployed**.
+* **Domain / files:** Finance & Sales — `Finance::RemainingDepositBalancesController#settle`,
+  `Finance::RemainingDepositBalanceSettler`, `RemainingDepositBalanceTransaction`.
+* **Observed (reproduced):** the settle action passed `params[:payment_method_id]` through unchecked: a settlement row
+  was written with another business's payment method (its name then shown on the balance page); an inactive one was
+  accepted; a non-existent id raised `ActiveRecord::InvalidForeignKey` (unrescued, a 500).
+* **Impact:** ledger rows are append-only and cannot be corrected; cross-business name disclosure.
+* **Fix:** the settler refuses a payment method that is not an active one of the balance's business
+  (`remaining_deposit_balances.errors.invalid_payment_method`, EN + AR) before anything is written — as
+  `TillDepositRecorder` / `TillRefundCreator` check; blank stays allowed. `RemainingDepositBalanceTransaction`
+  refuses another business's payment method on create (backstop). Bulk settle already resolved the method among the
+  business's active ones and is unchanged.
+* **Verification (2026-10-30, seed 20261006):** new `spec/services/finance/remaining_deposit_balance_payment_method_spec.rb`
+  (7) and `spec/requests/finance/remaining_deposit_balance_payment_method_spec.rb` (2); `spec/services/finance`,
+  `spec/requests/finance`, `spec/policies`: 2228 examples, 0 failures. read-only checks for rows written before the guard are in the PR description (not run against production).
+* **Review milestone:** review and merge of `fix/bug-027-business-ownership-guards`; mark Resolved only once merged.
+
+## BUG-033 — Bank statement import accepts another business's branch, and an out-of-scope branch of the same business
+
+* **Source:** BUG-027 triage (2026-10-30). **Discovered:** 2026-10-30. **Status:** **In Progress** — fixed in
+  `5631e9e` on `fix/bug-027-business-ownership-guards`; verified; **not reviewed, not merged, not deployed**.
+* **Domain / files:** Finance & Sales — `Finance::BankStatementsController#create` / `#new`, `BankStatement`.
+* **Observed (reproduced):** a statement saved for another business's branch (its name then shown on the statements
+  pages); `BankStatementPolicy#create?` checks only the permission and the branch list was limited in the form only,
+  so a branch-scoped importer could import for any branch of the business by crafting the request.
+* **Fix:** `BankStatement` — the branch must belong to the statement's business (`other_business`, every write path;
+  no branch stays allowed). The controller refuses a same-business branch outside the importer's
+  `import_bank_statement` branch scope before reading the file (`finance.bank_statements.errors.branch_outside_scope`,
+  EN + AR). The importable branches are resolved from that permission's configured scope
+  (`BranchScope#for_scope`, as `filter_by_branch_scope` does) and the upload form lists exactly those — it used
+  `assignable_branches`, which ignores the configured scope, so a business-wide importer who manages no branch now
+  sees every branch (behaviour change, noted in the PR). The statements index filter is unchanged.
+* **Verification (2026-10-30, seed 20261006):** new `spec/requests/security/bank_statement_branch_scope_spec.rb` (6);
+  3 / 5 of its original examples fail on the unchanged code (the refusals); bank-statement request specs 29 / 0;
+  `spec/requests/finance`, `spec/services/finance`, `spec/policies`, `spec/requests/security`: 2761 examples,
+  0 failures. read-only checks for rows written before the guard are in the PR description (not run against production).
+* **Review milestone:** review and merge of `fix/bug-027-business-ownership-guards`; mark Resolved only once merged.
+
+## BUG-034 — Laundry batches accept another business's towel type and operator
+
+* **Source:** BUG-027 triage (2026-10-30). **Discovered:** 2026-10-30. **Status:** **In Progress** — fixed in
+  `1b25282` on `fix/bug-027-business-ownership-guards`; verified; **not reviewed, not merged, not deployed**.
+* **Domain / files:** Inventory & Purchasing (Laundry) — `Laundry::LaundryBatchesController#create`,
+  `Laundry::LaundryBatchService.create`, `LaundryBatch`.
+* **Observed (reproduced):** a batch saved with another business's towel type and operator; the batch pages showed
+  that towel type's name and that user's full name. Starting it was already refused by `TowelLedgerEntry`'s towel
+  type guard.
+* **Fix:** `LaundryBatch` refuses a towel type or operator of another business (`other_business`) whenever either is
+  written; the operator stays optional; towel ledger accounting unchanged.
+* **Verification (2026-10-30, seed 20261006):** new `spec/services/laundry/laundry_batch_business_guards_spec.rb` (4)
+  and `spec/requests/laundry/laundry_batch_business_scope_spec.rb` (1); `spec/services/laundry`,
+  `spec/requests/laundry`, laundry rake and architecture specs: 655 examples, 0 failures. read-only checks for rows written before the guard are in the PR description (not run against production).
+* **Review milestone:** review and merge of `fix/bug-027-business-ownership-guards`; mark Resolved only once merged.
