@@ -17,6 +17,9 @@ class BankStatement < ApplicationRecord
   validates :statement_to,   presence: true
   validates :status,         inclusion: { in: STATUSES }
   validate  :date_range_must_be_valid
+  # The branch id comes from the import form's params — never trust one that
+  # belongs to another business (BUG-033).
+  validate  :branch_in_same_business, if: :will_save_change_to_branch_id?
 
   scope :for_business, ->(business) { where(business: business) }
   scope :active,       -> { where(deleted_at: nil) }
@@ -56,6 +59,12 @@ class BankStatement < ApplicationRecord
   end
 
   private
+
+  def branch_in_same_business
+    return if branch.nil? || business_id.nil?
+
+    errors.add(:branch_id, :other_business) if branch.business_id != business_id
+  end
 
   def date_range_must_be_valid
     return unless statement_from && statement_to
