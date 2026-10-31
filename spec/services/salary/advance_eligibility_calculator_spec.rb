@@ -252,6 +252,10 @@ RSpec.describe Salary::AdvanceEligibilityCalculator do
     # The core guarantee: eligibility is derived purely from attendance + the active
     # salary profile, so generating or regenerating payroll cannot move the limit.
     context "independence from payroll generation/regeneration" do
+      # BUG-036: pinned mid-month — the twelve this-month attendance days must all
+      # fall on or before today.
+      around { |ex| travel_to(Time.zone.local(2026, 9, 14, 12, 0, 0)) { ex.run } }
+
       before do
         business.update!(max_salary_advance_percentage: 40)
         create(:salary_profile, :daily, user: user, base_amount: 423)
