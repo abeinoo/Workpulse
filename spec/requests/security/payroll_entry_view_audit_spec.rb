@@ -14,8 +14,10 @@ RSpec.describe "Payroll entry views", type: :request do
   let(:branch_a) { create(:branch, business: business, branch_type: "sales") }
   let(:branch_b) { create(:branch, business: business, branch_type: "sales") }
 
-  let(:emp_a) { create(:user, business: business).tap { |u| assign(u, branch_a) } }
-  let(:emp_b) { create(:user, business: business).tap { |u| assign(u, branch_b) } }
+  # Apostrophe names (BUG-035): the views HTML-escape them, so body assertions
+  # must compare escaped names or a negative check passes without testing anything.
+  let(:emp_a) { create(:user, business: business, first_name: "Emp-A", last_name: "O'Neil").tap { |u| assign(u, branch_a) } }
+  let(:emp_b) { create(:user, business: business, first_name: "Emp-B", last_name: "O'Neil").tap { |u| assign(u, branch_b) } }
 
   let(:period)   { create(:payroll_period, :finalized, :last_month, business: business) }
   let!(:entry_a) { create(:payroll_entry, payroll_period: period, user: emp_a, base_salary: 7_123.45, net_salary: 6_987.65) }
@@ -111,7 +113,7 @@ RSpec.describe "Payroll entry views", type: :request do
       expect { get payroll_dashboard_path }.to change(views, :count).by(1)
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).not_to include(emp_b.full_name)
+      expect(response.body).not_to include(ERB::Util.html_escape(emp_b.full_name))
       expect_logged(source: "payroll_dashboard_top_employees", actor: analyst, entries: [ entry_a ], auditable: entry_a)
     end
 
@@ -164,7 +166,7 @@ RSpec.describe "Payroll entry views", type: :request do
       expect { get finance_expense_details_report_path(params) }.not_to change(views, :count)
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).not_to include(emp_a.full_name, emp_b.full_name)
+      expect(response.body).not_to include(ERB::Util.html_escape(emp_a.full_name), ERB::Util.html_escape(emp_b.full_name))
     end
 
     it "shows a payroll viewer only the rows inside the view_payroll scope, audited (HTML and CSV)" do
@@ -172,8 +174,8 @@ RSpec.describe "Payroll entry views", type: :request do
       sign_in viewer
       expect { get finance_expense_details_report_path(params) }.to change(views, :count).by(1)
 
-      expect(response.body).to include(emp_a.full_name)
-      expect(response.body).not_to include(emp_b.full_name)
+      expect(response.body).to include(ERB::Util.html_escape(emp_a.full_name))
+      expect(response.body).not_to include(ERB::Util.html_escape(emp_b.full_name))
       expect_logged(source: "finance_expense_details", actor: viewer, entries: [ entry_a ], auditable: entry_a)
 
       expect { get finance_expense_details_report_path(params.merge(format: :csv)) }.to change(views, :count).by(1)
