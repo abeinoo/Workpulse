@@ -69,8 +69,12 @@ RSpec.describe "Adjustment review ↔ payroll period locking (two connections)" 
     [ reached, release ]
   end
 
+  # Runs the block on its own thread and database connection.
+  # prevent_permanent_checkout: a `Model.connection` call inside the block (e.g.
+  # User#assign_employee_code) would otherwise pin the connection to this thread
+  # past the block, leaving it leased by a dead thread (BUG-024).
   def on_other_connection(&block)
-    Thread.new { ActiveRecord::Base.connection_pool.with_connection(&block) }.tap { |t| t.report_on_exception = false }
+    Thread.new { ActiveRecord::Base.connection_pool.with_connection(prevent_permanent_checkout: true, &block) }.tap { |t| t.report_on_exception = false }
   end
 
   def wait_for(queue) = Timeout.timeout(10) { queue.pop }
