@@ -217,7 +217,7 @@ RSpec.describe Finance::DepositorAssigner, type: :model do
       mutex   = Mutex.new
       threads = targets.zip([ manager, manager_b ]).map do |target, actor|
         Thread.new do
-          ActiveRecord::Base.connection_pool.with_connection do
+          ActiveRecord::Base.connection_pool.with_connection(prevent_permanent_checkout: true) do
             r = described_class.new(dr.id, actor: actor, depositor_id: target.id,
                                     expected_depositor_id: ahmed.id).call
             mutex.synchronize { results << [ target, r ] }

@@ -140,7 +140,7 @@ RSpec.describe Inventory::GoodsReceiptPoster, type: :model do
 
       threads = receipts.map do |receipt|
         Thread.new do
-          ActiveRecord::Base.connection_pool.with_connection do
+          ActiveRecord::Base.connection_pool.with_connection(prevent_permanent_checkout: true) do
             result = described_class.new(receipt).call
             mutex.synchronize { results << result }
           end
