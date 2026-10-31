@@ -10,18 +10,19 @@ RSpec.describe "Bank transaction on a deleted statement", type: :request do
   let(:cash_pm)  { PaymentMethod.create!(business: business, name: "Cash", settlement_type: "cash", active: true) }
   let(:day)      { Time.current.in_time_zone(business.timezone_object).to_date }
 
-  def user_with(*perms, business: self.business)
+  def user_with(*perms, business: self.business, **attrs)
     role = business.permission_roles.create!(
       name: "R-#{SecureRandom.hex(3)}",
       permissions: perms,
       permission_scopes: perms.index_with { "business_wide" }
     )
-    create(:user, business: business, preferred_locale: "en").tap { |u| u.update_column(:permission_role_id, role.id) }
+    create(:user, business: business, preferred_locale: "en", **attrs).tap { |u| u.update_column(:permission_role_id, role.id) }
   end
 
   let(:reviewer) do
     user_with("view_daily_reconciliation", "view_deposit_verification", "verify_deposits",
-              "manual_match_deposits", "import_bank_statement", "delete_import")
+              "manual_match_deposits", "import_bank_statement", "delete_import",
+              last_name: "O'Conner") # BUG-035: the view HTML-escapes the apostrophe
   end
 
   let(:dr) do
@@ -57,7 +58,11 @@ RSpec.describe "Bank transaction on a deleted statement", type: :request do
       expect(response.body).to include(ERB::Util.html_escape(
         I18n.t("finance.bank_statement_transactions.show.statement_deleted_title", id: statement.id)
       ))
-      expect(response.body).to include(reviewer.full_name)
+      # The deletion notice names who deleted the statement. Scoped to the notice
+      # (the reviewer's name is also in the sidebar); .text decodes the HTML.
+      notices = html.css("[role='status']")
+      expect(notices.size).to eq(1)
+      expect(notices.first.text.squish).to include("by #{reviewer.full_name}.")
       back = html.css(".page-header a").map { |a| a["href"] }
       expect(back).to include(finance_bank_statements_path)
       expect(back).not_to include(finance_bank_statement_path(statement))
