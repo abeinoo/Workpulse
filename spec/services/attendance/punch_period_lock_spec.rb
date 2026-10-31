@@ -37,16 +37,19 @@ RSpec.describe "Device punch ↔ payroll period locking (two connections)" do
   end
 
   # Cleanup: release every paused worker, then shut every worker down (bounded),
-  # then truncate — but only when the guard passed AND no worker is alive AND no
-  # other connection is still checked out or inside a transaction. Otherwise
-  # truncation is skipped and the hook fails loudly; it never pretends it cleaned.
+  # then truncate — but only when the guard passed AND no worker is alive AND
+  # ConcurrencyConnectionCheck finds no other live connection or open session
+  # (it waits briefly for the pool reaper; a leaked connection is reported but
+  # does not block truncation, BUG-024). Otherwise truncation is skipped and the
+  # hook fails loudly; it never pretends it cleaned.
   after do
     (@releases || []).each { |release| 2.times { release << true } }
     survivors, worker_errors = shut_down_workers
 
     problems = []
     problems << "worker thread(s) still alive after shutdown: #{survivors.map(&:inspect).join(', ')}" if survivors.any?
-    problems.concat(open_connection_problems) if survivors.empty?
+    connection_check = ConcurrencyConnectionCheck.call if survivors.empty?
+    problems.concat(connection_check.blocking) if connection_check
 
     # One decision, used both to truncate and to report: the message says SKIPPED
     # exactly when truncation did not run.
@@ -56,6 +59,7 @@ RSpec.describe "Device punch ↔ payroll period locking (two connections)" do
       conn.truncate_tables(*self.class.data_tables(conn))
     end
 
+    problems.concat(connection_check.leaks) if connection_check
     problems.concat(worker_errors.map { |error| "worker raised #{error.class}: #{error.message}" })
     raise "concurrency cleanup: #{problems.join('; ')}#{' — truncation SKIPPED' unless truncated}" if problems.any?
   end
@@ -89,25 +93,6 @@ RSpec.describe "Device punch ↔ payroll period locking (two connections)" do
       threads.select(&:alive?).each { |thread| thread.kill && join.call(thread, 5) } unless completed
     end
     [ survivors, errors ]
-  end
-
-  # With every worker dead, only this example's own connection may be checked
-  # out, and no other backend of the test database may be active or inside a
-  # transaction — the workers' connections and transactions are released.
-  def open_connection_problems
-    problems = []
-    busy = ActiveRecord::Base.connection_pool.stat[:busy]
-    problems << "#{busy - 1} worker connection(s) still checked out" if busy > 1
-
-    conn   = ActiveRecord::Base.connection
-    others = conn.select_value(<<~SQL).to_i
-      SELECT COUNT(*) FROM pg_stat_activity
-      WHERE datname = current_database() AND pid <> pg_backend_pid()
-        AND state IN ('active', 'idle in transaction', 'idle in transaction (aborted)')
-        AND backend_type = 'client backend' -- not autovacuum or other PostgreSQL background workers
-    SQL
-    problems << "#{others} other database session(s) still active or in a transaction" if others.positive?
-    problems
   end
 
   let(:business) { create(:business, timezone: "Asia/Riyadh", business_day_start_hour: 6, working_days_per_month: 22) }
