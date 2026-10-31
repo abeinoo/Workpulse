@@ -1173,7 +1173,13 @@ here only so its stable ID and history are kept.
   meaningful (optional, same fix).
 * **Regression tests:** run the example with a fixed apostrophe name (e.g. `create(:user, last_name: "O'Conner")`
   for the reviewer) to show it passes.
-* **Same pattern elsewhere (not triaged):** 23 other `include(<record>.full_name)` / `not_to include(…full_name)`
-  assertions on response bodies exist under `spec/` (2026-10-30, e.g. `spec/requests/attendance_records_spec.rb:28`).
-  Positive ones can fail the same way; negative ones pass vacuously for such a name. Review them with the fix.
+* **Same pattern elsewhere (reviewed 2026-10-31):** the search `to include(<record>.full_name)` matched 23
+  assertions on response bodies or exports under `spec/` — this one and 22 others — and missed one written with two
+  names, `spec/requests/security/payroll_entry_view_audit_spec.rb:167`
+  (`not_to include(emp_a.full_name, emp_b.full_name)`). All 24 were reviewed individually. **6 are affected by HTML
+  escaping** (a Faker name compared, unescaped, with a whole HTML body): this one (positive);
+  `payroll_entry_view_audit_spec.rb:175` (positive, can fail the same way); `payroll_entry_view_audit_spec.rb:114`,
+  `:167`, `:176` and `spec/requests/inventory/purchase_request_advances_spec.rb:118` (negative, pass vacuously for
+  such a name). The other 18 are not affected: they compare parsed CSV or decoded Nokogiri text, or use fixed
+  names without an apostrophe.
 * **Review milestone:** next test-suite fix.
