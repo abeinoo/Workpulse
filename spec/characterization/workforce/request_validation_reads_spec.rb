@@ -74,6 +74,13 @@ module RequestValidationReadsCharacterization
   end
 
   def check_ins_attribute(body) = body[/data-punch-order-guard-check-ins-value="[^"]*"/]
+
+  # The hint as a Hash (BUG-037): recent_check_ins promises no order (the form
+  # looks entries up by work date), so compare entries, not the attribute bytes.
+  # Nokogiri decodes the attribute's HTML entities.
+  def check_ins_hash(attribute)
+    JSON.parse(Nokogiri::HTML.fragment("<i #{attribute}></i>").at_css("i")["data-punch-order-guard-check-ins-value"])
+  end
 end
 
 RSpec.describe "Characterization: Workforce request-validation reads (Batch V M1)", type: :request do
@@ -518,13 +525,13 @@ RSpec.describe "Characterization: Workforce request-validation reads (Batch V M1
     it "own form: the employee's check-ins of the last 62 days, keyed by work date, business-local" do
       sign_in employee
       get new_employee_request_path
-      pin(:check_ins_own, check_ins_attribute(body))
+      expect(check_ins_hash(check_ins_attribute(body))).to eq(check_ins_hash(RequestValidationReadsCharacterization::RECORDED.fetch(:check_ins_own)))
     end
 
     it "on behalf: the target employee's check-ins (whatever the actor's salary visibility)" do
       sign_in plain_approver
       get new_employee_request_path(for_user_id: employee.id)
-      expect(check_ins_attribute(body)).to eq(RequestValidationReadsCharacterization::RECORDED.fetch(:check_ins_own))
+      expect(check_ins_hash(check_ins_attribute(body))).to eq(check_ins_hash(RequestValidationReadsCharacterization::RECORDED.fetch(:check_ins_own)))
     end
 
     it "422 re-render: the same hint" do
@@ -532,7 +539,7 @@ RSpec.describe "Characterization: Workforce request-validation reads (Batch V M1
       post employee_requests_path, params: { employee_request: { request_type: "late_permission", duration_minutes: 30,
                                                                  requested_for_date: Date.new(2026, 9, 21), reason: "" } }
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(check_ins_attribute(body)).to eq(RequestValidationReadsCharacterization::RECORDED.fetch(:check_ins_own))
+      expect(check_ins_hash(check_ins_attribute(body))).to eq(check_ins_hash(RequestValidationReadsCharacterization::RECORDED.fetch(:check_ins_own)))
     end
 
     it "an employee without attendance: an empty hint" do

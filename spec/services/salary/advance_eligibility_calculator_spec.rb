@@ -47,6 +47,10 @@ RSpec.describe Salary::AdvanceEligibilityCalculator do
     end
 
     context "monthly employee" do
+      # BUG-036: pinned mid-month — the factory's requested_for_date (tomorrow) and
+      # this-month attendance offsets must stay inside the current month.
+      around { |ex| travel_to(Time.zone.local(2026, 9, 14, 12, 0, 0)) { ex.run } }
+
       # Monthly employees are entitled to their full configured base_amount
       # regardless of worked days — worked days only matter for daily employees.
       before do
@@ -186,6 +190,10 @@ RSpec.describe Salary::AdvanceEligibilityCalculator do
     end
 
     context "daily employee" do
+      # BUG-036: pinned mid-month — the factory's requested_for_date (tomorrow) and
+      # this-month attendance offsets must stay inside the current month.
+      around { |ex| travel_to(Time.zone.local(2026, 9, 14, 12, 0, 0)) { ex.run } }
+
       before { create(:salary_profile, :daily, user: user, base_amount: 423) }
 
       it "returns a result with daily basis" do
