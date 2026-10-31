@@ -20,8 +20,12 @@ RSpec.describe "Worker thread connection lifecycle (BUG-024)" do
           .tap { |t| t.report_on_exception = false }
   end
 
-  def dead_connections = pool.connections.select { |c| c.in_use? && !c.owner.alive? }
-  def busy_elsewhere   = pool.connections.select { |c| c.in_use? && c.owner.alive? && !c.owner.equal?(Thread.current) }
+  def dead_connections     = pool.connections.select { |c| c.owner && !c.owner.alive? }
+  def owned_by(thread)     = pool.connections.select { |c| c.owner.equal?(thread) }
+
+  # The real pool reaper is held off (it maintains a pool only under this
+  # lock), so each example sees exactly the pool state its own threads made.
+  around { |example| pool.reaper_lock { example.run } }
 
   # Leases this example's own connection (like the harnesses' before hook) and
   # requires a pool without leaked connections, so each example starts clean.
@@ -37,16 +41,17 @@ RSpec.describe "Worker thread connection lifecycle (BUG-024)" do
   it "returns the connection after a worker calls ActiveRecord::Base.connection; that call yields the block's connection" do
     block_connection = nil
     inner_connection = nil
-    worker do |conn|
+    thread = worker do |conn|
       block_connection = conn
       inner_connection = ActiveRecord::Base.connection
       inner_connection.select_value("SELECT 1")
-    end.join(10)
+    end
+    thread.join(10)
 
     expect(inner_connection).to equal(block_connection)
     expect(block_connection.owner).to be_nil
     expect(dead_connections).to be_empty
-    expect(busy_elsewhere).to be_empty
+    expect(owned_by(thread)).to be_empty
   end
 
   it "without the flag the same worker leaves its connection leased by the dead thread (what BUG-024 leaked)" do
@@ -84,7 +89,7 @@ RSpec.describe "Worker thread connection lifecycle (BUG-024)" do
 
     expect(owner_seen).to equal(thread)
     expect(worker_connection).not_to equal(@main_connection)
-    expect(busy_elsewhere).to eq([ worker_connection ])
+    expect(owned_by(thread)).to eq([ worker_connection ])
 
     finish << true
     thread.join(10)
@@ -107,7 +112,7 @@ RSpec.describe "Worker thread connection lifecycle (BUG-024)" do
     expect { thread.join(10) }.not_to raise_error
     expect(errors).to be_empty
     expect(dead_connections).to be_empty
-    expect(busy_elsewhere).to be_empty
+    expect(owned_by(thread)).to be_empty
   end
 
   it "keeps a transaction-scoped advisory lock taken through ActiveRecord::Base.connection on the worker's session until commit" do
