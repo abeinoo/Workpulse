@@ -115,7 +115,7 @@ RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
                           .css("select[name='purchase_request_advance[custody_account_id]'] option")
                           .map { |o| [ o["value"], o["data-balance"] ] }.reject { |v, _| v.blank? }
         expect(options).to eq([ [ ahmed_custody.id.to_s, "50.0" ] ])
-        expect(response.body).not_to include(without_account.full_name)
+        expect(response.body).not_to include(ERB::Util.html_escape(without_account.full_name))
       end
 
       it "rejects (server-side) a custody account that is inactive or doesn't exist" do
