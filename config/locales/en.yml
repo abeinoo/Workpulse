@@ -6280,7 +6280,7 @@ en:
       bulk_settle_default_notes: "Settled via bulk settlement from Daily Reconciliation index."
       errors:
         no_branch: "Your branch could not be determined. Make sure you have an active shift assignment."
-        already_exists: "A reconciliation already exists for this branch on the current business day."
+        previous_day_still_open: "The reconciliation for %{open_date} at this branch is still open. Close it before starting the reconciliation for %{requested_date}."
         already_waiting: "There is already an opening float waiting to be received for this branch."
         create_failed: "Failed to create the reconciliation. Please try again."
         bulk_none_selected: "No reconciliations were selected."

@@ -230,7 +230,7 @@ RSpec.describe "Finance::DailyReconciliations#create — explicit business_date"
       expect(response).to redirect_to(finance_daily_reconciliation_path(dr))
       expect(dr).not_to eq(today_open_dr)
       expect(dr.business_date).to eq(yesterday)
-      expect(flash[:notice]).not_to eq(I18n.t("finance.daily_reconciliations.errors.already_exists"))
+      expect(flash[:alert]).to be_nil
     end
 
     it "creates the historical DR as closed, with no live custody (no current_holder)" do
@@ -319,7 +319,7 @@ RSpec.describe "Finance::DailyReconciliations#create — explicit business_date"
       expect(dr.reload.session_amounts.find_by(payment_method: cash_pm).collected_amount).to eq(500)
     end
 
-    it "still redirects via already_exists for a STALE open DR whose business_date lags behind today" do
+    it "still redirects to a STALE open DR whose business_date lags behind today, naming both dates" do
       # today_open_dr already covers "today" — simulate the ORIGINAL
       # motivating case instead: an open DR stuck on an older business_date
       # (never properly closed) with nothing recorded for today at all.
@@ -333,7 +333,9 @@ RSpec.describe "Finance::DailyReconciliations#create — explicit business_date"
            params: { branch_id: branch.id, business_date: BusinessDay.current(context: business).iso8601 }
 
       expect(response).to redirect_to(finance_daily_reconciliation_path(stale_dr))
-      expect(flash[:notice]).to eq(I18n.t("finance.daily_reconciliations.errors.already_exists"))
+      expect(flash[:alert]).to eq(I18n.t("finance.daily_reconciliations.errors.previous_day_still_open",
+                                         open_date:      I18n.l(stale_date, format: :long),
+                                         requested_date: I18n.l(BusinessDay.current(context: business), format: :long)))
     end
 
     it "rejects a future business_date" do
