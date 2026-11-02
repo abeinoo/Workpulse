@@ -45,7 +45,7 @@ here only so its stable ID and history are kept.
 | BUG-021 | Deposit Verification "Missing" tab compares statement dates with the UTC date of `deposited_at` | Finance & Sales (deposit verification) | Medium (wrong missing-from-bank list around business midnight) | Confirmed (request reproduction) | Open | Next finance fix |
 | BUG-022 | Deposit Verification has no tab or count for bank lines needing re-verification | Finance & Sales (deposit verification) | Low (visibility; shown elsewhere) | Improvement | Deferred | Next finance fix |
 | BUG-023 | `auto_generator_spec.rb` fails all 11 examples on days 29–31 of the month (business timezone) | Test suite (payroll auto-generation) | Medium (CI fails on every branch three days a month) | Confirmed (CI run 40805819874; reproduced with a fixed clock) | **Resolved** (`d3261b4`, PR #86) | — |
-| BUG-024 | Concurrency spec cleanup can find a worker connection still in use, skip truncation and cascade | Test suite (two-connection concurrency harnesses) | Medium (intermittent CI failure; leftover rows fail later specs) | Observed (CI run 40813098019); cause unconfirmed, not reproduced | Open | Next test-harness fix |
+| BUG-024 | Concurrency spec cleanup can find a worker connection still in use, skip truncation and cascade | Test suite (two-connection concurrency harnesses) | Medium (intermittent CI failure; leftover rows fail later specs; 4 CI occurrences 2026-10-29 – 10-31) | Observed (CI runs 40813098019, 41032431369, 41175458489, 41184004854); cause unconfirmed, not reproduced | Open | Next test-harness fix |
 | BUG-025 | Inventory documents accept another business's warehouses and products (owner / unassigned users) | Inventory & Purchasing | **High — critical (cross-business stock writes and disclosure)** | Confirmed (request reproduction) | **In Progress** (fix committed on `fix/inventory-isolation-branch-lifecycle`, `45c3693`; tests and full suite run; not reviewed, not merged — **Escalated**) | Review and merge |
 | BUG-026 | Deleting a branch hard-deletes its attendance, device punches and legacy payroll periods | Organization & Access (branches) | **High — critical (irreversible data loss)** | Confirmed (characterization spec) | **In Progress** (adopted lifecycle committed on `fix/inventory-isolation-branch-lifecycle`, `bc47ad7` + `b82c6b8`; tests and full suite run; not reviewed, not merged — **Escalated**) | Review and merge |
 | BUG-027 | Remaining models take business-owned foreign keys without a same-business guard | Cross-domain (≈33 models) | Medium (tenant isolation, per path) | Suspected (static inventory; inventory paths fixed under BUG-025) | Open | Before multi-business use |
@@ -56,7 +56,9 @@ here only so its stable ID and history are kept.
 | BUG-032 | Remaining-deposit settlement writes a foreign, inactive or missing payment method into the append-only ledger | Finance & Sales (remaining deposit balances) | Medium (immutable ledger row; name disclosure; 500 on a missing id) | Confirmed (reproduced 2026-10-30) | **Resolved** (`c866b64`, PR #90) | — |
 | BUG-033 | Bank statement import accepts another business's branch, and an out-of-scope branch of the same business | Finance & Sales (deposit verification) | Medium (name disclosure; branch-scope bypass) | Confirmed (reproduced 2026-10-30) | **Resolved** (`5631e9e`, `3107eb8`, PR #90) | — |
 | BUG-034 | Laundry batches accept another business's towel type and operator | Inventory & Purchasing (Laundry) | Medium (user-name disclosure; ledger already guarded) | Confirmed (reproduced 2026-10-30) | **Resolved** (`1b25282`, PR #90) | — |
-| BUG-035 | `bank_statement_transaction_deleted_statement_spec.rb` fails when the random reviewer name contains an apostrophe | Test suite (deposit verification request spec) | Low (intermittent CI failure; no application defect) | Confirmed (CI run 41032431369 attempt 1; rendered HTML in the log) | Open | Next test-suite fix |
+| BUG-035 | `bank_statement_transaction_deleted_statement_spec.rb` fails when the random reviewer name contains an apostrophe | Test suite (deposit verification request spec) | Low (intermittent CI failure; no application defect) | Confirmed (CI run 41032431369 attempt 1; rendered HTML in the log) | **Resolved** (`43bcf03`, PR #96) | — |
+| BUG-036 | Salary advance eligibility specs fail on the last day of every month | Test suite (`advance_eligibility_calculator_spec.rb`) | Low (CI fails on every branch one day a month; no application defect) | Confirmed (CI runs 41172059334, 41172079070 on 2026-10-31) | **Resolved** (`62c03f5`, `cd18ec8`, PR #96) | — |
+| BUG-037 | Check-in hint characterization spec depends on unordered query results | Test suite (`request_validation_reads_spec.rb`) | Low (intermittent CI failure; no application defect) | Confirmed (CI run 41172079070) | **Resolved** (`62c03f5`, PR #96) | — |
 
 ---
 
@@ -207,7 +209,8 @@ here only so its stable ID and history are kept.
 * **Separate follow-ups** (not BUG-003; they do not block its resolution):
   * A Rematch deletes earlier auto-matches (`DepositVerification::MatchingEngine#reset_rematchable!`) and audits only
     changed new matches, so a lost earlier match is never audited — to be registered separately.
-  * The order-dependent `request_validation_reads_spec.rb:530` (under *Verification*) — not yet registered.
+  * The order-dependent `request_validation_reads_spec.rb:530` (under *Verification*) — registered as BUG-037
+    (resolved, PR #96).
   * The unreproduced `match_concurrency_spec.rb:392` failure whose cleanup was skipped — see BUG-024.
 * **Regression tests:** `spec/models/concerns/audit_loggable_spec.rb`, `audit_loggable_commit_path_spec.rb`, and the
   BUG-003 examples in the migrated callers' specs (`spec/services/finance/{session_amounts_editor,day_close_editor,
@@ -695,10 +698,15 @@ here only so its stable ID and history are kept.
 ## BUG-024 — Concurrency spec cleanup can find a worker connection still in use, skip truncation and cascade
 
 * **Source:** new (CI run 40813098019 on PR #85, a documentation-only change). **Discovered:** 2026-10-29.
-  **Status:** Open.
-* **Domain / files:** test suite — the two-connection concurrency harness copied into seven specs (empty-database
-  guard, worker threads on their own connections, truncation in `after`), here
-  `spec/characterization/inventory_purchasing/purchase_request_advance_concurrency_spec.rb`; also the guard in
+  **Status:** Open (four CI occurrences by 2026-10-31, see *Occurrences*).
+* **Domain / files:** test suite — the two-connection concurrency harness (empty-database guard, worker threads on
+  their own connections, truncation in `after`). On `main` `9e850b4` the cleanup that raises "truncation SKIPPED"
+  exists in eight spec files: `spec/characterization/inventory_purchasing/{purchase_request_advance_concurrency,
+  goods_receipt_payments_concurrency}_spec.rb`, `spec/services/attendance/punch_period_lock_spec.rb`,
+  `spec/services/finance/bank_statements/match_concurrency_spec.rb`,
+  `spec/services/inventory/{document_voider_concurrency,goods_receipt_void_concurrency}_spec.rb`,
+  `spec/services/organization_access/branch_lifecycle_concurrency_spec.rb` and
+  `spec/services/requests/advance_payment_concurrency_spec.rb`; also the guard in
   `spec/support/non_transactional_database.rb`.
 * **Observed (facts):** in run 40813098019 (`test` job, its own PostgreSQL service container, one RSpec process) the
   example "two confirmations: the second waits on the request row, then is refused — custody is debited once"
@@ -713,6 +721,23 @@ here only so its stable ID and history are kept.
   The failure did not recur in runs 40805819874, 40722956476, 40812521136 or 40813934325. A local run on
   2026-10-28 had a similar unreproduced failure in `spec/services/finance/bank_statements/match_concurrency_spec.rb:392`
   whose cleanup was skipped (BUG-003 *Verification*); that it has the same cause is a hypothesis.
+* **Occurrences in CI (from the `test` job logs; each on an unrelated change):**
+
+  | # | Run / attempt | PR, head | Example whose cleanup was skipped | Cleanup message | Later failures | Rerun |
+  |---|---|---|---|---|---|---|
+  | 1 | 40813098019 / 1 (2026-10-29) | #85, `edc8d47` | `purchase_request_advance_concurrency_spec.rb` — "two confirmations: the second waits on the request row, then is refused — custody is debited once" | 1 worker connection still checked out; 1 other session active or in a transaction | 50 in 14 files (see *Observed*) | not rerun |
+  | 2 | 41032431369 / 1 (2026-10-30) | #92, `5211c5f` | `match_concurrency_spec.rb:470` — "manual match commits first: a concurrent bulk ignore of that line refuses the whole batch" | 2 worker connections still checked out; 1 other session active or in a transaction | 19 in 7 files (two more in the same file; `till_deposit_recorder_spec.rb`, `branch_lifecycle_concurrency_spec.rb`, `document_voider_concurrency_spec.rb`, `goods_receipt_void_concurrency_spec.rb`, `adjustment_review_period_lock_spec.rb`, `till_deposit_voider_spec.rb`); the run's 21st failure was BUG-035 | attempt 2 passed (10,292 examples, 0 failures) |
+  | 3 | 41175458489 / 1 (2026-10-31) | #95, `cd18ec8` | `advance_payment_concurrency_spec.rb:180` — "single vs single: the second payment waits for the row lock, then is refused" | 2 worker connections still checked out (no other session reported) | 11: nine later examples of the same file and `punch_correction_period_lock_spec.rb:240` refused at their empty-database guards; `bulk_payment_service_spec.rb:131` counted the leftover request's pay audit | attempt 2 had no BUG-024 failure (it failed one example on BUG-035, not yet fixed on that branch) |
+  | 4 | 41184004854 / 1 (2026-10-31) | #93, `13be459` | `advance_payment_concurrency_spec.rb:280` — "opposite-order batches: ascending-id locking makes the second wait on r1 holding nothing — no deadlock (F-A7)" | 2 worker connections still checked out; 1 other session active or in a transaction | 9: six later examples of the same file, `bulk_payment_service_spec.rb:131` and `:145`, `punch_correction_period_lock_spec.rb:240` | attempt 2 passed (10,292 examples, 0 failures) |
+
+  In every occurrence the example itself had passed and failed only in its `after` cleanup; the later failures came
+  from the rows it left behind (empty-database guards refusing to run, or count / audit expectations seeing extra
+  rows). Three of the eight harness copies have failed this way, so the shared cleanup approach is the likelier
+  source than any one spec — a hypothesis, not a finding.
+* **Priority (reviewed 2026-10-31):** kept **Medium**. The register uses High for stock, payroll, data-loss or
+  access impact; this issue affects only the CI test database and is safe by design. It has, however, failed four CI runs in three
+  days (2026-10-29 – 10-31) and, with BUG-035 / 036 / 037 resolved, is the only known remaining source of
+  intermittent CI failures, so it should be the next test-suite fix.
 * **Hypotheses (unverified):** a worker's connection is returned to the pool, or its backend session finishes,
   slightly after the thread's result is available; or a connection leased inside a worker is kept past
   `with_connection`. The cleanup checks once, without a retry or details of the remaining session.
@@ -1156,7 +1181,8 @@ here only so its stable ID and history are kept.
 ## BUG-035 — `bank_statement_transaction_deleted_statement_spec.rb` fails when the random reviewer name contains an apostrophe
 
 * **Source:** new (CI run 41032431369, attempt 1, on PR #92, a documentation-only change). **Discovered:** 2026-10-30.
-  **Status:** Open.
+  **Status:** **Resolved** by `43bcf03` — merged into `main` in PR #96 (integration of PR #94), merge commit `afed94a`
+  (2026-10-31); `main` CI run 41183263864 passed (10,292 examples, 0 failures). Test-only change; nothing to deploy.
 * **Domain / files:** test suite — `spec/requests/finance/bank_statement_transaction_deleted_statement_spec.rb:60`
   (example at line 53); names come from `spec/factories/users.rb` (`Faker::Name.first_name` / `last_name`).
 * **Observed (facts):** the example failed with `expected "<!DOCTYPE html>…" to include "Courtney O'Conner"`. The
@@ -1182,4 +1208,60 @@ here only so its stable ID and history are kept.
   `:167`, `:176` and `spec/requests/inventory/purchase_request_advances_spec.rb:118` (negative, pass vacuously for
   such a name). The other 18 are not affected: they compare parsed CSV or decoded Nokogiri text, or use fixed
   names without an apostrophe.
-* **Review milestone:** next test-suite fix.
+* **Fix (`43bcf03`, PR #96):** the six affected assertions only; the other 18 were not changed and no wider sweep was
+  done.
+  * `bank_statement_transaction_deleted_statement_spec.rb`: the reviewer is created with `last_name: "O'Conner"`, so
+    the escaping is always exercised. The assertion now parses the page with Nokogiri, requires exactly one deletion
+    notice (`[role='status']`) and checks that notice's decoded text includes `"by #{reviewer.full_name}."` — so it
+    proves the notice names the reviewer, not merely that the name appears somewhere (it is also in the sidebar).
+  * `payroll_entry_view_audit_spec.rb`: `emp_a` / `emp_b` are named `Emp-A O'Neil` / `Emp-B O'Neil`; the assertions
+    at old lines 114, 167, 175 and 176 compare `ERB::Util.html_escape(<name>)` with the body, so the negative checks
+    now test something.
+  * `purchase_request_advances_spec.rb:118`: the negative check compares `ERB::Util.html_escape(without_account.full_name)`.
+* **Review milestone:** — (resolved).
+
+## BUG-036 — Salary advance eligibility specs fail on the last day of every month
+
+* **Source:** new (CI runs 41172059334 on PR #93 and 41172079070 on PR #94, both 2026-10-31; neither PR touched this
+  code). **Discovered:** 2026-10-31. **Status:** **Resolved** by `62c03f5` and `cd18ec8` — merged into `main` in
+  PR #96 (integration of PR #95), merge commit `afed94a` (2026-10-31). Test-only change; nothing to deploy.
+* **Domain / files:** test suite — `spec/services/salary/advance_eligibility_calculator_spec.rb`;
+  `spec/factories/employee_requests.rb` (`requested_for_date { Date.current + 1.day }`);
+  `Salary::AdvanceEligibilityCalculator` counts pending / approved requests only when `requested_for_date` is in
+  `current_month_range`.
+* **Observed (facts):** on 31 October, `advance_eligibility_calculator_spec.rb:148` ("monthly employee — with a pending
+  advance request") and `:158` ("with an approved (not yet paid) advance request") expected outstanding 500 and 600
+  and got 0, in both runs. The factory's "tomorrow" was 1 November, outside the current month, so the calculator
+  correctly ignored the requests. `main` CI on 30 October had passed.
+* **Impact:** every branch's CI fails on the last day of each month; the application behaves as designed. Same kind
+  of month-end defect as BUG-023.
+* **Fix:** the spec pins the clock with a scoped `around { |ex| travel_to(Time.zone.local(2026, 9, 14, 12, 0, 0)) {
+  ex.run } }` in three contexts: "monthly employee" (the failing examples) and "daily employee" (`62c03f5`), and
+  "independence from payroll generation/regeneration" (`cd18ec8`), whose twelve this-month attendance days
+  (`complete_day_this_month`) would otherwise run past today early in a month. The block form restores the clock
+  after each example. No application code changed.
+* **Not changed (noted, not registered):** the calculator uses `Date.current`, not `BusinessDay.current`, for its month
+  range.
+* **Verification:** the two examples passed in later CI runs on 31 October (run 41175458489, both attempts; integration
+  run 41182096767; `main` run 41183263864, 10,292 examples, 0 failures).
+* **Review milestone:** — (resolved).
+
+## BUG-037 — Check-in hint characterization spec depends on unordered query results
+
+* **Source:** new (CI run 41172079070 on PR #94, 2026-10-31); first noted, unregistered, under BUG-003
+  *Verification* (local run, 2026-10-28). **Discovered:** 2026-10-28. **Status:** **Resolved** by `62c03f5` —
+  merged into `main` in PR #96 (integration of PR #95), merge commit `afed94a` (2026-10-31). Test-only change.
+* **Domain / files:** test suite — `spec/characterization/workforce/request_validation_reads_spec.rb` (the three
+  examples of the request form's check-ins hint, `data-punch-order-guard-check-ins-value`, starting at line 530);
+  the hint comes from `Payroll::RequestFormReads#recent_check_ins` (`app/services/payroll/request_form_reads.rb`).
+* **Observed (facts):** `request_validation_reads_spec.rb:530` failed with the same check-in entries as the recorded
+  value in a different order. `recent_check_ins` plucks the user's recent attendance records **without an `ORDER BY`**
+  and builds a Hash keyed by work date; the form looks entries up by date, so the application promises no order. The
+  examples compared the serialized attribute byte for byte.
+* **Impact:** an intermittent red CI run; no application defect.
+* **Fix:** a spec helper `check_ins_hash` parses the attribute with Nokogiri (decoding its HTML entities) and
+  `JSON.parse`; the three examples ("own form", "on behalf", "422 re-render") compare that Hash with the recorded
+  value parsed the same way. The recorded value is unchanged; no application ordering was added or changed.
+* **Verification:** the example passed in later CI runs on 31 October (run 41175458489, both attempts; integration run
+  41182096767; `main` run 41183263864).
+* **Review milestone:** — (resolved).
