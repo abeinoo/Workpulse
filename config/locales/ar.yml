@@ -1976,7 +1976,7 @@ ar:
       title: "تعديل ملف الراتب"
       page_title: "تعديل ملف الراتب — ووركبلس"
       submit: "تحديث الملف"
-      for: "لـ %{name}. يمكن تعديل الملف النشط فقط."
+      for: "لـ %{name}. يمكن تعديل الملف الساري حالياً فقط."
       back: "الرجوع إلى %{name}"
     salary_types:
       monthly: "راتب شهري"
@@ -1994,6 +1994,11 @@ ar:
     historical: "سابق"
     no_active: "لا يوجد ملف راتب نشط."
     history: "السجل التاريخي"
+    status: "الحالة"
+    statuses:
+      scheduled: "مجدول"
+      current: "الحالي"
+      previous: "سابق"
     ot_multiplier: "معامل الإضافي"
     no_overtime: "لا وقت إضافي"
 
@@ -2712,6 +2717,7 @@ ar:
         view_employees: "عرض الموظفين"
         manage_employees: "إدارة الموظفين"
         manage_salary_profiles: "إدارة ملفات الرواتب"
+        view_salary_history: "عرض سجل الرواتب"
         create_employee_requests: "إنشاء طلبات إضافة موظف"
         view_employee_requests: "عرض طلبات إضافة موظف الخاصة"
         view_all_employee_requests: "عرض جميع طلبات إضافة موظف"
@@ -2854,6 +2860,7 @@ ar:
         view_employees: "الاطلاع على قائمة الموظفين وملفاتهم"
         manage_employees: "إنشاء الموظفين وتعديلهم وإلغاء تفعيلهم"
         manage_salary_profiles: "إنشاء ملفات الرواتب وتحديثها"
+        view_salary_history: "الاطلاع على جميع ملفات راتب الموظف — السابقة والحالية والمجدولة — في صفحة الموظف"
         create_employee_requests: "إرسال بيانات موظف جديد وصور البطاقة للمراجعة، وإعادة إرسال طلباته المُعادة للتعديل"
         view_employee_requests: "عرض حالة وبيانات طلبات إضافة الموظف التي قدّمها المستخدم"
         view_all_employee_requests: "عرض الطلبات المقدمة من مستخدمين آخرين ضمن نطاق الصلاحية"
@@ -5507,6 +5514,10 @@ ar:
   activerecord:
     errors:
       models:
+        salary_profile:
+          attributes:
+            effective_from:
+              must_precede_next_profile: "يجب أن يكون قبل %{date}، تاريخ سريان ملف الراتب التالي"
         user:
           attributes:
             date_of_birth:

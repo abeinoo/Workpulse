@@ -84,6 +84,29 @@ RSpec.describe SalaryProfilePolicy, type: :model do
     it "denies employee" do
       expect(subject.new(employee, active_profile).update?).to be false
     end
+
+    context "while a later-dated profile is scheduled" do
+      let!(:current)   { create(:salary_profile, user: employee, effective_from: 1.month.ago.to_date) }
+      let!(:scheduled) { create(:salary_profile, user: employee, effective_from: 1.month.from_now.to_date) }
+
+      it "permits correcting the profile in force although the scheduled one holds the active flag" do
+        expect(current.reload).not_to be_active
+        expect(subject.new(super_admin, current).update?).to be true
+      end
+
+      it "denies the scheduled profile" do
+        expect(scheduled).to be_active
+        expect(subject.new(super_admin, scheduled).update?).to be false
+      end
+
+      it "still denies view_salary_history without manage_salary_profiles" do
+        role = business.permission_roles.create!(name: "History", permissions: %w[view_employees view_payroll view_salary_history],
+                                                 permission_scopes: { "view_payroll" => "business", "view_salary_history" => "business" })
+        viewer = create(:user, business: business).tap { |u| u.update_column(:permission_role_id, role.id) }
+        expect(subject.new(viewer, current).view_history?).to be true
+        expect(subject.new(viewer, current).update?).to be false
+      end
+    end
   end
 
   describe "destroy?" do

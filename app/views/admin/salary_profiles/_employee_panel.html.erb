@@ -1,7 +1,8 @@
 <%# Attendance & Payroll's salary card of the Workforce employee page, contributed
     through Employee::ProfilePanels (Payroll::EmployeeSalaryPanel, SAL). Locals:
-    employee, salary_visible, salary_manageable, profile (the current profile only,
-    shown under SalaryProfilePolicy). %>
+    employee, salary_visible, salary_manageable, profile (the current profile,
+    shown under SalaryProfilePolicy), history (HistoryRows, empty unless the viewer
+    has view_salary_history for this employee; read-only — no edit actions). %>
 <div class="card" style="margin-top: var(--space-6);">
   <div class="card-header">
     <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("admin.users.salary_profile") %></h2>
@@ -46,5 +47,37 @@
     <% end %>
   <% else %>
     <p style="padding: var(--space-4); color: var(--text-2);"><%= t("salary_profiles.no_active") %></p>
+  <% end %>
+
+  <% if history.any? %>
+    <div style="padding: 0 var(--space-4) var(--space-4);">
+      <h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--text-2); margin-bottom: var(--space-2);"><%= t("salary_profiles.history") %></h3>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
+            <tr>
+              <th><%= t("salary_profiles.type") %></th>
+              <th><%= t("salary_profiles.base_salary") %></th>
+              <th><%= t("salary_profiles.ot_multiplier") %></th>
+              <th><%= t("salary_profiles.effective_from") %></th>
+              <th><%= t("salary_profiles.status") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% history.each do |row| %>
+              <tr data-salary-history-status="<%= row.status %>">
+                <td data-label="<%= t('salary_profiles.type') %>"><%= t("salary_profiles.salary_types.#{row.profile.salary_type}") %></td>
+                <td data-label="<%= t('salary_profiles.base_salary') %>"><%= format_currency(row.profile.base_amount) %></td>
+                <td data-label="<%= t('salary_profiles.ot_multiplier') %>"><%= row.profile.overtime_multiplier ? "#{row.profile.overtime_multiplier}x" : "—" %></td>
+                <td data-label="<%= t('salary_profiles.effective_from') %>"><%= local_date(row.profile.effective_from) %></td>
+                <td data-label="<%= t('salary_profiles.status') %>">
+                  <span class="badge <%= { scheduled: "badge-warning", current: "badge-success", previous: "badge-neutral" }.fetch(row.status) %>"><%= t("salary_profiles.statuses.#{row.status}") %></span>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
   <% end %>
 </div>

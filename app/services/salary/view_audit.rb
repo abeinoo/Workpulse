@@ -9,6 +9,10 @@ module Salary
   # behalf of another employee — a fixed percentage of a monthly salary, so the
   # salary itself can be read off it.
   #
+  # admin_employee_page_history: the salary-history table of the employee page
+  # (view_salary_history) — every profile listed, recorded apart from the
+  # current-profile view (admin_employee_page) of the same request.
+  #
   # Like every log_audit call, a failed write is logged and swallowed: it never
   # aborts the request (AuditLoggable).
   class ViewAudit
@@ -16,7 +20,7 @@ module Salary
 
     ACTION  = "view_salary".freeze
     SOURCES = %w[
-      admin_employee_page admin_salary_profile_edit
+      admin_employee_page admin_employee_page_history admin_salary_profile_edit
       api_salary_profiles api_salary_profile api_salary_profile_update
       request_advance_limit
     ].freeze

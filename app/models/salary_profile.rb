@@ -12,14 +12,19 @@ class SalaryProfile < ApplicationRecord
   validates :currency,            presence: true
   validates :effective_from,      presence: true
 
-  # Historical profiles (active: false) are immutable once superseded.
+  # Superseded profiles are immutable: only the latest entered (`active`) or the
+  # one in force today may be corrected in place — while a later-dated change is
+  # scheduled, the profile in force is no longer `active` but stays correctable.
   validate :immutable_if_historical, on: :update
+  # A correction never moves a profile onto or past the next later-dated profile,
+  # so the order in which profiles take effect is never rewritten.
+  validate :effective_from_before_next_profile, on: :update, if: :effective_from_changed?
 
   # Deactivate any existing active profiles before inserting a new one,
   # ensuring only one active profile per user at any time. `active` marks the
-  # most recently entered profile — the only one that may still be corrected in
-  # place — NOT the salary in force: a profile entered with a future
-  # effective_from is active at once but takes effect only on that date.
+  # most recently entered profile, NOT the salary in force: a profile entered
+  # with a future effective_from is active at once but takes effect only on
+  # that date.
   before_create :deactivate_previous_active_profiles
 
   scope :active,       -> { where(active: true) }
@@ -65,8 +70,22 @@ class SalaryProfile < ApplicationRecord
   end
 
   # active_in_database reflects the persisted value before this update began.
-  # If it is already false the profile is historical and must not change.
+  # If it is already false and the profile is not the one in force today (read
+  # from the persisted rows), it is historical and must not change.
   def immutable_if_historical
-    errors.add(:base, "Historical salary profiles cannot be modified") unless active_in_database
+    return if active_in_database
+    return if self.class.effective_for(user, date: self.class.effective_date_for(user.business))&.id == id
+
+    errors.add(:base, "Historical salary profiles cannot be modified")
+  end
+
+  def effective_from_before_next_profile
+    return if effective_from.blank?
+
+    next_date = user.salary_profiles.where.not(id: id).where("effective_from > ?", effective_from_in_database)
+                    .minimum(:effective_from)
+    return if next_date.nil? || effective_from < next_date
+
+    errors.add(:effective_from, :must_precede_next_profile, date: I18n.l(next_date))
   end
 end

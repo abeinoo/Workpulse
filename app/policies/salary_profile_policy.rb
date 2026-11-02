@@ -12,9 +12,16 @@ class SalaryProfilePolicy < ApplicationPolicy
   # manage_salary_profiles scope (same resolution), never one's own profile —
   # the owner included. Managing does not grant reading: creating a new profile
   # shows nothing existing, but editing in place shows the current amounts, so
-  # it also needs the view rule. Only the current profile, and only while it is
-  # still the latest entered (`active`), may be corrected in place; a scheduled
-  # change is made by entering another profile.
+  # it also needs the view rule. Only the current profile — the one in force
+  # today — may be corrected in place, also while a later-dated change is
+  # scheduled (and so holds the `active` flag); a scheduled profile is changed
+  # by entering another profile.
+  # History (view_salary_history): every stored profile of another employee —
+  # previous, current and scheduled — on the employee page only, never through
+  # the Scope (which stays current-only) or the API. The employee must be inside
+  # both the view_payroll and the view_salary_history scope, so history never
+  # reaches beyond the salaries the actor may already see; never one's own
+  # history. Seeing history grants no editing.
 
   # Collection access is decided by the Scope; no instance rule is evaluated on
   # the class (AP-D1).
@@ -27,14 +34,23 @@ class SalaryProfilePolicy < ApplicationPolicy
 
   def create?  = profile? && can?(:manage_salary_profiles) && !own? &&
                  self.class.manageable_employees(user).exists?(id: record.user_id)
-  def update?  = create? && record.active? && record.effective? && view_salary?
+  def update?  = create? && record.effective? && view_salary?
   def destroy? = false
+
+  def view_history? = profile? && !own? && self.class.history_viewable_employees(user).exists?(id: record.user_id)
 
   # Other employees whose salary the actor may view (never the actor).
   def self.viewable_employees(user)
     return User.none unless user.can?(:view_payroll)
 
     EmployeeScope.new(user).for_permissions(:view_payroll).where.not(id: user.id)
+  end
+
+  # Other employees whose full salary history the actor may view (never the actor).
+  def self.history_viewable_employees(user)
+    return User.none unless user.can?(:view_salary_history)
+
+    viewable_employees(user).where(id: EmployeeScope.new(user).for_permissions(:view_salary_history).select(:id))
   end
 
   # Other employees whose salary profiles the actor may create or change.
