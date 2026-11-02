@@ -412,7 +412,13 @@ RSpec.describe EmployeeRequest, type: :model do
     end
 
     context "daily employee" do
-      # 500 EGP/day rate, 10 eligible (complete) days worked, 50% limit → 2_500 available.
+      # 500 EGP/day rate, complete days on the 1st–10th of the month, 50% limit.
+      # The calculator counts complete days from the 1st up to TODAY, so the clock
+      # is pinned (BUG-038: unpinned, the 1st–9th of every month saw fewer days).
+      # On the 14th all ten days count → 2_500 available.
+      let(:today) { Date.new(2026, 9, 14) }
+      around { |example| travel_to(Time.zone.local(today.year, today.month, today.day, 12, 0, 0)) { example.run } }
+
       let(:business) { create(:business, max_salary_advance_percentage: 50) }
       let(:user)     { create(:user, business: business) }
       let(:branch)   { create(:branch, business: business) }
@@ -438,6 +444,24 @@ RSpec.describe EmployeeRequest, type: :model do
         req = build(:employee_request, :salary_advance, user: user, amount: 2_501)
         expect(req).not_to be_valid
         expect(req.errors[:amount]).to be_present
+      end
+
+      context "on the last day of the month" do
+        let(:today) { Date.new(2026, 9, 30) }
+
+        it "still counts the same ten days" do
+          expect(build(:employee_request, :salary_advance, user: user, amount: 2_500)).to be_valid
+          expect(build(:employee_request, :salary_advance, user: user, amount: 2_501)).not_to be_valid
+        end
+      end
+
+      context "early in the month, before most of those days" do
+        let(:today) { Date.new(2026, 9, 3) }
+
+        it "counts only the days up to today (1st–3rd → 750 available)" do
+          expect(build(:employee_request, :salary_advance, user: user, amount: 750)).to be_valid
+          expect(build(:employee_request, :salary_advance, user: user, amount: 751)).not_to be_valid
+        end
       end
     end
   end
