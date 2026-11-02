@@ -59,7 +59,7 @@ here only so its stable ID and history are kept.
 | BUG-035 | `bank_statement_transaction_deleted_statement_spec.rb` fails when the random reviewer name contains an apostrophe | Test suite (deposit verification request spec) | Low (intermittent CI failure; no application defect) | Confirmed (CI run 41032431369 attempt 1; rendered HTML in the log) | **Resolved** (`43bcf03`, PR #96) | — |
 | BUG-036 | Salary advance eligibility specs fail on the last day of every month | Test suite (`advance_eligibility_calculator_spec.rb`) | Low (CI fails on every branch one day a month; no application defect) | Confirmed (CI runs 41172059334, 41172079070 on 2026-10-31) | **Resolved** (`62c03f5`, `cd18ec8`, PR #96) | — |
 | BUG-037 | Check-in hint characterization spec depends on unordered query results | Test suite (`request_validation_reads_spec.rb`) | Low (intermittent CI failure; no application defect) | Confirmed (CI run 41172079070) | **Resolved** (`62c03f5`, PR #96) | — |
-| BUG-038 | Daily-employee advance limit model spec fails on the 1st–9th of every month | Test suite (`employee_request_spec.rb`) | Low (CI fails on every branch nine days a month; no application defect) | Confirmed (CI run 41397083807 on PR #98, 2026-11-02; reproduced locally) | Open (fix on `fix/employee-request-spec-date-independence`, not merged) | — |
+| BUG-038 | Daily-employee advance limit model spec fails on the 1st–9th of every month | Test suite (`employee_request_spec.rb`) | Low (CI fails on every branch nine days a month; no application defect) | Confirmed (CI run 41397083807 on PR #98, 2026-11-02; reproduced locally) | **Resolved** (`99ba409`, PR #99) | — |
 
 ---
 
@@ -1270,8 +1270,8 @@ here only so its stable ID and history are kept.
 ## BUG-038 — Daily-employee advance limit model spec fails on the 1st–9th of every month
 
 * **Source:** new (CI run 41397083807 on PR #98, 2026-11-02; PR #98 changes no file involved). **Discovered:**
-  2026-11-02. **Status:** **Open** — test-only fix on branch `fix/employee-request-spec-date-independence`, not yet
-  merged.
+  2026-11-02. **Status:** **Resolved** by `99ba409` — merged into `main` in PR #99, merge commit `87f3ddb`
+  (2026-11-02). Test-only change; nothing to deploy.
 * **Domain / files:** test suite — `spec/models/employee_request_spec.rb`, `within_advance_limit` → "daily employee"
   (`:432` "is valid when amount is within the available limit"); the limit comes from
   `Salary::AdvanceEligibilityCalculator#complete_days_in_current_cycle`, which counts complete attendance days from the
@@ -1287,11 +1287,12 @@ here only so its stable ID and history are kept.
   not this model spec.
 * **Fix:** the "daily employee" context pins the clock with a scoped `around { travel_to(...) { example.run } }` on
   14 September 2026 (all ten days elapsed), with `let(:today)` overridden in two added contexts: the last day of the
-  month (still ten days → 2_500 valid, 2_501 invalid) and the 3rd (only the 1st–3rd count → 750 valid, 751 invalid).
-  No application code changed.
+  month (still ten days → 2_500 valid, 2_501 invalid) and the 3rd (only the 1st–3rd count → 750 valid, 751 invalid)
+  stay as regression cases. Production logic (`Salary::AdvanceEligibilityCalculator`) was not changed.
 * **Not changed (noted, not registered):** as recorded under BUG-036, the calculator uses `Date.current`, not
   `BusinessDay.current`, for its cycle.
 * **Verification:** locally, the file passes (69 examples) with the real clock and with every other example pinned to
   the 1st, 2nd, 9th, 10th, 20th, 30th, 28 February and 31 December; related salary / requests / attendance /
-  advance specs pass (422 examples). CI pending.
-* **Review milestone:** after the fix merges (then Resolved).
+  advance specs pass (422 examples). PR #99 CI passed on 2 November (inside the failure window), including `test`,
+  after `main` (with PR #100) was merged into the branch (`eb4e4c4`).
+* **Review milestone:** — (resolved).
