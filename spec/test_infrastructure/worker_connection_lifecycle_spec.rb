@@ -20,18 +20,29 @@ RSpec.describe "Worker thread connection lifecycle (BUG-024)" do
           .tap { |t| t.report_on_exception = false }
   end
 
-  def dead_connections     = pool.connections.select { |c| c.owner && !c.owner.alive? }
+  # Each connection's owner is read once (a connection can be checked in between
+  # two reads of conn.owner).
+  def dead_owners          = pool.connections.filter_map(&:owner).reject(&:alive?)
   def owned_by(thread)     = pool.connections.select { |c| c.owner.equal?(thread) }
+
+  # Joins a worker, failing with where it is stuck instead of letting a hung
+  # worker surface as a confusing pool assertion further down.
+  def join!(thread, seconds = 10)
+    thread.join(seconds) || raise("worker still running after #{seconds}s:\n  #{Array(thread.backtrace).first(10).join("\n  ")}")
+  end
 
   # The real pool reaper is held off (it maintains a pool only under this
   # lock), so each example sees exactly the pool state its own threads made.
   around { |example| pool.reaper_lock { example.run } }
 
-  # Leases this example's own connection (like the harnesses' before hook) and
-  # requires a pool without leaked connections, so each example starts clean.
+  # Leases this example's own connection (like the harnesses' before hook). A
+  # connection left leased by an exited thread of an EARLIER example would be
+  # reclaimed by the pool reaper this example holds off, so it is reclaimed
+  # here the same way (pool.reap); each example then starts without one.
   before do
     @main_connection = ActiveRecord::Base.connection
-    expect(dead_connections).to be_empty
+    pool.reap
+    expect(dead_owners).to be_empty, -> { "pool still has dead-owned connections: #{ConcurrencyConnectionCheck.pool_stat(pool)}" }
   end
 
   # The one example that leaks on purpose reclaims through Rails' own API
@@ -46,20 +57,20 @@ RSpec.describe "Worker thread connection lifecycle (BUG-024)" do
       inner_connection = ActiveRecord::Base.connection
       inner_connection.select_value("SELECT 1")
     end
-    thread.join(10)
+    join!(thread)
 
     expect(inner_connection).to equal(block_connection)
     expect(block_connection.owner).to be_nil
-    expect(dead_connections).to be_empty
+    expect(dead_owners).to be_empty
     expect(owned_by(thread)).to be_empty
   end
 
   it "without the flag the same worker leaves its connection leased by the dead thread (what BUG-024 leaked)" do
     thread = worker(prevent_permanent_checkout: false) { ActiveRecord::Base.connection.select_value("SELECT 1") }
-    thread.join(10)
+    join!(thread)
 
     expect(thread.alive?).to be(false)
-    expect(dead_connections.map(&:owner)).to eq([ thread ])
+    expect(dead_owners).to eq([ thread ])
   end
 
   it "returns the connection of a worker that raises, and the exception reaches the joining thread" do
@@ -73,7 +84,7 @@ RSpec.describe "Worker thread connection lifecycle (BUG-024)" do
     expect { thread.join(10) }.to raise_error(ArgumentError, "worker failed")
     expect { thread.value }.to raise_error(ArgumentError, "worker failed")
     expect(block_connection.owner).to be_nil
-    expect(dead_connections).to be_empty
+    expect(dead_owners).to be_empty
   end
 
   it "keeps ownership with the worker while it runs and leaves this thread's connection alone" do
@@ -92,7 +103,7 @@ RSpec.describe "Worker thread connection lifecycle (BUG-024)" do
     expect(owned_by(thread)).to eq([ worker_connection ])
 
     finish << true
-    thread.join(10)
+    join!(thread)
 
     expect(worker_connection.owner).to be_nil
     expect(ActiveRecord::Base.connection).to equal(@main_connection)
@@ -109,9 +120,9 @@ RSpec.describe "Worker thread connection lifecycle (BUG-024)" do
       raise
     end
 
-    expect { thread.join(10) }.not_to raise_error
+    expect { join!(thread) }.not_to raise_error
     expect(errors).to be_empty
-    expect(dead_connections).to be_empty
+    expect(dead_owners).to be_empty
     expect(owned_by(thread)).to be_empty
   end
 
@@ -140,9 +151,9 @@ RSpec.describe "Worker thread connection lifecycle (BUG-024)" do
     expect(@main_connection.select_value("SELECT pg_try_advisory_xact_lock(#{key.join(', ')})")).to be(false)
 
     commit << true
-    thread.join(10)
+    join!(thread)
 
     expect(lock_holders.call).to be_empty
-    expect(dead_connections).to be_empty
+    expect(dead_owners).to be_empty
   end
 end

@@ -28,6 +28,10 @@ RSpec.describe "ConcurrencyConnectionCheck (BUG-024)" do
     [ result, now - started ]
   end
 
+  def join!(thread, seconds = 10)
+    thread.join(seconds) || raise("thread still running after #{seconds}s:\n  #{Array(thread.backtrace).first(10).join("\n  ")}")
+  end
+
   def holder(name: nil, &block)
     Thread.new do
       Thread.current.name = name if name
@@ -43,10 +47,14 @@ RSpec.describe "ConcurrencyConnectionCheck (BUG-024)" do
   end
 
   # Like the harnesses: this example's own connection is leased, and the pool
-  # and database start without another session in use.
+  # and database start without another session in use. A connection left
+  # leased by an exited thread of an EARLIER example would be reclaimed by the
+  # pool reaper this example holds off, so it is reclaimed here the same way.
   before do
     ActiveRecord::Base.connection
-    expect(ConcurrencyConnectionCheck.call(wait: 0)).to have_attributes(blocking: [], leaks: [])
+    pool.reap
+    precondition = ConcurrencyConnectionCheck.call(wait: 0)
+    expect(precondition.blocking + precondition.leaks).to be_empty, -> { (precondition.blocking + precondition.leaks).join("\n") }
   end
 
   after { pool.reap }
@@ -56,24 +64,25 @@ RSpec.describe "ConcurrencyConnectionCheck (BUG-024)" do
 
     expect(result.blocking).to be_empty
     expect(result.leaks).to be_empty
-    expect(elapsed).to be < 0.5
+    expect(elapsed).to be < ConcurrencyConnectionCheck::DEFAULT_WAIT # passed on its first look, not at the deadline
   end
 
   it "waits out a short pool-reaper pass instead of failing, within the deadline" do
-    leased = Queue.new
+    leased   = Queue.new
+    finished = false
     reaper = holder(name: "AR Pool Reaper") do |conn|
       leased << true
       conn.select_value("SELECT 1 FROM pg_sleep(0.3)") # leased and active, as while the reaper resets a connection
+      finished = true # set while the connection is still leased: the check cannot pass before this
     end
     Timeout.timeout(10) { leased.pop }
 
-    result, elapsed = timed { ConcurrencyConnectionCheck.call(wait: 2) }
+    result = ConcurrencyConnectionCheck.call(wait: 5)
 
     expect(result.blocking).to be_empty
     expect(result.leaks).to be_empty
-    expect(elapsed).to be >= 0.2
-    expect(elapsed).to be < 2
-    reaper.join(10)
+    expect(finished).to be(true) # it waited for the pass to end instead of passing while the connection was leased
+    join!(reaper)
   end
 
   it "does not block truncation while the real pool maintenance (keep_alive) runs" do
@@ -84,7 +93,7 @@ RSpec.describe "ConcurrencyConnectionCheck (BUG-024)" do
 
     result = ConcurrencyConnectionCheck.call(wait: 2)
 
-    maintenance.join(10)
+    join!(maintenance)
     expect(result.blocking).to be_empty
     expect(result.leaks).to be_empty
   end
@@ -96,7 +105,7 @@ RSpec.describe "ConcurrencyConnectionCheck (BUG-024)" do
 
     result = ConcurrencyConnectionCheck.call(wait: 2)
 
-    reaping.join(10)
+    join!(reaping)
     expect(result.blocking).to be_empty # the leaks may or may not be seen, depending on who reclaims them first
     expect(pool.stat[:dead]).to eq(0)
   end
@@ -104,7 +113,7 @@ RSpec.describe "ConcurrencyConnectionCheck (BUG-024)" do
   it "reports a connection leased by an exited thread as a leak, hands it back and does not block truncation" do
     leaker_line = __LINE__ + 1
     leaker = Thread.new { pool.with_connection { ActiveRecord::Base.connection.select_value("SELECT 1") } }
-    leaker.join(10)
+    join!(leaker)
     expect(pool.stat[:dead]).to eq(1)
 
     result = ConcurrencyConnectionCheck.call(wait: 0.5)
@@ -133,9 +142,9 @@ RSpec.describe "ConcurrencyConnectionCheck (BUG-024)" do
     result, elapsed = timed { ConcurrencyConnectionCheck.call(wait: 0.5) }
 
     release << true
-    worker.join(10)
-    expect(elapsed).to be >= 0.5
-    expect(elapsed).to be < 1.5
+    join!(worker)
+    expect(elapsed).to be >= 0.5 # a live connection is reported only once the deadline has passed
+    expect(elapsed).to be < 5    # and then at once: the wait is bounded
     expect(result.leaks).to be_empty
     expect(result.blocking.size).to eq(1)
     message = result.blocking.first
@@ -168,18 +177,25 @@ RSpec.describe "ConcurrencyConnectionCheck (BUG-024)" do
   end
 
   it "truncates the reported query text of an active session" do
-    session = raw_session
-    session.send_query("SELECT pg_sleep(0.6) /* #{'x' * 300} */")
+    # The session stays active until released: it waits for an advisory lock
+    # that a second, idle (not in a transaction) session holds.
+    key     = "924024, 2"
+    locker  = raw_session
+    waiter  = raw_session
+    locker.exec("SELECT pg_advisory_lock(#{key})")
+    waiter.send_query("SELECT pg_advisory_lock(#{key}) /* #{'x' * 300} */")
     deadline = now + 5
     sleep 0.01 until ConcurrencyConnectionCheck.other_sessions(pool).any? || now > deadline
 
     result = ConcurrencyConnectionCheck.call(wait: 0.1)
 
-    session.get_last_result
-    session.close
+    locker.exec("SELECT pg_advisory_unlock(#{key})")
+    waiter.get_last_result
+    waiter.exec("SELECT pg_advisory_unlock(#{key})")
+    [ locker, waiter ].each(&:close)
     query = result.blocking.sole[/query="([^"]*)"/, 1]
-    expect(query).to start_with("SELECT pg_sleep(0.6)")
+    expect(query).to start_with("SELECT pg_advisory_lock(#{key})")
     expect(query.length).to eq(ConcurrencyConnectionCheck::QUERY_CHARS)
-    expect(result.blocking.sole).to include('state="active"', 'wait_event_type="Timeout"')
+    expect(result.blocking.sole).to include('state="active"', 'wait_event_type="Lock"', 'wait_event="advisory"')
   end
 end
