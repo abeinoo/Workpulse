@@ -330,7 +330,7 @@ RSpec.describe "Stock issue reservations", type: :model do
       results = Queue.new
       threads = items.map do |item|
         Thread.new do
-          ActiveRecord::Base.connection_pool.with_connection do
+          ActiveRecord::Base.connection_pool.with_connection(prevent_permanent_checkout: true) do
             gate.pop
             results << yield(item)
           end

@@ -91,7 +91,7 @@ RSpec.describe Finance::DepositResponsibilityTransferAcceptor, type: :model do
       mutex   = Mutex.new
       2.times.map do
         Thread.new do
-          ActiveRecord::Base.connection_pool.with_connection do
+          ActiveRecord::Base.connection_pool.with_connection(prevent_permanent_checkout: true) do
             r = described_class.new(transfer.id, actor: to_user).call
             mutex.synchronize { results << r }
           end

@@ -342,9 +342,9 @@ RSpec.describe Inventory::StockIssueEditor, type: :model do
     # transaction, holding the issue row lock) and then runs `second` on
     # another connection while `first` is still holding the lock.
     def while_holding(signal, first, second)
-      t1 = Thread.new { ActiveRecord::Base.connection_pool.with_connection { first.call } }
+      t1 = Thread.new { ActiveRecord::Base.connection_pool.with_connection(prevent_permanent_checkout: true) { first.call } }
       signal.pop
-      t2 = Thread.new { ActiveRecord::Base.connection_pool.with_connection { second.call } }
+      t2 = Thread.new { ActiveRecord::Base.connection_pool.with_connection(prevent_permanent_checkout: true) { second.call } }
       [ t1.value, t2.value ]
     end
 
