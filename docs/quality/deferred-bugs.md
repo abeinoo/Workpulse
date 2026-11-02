@@ -59,6 +59,7 @@ here only so its stable ID and history are kept.
 | BUG-035 | `bank_statement_transaction_deleted_statement_spec.rb` fails when the random reviewer name contains an apostrophe | Test suite (deposit verification request spec) | Low (intermittent CI failure; no application defect) | Confirmed (CI run 41032431369 attempt 1; rendered HTML in the log) | **Resolved** (`43bcf03`, PR #96) | — |
 | BUG-036 | Salary advance eligibility specs fail on the last day of every month | Test suite (`advance_eligibility_calculator_spec.rb`) | Low (CI fails on every branch one day a month; no application defect) | Confirmed (CI runs 41172059334, 41172079070 on 2026-10-31) | **Resolved** (`62c03f5`, `cd18ec8`, PR #96) | — |
 | BUG-037 | Check-in hint characterization spec depends on unordered query results | Test suite (`request_validation_reads_spec.rb`) | Low (intermittent CI failure; no application defect) | Confirmed (CI run 41172079070) | **Resolved** (`62c03f5`, PR #96) | — |
+| BUG-038 | Daily-employee advance limit model spec fails on the 1st–9th of every month | Test suite (`employee_request_spec.rb`) | Low (CI fails on every branch nine days a month; no application defect) | Confirmed (CI run 41397083807 on PR #98, 2026-11-02; reproduced locally) | Open (fix on `fix/employee-request-spec-date-independence`, not merged) | — |
 
 ---
 
@@ -1265,3 +1266,32 @@ here only so its stable ID and history are kept.
 * **Verification:** the example passed in later CI runs on 31 October (run 41175458489, both attempts; integration run
   41182096767; `main` run 41183263864).
 * **Review milestone:** — (resolved).
+
+## BUG-038 — Daily-employee advance limit model spec fails on the 1st–9th of every month
+
+* **Source:** new (CI run 41397083807 on PR #98, 2026-11-02; PR #98 changes no file involved). **Discovered:**
+  2026-11-02. **Status:** **Open** — test-only fix on branch `fix/employee-request-spec-date-independence`, not yet
+  merged.
+* **Domain / files:** test suite — `spec/models/employee_request_spec.rb`, `within_advance_limit` → "daily employee"
+  (`:432` "is valid when amount is within the available limit"); the limit comes from
+  `Salary::AdvanceEligibilityCalculator#complete_days_in_current_cycle`, which counts complete attendance days from the
+  1st of the month **up to today** (`for_period(Date.current.beginning_of_month, Date.current)`).
+* **Observed (facts):** the context creates complete attendance on the 1st–10th of the *real* current month and
+  expects 10 days × 500 × 50 % = 2_500 available. On 2 November only the 1st–2nd count, so CI reported "Amount
+  exceeds your available advance limit (500.0 SAR remaining)". Running the file with the clock pinned to the 1st, 2nd
+  and 9th fails `:432`; the 10th, 20th, 30th, 28 February and 31 December pass. The sibling example ("2_501 is
+  invalid") passes on every date, early in the month for the wrong reason. No other example in the file depends on
+  the date.
+* **Impact:** every branch's CI fails on the 1st–9th of each month; the application behaves as designed (eligibility
+  never anticipates future work). Same kind of defect as BUG-023 and BUG-036; BUG-036 pinned the calculator spec but
+  not this model spec.
+* **Fix:** the "daily employee" context pins the clock with a scoped `around { travel_to(...) { example.run } }` on
+  14 September 2026 (all ten days elapsed), with `let(:today)` overridden in two added contexts: the last day of the
+  month (still ten days → 2_500 valid, 2_501 invalid) and the 3rd (only the 1st–3rd count → 750 valid, 751 invalid).
+  No application code changed.
+* **Not changed (noted, not registered):** as recorded under BUG-036, the calculator uses `Date.current`, not
+  `BusinessDay.current`, for its cycle.
+* **Verification:** locally, the file passes (69 examples) with the real clock and with every other example pinned to
+  the 1st, 2nd, 9th, 10th, 20th, 30th, 28 February and 31 December; related salary / requests / attendance /
+  advance specs pass (422 examples). CI pending.
+* **Review milestone:** after the fix merges (then Resolved).
