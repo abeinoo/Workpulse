@@ -67,6 +67,66 @@ RSpec.describe "Finance::DailyReconciliations timeline — Handover Adjustment b
     expect(badges).not_to include("Visa")
   end
 
+  # Regression: the badge resolves names via the business's payment methods,
+  # which used to be loaded only behind view_sales_transactions_verification —
+  # every other authorized viewer got a 500 (nil[]) on any DR with an adjustment.
+  context "when the viewer is not an owner and lacks the Sales verification permission" do
+    def user_with(*perms)
+      role = business.permission_roles.create!(name: "R-#{SecureRandom.hex(3)}", permissions: perms)
+      create(:user, business: business).tap { |u| u.update_column(:permission_role_id, role.id) }
+    end
+
+    before do
+      FinancialAdjustment.create!(
+        adjustable: handover, business: business, actor: actor, reason_code: "wrong_amounts",
+        notes: "Recount found a discrepancy at handover time",
+        before_data: [ { payment_method_id: cash_pm.id, collected_amount: "370", refund_amount: "0" } ],
+        after_data: [ { payment_method_id: cash_pm.id, collected_amount: "470", refund_amount: "0" } ]
+      )
+    end
+
+    it "renders the page and the adjustment badge for a DR viewer (view_daily_reconciliation only)" do
+      sign_in user_with("view_daily_reconciliation")
+      get finance_daily_reconciliation_path(dr)
+
+      expect(response).to have_http_status(:ok)
+      badges = adjustment_badges(response.body)
+      expect(badges).to include("Cash")
+      expect(badges).to include("470.00")
+    end
+
+    context "when the viewer is the cashier holding the till (own-session access)" do
+      let(:receiver) { user_with("accept_till_handover") }
+
+      it "renders the page and the adjustment badge" do
+        sign_in receiver
+        get finance_daily_reconciliation_path(dr)
+
+        expect(response).to have_http_status(:ok)
+        badges = adjustment_badges(response.body)
+        expect(badges).to include("Cash")
+        expect(badges).to include("470.00")
+      end
+    end
+  end
+
+  it "never resolves a payment method name from another business" do
+    other_pm = PaymentMethod.create!(business: create(:business), name: "Foreign Wallet",
+                                     settlement_type: "card", active: true)
+    FinancialAdjustment.create!(
+      adjustable: handover, business: business, actor: actor, reason_code: "wrong_amounts",
+      notes: "Adjustment referencing a payment method id outside this business",
+      before_data: [ { payment_method_id: cash_pm.id, collected_amount: "370", refund_amount: "0" } ],
+      after_data: [ { payment_method_id: other_pm.id, collected_amount: "470", refund_amount: "0" } ]
+    )
+
+    sign_in actor
+    get finance_daily_reconciliation_path(dr)
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).not_to include("Foreign Wallet")
+  end
+
   # Finds the <p> story sentence for the handover_adjusted event ("... recorded an
   # adjustment on handover #...") and returns the text of the badge row rendered
   # immediately after it — scoping assertions to that one event instead of the
