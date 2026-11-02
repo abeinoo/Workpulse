@@ -83,6 +83,33 @@ RSpec.describe SalaryProfile, type: :model do
       profile.base_amount = 7_000
       expect(profile).to be_valid
     end
+
+    context "while a later-dated profile is scheduled" do
+      let!(:previous)  { create(:salary_profile, user: user, effective_from: 1.year.ago.to_date) }
+      let!(:current)   { create(:salary_profile, user: user, effective_from: 1.month.ago.to_date) }
+      let!(:scheduled) { create(:salary_profile, user: user, effective_from: 1.month.from_now.to_date) }
+
+      it "allows correcting the profile in force, keeping the active flag on the scheduled one" do
+        current.reload.update!(base_amount: 7_000)
+        expect(current.reload).to have_attributes(base_amount: 7_000, active: false)
+        expect(scheduled.reload).to be_active
+      end
+
+      it "still blocks the superseded profile" do
+        previous.reload.base_amount = 9_999
+        expect(previous).not_to be_valid
+        expect(previous.errors[:base]).to include("Historical salary profiles cannot be modified")
+      end
+
+      it "rejects moving the profile in force onto or past the scheduled date" do
+        current.reload.effective_from = scheduled.effective_from
+        expect(current).not_to be_valid
+        expect(current.errors.details[:effective_from]).to include(a_hash_including(error: :must_precede_next_profile))
+
+        current.effective_from = scheduled.effective_from - 1.day
+        expect(current).to be_valid
+      end
+    end
   end
 
   describe ".current_for" do

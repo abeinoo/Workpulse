@@ -1,7 +1,7 @@
 module Salary
   # Corrects a salary profile in place (admin edit, API update) — the only
   # path for changing an existing profile. Authorization (SalaryProfilePolicy
-  # #update?: the current, still-active profile of an employee the actor may
+  # #update?: the current (in force today) profile of an employee the actor may
   # manage and view, never their own) stays with the caller, which passes the
   # profile's id; the profile is loaded here, inside the actor's business.
   #

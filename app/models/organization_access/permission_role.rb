@@ -15,7 +15,7 @@ class PermissionRole < ApplicationRecord
        suffix: :workspace, default: "management"
 
   PERMISSION_GROUPS = {
-    employees:             %w[view_employees manage_employees manage_salary_profiles],
+    employees:             %w[view_employees manage_employees manage_salary_profiles view_salary_history],
     # Employee Add Requests (طلبات إضافة موظف) — the onboarding workflow, kept
     # separate from employee management: none of these grants editing
     # employees, salary, branches, permissions, payroll or attendance.
@@ -277,6 +277,8 @@ class PermissionRole < ApplicationRecord
     "delete_attendance"      => %w[manage_attendance],
     "manage_employees"       => %w[view_employees],
     "manage_salary_profiles" => %w[view_employees],
+    # Salary history is shown only within what view_payroll already shows.
+    "view_salary_history"    => %w[view_payroll],
     "create_employee_requests"   => %w[view_employee_requests],
     "view_all_employee_requests" => %w[view_employee_requests],
     "review_employee_requests"   => %w[view_all_employee_requests],

@@ -35,7 +35,8 @@ RSpec.describe Payroll::EmployeeSalaryPanel do
     panel = nil
     expect { panel = contract.salary_panel(viewer: viewer, employee: employee) }.to change(views, :count).by(1)
     expect(panel.partial).to eq("admin/salary_profiles/employee_panel")
-    expect(panel.locals).to eq(employee: employee, salary_visible: true, salary_manageable: false, profile: current)
+    expect(panel.locals).to eq(employee: employee, salary_visible: true, salary_manageable: false, profile: current,
+                               history: [])
   end
 
   it "manage only: a panel without a profile and no audit" do

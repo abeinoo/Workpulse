@@ -1979,7 +1979,7 @@ en:
       title: "Edit Salary Profile"
       page_title: "Edit Salary Profile — WorkPulse"
       submit: "Update Profile"
-      for: "For %{name}. Only the active profile can be edited."
+      for: "For %{name}. Only the profile in force today can be edited."
       back: "Back to %{name}"
     salary_types:
       monthly: "Monthly Salary"
@@ -1997,6 +1997,11 @@ en:
     historical: "Historical"
     no_active: "No active salary profile."
     history: "History"
+    status: "Status"
+    statuses:
+      scheduled: "Scheduled"
+      current: "Current"
+      previous: "Previous"
     ot_multiplier: "OT Multiplier"
     no_overtime: "No overtime"
 
@@ -2714,6 +2719,7 @@ en:
         view_employees: "View Employees"
         manage_employees: "Manage Employees"
         manage_salary_profiles: "Manage Salary Profiles"
+        view_salary_history: "View Salary History"
         create_employee_requests: "Create Employee Add Requests"
         view_employee_requests: "View Own Employee Add Requests"
         view_all_employee_requests: "View All Employee Add Requests"
@@ -2856,6 +2862,7 @@ en:
         view_employees: "See the employee list and profiles"
         manage_employees: "Create, edit, and deactivate employees"
         manage_salary_profiles: "Create and update salary profiles"
+        view_salary_history: "See every salary profile of an employee — previous, current and scheduled — on the employee page"
         create_employee_requests: "Submit new-employee data and ID photos for review; resubmit own requests returned for changes"
         view_employee_requests: "See the status and data of Employee Add Requests you submitted"
         view_all_employee_requests: "See Employee Add Requests submitted by other users within your scope"
@@ -5438,6 +5445,10 @@ en:
   activerecord:
     errors:
       models:
+        salary_profile:
+          attributes:
+            effective_from:
+              must_precede_next_profile: "must be before %{date}, when the next salary profile takes effect"
         user:
           attributes:
             date_of_birth:
