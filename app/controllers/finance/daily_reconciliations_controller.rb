@@ -601,6 +601,13 @@ class Finance::DailyReconciliationsController < Finance::BaseController
         .to_a :
       []
 
+    # Payment methods of THIS DR's business. Loaded for every authorized viewer:
+    # the timeline is not permission-gated and its Handover Adjustment badges
+    # resolve names from it (FinancialAdjustment#after_data stores only
+    # payment_method_id). The Sales sections below reuse the same list.
+    biz_payment_methods    = PaymentMethod.for_business(@reconciliation.business).to_a
+    @payment_methods_by_id = biz_payment_methods.index_by(&:id)
+
     @timeline_events = build_timeline_events
 
     @can_manage_sales_import = policy(@reconciliation).manage_sales_import?
@@ -627,8 +634,6 @@ class Finance::DailyReconciliationsController < Finance::BaseController
       # display names (e.g. "Cash" vs "نقداً"). Normalise on payment_method_id so comparisons
       # work regardless of the UI language. Fall back to the raw English name for any CSV method
       # that has no matching PaymentMethod record (shows as an unrecognised entry).
-      biz_payment_methods      = PaymentMethod.for_business(@reconciliation.business).to_a
-      @sales_payment_methods_by_id = biz_payment_methods.index_by(&:id)
       pm_id_by_english_name    = biz_payment_methods
                                    .each_with_object({}) { |pm, h| h[pm.name.downcase.strip] = pm.id }
       sales_method_key = ->(txn) { pm_id_by_english_name[txn.payment_method_name.downcase.strip] || txn.payment_method_name }
