@@ -1,17 +1,23 @@
 module Attendance
   # Smart single-endpoint punch service for biometric device integration.
   #
-  # Rules:
-  #   - First punch of the work_date  → check_in
-  #   - Earlier punch than check_in   → update check_in (keeps earliest)
-  #   - Later punch than check_in     → set/update check_out (keeps latest)
-  #   - Punch within SPAM_WINDOW of a previous logged punch → rejected_spam
+  # Every valid punch is logged and is evidence for its work date; the record's
+  # check-in / check-out are re-derived from all of the work date's punches —
+  # mobile and device alike — by Attendance::PunchAggregator (earliest punch =
+  # check-in, latest = check-out when the day has a departure; see there), and
+  # every derived value with them, so the arrival order never matters.
+  #
+  # Log action (what the punch did; never decides what counts):
+  #   - check_in / check_in_updated / check_out → the punch became that value
+  #   - rejected_spam → no effect, within SPAM_WINDOW of a previous logged punch
+  #   - recorded      → no effect otherwise (inside the day, a second entry scan,
+  #                     a manually set value) — kept as evidence
+  # Refusals (never evidence):
   #   - No active shift assignment    → rejected_no_assignment
   #   - Work date in a finalized / paid payroll period → rejected_payroll_locked
   #   - Lost a concurrent first-punch insert → the whole punch is retried once
   class PunchService
-    SPAM_WINDOW            = 60.seconds
-    CHECK_IN_UPDATE_WINDOW = 1.hour
+    SPAM_WINDOW = 60.seconds
 
     Result = Struct.new(:success, :action, :record, :log, :error, keyword_init: true) do
       def success? = success
@@ -85,106 +91,31 @@ module Attendance
                           error: I18n.t("api.punch.no_shift_assignment"))
       end
 
-      if spam_punch?
-        log = record_punch!(action: "rejected_spam")
-        return Result.new(success: true, action: "rejected_spam", log: log)
+      # Locked: concurrent punches of the employee's work date are aggregated one
+      # after the other, each seeing the other's committed log (BUG-002).
+      record = AttendanceRecord.lock.find_or_initialize_by(user: @employee, work_date: @work_date)
+      if record.new_record?
+        record.assign_attributes(branch: @assignment.branch, shift_assignment: @assignment, date: @work_date)
       end
 
-      record = AttendanceRecord.find_or_initialize_by(user: @employee, work_date: @work_date)
+      aggregator = Attendance::PunchAggregator.new(
+        record, business:   @business,
+                assignment: record.shift_assignment || @assignment,
+                branch:     record.branch || @assignment.branch
+      )
+      effect = aggregator.apply!(Attendance::PunchAggregator::Punch.device(@punched_at))
 
-      if record.new_record? || record.check_in_at.nil?
-        perform_check_in(record)
-      elsif @punched_at <= record.check_in_at
-        perform_check_in_update(record)
-      elsif record.check_out_at.nil? && (@punched_at - record.check_in_at) < CHECK_IN_UPDATE_WINDOW
-        # Punch is within the check-in window and no checkout yet — treat as a check-in refinement.
-        # This handles mobile check-in followed quickly by a biometric scan at the same entrance.
-        perform_check_in_update(record)
-      else
-        perform_check_out(record)
-      end
+      save_record(record, aggregator, action: effect || (spam_punch? ? "rejected_spam" : "recorded"))
     end
 
-    def perform_check_in(record)
-      late_mins = Attendance::TimeCalculator.late_minutes(
-        @assignment.shift, @punched_at, @assignment.branch
-      )
-
-      record.assign_attributes(
-        branch:           @assignment.branch,
-        shift_assignment: @assignment,
-        date:             @work_date,
-        check_in_at:      @punched_at,
-        check_in_source:  "biometric_device",
-        late_minutes:     late_mins,
-        status:           late_mins > 0 ? "late" : "incomplete"
-      )
-
-      save_record(record, action: "check_in")
-    end
-
-    def perform_check_in_update(record)
-      # Recalculate lateness based on the updated (earlier) check_in
-      shift  = record.shift_assignment&.shift || @assignment.shift
-      branch = record.branch || @assignment.branch
-      late_mins = Attendance::TimeCalculator.late_minutes(shift, @punched_at, branch)
-
-      record.assign_attributes(
-        check_in_at:     @punched_at,
-        check_in_source: "biometric_device",
-        late_minutes:    late_mins,
-        status:          late_mins > 0 ? "late" : record.status
-      )
-
-      save_record(record, action: "check_in_updated")
-    end
-
-    def perform_check_out(record)
-      # Only update if this punch is strictly later than the current check_out
-      if record.check_out_at.present? && @punched_at <= record.check_out_at
-        log = record_punch!(action: "rejected_spam")
-        return Result.new(success: true, action: "rejected_spam", log: log)
-      end
-
-      shift        = record.shift_assignment&.shift || @assignment.shift
-      branch       = record.branch || @assignment.branch
-      rule_profile = record.shift_assignment&.rule_profile || @assignment.rule_profile
-
-      # worked / early_leave are computed exactly as before (no grace profile) so
-      # payroll-input minute values are unchanged. overtime_minutes is display-only.
-      worked_mins      = ((@punched_at - record.check_in_at) / 60).to_i
-      early_leave_mins = Attendance::TimeCalculator.early_leave_minutes(
-        shift, @punched_at, worked_mins, branch
-      )
-      overtime_mins    = Attendance::TimeCalculator.overtime_minutes(
-        shift, worked_mins,
-        overtime_grace_minutes: @business.overtime_grace_minutes.to_i,
-        rule_profile:           rule_profile
-      )
-      status = Attendance::TimeCalculator.derive_status(
-        shift:               shift,
-        late_minutes:        record.late_minutes,
-        early_leave_minutes: early_leave_mins,
-        overtime_minutes:    overtime_mins,
-        completed:           true
-      )
-
-      record.assign_attributes(
-        check_out_at:        @punched_at,
-        check_out_source:    "biometric_device",
-        worked_minutes:      worked_mins,
-        early_leave_minutes: early_leave_mins,
-        overtime_minutes:    overtime_mins,
-        status:              status
-      )
-
-      save_record(record, action: "check_out")
-    end
-
-    def save_record(record, action:)
+    # Every accepted punch's log is linked to the record — a duplicate's too,
+    # which is what makes it evidence (Attendance::PunchAggregator). A duplicate
+    # still answers with no record (API contract: "attendance_record": null).
+    def save_record(record, aggregator, action:)
       if record.save
+        aggregator.log_reconstructed_punches!
         log = record_punch!(action: action, record: record)
-        Result.new(success: true, action: action, record: record, log: log)
+        Result.new(success: true, action: action, record: (record unless action == "rejected_spam"), log: log)
       else
         error_msg = record.errors.full_messages.join(", ")
         Rails.logger.warn("[PunchService] Save failed device=#{@device&.id} employee=#{@employee&.id}: #{error_msg}")

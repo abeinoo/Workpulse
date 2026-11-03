@@ -74,44 +74,9 @@ module Attendance
       end
     end
 
+    # Checkout absent or cleared → checkout-derived fields reset, open-record status.
     def recompute_derived_fields
-      shift        = @record.shift_assignment&.shift
-      branch       = @record.branch
-      rule_profile = @record.shift_assignment&.rule_profile
-
-      if @record.check_in_at && @record.check_out_at
-        # late/early/worked are computed exactly as before (no grace profile applied)
-        # so payroll-input minute values are unchanged. overtime_minutes is display-only.
-        @record.worked_minutes      = ((@record.check_out_at - @record.check_in_at) / 60).to_i
-        @record.late_minutes        = TimeCalculator.late_minutes(shift, @record.check_in_at, branch)
-        @record.early_leave_minutes = TimeCalculator.early_leave_minutes(
-          shift, @record.check_out_at, @record.worked_minutes, branch
-        )
-        @record.overtime_minutes    = TimeCalculator.overtime_minutes(
-          shift, @record.worked_minutes,
-          overtime_grace_minutes: business.overtime_grace_minutes.to_i,
-          rule_profile:           rule_profile
-        )
-        @record.status = TimeCalculator.derive_status(
-          shift:               shift,
-          late_minutes:        @record.late_minutes,
-          early_leave_minutes: @record.early_leave_minutes,
-          overtime_minutes:    @record.overtime_minutes,
-          completed:           true
-        )
-      else
-        # Checkout absent or cleared — reset checkout-derived fields and revert status
-        @record.worked_minutes      = nil
-        @record.early_leave_minutes = 0
-        @record.overtime_minutes    = 0
-        @record.late_minutes        = TimeCalculator.late_minutes(shift, @record.check_in_at, branch)
-        @record.status              = TimeCalculator.derive_status(
-          shift:               shift,
-          late_minutes:        @record.late_minutes,
-          early_leave_minutes: 0,
-          completed:           false
-        )
-      end
+      DerivedFields.apply!(@record)
     end
 
     def business

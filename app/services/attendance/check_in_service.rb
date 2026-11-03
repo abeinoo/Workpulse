@@ -25,11 +25,18 @@ module Attendance
       return err("No active shift found for today") if @branch && !assignment
 
       record = build_record(assignment)
-      if record.save
-        Result.new(success: true, record: record)
-      else
-        err(record.errors.full_messages.join(", "))
+      punch  = PunchAggregator::Punch.mobile(Time.current.floor(6), check_out: false,
+                                             latitude: @latitude, longitude: @longitude)
+      ActiveRecord::Base.transaction do
+        aggregator = PunchAggregator.new(record, business: business)
+        action     = aggregator.apply!(punch) || "recorded"
+        record.save!
+        aggregator.log_reconstructed_punches!
+        MobilePunchLog.create!(record: record, punch: punch, action: action, business: business)
       end
+      Result.new(success: true, record: record)
+    rescue ActiveRecord::RecordInvalid => e
+      err(e.record.errors.full_messages.join(", "))
     rescue ActiveRecord::RecordNotUnique
       # Concurrent check-in: the unique index on (user_id, work_date) caught a race.
       # Treat identically to already_checked_in? returning true.
@@ -53,32 +60,11 @@ module Attendance
       )
     end
 
+    # Check-in time, source, coordinates and every derived value come from
+    # PunchAggregator (the mobile punch with the work date's other punches).
     def build_record(assignment)
-      now       = Time.current
-      wd        = BusinessDay.work_date_for(now, context: business)
-      late_mins = assignment ? TimeCalculator.late_minutes(
-        assignment.shift, now, @branch, rule_profile: assignment.rule_profile
-      ) : 0
-      status    = TimeCalculator.derive_status(
-        shift:               assignment&.shift,
-        late_minutes:        late_mins,
-        early_leave_minutes: 0,
-        completed:           false
-      )
-
-      AttendanceRecord.new(
-        user:               @user,
-        branch:             @branch,
-        shift_assignment:   assignment,
-        date:               wd,
-        work_date:          wd,
-        check_in_at:        now,
-        check_in_source:    "mobile",
-        check_in_latitude:  @latitude,
-        check_in_longitude: @longitude,
-        late_minutes:       late_mins,
-        status:             status
-      )
+      wd = BusinessDay.work_date_for(Time.current, context: business)
+      AttendanceRecord.new(user: @user, branch: @branch, shift_assignment: assignment, date: wd, work_date: wd)
     end
 
     def business

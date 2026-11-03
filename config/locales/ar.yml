@@ -2186,6 +2186,7 @@ ar:
         check_in: "تسجيل حضور"
         check_in_updated: "تحديث وقت الحضور"
         check_out: "تسجيل انصراف"
+        recorded: "مسجّل — دون تغيير الحضور / الانصراف"
         rejected_no_assignment: "مرفوض — لا وردية"
         rejected_spam: "مرفوض — مكرر"
         rejected_not_allowed: "مرفوض — غير مسموح"

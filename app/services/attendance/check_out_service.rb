@@ -16,42 +16,23 @@ module Attendance
     end
 
     def call
-      record = open_record
+      now    = Time.current.floor(6)
+      record = record_to_check_out(now)
       return err("No active check-in found") unless record
       return err("You are outside the allowed check-out area") unless location_valid?
 
-      now              = Time.current
-      worked_mins      = ((now - record.check_in_at) / 60).to_i
-      shift            = record.shift_assignment&.shift
-      rule_profile     = record.shift_assignment&.rule_profile
-      early_leave_mins = shift ? TimeCalculator.early_leave_minutes(
-        shift, now, worked_mins, @branch, rule_profile: rule_profile
-      ) : 0
-      overtime_mins    = TimeCalculator.overtime_minutes(
-        shift, worked_mins,
-        overtime_grace_minutes: business.overtime_grace_minutes.to_i,
-        rule_profile:           rule_profile
-      )
-
-      record.assign_attributes(
-        check_out_at:        now,
-        check_out_source:    "mobile",
-        check_out_latitude:  @latitude,
-        check_out_longitude: @longitude,
-        worked_minutes:      worked_mins,
-        early_leave_minutes: early_leave_mins,
-        overtime_minutes:    overtime_mins,
-        status:              TimeCalculator.derive_status(
-          shift:               shift,
-          late_minutes:        record.late_minutes,
-          early_leave_minutes: early_leave_mins,
-          overtime_minutes:    overtime_mins,
-          completed:           true
-        )
-      )
-
-      record.save ? Result.new(success: true, record: record)
-                  : err(record.errors.full_messages.join(", "))
+      punch = PunchAggregator::Punch.mobile(now, check_out: true, latitude: @latitude, longitude: @longitude)
+      ActiveRecord::Base.transaction do
+        record.lock!
+        aggregator = PunchAggregator.new(record, business: business)
+        action     = aggregator.apply!(punch) || "recorded"
+        record.save!
+        aggregator.log_reconstructed_punches!
+        MobilePunchLog.create!(record: record, punch: punch, action: action, business: business)
+      end
+      Result.new(success: true, record: record)
+    rescue ActiveRecord::RecordInvalid => e
+      err(e.record.errors.full_messages.join(", "))
     end
 
     private
@@ -60,16 +41,25 @@ module Attendance
       @branch&.business || @user.business
     end
 
-    def open_record
+    # The current work date's record, open or closed (the check-out is the
+    # latest punch of the work date, whatever its source: a device check-out
+    # recorded earlier is replaced, a later one stays). Without one, the previous
+    # work date's open record — an explicit check-out past the business-day
+    # boundary of an overnight shift; never an older or a closed one.
+    def record_to_check_out(now)
       # Memoized so location_valid? can reuse it without a second DB query.
-      @open_record ||= AttendanceRecord.where(user: @user, check_out_at: nil).order(check_in_at: :desc).first
+      @record_to_check_out ||= begin
+        work_date = BusinessDay.work_date_for(now, context: business)
+        AttendanceRecord.find_by(user: @user, work_date: work_date) ||
+          AttendanceRecord.find_by(user: @user, work_date: work_date - 1, check_out_at: nil)
+      end
     end
 
     def location_valid?
-      # Always validate against the branch stored on the open check-in record.
+      # Always validate against the branch stored on the checked-in record.
       # Using @branch (from params) would let an attacker supply a branch with no
       # geofence to bypass the enforcement that was active at check-in time.
-      effective_branch = open_record&.branch || @branch
+      effective_branch = @record_to_check_out&.branch || @branch
       return true unless effective_branch
       GeolocationValidator.within_radius?(
         branch: effective_branch, latitude: @latitude, longitude: @longitude

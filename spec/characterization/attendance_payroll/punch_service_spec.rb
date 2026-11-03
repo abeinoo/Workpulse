@@ -29,15 +29,46 @@ RSpec.describe "Characterization: Attendance::PunchService" do
   end
 
   describe "spam window (60 seconds around the punch)" do
+    # Spam is a label for a punch that changed nothing, never a filter: the
+    # punch is evidence either way (Attendance::PunchAggregator).
     it "counts any earlier log of the employee in the business — other device, mobile source, rejected_spam, rejected_not_allowed" do
+      punch("08:00:00")
+      punch("17:00:00")
       %w[check_in rejected_spam rejected_not_allowed].each_with_index do |action, index|
-        prior_log(action: action, at: "08:00:#{10 + index}", source: index.odd? ? "mobile" : "biometric")
+        prior_log(action: action, at: "12:00:#{10 + index}", source: index.odd? ? "mobile" : "biometric")
       end
+
+      result = punch("12:00:30") # inside the day: no effect
+
+      expect(result).to have_attributes(success?: true, action: "rejected_spam", record: nil)
+      expect(AttendanceRecord.find_by!(user: employee)).to have_attributes(check_in_at: riyadh("08:00:00"),
+                                                                            check_out_at: riyadh("17:00:00"))
+    end
+
+    it "labels an in-day punch next to a refused (rejected_not_allowed) log as a duplicate too" do
+      punch("08:00:00")
+      punch("17:00:00")
+      prior_log(action: "rejected_not_allowed", at: "12:00:10")
+
+      expect(punch("12:00:30").action).to eq("rejected_spam")
+    end
+
+    it "never swallows a punch that is the earliest: inside the window of a later punch it still becomes the check-in" do
+      punch("08:01:00")
 
       result = punch("08:00:30")
 
-      expect(result).to have_attributes(success?: true, action: "rejected_spam", record: nil)
-      expect(AttendanceRecord.where(user: employee)).to be_empty
+      expect(result.action).to eq("check_in_updated")
+      expect(result.record.check_in_at).to eq(riyadh("08:00:30"))
+    end
+
+    it "never swallows a valid punch next to a refused one: a refused punch is not evidence" do
+      prior_log(action: "rejected_not_allowed", at: "08:00:10")
+
+      result = punch("08:00:30")
+
+      expect(result.action).to eq("check_in")
+      expect(result.record.check_in_at).to eq(riyadh("08:00:30"))
     end
 
     it "ignores rejected_no_assignment and error logs" do
@@ -48,8 +79,9 @@ RSpec.describe "Characterization: Attendance::PunchService" do
     end
 
     it "is symmetric: a later-timestamped existing log also makes the punch spam" do
-      prior_log(action: "check_in", at: "08:01:00")
-      expect(punch("08:00:30").action).to eq("rejected_spam")
+      punch("08:00:00")
+      punch("17:00:00")
+      expect(punch("16:59:30").action).to eq("rejected_spam")
     end
 
     it "ignores the same employee's logs recorded under another business" do
@@ -57,19 +89,21 @@ RSpec.describe "Characterization: Attendance::PunchService" do
       expect(punch("08:00:30").action).to eq("check_in")
     end
 
-    it "logs every spam rejection (a duplicate punch adds a log, never a record change)" do
+    # Linked to the record since the punch aggregation: that is what makes a
+    # duplicate evidence (an unlinked, pre-change one is not).
+    it "logs every spam rejection (a duplicate punch adds a linked log, never a record change)" do
       punch("08:00:00")
       record = AttendanceRecord.find_by!(user: employee)
 
       expect { punch("08:00:00") }.to change(BiometricPunchLog, :count).by(1)
-      expect(BiometricPunchLog.last).to have_attributes(action: "rejected_spam", attendance_record_id: nil)
+      expect(BiometricPunchLog.last).to have_attributes(action: "rejected_spam", attendance_record_id: record.id)
       expect(record.reload.check_in_at).to eq(riyadh("08:00:00"))
     end
   end
 
   describe "check-in refinement and check-out" do
-    # Note: late_minutes drops to 0 but the status stays "late" (it is only
-    # replaced when the new punch is late too); check-out re-derives the status.
+    # The status is re-derived with the lateness (it used to stay "late" until the
+    # check-out — fixed with the punch recalculation, see punch_recalculation_spec).
     it "recalculates lateness when an earlier punch replaces a late check-in" do
       late = punch("09:30:00")
       expect(late.record).to have_attributes(status: "late", late_minutes: 30)
@@ -77,7 +111,7 @@ RSpec.describe "Characterization: Attendance::PunchService" do
       earlier = punch("08:55:00")
 
       expect(earlier.action).to eq("check_in_updated")
-      expect(earlier.record.reload).to have_attributes(check_in_at: riyadh("08:55:00"), late_minutes: 0, status: "late")
+      expect(earlier.record.reload).to have_attributes(check_in_at: riyadh("08:55:00"), late_minutes: 0, status: "incomplete")
     end
 
     it "treats a punch equal to the current check-out as spam (success, nothing changes)" do

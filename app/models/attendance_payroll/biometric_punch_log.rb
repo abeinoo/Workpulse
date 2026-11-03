@@ -3,6 +3,7 @@ class BiometricPunchLog < ApplicationRecord
     check_in
     check_in_updated
     check_out
+    recorded
     rejected_no_assignment
     rejected_spam
     rejected_not_allowed
@@ -20,7 +21,7 @@ class BiometricPunchLog < ApplicationRecord
   # source only). Excluded: rejected_not_allowed, rejected_stale_timestamp
   # (untrusted timestamp) and error.
   BIOMETRIC_MISMATCH_EVIDENCE_ACTIONS = %w[
-    check_in check_in_updated check_out rejected_no_assignment rejected_spam rejected_payroll_locked
+    check_in check_in_updated check_out recorded rejected_no_assignment rejected_spam rejected_payroll_locked
   ].freeze
 
   SOURCES = %w[biometric mobile].freeze
@@ -45,6 +46,6 @@ class BiometricPunchLog < ApplicationRecord
   end
 
   def success?
-    %w[check_in check_in_updated check_out].include?(action)
+    %w[check_in check_in_updated check_out recorded].include?(action)
   end
 end

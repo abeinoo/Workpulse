@@ -2189,6 +2189,7 @@ en:
         check_in: "Check-in"
         check_in_updated: "Check-in (updated)"
         check_out: "Check-out"
+        recorded: "Recorded — check-in / check-out unchanged"
         rejected_no_assignment: "Rejected — no shift"
         rejected_spam: "Rejected — duplicate"
         rejected_not_allowed: "Rejected — not allowed"
