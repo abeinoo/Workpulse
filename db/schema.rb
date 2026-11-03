@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_03_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_04_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1136,6 +1136,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_120000) do
     t.decimal "employer_insurance_amount", precision: 12, scale: 2, default: "0.0", null: false
     t.string "insurance_number"
     t.boolean "needs_review", default: false, null: false
+    t.jsonb "salary_breakdown"
     t.index ["overtime_overridden_by_id"], name: "index_payroll_entries_on_overtime_overridden_by_id"
     t.index ["payroll_period_id", "user_id"], name: "index_payroll_entries_on_payroll_period_id_and_user_id", unique: true
     t.index ["payroll_period_id"], name: "index_payroll_entries_on_payroll_period_id"

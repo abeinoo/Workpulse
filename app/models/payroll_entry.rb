@@ -19,6 +19,10 @@ class PayrollEntry < ApplicationRecord
   validates :base_salary, :net_salary, presence: true
   validates :working_days, :days_worked,
             numericality: { greater_than_or_equal_to: 0 }
+  # The basic salary breakdown (Payroll::BasicSalaryCalculator) is the record of
+  # how a payable base_salary was built: recalculations replace it while the
+  # period is editable; once it is finalized or paid it never changes.
+  validate :salary_breakdown_frozen_while_locked, on: :update, if: :salary_breakdown_changed?
 
   delegate :branch_id, :period_label, :draft?, to: :payroll_period, prefix: false, allow_nil: true
 
@@ -191,5 +195,25 @@ class PayrollEntry < ApplicationRecord
     )
 
     mark_needs_review!(previous_snapshot)
+  end
+
+  # ── Basic salary breakdown ──────────────────────────────────────────────────
+  # One portion per salary profile in force during the period (amounts are
+  # decimal strings summing exactly to base_salary). Empty for entries
+  # calculated before the breakdown was recorded.
+  def salary_breakdown_portions
+    Array(salary_breakdown&.dig("portions"))
+  end
+
+  # True when base_salary was built from more than one salary profile — the
+  # case where base_salary alone does not explain itself.
+  def split_salary?
+    salary_breakdown_portions.size > 1
+  end
+
+  private
+
+  def salary_breakdown_frozen_while_locked
+    errors.add(:salary_breakdown, :locked) if payroll_period&.locked?
   end
 end

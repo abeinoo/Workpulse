@@ -13,15 +13,21 @@ module Salary
       @date     = date
     end
 
-    # Returns the effective daily wage as a Float.
-    def daily_rate
+    # A profile's daily wage as a Float: a monthly salary over the business's
+    # working_days_per_month, a daily salary as entered. 0.0 without a profile.
+    def self.rate_for(profile, business)
       return 0.0 unless profile
 
       if profile.monthly?
-        (profile.base_amount.to_f / @business.working_days_per_month).round(4)
+        (profile.base_amount.to_f / business.working_days_per_month).round(4)
       else
         profile.base_amount.to_f
       end
+    end
+
+    # Returns the effective daily wage as a Float.
+    def daily_rate
+      self.class.rate_for(profile, @business)
     end
 
     # Returns the effective monthly wage as a Float (useful for display).

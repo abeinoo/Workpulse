@@ -22,7 +22,7 @@ module Payroll
   #       status, notes) is left byte-for-byte as it was.
   #
   # Each day is priced by Payroll::EntryCalculator's own shared inputs
-  # (.attendance_records_for / .rate_calculator_for / .overtime_for →
+  # (.attendance_records_for / .timeline_for + .day_rate_for / .overtime_for →
   # Salary::OvertimeCalculator) — no overtime logic lives here. Attendance is
   # only read.
   #
@@ -108,7 +108,7 @@ module Payroll
     end
 
     def build_preview
-      entries = period.payroll_entries.includes(:user, :payroll_line_items).order(:id).to_a
+      entries = period.payroll_entries.includes({ user: :salary_profiles }, :payroll_line_items).order(:id).to_a
       rows = entries.map { |entry| plan_for(entry) }
       Preview.new(period: period, threshold: business.overtime_grace_minutes.to_i,
                   previous_threshold: previous_threshold, rows: rows, digest: digest_for(rows))
@@ -116,20 +116,22 @@ module Payroll
 
     # The desired overtime lines for one entry vs. what it has now.
     def plan_for(entry)
-      rate_calc  = Payroll::EntryCalculator.rate_calculator_for(user: entry.user, business: business, period: period)
-      daily_rate = rate_calc&.profile ? rate_calc.daily_rate : 0
-      multiplier = rate_calc&.profile&.overtime_multiplier
+      timeline = Payroll::EntryCalculator.timeline_for(entry.user)
 
-      # No salary profile resolvable now → nothing can be priced; leave the
-      # entry exactly as it is rather than stripping its overtime.
-      return unchanged_row(entry) unless rate_calc&.profile
+      # No salary profile in force at any point of the period → nothing can be
+      # priced; leave the entry exactly as it is rather than stripping its overtime.
+      return unchanged_row(entry) if timeline.segments(period.period_start, period.period_end).empty?
 
       desired = {}
       Payroll::EntryCalculator.attendance_records_for(user: entry.user, period: period).each do |record|
         next unless record.complete?
 
-        result = Payroll::EntryCalculator.overtime_for(record: record, daily_rate: daily_rate,
-                                                       multiplier: multiplier, business: business)
+        # Priced with the profile in force on the day, as a full calculation is.
+        day = Payroll::EntryCalculator.day_rate_for(timeline: timeline, date: record.work_date, business: business)
+        next unless day
+
+        result = Payroll::EntryCalculator.overtime_for(record: record, daily_rate: day.daily_rate,
+                                                       multiplier: day.overtime_multiplier, business: business)
         desired[record.id] = [ record, result ] if result.overtime_pay.positive?
       end
 

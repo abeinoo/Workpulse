@@ -55,11 +55,13 @@ module Payroll
                        (@request.late_permission? ? attendance.late_minutes.to_i : attendance.early_leave_minutes.to_i)
       effective_mins = [ raw_minutes - approved_mins, 0 ].max
 
+      # Priced with the profile in force on the attendance day, as
+      # Payroll::EntryCalculator priced the line item.
       business   = @request.user.business
       daily_rate = Salary::DailyRateCalculator.for(
         user:     @request.user,
         business: business,
-        date:     entry.payroll_period.period_start
+        date:     attendance.work_date
       ).daily_rate
 
       new_amount = if @request.late_permission?

@@ -302,7 +302,8 @@ RSpec.describe "Characterization: request permission payroll effects" do
           allow(Attendance::PenaltyCalculator).to receive(:calculate).and_call_original
 
           cancel(req)
-          expect(Salary::DailyRateCalculator).to have_received(:for).with(user: employee, business: business, date: period.period_start)
+          # Priced on the attendance day (date-aware salary), not the period start.
+          expect(Salary::DailyRateCalculator).to have_received(:for).with(user: employee, business: business, date: work_date)
           expect(Attendance::PenaltyCalculator).to have_received(:calculate).once
         end
 

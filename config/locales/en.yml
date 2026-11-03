@@ -992,6 +992,10 @@ en:
       already_paid_badge: "Paid During Period"
       already_paid_note: "Excluded from final payable"
       base_salary: "Base Salary"
+      salary_portions_header: "Salary changed during this period"
+      salary_portion_monthly_basis: "%{amount} / month × %{days} of %{period_days} days"
+      salary_portion_daily_basis: "%{amount} / day × %{days} day(s) worked"
+      salary_portion_starter_basis: "%{amount} / month · %{days} of %{window_days} days of a %{working_days}-working-day start"
       additions_bonuses: "Additions & Bonuses"
       manual_deductions: "Manual Deductions"
       no_deductions_yet: "No deductions for this period."
@@ -5472,6 +5476,10 @@ en:
           attributes:
             effective_from:
               must_precede_next_profile: "must be before %{date}, when the next salary profile takes effect"
+        payroll_entry:
+          attributes:
+            salary_breakdown:
+              locked: "cannot change once the payroll period is finalized or paid"
         user:
           attributes:
             date_of_birth:
