@@ -13,9 +13,16 @@ module Attendance
   #   - recorded      → no effect otherwise (inside the day, a second entry scan,
   #                     a manually set value) — kept as evidence
   # Refusals (never evidence):
+  #   - Device registered to an inactive branch → rejected_branch_inactive
   #   - No active shift assignment    → rejected_no_assignment
   #   - Work date in a finalized / paid payroll period → rejected_payroll_locked
   #   - Lost a concurrent first-punch insert → the whole punch is retried once
+  #
+  # Branches: an employee may punch at any device of their business. The log
+  # keeps the device's branch as the punch's actual branch (nil for a device
+  # with no branch yet); the attendance record keeps the branch of the shift
+  # assignment, which need not match it. The aggregation is unchanged — one
+  # record per employee and work date, from all its punches at any branch.
   class PunchService
     SPAM_WINDOW = 60.seconds
 
@@ -74,6 +81,14 @@ module Attendance
     # Attendance::PunchCorrectionEffects. Concurrent punches share the period lock.
     def process
       @work_date  = BusinessDay.work_date_for(@punched_at, context: @business)
+
+      # A deactivated branch takes no new operations (BUG-029); its devices'
+      # punches are logged, not applied. A device with no branch is not refused.
+      if @device&.branch && !@device.branch.active?
+        log = record_punch!(action: "rejected_branch_inactive")
+        return Result.new(success: false, action: "rejected_branch_inactive", log: log,
+                          error: I18n.t("api.punch.branch_inactive"))
+      end
 
       # Finalized / paid payroll is immutable: a punch whose work date belongs to
       # a locked period changes nothing (SEC-P12-1, D-T4).
@@ -147,6 +162,7 @@ module Attendance
       BiometricPunchLog.create!(
         business:          @business,
         biometric_device:  @device,
+        branch_id:         @device&.branch_id,
         employee:          @employee,
         attendance_record: record,
         work_date:         @work_date,

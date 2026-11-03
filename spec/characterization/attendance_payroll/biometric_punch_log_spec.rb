@@ -19,7 +19,7 @@ RSpec.describe "Characterization: biometric punch logs", type: :request do
     it "accepts exactly the documented actions and sources" do
       expect(BiometricPunchLog::ACTIONS).to eq(
         %w[check_in check_in_updated check_out recorded rejected_no_assignment rejected_spam rejected_not_allowed
-           rejected_stale_timestamp rejected_payroll_locked error]
+           rejected_stale_timestamp rejected_payroll_locked rejected_branch_inactive error]
       )
       expect(BiometricPunchLog::SOURCES).to eq(%w[biometric mobile])
 
@@ -50,6 +50,7 @@ RSpec.describe "Characterization: biometric punch logs", type: :request do
         "rejected_not_allowed"   => [ false, true ],
         "rejected_stale_timestamp" => [ false, true ], # SEC-P12-1
         "rejected_payroll_locked"  => [ false, true ], # SEC-P12-1
+        "rejected_branch_inactive" => [ false, true ], # cross-branch attendance: device at a deactivated branch
         "error"                  => [ false, false ]
       )
     end
