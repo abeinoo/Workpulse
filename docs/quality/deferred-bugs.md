@@ -63,6 +63,7 @@ here only so its stable ID and history are kept.
 | BUG-039 | Device clocks not moved back at the end of Egypt DST: punches refused or stored one hour late; Nasr City device silent | Attendance & Payroll (device integration / operations) | **High** (lateness and payroll inputs; device 2 punches start expiring 2026-11-06) | Confirmed (rejections) / Suspected (accepted punches one hour late) | Open | Operations decision (before 2026-11-06) |
 | BUG-040 | Rule-profile grace / expected hours depend on the attendance source (mobile and recomputations yes; device and manager edits no) | Attendance & Payroll | Medium (no live effect: 0 rule profiles on 2026-11-02; becomes payroll-relevant with the first profile) | Confirmed (code; pinned by `punch_recalculation_spec.rb`) | Open | Product decision (before the first rule profile) |
 | BUG-042 | Employee form accepts another business's department | Organization & Access / Workforce (employee department) | Medium (cross-business reference: foreign name shown, counted in the other business's departments, cleared by its hard delete; needs a second business) | Confirmed (request spec on the unchanged code, 2026-11-03) | In Progress (fix on `fix/user-department-same-business`, PR open, not merged) | Merge of the fix PR |
+| BUG-044 | Biometric device create, edit, branch reassignment, token regeneration and delete write no audit entry | Attendance & Payroll (device administration) | Low–Medium (configuration, not money; every punch log records its own branch, so attribution stays traceable) | Confirmed (code reading, 2026-11-03) | Deferred | Before devices are managed by more than the owner, or the next device-administration change |
 
 ---
 
@@ -1041,6 +1042,21 @@ here only so its stable ID and history are kept.
   `spec/services/organization_access/branch_deactivation_notices_spec.rb` (6),
   `spec/services/laundry/branch_deactivation_notice_spec.rb` (8, including a fixed query count), three examples in
   `spec/requests/admin/branch_lifecycle_spec.rb`, `spec/architecture/organization_access_deactivation_notice_boundary_spec.rb` (4).
+* **Follow-up (2026-11-03, cross-branch biometric attendance, branch `feat/cross-branch-biometric-attendance`):**
+  * The contract is **multi-provider** (owner approval 2026-11-03; `Notice` / `Line` unchanged):
+    `register(*providers)` sets the complete ordered list, replacing the previous one (reload-safe, never appends;
+    an empty list, a duplicate or a provider without `notices_for` is refused and the registered list kept);
+    `providers` replaces `provider`; `notices_for` concatenates every provider's notices in registration order. The
+    composition root registers `Laundry::BranchDeactivationNotice`, then `Attendance::BranchDeactivationNotice`.
+  * The Attendance & Payroll provider lists the biometric devices registered to the branch (`biometric_devices.branch_id`,
+    new): names, inactive devices marked, and the count. After deactivation, punches from those devices are logged as
+    `rejected_branch_inactive` and not applied to attendance; the notice says so. Read-only: devices are never moved
+    or unassigned, and deactivation is never blocked. Laundry's notice is unchanged and shown first.
+  * The boundary spec's rules 1 and 3 now also cover Attendance & Payroll (the branch page names no device
+    constant or table; each implementation is named only by itself and the composition root).
+  * Tests: `spec/services/organization_access/branch_deactivation_notices_spec.rb` (9),
+    `spec/services/attendance/branch_deactivation_notice_spec.rb` (6), four more examples in
+    `spec/requests/admin/branch_lifecycle_spec.rb`, `spec/architecture/organization_access_deactivation_notice_boundary_spec.rb` (5).
 * **Remaining:**
   * A refused import-batch completion shows the existing generic `inventory.imports.complete_failed` message, not the
     inactive-branch reason.
@@ -1410,3 +1426,29 @@ here only so its stable ID and history are kept.
   `SELECT u.id, u.business_id, d.business_id FROM users u JOIN departments d ON d.id = u.department_id
   WHERE d.business_id <> u.business_id;`
 * **Review milestone:** merge of the fix PR.
+
+## BUG-044 — Biometric device administration writes no audit entry
+
+* **Source:** cross-branch biometric attendance review (branch `feat/cross-branch-biometric-attendance`),
+  2026-11-03. **Discovered:** 2026-11-03. **Status:** Deferred — not part of that change; recorded so it is not lost.
+  (BUG-043 is registered on `fix/historical-daily-reconciliation-lifecycle`, PR #109.)
+* **Domain / files:** Attendance & Payroll — `Admin::BiometricDevicesController` (`create`, `update`, `destroy`,
+  `regenerate_token`), `BiometricDevice` (`regenerate_token!`). No service object; the controller saves the model
+  directly.
+* **Observed (code reading):** creating a device, editing it (name, location note, `active`, and since 2026-11-03
+  `branch_id`), regenerating its token and deleting it write no `AuditLog` / `log_audit` entry. Who registered a
+  device to a branch, moved it, deactivated it or issued a new token — and when — is not recorded anywhere.
+* **Expected (CLAUDE.md, audit-first):** each change traceable to a person, a time and a reason — at least create,
+  branch change (from → to), activation change, token regeneration and delete.
+* **Impact:** limited. Punch attribution survives: every punch log copies the device's branch at receipt
+  (`biometric_punch_logs.branch_id`, read-only), so where each punch was made stays traceable after a move. What is
+  missing is the configuration history itself — e.g. a device moved to the wrong branch, or a token regenerated
+  (which invalidates the physical device), cannot be attributed. Device administration needs `manage_devices`.
+* **Recommended fix:** move the four writes into an Attendance & Payroll service (`Result`, device loaded by id inside
+  `actor.business`), with `log_audit` per action; branch reassignment and deletion carry a snapshot (old / new branch,
+  name) in the metadata. `log_audit!` (fail-closed) for delete, whose entry is the only remaining record (BUG-003
+  policy). Optional: a reason on branch reassignment.
+* **Regression tests:** one audit entry per action with actor and metadata; reassignment records old and new
+  branch; a failed save writes no entry; delete fails closed when the entry cannot be written.
+* **Review milestone:** before device administration is granted to more than the owner, or the next change to
+  device administration.

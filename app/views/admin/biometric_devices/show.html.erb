@@ -14,7 +14,30 @@
       </span>
     </div>
 
+    <% if @device.branch.nil? %>
+      <div class="alert alert-warning" role="note" style="margin: 0 var(--space-5) var(--space-5);" data-testid="device-unassigned-warning">
+        <%= t("admin.biometric_devices.show.unassigned_warning") %>
+      </div>
+    <% elsif !@device.branch.active? %>
+      <div class="alert alert-danger" role="note" style="margin: 0 var(--space-5) var(--space-5);" data-testid="device-branch-inactive-warning">
+        <%= t("admin.biometric_devices.show.branch_inactive_warning") %>
+      </div>
+    <% end %>
+
     <dl class="data-list">
+      <div class="data-list__item">
+        <dt class="data-list__label"><%= t("admin.biometric_devices.form.branch") %></dt>
+        <dd class="data-list__value">
+          <% if @device.branch %>
+            <%= @device.branch.name %>
+            <% unless @device.branch.active? %>
+              <span class="badge badge-danger"><%= t("admin.biometric_devices.branch_inactive") %></span>
+            <% end %>
+          <% else %>
+            <span class="badge badge-warning"><%= t("admin.biometric_devices.no_branch") %></span>
+          <% end %>
+        </dd>
+      </div>
       <% if @device.location_note.present? %>
         <div class="data-list__item">
           <dt class="data-list__label"><%= t("admin.biometric_devices.form.location_note") %></dt>

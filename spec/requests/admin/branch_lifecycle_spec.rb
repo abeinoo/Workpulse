@@ -76,6 +76,60 @@ RSpec.describe "Admin branch lifecycle (BUG-026)", type: :request do
     end
   end
 
+  # Cross-branch attendance — the biometric devices registered to the branch,
+  # shown in the dialog through OrganizationAccess::BranchDeactivationNotices
+  # (Attendance & Payroll provider), never enforced and never changed.
+  describe "the deactivation device warning" do
+    def notices = Nokogiri::HTML(response.body).css("[data-testid='branch-deactivate-notice']")
+
+    let!(:front) { create(:biometric_device, business: business, branch: branch, name: "Front door") }
+    let!(:back)  { create(:biometric_device, business: business, branch: branch, name: "Back gate", active: false) }
+    let!(:main_device) { create(:biometric_device, business: business, branch: main_branch, name: "Main lobby") }
+
+    before { sign_in owner }
+
+    it "names the branch's devices, marks the inactive one, and gives the count, as information only" do
+      get admin_branch_path(branch)
+
+      expect(response).to have_http_status(:ok)
+      expect(notices.size).to eq(1)
+      text = notices.first.text
+      expect(text).to include(I18n.t("attendance.deactivation_notice.title"),
+                              I18n.t("admin.branches.lifecycle.notice_not_blocking"),
+                              "Front door", I18n.t("attendance.deactivation_notice.inactive_device", name: "Back gate"),
+                              I18n.t("attendance.deactivation_notice.devices_assigned"))
+      expect(text).not_to include("Main lobby")
+      expect(notices.first.css("li strong").map(&:text)).to eq([ "2" ])
+    end
+
+    it "shows the towel notice first, then the device notice" do
+      towel_type = business.towel_types.create!(name: "Bath Towel")
+      Laundry::TowelAdjuster.new(actor: owner).call(towel_type: towel_type, branch: branch, status: "clean",
+                                                    adjustment_quantity: 5, reason: "setup")
+
+      get admin_branch_path(branch)
+
+      expect(notices.map { _1.at_css("strong").text })
+        .to eq([ I18n.t("laundry.deactivation_notice.title"), I18n.t("attendance.deactivation_notice.title") ])
+    end
+
+    it "shows no device warning for a branch with no device" do
+      main_device.update!(branch: nil)
+
+      get admin_branch_path(main_branch)
+
+      expect(notices).to be_empty
+    end
+
+    it "does not prevent deactivation, and leaves every device where it is" do
+      expect { patch deactivate_admin_branch_path(branch), params: { reason: "Closed" } }
+        .not_to change { BiometricDevice.order(:id).pluck(:id, :branch_id, :active) }
+
+      expect(flash[:notice]).to eq(I18n.t("flash.branch_deactivated"))
+      expect(branch.reload).not_to be_active
+    end
+  end
+
   # BUG-029 — what Laundry still records at the branch, shown in the dialog
   # through OrganizationAccess::BranchDeactivationNotices, never enforced.
   describe "the deactivation towel warning" do

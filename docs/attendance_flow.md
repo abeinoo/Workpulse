@@ -90,6 +90,21 @@ API POST /api/v1/punches (BiometricBaseController — device-token auth)
     → BiometricPunchLog.create! for audit trail regardless of outcome
 ```
 
+**Cross-branch punches (2026-11-03).** An employee may punch at any active device of their business, whatever
+branch their shift assignment is at; an active shift assignment on the work date (any branch) is still required.
+
+| | Column | Source |
+|---|---|---|
+| Actual branch (where the punch was made) | `biometric_punch_logs.branch_id` | The device's `branch_id`, copied when the punch is received; read-only, never rewritten when the device moves. NULL for a device with no branch, for mobile punches and for logs written before 2026-11-03 |
+| Assignment branch | `attendance_records.branch_id` | The shift assignment — unchanged |
+
+Punches at several branches on one work date aggregate into the one record (earliest check-in, latest check-out),
+exactly as before. A device registered to an inactive branch → the punch is logged as `rejected_branch_inactive`
+(422) and not applied; an inactive device → 401, as before. A device with no branch keeps accepting punches (logged
+with no branch) and is flagged on the Biometric Devices page. Mobile check-in/out (3a, 3b) is unchanged: own
+assignment branch and its geofence only. The punch-log index filters by Assignment Branch (`branch_id`) and Actual
+Branch (`actual_branch_id`, `none` = no recorded branch).
+
 ### 3d. CSV Import — `Attendance::CsvImporter`
 ```
 Admin: POST /admin/attendance_imports
@@ -228,3 +243,5 @@ records (that is reserved for payroll workflow events).
 | A record can only have one `work_date` per user | DB unique index + model validation |
 | `check_in_source` / `check_out_source` is always one of `SOURCES` | `AttendanceRecord::SOURCES` constant + DB enum |
 | All timestamps stored UTC, displayed in business TZ | `set_business_timezone` around_action + local_* helpers |
+| A device's branch belongs to the device's business and is active when assigned | `BiometricDevice` validations |
+| A punch log's branch is the device's branch at receipt and never changes | Copied in `PunchService`; `attr_readonly :branch_id` |

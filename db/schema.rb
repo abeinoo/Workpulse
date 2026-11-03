@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_23_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_03_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -265,6 +265,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_23_100000) do
     t.datetime "last_seen_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "branch_id"
+    t.index ["branch_id"], name: "index_biometric_devices_on_branch_id"
     t.index ["business_id", "name"], name: "index_biometric_devices_on_business_id_and_name", unique: true
     t.index ["business_id"], name: "index_biometric_devices_on_business_id"
     t.index ["token"], name: "index_biometric_devices_on_token", unique: true
@@ -285,9 +287,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_23_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "source", default: "biometric", null: false
+    t.bigint "branch_id"
     t.index ["action"], name: "index_biometric_punch_logs_on_action"
     t.index ["attendance_record_id"], name: "index_biometric_punch_logs_on_attendance_record_id"
     t.index ["biometric_device_id"], name: "index_biometric_punch_logs_on_biometric_device_id"
+    t.index ["branch_id"], name: "index_biometric_punch_logs_on_branch_id"
     t.index ["business_id"], name: "index_biometric_punch_logs_on_business_id"
     t.index ["employee_id", "punched_at"], name: "index_biometric_punch_logs_on_employee_id_and_punched_at"
     t.index ["employee_id"], name: "index_biometric_punch_logs_on_employee_id"
@@ -2498,9 +2502,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_23_100000) do
   add_foreign_key "bank_statements", "businesses"
   add_foreign_key "bank_statements", "users", column: "deleted_by_id"
   add_foreign_key "bank_statements", "users", column: "imported_by_id"
+  add_foreign_key "biometric_devices", "branches"
   add_foreign_key "biometric_devices", "businesses"
   add_foreign_key "biometric_punch_logs", "attendance_records"
   add_foreign_key "biometric_punch_logs", "biometric_devices"
+  add_foreign_key "biometric_punch_logs", "branches"
   add_foreign_key "biometric_punch_logs", "businesses"
   add_foreign_key "biometric_punch_logs", "users", column: "employee_id"
   add_foreign_key "branch_revenues", "branches"

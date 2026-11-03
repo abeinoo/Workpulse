@@ -83,6 +83,7 @@ module Api
         BiometricPunchLog.create!(
           business:         current_business,
           biometric_device: current_device,
+          branch_id:        current_device.branch_id,
           employee:         employee,
           work_date:        BusinessDay.work_date_for(punched_at, context: current_business),
           punched_at:       punched_at,

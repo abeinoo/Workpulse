@@ -8,6 +8,15 @@
     </div>
 
     <div class="form-group form-group--full">
+      <%= f.label :branch_id, t("admin.biometric_devices.form.branch"), class: "form-label" %>
+      <%= f.select :branch_id,
+            branches.map { |b| [ b.active? ? b.name : t("admin.biometric_devices.form.branch_inactive_option", name: b.name), b.id ] },
+            { include_blank: t("admin.biometric_devices.form.branch_blank") },
+            class: "form-control" %>
+      <p class="form-hint"><%= t("admin.biometric_devices.form.branch_hint") %></p>
+    </div>
+
+    <div class="form-group form-group--full">
       <%= f.label :location_note, t("admin.biometric_devices.form.location_note"), class: "form-label" %>
       <%= f.text_field :location_note, class: "form-control",
             placeholder: t("admin.biometric_devices.form.location_placeholder") %>

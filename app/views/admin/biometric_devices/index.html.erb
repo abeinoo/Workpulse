@@ -7,6 +7,12 @@
     <%= link_to t("admin.biometric_devices.index.add"), new_admin_biometric_device_path, class: "btn btn-primary btn-sm" %>
   </div>
 
+  <% if @unassigned_count.positive? %>
+    <div class="alert alert-warning" role="note" data-testid="devices-unassigned-warning">
+      <%= t("admin.biometric_devices.index.unassigned_warning", count: @unassigned_count) %>
+    </div>
+  <% end %>
+
   <% if @devices.empty? %>
     <p style="color: var(--text-2); padding: var(--space-6) 0;"><%= t("admin.biometric_devices.index.empty") %></p>
   <% else %>
@@ -15,6 +21,7 @@
         <thead>
           <tr>
             <th><%= t("admin.biometric_devices.form.name") %></th>
+            <th><%= t("admin.biometric_devices.index.branch_header") %></th>
             <th><%= t("admin.biometric_devices.form.location_note") %></th>
             <th><%= t("admin.biometric_devices.index.status_header") %></th>
             <th><%= t("admin.biometric_devices.index.last_seen_header") %></th>
@@ -25,6 +32,16 @@
           <% @devices.each do |device| %>
             <tr>
               <td><%= link_to device.name, admin_biometric_device_path(device), class: "link" %></td>
+              <td>
+                <% if device.branch.nil? %>
+                  <span class="badge badge-warning"><%= t("admin.biometric_devices.no_branch") %></span>
+                <% elsif !device.branch.active? %>
+                  <%= device.branch.name %>
+                  <span class="badge badge-danger"><%= t("admin.biometric_devices.branch_inactive") %></span>
+                <% else %>
+                  <%= device.branch.name %>
+                <% end %>
+              </td>
               <td class="td-secondary"><%= device.location_note.presence || "—" %></td>
               <td>
                 <span class="badge <%= device.active? ? 'badge-success' : 'badge-neutral' %>">
