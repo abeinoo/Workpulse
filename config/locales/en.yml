@@ -5479,6 +5479,7 @@ en:
         warehouse: "Warehouse"
       user:
         date_of_birth: "Date of birth"
+        department_id: "Department"
         first_name: "First name"
         last_name: "Last name"
         email: "Email"

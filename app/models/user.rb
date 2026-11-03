@@ -133,6 +133,8 @@ class User < ApplicationRecord
   validate :job_title_from_catalog, if: :will_save_change_to_job_title?
   # A role from another business must never be assigned (OA-S2).
   validate :permission_role_in_same_business, if: :will_save_change_to_permission_role_id?
+  # Nor another business's department (BUG-042).
+  validate :department_in_same_business, if: :will_save_change_to_department_id?
 
 
   # Auto-assign a numeric employee_code on creation when none was provided.
@@ -325,6 +327,12 @@ class User < ApplicationRecord
     return if permission_role.nil? || permission_role.business_id == business_id
 
     errors.add(:permission_role, :invalid)
+  end
+
+  def department_in_same_business
+    return if department.nil? || department.business_id == business_id
+
+    errors.add(:department_id, :other_business)
   end
 
   def date_of_birth_not_in_future
