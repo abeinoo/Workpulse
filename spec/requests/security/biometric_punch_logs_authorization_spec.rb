@@ -144,6 +144,17 @@ RSpec.describe "Security: biometric punch logs authorization (SEC-M2-8)", type: 
       expect(response.body).not_to include("Bassem Otherbranch")
     end
 
+    it "does not reveal another branch's employee who punched at branch A through the Actual Branch filter" do
+      at_a_by_b = create(:biometric_punch_log, business: business, biometric_device: device, employee: emp_b, branch: branch_a)
+      own_at_a  = create(:biometric_punch_log, business: business, biometric_device: device, employee: emp_a, branch: branch_a)
+
+      get admin_biometric_punch_logs_path, params: { actual_branch_id: branch_a.id }
+
+      expect(listed_log_paths).to eq([ path(own_at_a) ])
+      expect(listed_log_paths).not_to include(path(at_a_by_b))
+      expect(response.body).not_to include("Bassem Otherbranch")
+    end
+
     it "shows nothing from another branch when that branch is selected" do
       get admin_biometric_punch_logs_path, params: { branch_id: branch_b.id }
 

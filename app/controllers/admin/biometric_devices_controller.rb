@@ -1,9 +1,11 @@
 class Admin::BiometricDevicesController < Admin::BaseController
   before_action :set_device, only: [ :show, :edit, :update, :destroy, :regenerate_token ]
+  before_action :set_branches, only: [ :new, :create, :edit, :update ]
 
   def index
     authorize BiometricDevice
-    @devices = current_user.business.biometric_devices.order(:name)
+    @devices = current_user.business.biometric_devices.includes(:branch).order(:name)
+    @unassigned_count = @devices.count { |device| device.branch_id.nil? }
   end
 
   def show
@@ -56,7 +58,15 @@ class Admin::BiometricDevicesController < Admin::BaseController
     @device = current_user.business.biometric_devices.find(params[:id])
   end
 
+  # Active branches only; a device's current branch stays listed after it is
+  # deactivated, so saving the form never silently unassigns the device. The
+  # model refuses another business's branch or a newly chosen inactive one.
+  def set_branches
+    branches  = current_user.business.branches
+    @branches = branches.active.or(branches.where(id: @device&.branch_id)).order(:name)
+  end
+
   def device_params
-    params.require(:biometric_device).permit(:name, :location_note, :active)
+    params.require(:biometric_device).permit(:name, :location_note, :branch_id, :active)
   end
 end

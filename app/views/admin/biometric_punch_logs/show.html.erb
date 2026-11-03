@@ -35,6 +35,14 @@
           <% end %>
         </dd>
       </div>
+      <% if @log.source == "biometric" %>
+        <div class="data-list__item">
+          <dt class="data-list__label"><%= t("admin.biometric_punch_logs.show.branch") %></dt>
+          <dd class="data-list__value">
+            <%= @log.branch&.name || tag.span("—", class: "td-secondary") %>
+          </dd>
+        </div>
+      <% end %>
       <div class="data-list__item">
         <dt class="data-list__label"><%= t("admin.biometric_punch_logs.show.punched_at") %></dt>
         <dd class="data-list__value"><%= l(@log.punched_at, format: :long) %></dd>
