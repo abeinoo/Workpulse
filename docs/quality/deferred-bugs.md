@@ -60,6 +60,8 @@ here only so its stable ID and history are kept.
 | BUG-036 | Salary advance eligibility specs fail on the last day of every month | Test suite (`advance_eligibility_calculator_spec.rb`) | Low (CI fails on every branch one day a month; no application defect) | Confirmed (CI runs 41172059334, 41172079070 on 2026-10-31) | **Resolved** (`62c03f5`, `cd18ec8`, PR #96) | — |
 | BUG-037 | Check-in hint characterization spec depends on unordered query results | Test suite (`request_validation_reads_spec.rb`) | Low (intermittent CI failure; no application defect) | Confirmed (CI run 41172079070) | **Resolved** (`62c03f5`, PR #96) | — |
 | BUG-038 | Daily-employee advance limit model spec fails on the 1st–9th of every month | Test suite (`employee_request_spec.rb`) | Low (CI fails on every branch nine days a month; no application defect) | Confirmed (CI run 41397083807 on PR #98, 2026-11-02; reproduced locally) | **Resolved** (`99ba409`, PR #99) | — |
+| BUG-039 | Device clocks not moved back at the end of Egypt DST: punches refused or stored one hour late; Nasr City device silent | Attendance & Payroll (device integration / operations) | **High** (lateness and payroll inputs; device 2 punches start expiring 2026-11-06) | Confirmed (rejections) / Suspected (accepted punches one hour late) | Open | Operations decision (before 2026-11-06) |
+| BUG-040 | Rule-profile grace / expected hours depend on the attendance source (mobile and recomputations yes; device and manager edits no) | Attendance & Payroll | Medium (no live effect: 0 rule profiles on 2026-11-02; becomes payroll-relevant with the first profile) | Confirmed (code; pinned by `punch_recalculation_spec.rb`) | Open | Product decision (before the first rule profile) |
 
 ---
 
@@ -1296,3 +1298,78 @@ here only so its stable ID and history are kept.
   advance specs pass (422 examples). PR #99 CI passed on 2 November (inside the failure window), including `test`,
   after `main` (with PR #100) was merged into the branch (`eb4e4c4`).
 * **Review milestone:** — (resolved).
+
+## BUG-039 — Device clocks not moved back at the end of Egypt DST: punches refused or stored one hour late; Nasr City device silent
+
+* **Source:** side finding of the attendance punch-recalculation investigation (Abdelrahman, 2026-10-31), read-only
+  queries on the local copy of the production data (last device log received 2026-11-02 09:35 Cairo).
+  **Discovered:** 2026-11-02. **Status:** Open — **registered only**; deliberately kept out of the punch-recalculation
+  fix. No historical punch has been changed.
+* **Domain / files:** Attendance & Payroll — device integration. `app/controllers/api/v1/punches_controller.rb`
+  (`PAST_WINDOW = 168.hours`, `FUTURE_SKEW = 5.minutes`), `Attendance::TimestampParser` (`source: :biometric_device`:
+  a bare local timestamp is read in the business time zone). Business 2 (`Africa/Cairo`, `business_day_start_hour` 6).
+* **Observed:**
+  * The devices send bare local timestamps (`raw_payload` `{"employee_id":…, "timestamp":"2026-10-30 13:47:18"}`, no
+    offset). Egypt left DST on 2026-10-29 21:00 UTC (00:00 +03:00 → 23:00 +02:00); Rails parses correctly in
+    `Africa/Cairo` (+02:00 from then on).
+  * **18 punches refused** as `rejected_stale_timestamp`, all on 2026-10-30, all "in the future" by 7–56 minutes —
+    the signature of a device clock one hour ahead (a punch made *n* minutes before upload looks 60 − *n* minutes in
+    the future):
+    * device 1 (صالون جدو - شارع شبرا): 6 — employees 44, 25, 65 (received 00:38) and 59, 30 ×2 (11:06–12:07);
+    * device 2 (صالون جدو - مدينة نصر): 1 — employee 40 (punched 13:47, received 12:56);
+    * device 3 (صالون جدو - الترعة البولاقية): 11 — employees 20, 28, 24 (00:32), 19 (09:02), 53, 27, 52, 26 (10:02),
+      45, 37 (13:02), 32 (14:02).
+    No device shows a negative lag (device time ahead of server) on any other day from 2026-10-26 to 2026-11-02.
+  * **Accepted punches possibly stored one hour late (suspected):** punches made after the DST switch and received
+    before the device's last ahead-of-server upload were accepted whenever they were uploaded more than an hour after
+    being made: device 1 — 11 punches (10 employees, 10 records) up to 2026-10-30 12:07; device 2 — 6 punches
+    (4 employees, 5 records) up to 12:56; device 3 — 19 punches (14 employees, 19 records) up to 14:02. Each would be
+    stored one hour later than it happened (more lateness, less early leave). From the uploads after 13:08 (device 1)
+    and 15:02 (device 3) the lag is positive again, consistent with the clocks having been corrected; that is an
+    inference, not proof — only the device's own clock history can confirm it.
+  * **Device 2 (مدينة نصر) has not uploaded since 2026-10-30 12:56 Cairo.** Its punches since then are not in WorkPulse
+    (employee 40's Oct 31 day exists only from mobile punches and a manager correction).
+  * **168-hour limit:** the API accepts a punch at most 168 hours after it was made. Device 2's punches from 2026-10-30
+    13:00 onward start being refused as `rejected_stale_timestamp` from **2026-11-06 ~13:00 Cairo**, one more each
+    hour after that, unless it uploads first. (They would be logged as rejected, not lost silently, but they would not
+    reach attendance.)
+* **Impact:** wrong lateness / early-leave minutes (and so penalties) for the accepted punches; missing attendance
+  for the refused punches and for device 2's backlog; Oct 2026 payroll inputs for those employees.
+* **Not done (by decision):** no automatic correction of historical punches — the true clock offset of each
+  punch is not provable from the data.
+* **Recommended next steps:** (1) get device 2 online and uploading before 2026-11-06; (2) confirm the clock (and
+  automatic DST) setting on every device; (3) export each device's own punch log for 2026-10-29 21:00 UTC →
+  correction time and compare it with `biometric_punch_logs` to identify the punches that are actually one hour late;
+  (4) correct affected days only through the existing manager-correction path (`Attendance::AdjustmentService`, with a
+  reason — audited), after (3); (5) consider having the device integration send an explicit UTC offset, so a device
+  clock error can no longer be confused with local time (Python stays a reader/normaliser; the rule stays in Rails).
+* **Regression tests:** none yet (operational issue; no code change decided).
+* **Review milestone:** operations decision, before 2026-11-06.
+
+## BUG-040 — Rule-profile grace / expected hours depend on the attendance source
+
+* **Source:** review of the punch-aggregation fix (2026-11-03). **Discovered:** 2026-11-03. **Status:** Open — the
+  fix keeps every source's existing behaviour; the policy is a product decision.
+* **Domain / files:** Attendance & Payroll — `ShiftRuleProfile` (on `ShiftAssignment#rule_profile`:
+  `late_grace_minutes`, `early_leave_grace_minutes`, `expected_work_hours`, `break_minutes`, overtime);
+  `Attendance::TimeCalculator` (`rule_profile:`), `Attendance::DerivedFields`, `Attendance::RecordRecomputer`.
+* **Observed (who applies the profile to late / early-leave minutes):**
+  * mobile check-in / check-out — yes (`CheckInService` / `CheckOutService`, before the fix; kept by
+    `DerivedFields` `mobile_grace: true`, per field: the late grace when the effective check-in is a mobile punch, the
+    early-leave grace and expected work hours when the effective check-out is);
+  * device punches (`PunchService`) — no; manager edits (`AdjustmentService`) — no (both commented "computed exactly
+    as before (no grace profile) so payroll-input minute values are unchanged", from the status-engine change
+    `55b47b7`);
+  * `RecordRecomputer` — yes, for both fields: manual entries, CSV import, approved / cancelled punch corrections,
+    historical backfill, status backfill;
+  * overtime (break minutes, overtime enabled) — every path.
+  So the same employee, shift and minute can be late 8 minutes from the device and 0 from the phone; and a manager
+  edit removes the grace a mobile day had.
+* **Impact:** none today (no rule profile exists, 2026-11-02); with the first profile (e.g. a Ramadan schedule)
+  late / early-leave penalties would depend on how the employee punched.
+* **Recommendation:** treat grace and expected hours as what they are — a rule of the employee's assignment, not of
+  the punch source — and apply the profile to every source (the `RecordRecomputer` semantics, already used by most
+  admin paths). Decide before the first profile is created, when the change has no historical effect; then switch
+  `DerivedFields` to always pass the profile, drop `mobile_grace:`, and update the pinned expectations in
+  `punch_recalculation_spec.rb` ("rule-profile grace is preserved per source").
+* **Review milestone:** product decision, before the first rule profile.
