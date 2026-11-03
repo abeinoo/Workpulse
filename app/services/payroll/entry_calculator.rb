@@ -93,16 +93,20 @@ module Payroll
       advance_result     = AdvanceDeductor.call(user: @user, period: @period)
       obligation_result  = ObligationDeductor.call(user: @user, period: @period)
       adj_items          = adjustment_line_items
+      # Recalculating in place keeps the entry's manually entered line items
+      # (see #carried_line_items); the approved API-added ones still count.
+      @carried           = @existing_entry ? carried_line_items(@existing_entry) : []
+      totals_items       = adj_items + carried_manual_totals
 
       basic                = BasicSalaryCalculator.call(period: @period, segments: @segments, records: records,
                                                         business: @business, working_days: effective_working_days)
       base_salary          = basic.amount.to_f
       att_deductions       = sum_negatives(line_items)
-      adj_deductions       = sum_negatives(adj_items)
+      adj_deductions       = sum_negatives(totals_items)
       total_deductions     = att_deductions + adj_deductions
       total_overtime       = line_items.select { |i| i[:item_type] == "overtime" }.sum { |i| i[:amount] }
-      total_bonuses        = sum_positives(adj_items)
-      already_paid_total   = adj_items.select { |i| i[:already_paid] && i[:amount].to_f > 0 }.sum { |i| i[:amount].to_f }
+      total_bonuses        = sum_positives(totals_items)
+      already_paid_total   = totals_items.select { |i| i[:already_paid] && i[:amount].to_f > 0 }.sum { |i| i[:amount].to_f }
       advances_deducted    = advance_result.total_amount
       obligations_deducted = obligation_result.total_amount
       # already_paid bonuses appear in total_bonuses (for gross reporting) but are
@@ -148,8 +152,12 @@ module Payroll
         }
 
         entry = if @existing_entry
-          @existing_entry.payroll_line_items.destroy_all
-          @existing_entry.update!(attrs)
+          # In place: only the system-derived line items are rebuilt; the
+          # entry's notes and status are not calculation results and stay.
+          carried_ids = @carried.map(&:id)
+          rebuilt = @existing_entry.payroll_line_items.reject { |li| carried_ids.include?(li.id) }
+          @existing_entry.payroll_line_items.destroy(*rebuilt) if rebuilt.any?
+          @existing_entry.update!(attrs.except(:status, :notes))
           @existing_entry
         else
           # A brand-new entry has never been reviewed — start flagged so the
@@ -167,7 +175,10 @@ module Payroll
         end
 
         advance_items = advance_result.line_items.map { |li| li.merge(review_status: "approved") }
-        (line_items + advance_items + adj_items).each do |attrs|
+        # An adjustment whose line item was carried over keeps that row.
+        carried_adjustment_ids = @carried.select(&:adjustment_sourced?).map(&:source_id)
+        new_adj_items = adj_items.reject { |i| carried_adjustment_ids.include?(i[:source_id]) }
+        (line_items + advance_items + new_adj_items).each do |attrs|
           entry.payroll_line_items.create!(attrs)
         end
 
@@ -348,6 +359,46 @@ module Payroll
       return @period.working_days if calendar_days >= total_days
 
       [ (@period.working_days * calendar_days.to_f / total_days).round, 1 ].max
+    end
+
+    # Line items an in-place recalculation keeps rather than rebuilds, because
+    # they are not derived from attendance, salary or deductions:
+    #   - PayrollAdjustment line items, in every review status (pending,
+    #     approved, rejected) with their review fields — mirrored to the
+    #     adjustment's current values (as Payroll::AdjustmentApplier does), or
+    #     removed when the adjustment no longer pays into this entry;
+    #   - cash incentives added directly on the entry (API v1, no source).
+    def carried_line_items(entry)
+      items       = entry.payroll_line_items.to_a
+      adjustments = PayrollAdjustment.where(id: items.select(&:adjustment_sourced?).map(&:source_id)).index_by(&:id)
+
+      items.filter_map do |li|
+        if li.adjustment_sourced?
+          adjustment = adjustments[li.source_id]
+          next unless adjustment && pays_into_this_entry?(adjustment) &&
+                      PayrollLineItem::ITEM_TYPES.include?(adjustment.line_item_type)
+
+          li.assign_attributes(item_type: adjustment.line_item_type, amount: adjustment.signed_amount,
+                               description: adjustment.reason, review_status: adjustment.review_status,
+                               already_paid: adjustment.already_paid?)
+          li.save! if li.changed?
+          li
+        elsif li.source_type.nil? && PayrollEntry::BONUS_TYPES.include?(li.item_type)
+          li
+        end
+      end
+    end
+
+    def pays_into_this_entry?(adjustment)
+      adjustment.user_id == @user.id && adjustment.business_id == @business.id &&
+        adjustment.period_year == @period.period_year && adjustment.period_month == @period.period_month
+    end
+
+    # The carried API-added items that count toward the entry's totals.
+    def carried_manual_totals
+      @carried.reject(&:adjustment_sourced?).select(&:approved?).map do |li|
+        { amount: li.amount.to_f, already_paid: li.already_paid? }
+      end
     end
 
     def adjustment_line_items

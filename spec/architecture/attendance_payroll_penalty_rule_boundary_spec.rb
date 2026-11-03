@@ -48,6 +48,8 @@ module ArchitectureSpecs
       "app/services/attendance/status_backfill.rb"       => "AP status backfill (preloads rules)",
       "app/services/attendance/shift_penalty_rules.rb"   => "AP implementation of Shifts::PenaltyRuleSettings",
       "app/services/payroll/entry_calculator.rb"         => "AP payroll: penalty line items",
+      "app/services/payroll/period_recalculator.rb"      => "AP payroll: Recalculate Payroll fingerprints the period's " \
+                                                            "penalty rules (a calculation input) for its stale-preview digest; read-only",
       "app/services/payroll/permission_applier.rb"       => "AP payroll: permission penalty adjustment",
       "app/services/payroll/permission_reverter.rb"      => "AP payroll: permission penalty restore on cancellation (Pilot 9 M4)",
       "app/services/attendance/punch_correction_effects.rb" => "AP implementation of Requests::PunchCorrectionEffects: " \

@@ -10,7 +10,9 @@ module Payroll
   #   2. Destroy the user's obligation-deduction snapshots for this period so
   #      balances are correctly restored before re-deducting.
   #   3. Run EntryCalculator to recompute the entry (and rebuild its line items)
-  #      in place from current attendance.
+  #      in place from current attendance. Payroll adjustment line items (any
+  #      review status, with their review fields), API-added cash incentives and
+  #      the entry's notes are kept, not rebuilt (EntryCalculator#carried_line_items).
   #   4. Re-apply the preserved decisions.
   #
   # Returns ok: true even when the user has no salary profile (entry will be nil).
@@ -54,6 +56,7 @@ module Payroll
 
       existing          = load_existing_entry
       previous_snapshot = existing&.financial_snapshot
+      previous_needs_review = existing&.needs_review? || false
       saved_override    = capture_overtime_override(existing)
       saved_waivers      = Payroll::DeductionWaiverPersistence.capture(
         existing&.payroll_line_items || PayrollLineItem.none
@@ -74,8 +77,13 @@ module Payroll
         entry.recalculate_totals! if waivers_touched || cancellations_touched
         # EntryCalculator writes base_salary/insurance/salary_type directly
         # (not via recalculate_totals!), so this is the only place that can
-        # catch those fields changing for an existing employee.
-        entry.mark_needs_review!(previous_snapshot) if previous_snapshot
+        # catch those fields changing for an existing employee. The steps above
+        # compare against intermediate states; the flag reflects only the
+        # before/after result (the earlier flag, or a real change).
+        if previous_snapshot
+          entry.update_column(:needs_review, previous_needs_review) if entry.needs_review? != previous_needs_review
+          entry.mark_needs_review!(previous_snapshot)
+        end
       end
 
       Rails.logger.info(

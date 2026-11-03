@@ -247,6 +247,8 @@ Rails.application.routes.draw do
       get   :export_bank_transfer
       get   :recalculate_overtime_preview
       patch :recalculate_overtime
+      get   :recalculate_preview
+      patch :recalculate
     end
     resources :payroll_entries, only: [ :show ] do
       member do
