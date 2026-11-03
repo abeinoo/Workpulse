@@ -995,6 +995,10 @@ ar:
       already_paid_badge: "تم صرفه خلال الشهر"
       already_paid_note: "غير مشمول في المبلغ المحوَّل"
       base_salary: "الراتب الأساسي"
+      salary_portions_header: "تغيّر الراتب خلال هذه الفترة"
+      salary_portion_monthly_basis: "%{amount} / شهر × %{days} من %{period_days} يوم"
+      salary_portion_daily_basis: "%{amount} / يوم × %{days} يوم عمل"
+      salary_portion_starter_basis: "%{amount} / شهر · %{days} من %{window_days} يوم من بداية عمل بـ %{working_days} يوم عمل"
       additions_bonuses: "الإضافات والمكافآت"
       manual_deductions: "الخصومات اليدوية"
       no_deductions_yet: "لا توجد خصومات لهذه الفترة."
@@ -5541,6 +5545,10 @@ ar:
           attributes:
             effective_from:
               must_precede_next_profile: "يجب أن يكون قبل %{date}، تاريخ سريان ملف الراتب التالي"
+        payroll_entry:
+          attributes:
+            salary_breakdown:
+              locked: "لا يمكن تغييره بعد اعتماد مسير الرواتب أو صرفه"
         user:
           attributes:
             date_of_birth:

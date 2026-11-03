@@ -160,6 +160,34 @@
       <span class="payslip-breakdown__label"><%= t("payroll.entry.base_salary") %></span>
       <span class="payslip-breakdown__value"><%= format_currency(@entry.base_salary) %></span>
     </div>
+    <% if @entry.split_salary? %>
+      <div class="payslip-breakdown__portions">
+        <div class="payslip-breakdown__portions-header"><%= t("payroll.entry.salary_portions_header") %></div>
+        <% period_days = @entry.salary_breakdown["period_calendar_days"] %>
+        <% @entry.salary_breakdown_portions.each do |portion| %>
+          <div class="payslip-breakdown__portions-row">
+            <span class="payslip-breakdown__portions-label">
+              <%= l(Date.iso8601(portion["starts_on"]), format: :short) %> – <%= l(Date.iso8601(portion["ends_on"]), format: :short) %>
+              <span class="payslip-breakdown__portions-meta">
+                <% if portion["salary_type"] == "monthly" && @entry.salary_breakdown["proration"] == "starter_working_days" %>
+                  <%= t("payroll.entry.salary_portion_starter_basis", amount: format_currency(BigDecimal(portion["base_amount"])),
+                                                                      days: portion["calendar_days"],
+                                                                      window_days: @entry.salary_breakdown["salary_window_days"],
+                                                                      working_days: @entry.salary_breakdown["starter_working_days"]) %>
+                <% elsif portion["salary_type"] == "monthly" %>
+                  <%= t("payroll.entry.salary_portion_monthly_basis", amount: format_currency(BigDecimal(portion["base_amount"])),
+                                                                      days: portion["calendar_days"], period_days: period_days) %>
+                <% else %>
+                  <%= t("payroll.entry.salary_portion_daily_basis", amount: format_currency(BigDecimal(portion["base_amount"])),
+                                                                    days: portion["days_worked"]) %>
+                <% end %>
+              </span>
+            </span>
+            <span class="payslip-breakdown__portions-amount"><%= format_currency(BigDecimal(portion["amount"])) %></span>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
     <% if @entry.total_overtime > 0 %>
       <div class="payslip-breakdown__row">
         <span class="payslip-breakdown__label"><%= t("payroll.entry.overtime_pay") %></span>
@@ -601,6 +629,28 @@
   }
   .payslip-breakdown__label { color: var(--text-2); font-size: var(--text-sm); }
   .payslip-breakdown__value { font-weight: 500; font-size: var(--text-sm); }
+
+  /* Salary portions (base salary built from more than one salary profile) */
+  .payslip-breakdown__portions { border-bottom: 1px solid var(--border); }
+  .payslip-breakdown__portions-header {
+    padding: 0.4rem 1.25rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+  }
+  .payslip-breakdown__portions-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.35rem 1.25rem;
+    padding-inline-start: 2rem;
+  }
+  .payslip-breakdown__portions-label { font-size: var(--text-sm); color: var(--text-2); }
+  .payslip-breakdown__portions-meta { display: block; font-size: 0.72rem; color: var(--text-3); }
+  .payslip-breakdown__portions-amount { font-size: var(--text-sm); font-weight: 500; white-space: nowrap; }
 
   /* Already-paid block */
   .payslip-breakdown__already-paid {

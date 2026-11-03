@@ -42,7 +42,7 @@ module Payroll
       raw_minutes = @request.late_permission? ? attendance.late_minutes.to_i : attendance.early_leave_minutes.to_i
       return :reverted if raw_minutes == 0 # no penalty existed; nothing to restore
 
-      full_amount = compute_penalty(attendance, daily_rate_for(entry), item_type, raw_minutes)
+      full_amount = compute_penalty(attendance, daily_rate_on(attendance.work_date), item_type, raw_minutes)
       line_item = entry.payroll_line_items.find_by(source_type: "AttendanceRecord", source_id: attendance.id,
                                                    item_type: item_type)
 
@@ -80,11 +80,13 @@ module Payroll
       ).first
     end
 
-    def daily_rate_for(entry)
+    # The profile in force on the attendance day, as Payroll::EntryCalculator
+    # priced the penalty.
+    def daily_rate_on(work_date)
       Salary::DailyRateCalculator.for(
         user:     @request.user,
         business: @request.user.business,
-        date:     entry.payroll_period.period_start
+        date:     work_date
       ).daily_rate
     end
 

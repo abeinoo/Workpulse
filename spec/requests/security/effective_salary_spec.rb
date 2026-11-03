@@ -70,12 +70,15 @@ RSpec.describe "Effective salary", type: :request do
     end
   end
 
-  it "prices payroll periods with the profile effective in them" do
-    march = create(:payroll_period, business: business, period_year: 2026, period_month: 3)
-    april = create(:payroll_period, business: business, period_year: 2026, period_month: 4)
+  it "prices each payroll day with the profile effective on that day" do
+    timeline = Payroll::EntryCalculator.timeline_for(employee.reload)
+    day = ->(date) { Payroll::EntryCalculator.day_rate_for(timeline: timeline, date: date, business: business).profile }
 
-    expect(Payroll::EntryCalculator.rate_calculator_for(user: employee, business: business, period: march).profile).to eq(current)
-    expect(Payroll::EntryCalculator.rate_calculator_for(user: employee, business: business, period: april).profile).to eq(scheduled)
+    expect(day.call(Date.new(2026, 3, 14))).to eq(current)
+    expect(day.call(Date.new(2026, 3, 15))).to eq(scheduled)
+    expect(day.call(Date.new(2026, 4, 1))).to eq(scheduled)
+    expect(timeline.segments(Date.new(2026, 3, 1), Date.new(2026, 3, 31)).map { |s| [ s.profile, s.starts_on, s.ends_on ] })
+      .to eq([ [ current, Date.new(2026, 3, 1), Date.new(2026, 3, 14) ], [ scheduled, Date.new(2026, 3, 15), Date.new(2026, 3, 31) ] ])
   end
 
   it "breaks an effective-date tie by the most recently entered profile" do
