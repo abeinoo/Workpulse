@@ -70,7 +70,7 @@ RSpec.describe "Finance::DailyReconciliations#new / #create — date-aware branc
       expect(response).to redirect_to(finance_daily_reconciliation_path(dr))
       expect(dr.branch).to eq(shoubra)
       expect(dr.business_date).to eq(past_date)
-      expect(dr.state).to eq("closed")
+      expect(dr.state).to eq("open")
     end
   end
 

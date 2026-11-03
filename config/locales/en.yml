@@ -6294,6 +6294,7 @@ en:
         no_branch: "Your branch could not be determined. Make sure you have an active shift assignment."
         previous_day_still_open: "The reconciliation for %{open_date} at this branch is still open. Close it before starting the reconciliation for %{requested_date}."
         already_waiting: "There is already an opening float waiting to be received for this branch."
+        another_day_open_or_waiting: "Another reconciliation at this branch is still open or waiting for its opening float. Close or receive it before creating a new one."
         create_failed: "Failed to create the reconciliation. Please try again."
         bulk_none_selected: "No reconciliations were selected."
         bulk_receive_failed: "None of the selected reconciliations could receive an opening balance. Ensure the new business day has started."
@@ -8657,6 +8658,8 @@ en:
     errors:
       no_closed_session: "No closed session found for your branch. Close the business day first."
       dr_not_closed: "The business day must be closed before leaving an opening float."
+      not_current_business_day: "An opening float can only be left from the current business day's reconciliation."
+      another_day_open: "The reconciliation for %{date} at this branch is still open. Close it before leaving an opening float."
       already_prepared: "An opening float has already been recorded for this session."
       no_amounts: "Please enter at least one amount to leave in the drawer."
       invalid_payment_method: "One or more selected payment methods are not valid."

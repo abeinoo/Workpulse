@@ -1,23 +1,26 @@
 module Finance
-  # Creates a HISTORICAL DailyReconciliation for a business_date that was
-  # never opened through the normal flow (e.g. staff forgot to start it, or
-  # the branch simply didn't operate that day and it's being documented
-  # afterward) — used by the "Create Daily Reconciliation" form when the
-  # selected business_date is in the past.
+  # Creates a DailyReconciliation for a PAST business_date that was never
+  # opened through the normal flow (e.g. staff forgot to start it) — used by
+  # the "Create Daily Reconciliation" form when the selected business_date is
+  # in the past.
   #
-  # Deliberately creates NO live custody — no current_holder, no depositor —
-  # since nothing was ever operationally tracked for this date. This also
-  # means it never competes with idx_dr_one_open_per_branch /
-  # idx_dr_one_waiting_per_branch (both scoped to state open /
-  # waiting_for_opening): this always creates state "closed" directly, so
-  # today's open session at the same branch, if any, is completely untouched.
+  # The DR starts "open", exactly like today's, via
+  # DailyReconciliation.create_for! (the only place a TillSession may be
+  # created). It becomes "closed" only through the explicit closing workflow
+  # (the day-close handover); its status is never derived from comparing
+  # business_date with the current business day.
   #
-  # Seeds a zero-amount self-deposit TillHandover (with one TillHandoverAmount
-  # per active payment method) purely so the EXISTING
-  # Finance::SessionAmountsEditor / Finance::DayCloseEditor flow — both of
-  # which require @dr.day_close_handover to be present — can be used
-  # afterward to fill in the day's real totals, exactly like correcting any
-  # other closed day. No custody/handover-acceptance workflow is involved.
+  # Because it is open it competes with idx_dr_one_open_per_branch, and a
+  # waiting_for_opening DR would shadow it in the cashier flow — so it is
+  # refused while the branch has another open or waiting DR. The controller
+  # checks the same thing first to redirect with a friendlier message; this
+  # guard keeps console/job callers honest too.
+  #
+  # Concurrency: a second OPEN DR is impossible at the DB level
+  # (idx_dr_one_open_per_branch → RecordNotUnique, mapped to a failed Result).
+  # A waiting DR created concurrently by Finance::OpeningFloatLeaver is not
+  # covered by any index, so both take DailyReconciliation.lock_branch_lifecycle!
+  # and re-check under it.
   class HistoricalDailyReconciliationCreator
     include AuditLoggable
 
@@ -31,45 +34,30 @@ module Finance
 
     def call
       ActiveRecord::Base.transaction do
-        reconciliation = DailyReconciliation.create!(
-          branch:        @branch,
-          business:      @branch.business,
-          state:         "closed",
-          opened_at:     Time.current,
-          closed_at:     Time.current,
-          business_date: @business_date
-        )
+        DailyReconciliation.lock_branch_lifecycle!(@branch.id)
 
-        reconciliation.create_till_session!
-
-        handover = TillHandover.create!(
-          daily_reconciliation: reconciliation,
-          from_user:            @actor,
-          self_deposit:         true,
-          fresha_date:          @business_date,
-          from_notes:           "Backfilled historical reconciliation — no live custody was tracked for this date."
-        )
-
-        PaymentMethod.for_business(@branch.business).active.find_each do |pm|
-          handover.amounts.create!(
-            payment_method:      pm,
-            payment_method_name: pm.display_name,
-            collected_amount:    0,
-            refund_amount:       0,
-            kind:                "operational"
-          )
+        if DailyReconciliation.open_for(@branch) || DailyReconciliation.waiting_for(@branch)
+          raise ArgumentError, I18n.t("finance.daily_reconciliations.errors.another_day_open_or_waiting")
         end
 
-        Finance::TillHandoverCreator.sync_session_amounts!(reconciliation, handover)
-        Finance::EmployeeReconciliationSummarizer.new(reconciliation).persist!
+        reconciliation = DailyReconciliation.create_for!(branch: @branch, business_date: @business_date)
 
         log_audit(actor: @actor, auditable: reconciliation, action: "create_historical",
                   metadata: { branch_id: @branch.id, business_date: @business_date.to_s })
 
         Result.new(ok: true, reconciliation: reconciliation)
       end
+    rescue ArgumentError => e
+      Result.new(ok: false, error: e.message)
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
+    rescue ActiveRecord::RecordNotUnique => e
+      # Lost a race on idx_dr_unique_branch_business_date or
+      # idx_dr_one_open_per_branch to a request outside the lifecycle lock
+      # (e.g. today's create_for! path). Read from the error, not the DB: an
+      # enclosing transaction, if any, is aborted at this point.
+      key = e.message.include?("idx_dr_unique_branch_business_date") ? "dr_exists_for_date" : "another_day_open_or_waiting"
+      Result.new(ok: false, error: I18n.t("finance.daily_reconciliations.errors.#{key}"))
     end
   end
 end

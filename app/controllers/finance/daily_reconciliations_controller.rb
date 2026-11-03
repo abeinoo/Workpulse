@@ -787,33 +787,34 @@ class Finance::DailyReconciliationsController < Finance::BaseController
                          notice: t("finance.daily_reconciliations.errors.dr_exists_for_date")
     end
 
+    # Every new DR starts "open", whatever its business_date, so the same
+    # one-open/one-waiting-per-branch rule (idx_dr_one_open_per_branch /
+    # idx_dr_one_waiting_per_branch) applies to today AND to a past date.
+    # The existence check above already ruled out selected_date itself, so
+    # an open DR found here is always a DIFFERENT business day still open —
+    # name both dates so the user knows to close that day first.
+    open_recon = DailyReconciliation.open_for(branch)
+    if open_recon
+      return redirect_to finance_daily_reconciliation_path(open_recon),
+                         alert: t("finance.daily_reconciliations.errors.previous_day_still_open",
+                                  open_date:      l(open_recon.business_date, format: :long),
+                                  requested_date: l(selected_date, format: :long))
+    end
+
+    # A waiting DR takes precedence in the cashier flow
+    # (TillHandoversController), so an open DR created beside it would be
+    # unreachable for the till — blocked for every date, as for today.
+    waiting_recon = DailyReconciliation.waiting_for(branch)
+    if waiting_recon
+      return redirect_to finance_daily_reconciliation_path(waiting_recon),
+                         notice: t("finance.daily_reconciliations.errors.already_waiting")
+    end
+
     if selected_date == today
-      # Brand-new TODAY session — the original flow, unchanged: only one
-      # open/waiting DR may exist per branch (idx_dr_one_open_per_branch /
-      # idx_dr_one_waiting_per_branch), so today's creation is blocked while
-      # either exists, exactly as before.
-      # The existence check above already ruled out selected_date itself, so
-      # an open DR found here is always an EARLIER business day left open —
-      # name both dates so the user knows to close that day first.
-      open_recon = DailyReconciliation.open_for(branch)
-      if open_recon
-        return redirect_to finance_daily_reconciliation_path(open_recon),
-                           alert: t("finance.daily_reconciliations.errors.previous_day_still_open",
-                                    open_date:      l(open_recon.business_date, format: :long),
-                                    requested_date: l(selected_date, format: :long))
-      end
-
-      waiting_recon = DailyReconciliation.waiting_for(branch)
-      if waiting_recon
-        return redirect_to finance_daily_reconciliation_path(waiting_recon),
-                           notice: t("finance.daily_reconciliations.errors.already_waiting")
-      end
-
       recon = DailyReconciliation.create_for!(branch: branch, created_by: current_user, business_date: selected_date)
     else
-      # Historical backfill for a past date — never competes with today's
-      # open/waiting session (different state, different invariant); see
-      # Finance::HistoricalDailyReconciliationCreator.
+      # Past business date — created open, then run through the normal
+      # custody/closing workflow; see Finance::HistoricalDailyReconciliationCreator.
       result = Finance::HistoricalDailyReconciliationCreator.new(
         branch: branch, business_date: selected_date, actor: current_user
       ).call

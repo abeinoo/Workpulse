@@ -546,6 +546,20 @@ class DailyReconciliation < ApplicationRecord
   end
 
 
+  # Arbitrary, app-wide namespace key for the per-branch DR lifecycle advisory
+  # lock, so it never clashes with locks taken elsewhere. Paired with branch_id.
+  BRANCH_LIFECYCLE_LOCK_NAMESPACE = 0x4452 # "DR"
+
+  # Serializes the creators of a branch's unfinished DRs — a past-date open DR
+  # (Finance::HistoricalDailyReconciliationCreator) and a waiting_for_opening DR
+  # (Finance::OpeningFloatLeaver) — so each re-checks for the other's record
+  # under the lock. "Open beside waiting" spans two partial indexes, so no
+  # single unique index can forbid it. Transaction-level: call it inside the
+  # transaction that inserts the DR, so it is held until COMMIT.
+  def self.lock_branch_lifecycle!(branch_id)
+    connection.execute("SELECT pg_advisory_xact_lock(#{BRANCH_LIFECYCLE_LOCK_NAMESPACE}, #{branch_id.to_i})")
+  end
+
   # Returns the current open reconciliation for a branch, or nil.
   # Never creates — use create_for! to open a new accounting day.
   def self.open_for(branch)

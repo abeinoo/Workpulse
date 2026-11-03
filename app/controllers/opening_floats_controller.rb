@@ -39,16 +39,25 @@ class OpeningFloatsController < ApplicationController
 
   private
 
+  # One business day drives both the branch and the DR. Date.current is the
+  # UTC calendar date, which near the rollover differs from the business day
+  # (e.g. Cairo, start hour 3: 02:00–03:00 local is already tomorrow in UTC) —
+  # an assignment change at that boundary would resolve the wrong day's branch.
   def set_branch_and_dr
-    @branch = current_user.effective_branch_on(Date.current)
-    @dr     = find_leavable_dr
+    @business_day = BusinessDay.current(context: current_user.business)
+    @branch       = current_user.effective_branch_on(@business_day)
+    @dr           = find_leavable_dr
   end
 
   def find_leavable_dr
     return nil unless @branch
 
+    # Only the current business day's DR — mirrors the show page's
+    # @opening_float_leavable. Without the date, a past-date DR closed after
+    # today's (latest closed_at) would be picked instead.
     DailyReconciliation
       .where(state: %w[closed deposited], business_id: current_user.business_id, branch: @branch)
+      .where(business_date: @business_day)
       .where.not(
         id: DailyReconciliation
               .joins(:till_handovers)
