@@ -30,12 +30,32 @@ module Finance
       unless @dr.closed? || @dr.deposited?
         raise ArgumentError, I18n.t("opening_floats.errors.dr_not_closed")
       end
+      # Same rule as the show page's @opening_float_leavable: only the CURRENT
+      # business day's DR may leave a float. NextDayDrPreparer dates the
+      # waiting DR BusinessDay.current + 1, so a float left from a past DR
+      # would seed the wrong day.
+      unless @dr.business_date == BusinessDay.current(context: @dr.business)
+        raise ArgumentError, I18n.t("opening_floats.errors.not_current_business_day")
+      end
       raise ArgumentError, I18n.t("opening_floats.errors.already_prepared") if already_prepared?
       raise ArgumentError, I18n.t("opening_floats.errors.no_amounts")       unless amounts_present?
 
       validate_payment_methods!
 
       ActiveRecord::Base.transaction do
+        # Serializes with a concurrent past-date DR creation (and a second
+        # leave on this DR); both checks are repeated under the lock.
+        DailyReconciliation.lock_branch_lifecycle!(@dr.branch_id)
+        raise ArgumentError, I18n.t("opening_floats.errors.already_prepared") if already_prepared?
+
+        # A waiting DR beside another open one would shadow it in the cashier
+        # flow (TillHandoversController prefers the waiting DR).
+        other_open = DailyReconciliation.open_for(@dr.branch)
+        if other_open
+          raise ArgumentError, I18n.t("opening_floats.errors.another_day_open",
+                                      date: I18n.l(other_open.business_date, format: :long))
+        end
+
         handover = @dr.till_handovers.create!(
           from_user:                  @actor,
           to_user:                    nil,

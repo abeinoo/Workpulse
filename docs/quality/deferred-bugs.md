@@ -63,6 +63,7 @@ here only so its stable ID and history are kept.
 | BUG-039 | Device clocks not moved back at the end of Egypt DST: punches refused or stored one hour late; Nasr City device silent | Attendance & Payroll (device integration / operations) | **High** (lateness and payroll inputs; device 2 punches start expiring 2026-11-06) | Confirmed (rejections) / Suspected (accepted punches one hour late) | Open | Operations decision (before 2026-11-06) |
 | BUG-040 | Rule-profile grace / expected hours depend on the attendance source (mobile and recomputations yes; device and manager edits no) | Attendance & Payroll | Medium (no live effect: 0 rule profiles on 2026-11-02; becomes payroll-relevant with the first profile) | Confirmed (code; pinned by `punch_recalculation_spec.rb`) | Open | Product decision (before the first rule profile) |
 | BUG-042 | Employee form accepts another business's department | Organization & Access / Workforce (employee department) | Medium (cross-business reference: foreign name shown, counted in the other business's departments, cleared by its hard delete; needs a second business) | Confirmed (request spec on the unchanged code, 2026-11-03) | In Progress (fix on `fix/user-department-same-business`, PR open, not merged) | Merge of the fix PR |
+| BUG-043 | Till custody flows resolve the cashier's branch with the UTC calendar date (`Date.current`), not the business day | Finance & Sales (till custody / daily reconciliations) | Medium (only near the business-day rollover AND with a shift-assignment change at that boundary) | Suspected (code; same mechanism Confirmed for `OpeningFloatsController` by `opening_floats_spec.rb`) | Deferred | Next Finance & Sales till-custody fix |
 | BUG-044 | Biometric device create, edit, branch reassignment, token regeneration and delete write no audit entry | Attendance & Payroll (device administration) | Low–Medium (configuration, not money; every punch log records its own branch, so attribution stays traceable) | Confirmed (code reading, 2026-11-03) | Deferred | Before devices are managed by more than the owner, or the next device-administration change |
 
 ---
@@ -1426,6 +1427,50 @@ here only so its stable ID and history are kept.
   `SELECT u.id, u.business_id, d.business_id FROM users u JOIN departments d ON d.id = u.department_id
   WHERE d.business_id <> u.business_id;`
 * **Review milestone:** merge of the fix PR.
+
+## BUG-043 — Till custody flows resolve the cashier's branch with the UTC calendar date, not the business day
+
+* **Source:** side finding of the historical daily reconciliation lifecycle fix (branch
+  `fix/historical-daily-reconciliation-lifecycle`, `4cd7f75`), which fixed the same defect in
+  `OpeningFloatsController`. **Discovered:** 2026-11-03. **Status:** Deferred — **not started; registered only**,
+  deliberately kept out of that PR's implementation scope.
+* **Domain / files:** Finance & Sales (till custody / daily reconciliations) —
+  `app/controllers/till_handovers_controller.rb:21` (`#my_shift`: `current_user.effective_branch_on(Date.current)`);
+  `app/controllers/till_handovers_controller.rb:353` (`#resolve_branch` fallback, same call);
+  `app/controllers/finance/daily_reconciliations_controller.rb:1828` (`#default_branch_filter`, same call).
+* **Observed (code, `4cd7f75`):**
+  * `config.time_zone` is not set, so `Date.current` is the **UTC** calendar date; `BusinessDay.current(context:
+    business)` uses the business's `timezone` and `business_day_start_hour` (see BUG-030 for the mechanics). Example:
+    Africa/Cairo (UTC+2 in November), start hour 3 — from 02:00 to 03:00 local the business day is still D while
+    `Date.current` is already D+1. For a salon open until 03:00 that is when the day is closed and handed over.
+  * `effective_branch_on(date)` resolves the cashier's branch from the `ShiftAssignment`s active on `date`. It only
+    differs between D and D+1 when an assignment changes at that boundary (a temporary coverage ending on D, a transfer
+    or new assignment starting on D+1).
+  * **`#my_shift` (line 21)** — the "My Shift" entry point sends the cashier to their branch's waiting or open DR. With
+    the wrong day's branch it shows "no branch" / "no activity", or opens the other branch's DR.
+  * **`#resolve_branch` (line 353)** — used by `new` / `create` handover **only when no `daily_reconciliation_id` is
+    passed** (the DR show page always passes one). The fallback branch drives `target_reconciliation`
+    (`DailyReconciliation.open_for(@branch)`) and the colleague list, so a handover started without an explicit id
+    could target the other branch's open DR. Whether the remaining custody checks would then refuse it was not
+    verified. Related, same fallback: `colleague_date = target_reconciliation&.business_date || Date.current`
+    (line 273) when no target DR resolves.
+  * **`#default_branch_filter` (line 1828)** — only the first-visit default of the DR index branch filter (session-sticky
+    afterwards, and limited to `@accessible_branches`): a wrong default filter, no data or authorization effect.
+  * Not reproduced for these three call sites. The identical pattern in `OpeningFloatsController#set_branch_and_dr`
+    was reproduced (the float was left on the wrong branch's DR) and fixed in `4cd7f75`, pinned by
+    `spec/requests/opening_floats_spec.rb` ("branch resolved for the business day near rollover").
+* **Impact:** in that window, and only with an assignment change at the boundary, a cashier can be routed to the
+  wrong branch's reconciliation (`my_shift`) or start a handover against it (`new` / `create` without an explicit id).
+  The index default filter is cosmetic. Production business time zones, start hours and boundary assignment changes
+  were **not** checked.
+* **Recommended fix:** resolve the branch for `BusinessDay.current(context: current_user.business)` at the three call
+  sites (and the line-273 fallback), computing the business day once per request as `OpeningFloatsController` now
+  does. No repository-wide `Date.current` refactor.
+* **Regression test:** as in `opening_floats_spec.rb` — Africa/Cairo, start hour 3, `travel_to` 2026-11-04 00:30 UTC
+  (02:30 local, business day 11-03), a cashier assigned to branch A until 11-03 and branch B from 11-04, open / closed
+  DRs at both: assert `my_shift` and a `new` / `create` handover without `daily_reconciliation_id` resolve branch A.
+  A control example at a moment where both dates agree.
+* **Review milestone:** next Finance & Sales till-custody fix.
 
 ## BUG-044 — Biometric device administration writes no audit entry
 
