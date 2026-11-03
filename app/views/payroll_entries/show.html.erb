@@ -16,10 +16,16 @@
       <span class="badge <%= period_status_badge_class(@period) %>">
         <%= t("payroll.statuses.#{@period.status}") %>
       </span>
-      <% if @entry.needs_review? %>
-        <span class="badge badge-warning" title="<%= t('payroll.needs_review.badge_title') %>">
-          <%= t("payroll.needs_review.badge") %>
-        </span>
+      <% if @entry.needs_review? || @entry.recalculation_review_required? %>
+        <% if @entry.recalculation_review_required? %>
+          <span class="badge badge-danger" title="<%= t('payroll.period_recalculation.re_review_badge_title') %>">
+            <%= t("payroll.period_recalculation.re_review_badge") %>
+          </span>
+        <% else %>
+          <span class="badge badge-warning" title="<%= t('payroll.needs_review.badge_title') %>">
+            <%= t("payroll.needs_review.badge") %>
+          </span>
+        <% end %>
         <% if policy(@entry).mark_reviewed? %>
           <%= button_to t("payroll.needs_review.mark_btn"),
                 mark_reviewed_payroll_period_payroll_entry_path(@period, @entry),

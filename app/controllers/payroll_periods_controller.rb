@@ -77,6 +77,8 @@ class PayrollPeriodsController < ApplicationController
                  .order("users.first_name, users.last_name")
 
     @needs_review_count = @entries.count(&:needs_review?)
+    # Entries whose recalculated figures still await review — these block Finalize.
+    @recalculation_review_count = @entries.count(&:recalculation_review_required?)
     @filter_needs_review = params[:needs_review] == "1"
     @entries = @entries.select(&:needs_review?) if @filter_needs_review
     Payroll::EntryViewAudit.record(actor: current_user, entries: @entries.to_a, source: "period_entries")
@@ -349,9 +351,12 @@ class PayrollPeriodsController < ApplicationController
     authorize @period, :mark_all_reviewed?
 
     # entry_ids restricts to a specific set (e.g. a branch manager's own
-    # branch); absent, every flagged entry in the period is cleared.
-    entry_ids = params[:entry_ids].presence &&
-                policy_scope(PayrollEntry).where(payroll_period: @period, id: params[:entry_ids]).pluck(:id)
+    # branch); absent, every flagged entry in the period the viewer can see is
+    # cleared — never one outside their scope, since clearing a recalculation's
+    # review requirement is what unblocks Finalize.
+    visible   = policy_scope(PayrollEntry).where(payroll_period: @period)
+    visible   = visible.where(id: params[:entry_ids]) if params[:entry_ids].present?
+    entry_ids = visible.pluck(:id)
 
     result = Payroll::BulkEntryReviewClearer.call(period: @period, actor: current_user, entry_ids: entry_ids)
 
@@ -398,6 +403,32 @@ class PayrollPeriodsController < ApplicationController
       redirect_to recalculate_overtime_preview_payroll_period_path(@period), alert: result.error
     else
       redirect_to payroll_period_path(@period), alert: result.error
+    end
+  end
+
+  # "Recalculate Payroll" — read-only preview of a whole-period recalculation
+  # (Payroll::PeriodRecalculator#preview); nothing is written.
+  def recalculate_preview
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :recalculate?
+
+    result = Payroll::PeriodRecalculator.new(period_id: @period.id, actor: current_user).preview
+    return redirect_to(payroll_period_path(@period), alert: result.error) unless result.ok?
+
+    @preview = result.preview
+  end
+
+  def recalculate
+    @period = policy_scope(PayrollPeriod).find(params[:id])
+    authorize @period, :recalculate?
+
+    result = Payroll::PeriodRecalculator.new(period_id: @period.id, actor: current_user)
+                                        .apply!(expected_digest: params[:preview_digest], reason: params[:reason])
+    if result.ok?
+      redirect_to payroll_period_path(@period),
+                  notice: t("payroll.period_recalculation.flash.applied", count: result.preview.changed_count)
+    else
+      redirect_to recalculate_preview_payroll_period_path(@period), alert: result.error
     end
   end
 

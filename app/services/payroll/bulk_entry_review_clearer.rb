@@ -37,8 +37,9 @@ module Payroll
     private
 
     def entries
-      scope = @period.payroll_entries.where(needs_review: true)
-      scope = scope.where(id: @entry_ids) if @entry_ids.present?
+      scope = @period.payroll_entries.where(needs_review: true).or(@period.payroll_entries.where(recalculation_review_required: true))
+      # nil = the whole period; a list (even an empty one) = exactly those.
+      scope = scope.where(id: @entry_ids) unless @entry_ids.nil?
       scope
     end
 

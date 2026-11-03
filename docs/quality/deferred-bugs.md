@@ -65,6 +65,7 @@ here only so its stable ID and history are kept.
 | BUG-042 | Employee form accepts another business's department | Organization & Access / Workforce (employee department) | Medium (cross-business reference: foreign name shown, counted in the other business's departments, cleared by its hard delete; needs a second business) | Confirmed (request spec on the unchanged code, 2026-11-03) | In Progress (fix on `fix/user-department-same-business`, PR open, not merged) | Merge of the fix PR |
 | BUG-043 | Till custody flows resolve the cashier's branch with the UTC calendar date (`Date.current`), not the business day | Finance & Sales (till custody / daily reconciliations) | Medium (only near the business-day rollover AND with a shift-assignment change at that boundary) | Suspected (code; same mechanism Confirmed for `OpeningFloatsController` by `opening_floats_spec.rb`) | Deferred | Next Finance & Sales till-custody fix |
 | BUG-044 | Biometric device create, edit, branch reassignment, token regeneration and delete write no audit entry | Attendance & Payroll (device administration) | Low–Medium (configuration, not money; every punch log records its own branch, so attribution stays traceable) | Confirmed (code reading, 2026-11-03) | Deferred | Before devices are managed by more than the owner, or the next device-administration change |
+| BUG-045 | Draft Regenerate drops entry notes, API-added cash incentives and adjustment line-item review state | Attendance & Payroll (payroll regeneration) | Medium (an API cash incentive silently leaves net pay; draft periods only; the pre-regenerate snapshot shows the change) | Confirmed (reproduction 2026-11-04, rolled-back test transaction) | Deferred | Next payroll-regeneration change, or before the API incentive endpoint is used on draft periods |
 
 ---
 
@@ -1497,3 +1498,36 @@ here only so its stable ID and history are kept.
   branch; a failed save writes no entry; delete fails closed when the entry cannot be written.
 * **Review milestone:** before device administration is granted to more than the owner, or the next change to
   device administration.
+
+## BUG-045 — Draft Regenerate drops entry notes, API-added cash incentives and adjustment line-item review state
+
+* **Source:** Recalculate Payroll verification (branch `feat/payroll-period-recalculation`), 2026-11-04.
+  **Discovered:** 2026-11-04. **Status:** Deferred — Regenerate is out of that change's scope; recorded so it is not
+  lost. The same losses in the in-place recalculation path (`Payroll::EntryRecalculator`, used by attendance edits,
+  salary changes and Recalculate Payroll) are fixed on that branch (`Payroll::EntryCalculator#carried_line_items`).
+* **Domain / files:** Attendance & Payroll — `Payroll::Regenerator` → `Payroll::PeriodGenerator` (destroys every
+  entry of the draft period, then rebuilds each with `Payroll::EntryCalculator` as a new entry); also
+  `Payroll::DraftRegenerator#regenerate_draft` (attendance writes on a draft month).
+* **Observed (reproduction, rolled-back test transaction, 2026-11-04):** after a draft Regenerate of an entry with
+  notes, an API-added cash incentive of 250 (`Api::V1::PayrollEntriesController#add_bonus`, no `PayrollAdjustment`),
+  a pending adjustment's line item and an approved adjustment's line item with reviewer fields:
+  `notes` → `nil`; the API incentive row is gone and `total_bonuses` falls from 450 to 200 (net pay drops by 250
+  with no record of why); the pending adjustment's line item is gone (the adjustment itself stays pending, so
+  Finalize stays blocked, but the entry page no longer shows it); the approved adjustment's line item is recreated
+  without `reviewed_by` / `review_notes`. Overtime overrides, deduction waivers and addition cancellations are kept
+  (`Payroll::Regenerator` captures them).
+* **Expected:** a rebuild changes only calculated figures. Notes, manually entered pay items and review history
+  survive regeneration (CLAUDE.md: corrections are append-only; every financial action traceable).
+* **Impact:** draft periods only (Regenerate is draft-only, `regenerate_payroll`). The API incentive is the
+  financial part: it silently leaves pay. The `pre_regenerate` `PayrollSnapshot` records the before/after totals, so
+  the drop is visible in the snapshot diff, but not its cause.
+* **Recommended fix:** in `Payroll::Regenerator`, capture the carried items per user before `PeriodGenerator`
+  destroys the entries — adjustment line items with their review fields and source-less cash incentives (the rule
+  of `EntryCalculator#carried_line_items`) — plus each entry's notes, and re-attach them to the rebuilt entry, the
+  same way overrides, waivers and cancellations are already re-applied; or regenerate drafts in place through
+  `EntryRecalculator`. Re-total afterwards.
+* **Regression tests:** notes, an API incentive (still counted in net pay), pending / rejected / approved adjustment
+  line items with their review fields all survive a draft Regenerate and a `DraftRegenerator` run; totals equal
+  `recalculate_totals!`.
+* **Review milestone:** the next payroll-regeneration change, or before the API incentive endpoint is used on draft
+  periods.

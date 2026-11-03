@@ -48,6 +48,12 @@
           <% if log.action_type == "reopened" && meta["reason"].present? %>
             <div class="payroll-timeline__reason"><em><%= meta["reason"] %></em></div>
           <% end %>
+          <% if log.action_type == "recalculated" %>
+            &middot; <span class="td-secondary"><%= t("payroll.period_recalculation.timeline_changed", count: meta["changed_employee_count"].to_i) %></span>
+            <% if meta["reason"].present? %>
+              <div class="payroll-timeline__reason"><em><%= meta["reason"] %></em></div>
+            <% end %>
+          <% end %>
         </div>
       </div>
     <% end %>

@@ -2,7 +2,7 @@ class PayrollSnapshot < ApplicationRecord
   belongs_to :payroll_period
   belongs_to :taken_by, class_name: "User"
 
-  TRIGGERS = %w[pre_regenerate manual].freeze
+  TRIGGERS = %w[pre_regenerate pre_recalculate manual].freeze
 
   validates :trigger, inclusion: { in: TRIGGERS }
   validates :employee_count, numericality: { greater_than_or_equal_to: 0 }

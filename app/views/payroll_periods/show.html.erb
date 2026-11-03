@@ -121,6 +121,13 @@
               recalculate_overtime_preview_payroll_period_path(@period),
               class: "btn btn-warning btn-sm", data: { testid: "ot-recalc-action" } %>
       <% end %>
+      <%# Whole-period recalculation — under review / branch review completed
+          only; opens a read-only preview first (Payroll::PeriodRecalculator). %>
+      <% if policy(@period).recalculate? %>
+        <%= link_to t("payroll.period_recalculation.action"),
+              recalculate_preview_payroll_period_path(@period),
+              class: "btn btn-warning btn-sm", data: { testid: "recalc-action" } %>
+      <% end %>
       <% if policy(@period).regenerate? %>
         <%= button_to regenerate_payroll_period_path(@period),
               method: :patch,
@@ -415,6 +422,13 @@
     </div>
   <% end %>
 
+  <%# ── Recalculated figures awaiting review — these DO block Finalize ─────── %>
+  <% if @recalculation_review_count.to_i > 0 %>
+    <div class="alert alert-danger" role="alert" data-testid="recalc-review-banner">
+      <span><%= t("payroll.period_recalculation.review_banner", count: @recalculation_review_count) %></span>
+    </div>
+  <% end %>
+
   <%# ── Needs-review banner — visual aid only, does not touch Branch Review ─── %>
   <% if @needs_review_count.to_i > 0 %>
     <div class="alert alert-warning needs-review-banner">
@@ -519,7 +533,14 @@
                   <% if can_view_ot_override && entry.overtime_overridden? %>
                     <div class="payroll-entry-badges"><%= overtime_override_badge(entry) %></div>
                   <% end %>
-                  <% if entry.needs_review? %>
+                  <% if entry.recalculation_review_required? %>
+                    <div class="payroll-entry-badges">
+                      <span class="payroll-entry-badge payroll-entry-badge--danger"
+                            title="<%= t('payroll.period_recalculation.re_review_badge_title') %>">
+                        <%= t("payroll.period_recalculation.re_review_badge") %>
+                      </span>
+                    </div>
+                  <% elsif entry.needs_review? %>
                     <div class="payroll-entry-badges">
                       <span class="payroll-entry-badge payroll-entry-badge--warning"
                             title="<%= t('payroll.needs_review.badge_title') %>">
@@ -574,7 +595,7 @@
             </td>
             <td class="td-actions" data-label="">
               <%= link_to t("payroll.view"), payroll_period_payroll_entry_path(@period, entry), class: "link-muted" %>
-              <% if entry.needs_review? && policy(entry).mark_reviewed? %>
+              <% if (entry.needs_review? || entry.recalculation_review_required?) && policy(entry).mark_reviewed? %>
                 <%= button_to t("payroll.needs_review.mark_btn"),
                       mark_reviewed_payroll_period_payroll_entry_path(@period, entry),
                       method: :patch,

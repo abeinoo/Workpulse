@@ -23,6 +23,13 @@ class PayrollPeriodPolicy < ApplicationPolicy
   def recalculate_overtime? = can?(:regenerate_payroll) && same_business? &&
                               record.under_review? && !record.locked?
 
+  # Recalculate Payroll (Payroll::PeriodRecalculator) — every entry rebuilt from
+  # current data, the same authority as regenerate, for a period under review or
+  # with its branch reviews completed; never draft (Regenerate) and never a
+  # finalized/paid (locked) one. The service re-checks the status under a lock.
+  def recalculate? = can?(:regenerate_payroll) && same_business? &&
+                     Payroll::PeriodRecalculator::ALLOWED_STATUSES.include?(record.status) && !record.locked?
+
   # Reopen — finalized → branch_review_completed, paid → finalized.
   # Reopening a paid period additionally requires `pay_payroll` because it
   # rolls back a financial-disbursement event.

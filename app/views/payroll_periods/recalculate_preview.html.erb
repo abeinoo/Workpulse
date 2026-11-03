@@ -1,0 +1,197 @@
+<%# "Recalculate Payroll" — read-only preview. Every figure comes from
+    Payroll::PeriodRecalculator#preview (a rolled-back run of the real
+    recalculation); nothing has been written yet. %>
+<% scope = "payroll.period_recalculation" %>
+<% content_for :title, t("#{scope}.title") %>
+
+<div class="admin-page">
+  <div class="back-link">
+    <%= link_to payroll_period_path(@period) do %>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      <%= @period.period_label %>
+    <% end %>
+  </div>
+  <h1 class="page-title mb-4"><%= t("#{scope}.title") %> — <%= @period.period_label %></h1>
+
+  <div class="alert alert-info" role="note" style="margin-bottom: var(--space-4);" data-testid="recalc-intro">
+    <strong><%= t("#{scope}.intro") %></strong>
+    <p style="margin: var(--space-2) 0 0;"><%= t("#{scope}.kept_note") %></p>
+    <p style="margin: var(--space-2) 0 0;"><%= t("#{scope}.review_note") %></p>
+  </div>
+
+  <% if @preview.blocked? %>
+    <div class="alert alert-danger" role="alert" data-testid="recalc-blocked">
+      <strong><%= t("#{scope}.blocked_title") %></strong>
+      <p style="margin: var(--space-2) 0 0;"><%= t("#{scope}.blocked_note") %></p>
+      <ul style="margin: var(--space-2) 0 0;">
+        <% @preview.blocked_employees.each do |name| %>
+          <li><bdi><%= name %></bdi></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="stats-grid" style="margin-bottom: var(--space-5);">
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.changed_employees") %></span>
+      <span class="stat-card__value" data-testid="recalc-changed"><%= @preview.changed_count %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.unchanged_employees") %></span>
+      <span class="stat-card__value" data-testid="recalc-unchanged"><%= @preview.unchanged_count %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{scope}.re_review_employees") %></span>
+      <span class="stat-card__value" data-testid="recalc-re-review"><%= @preview.changed_count %></span>
+    </div>
+  </div>
+
+  <section class="card" style="margin-bottom: var(--space-5);">
+    <div class="table-wrap">
+      <table data-testid="recalc-totals">
+        <thead>
+          <tr>
+            <th></th>
+            <th style="text-align: end;"><%= t("#{scope}.before") %></th>
+            <th style="text-align: end;"><%= t("#{scope}.after") %></th>
+            <th style="text-align: end;"><%= t("#{scope}.difference") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% %i[base_salary gross deductions net].each do |field| %>
+            <% before = @preview.totals_before.public_send(field) %>
+            <% after  = @preview.totals_after.public_send(field) %>
+            <tr data-testid="recalc-total-<%= field %>">
+              <td><%= t("#{scope}.totals.#{field}") %></td>
+              <td style="text-align: end;"><%= format_currency(before) %></td>
+              <td style="text-align: end;"><%= format_currency(after) %></td>
+              <td style="text-align: end;"><%= format_currency(after - before) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <% if @preview.nothing_to_change? && !@preview.blocked? %>
+    <div class="card" style="padding: var(--space-5);" data-testid="recalc-nothing">
+      <p style="margin: 0;"><%= t("#{scope}.nothing_to_change") %></p>
+      <%= link_to t("#{scope}.back"), payroll_period_path(@period), class: "btn btn-ghost", style: "margin-top: var(--space-3);" %>
+    </div>
+  <% elsif !@preview.nothing_to_change? %>
+    <% if @preview.branches.any? %>
+      <h2 class="section-title"><%= t("#{scope}.branches_title") %></h2>
+      <section class="card" style="margin-bottom: var(--space-5);">
+        <div class="table-wrap table-wrap--cards">
+          <table data-testid="recalc-branches">
+            <thead>
+              <tr>
+                <th><%= t("#{scope}.branch") %></th>
+                <th><%= t("#{scope}.sign_off") %></th>
+                <th style="text-align: end;"><%= t("#{scope}.changed_employees") %></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @preview.branches.each do |branch| %>
+                <tr data-testid="recalc-branch-<%= branch.branch_id %>">
+                  <td data-label="<%= t("#{scope}.branch") %>"><bdi><%= branch.branch_name %></bdi></td>
+                  <td data-label="<%= t("#{scope}.sign_off") %>">
+                    <% if branch.signed_off? %>
+                      <span class="badge badge-warning"><%= t("#{scope}.signed_off") %></span>
+                      <div class="td-secondary">
+                        <%= t("#{scope}.signed_off_by", name: branch.reviewer_name, at: local_datetime(branch.completed_at)) %>
+                        — <%= t("#{scope}.signed_off_note") %>
+                      </div>
+                    <% elsif branch.review_status %>
+                      <span class="badge badge-neutral"><%= t("#{scope}.review_statuses.#{branch.review_status}") %></span>
+                    <% else %>
+                      <span class="td-secondary"><%= t("#{scope}.no_review_slot") %></span>
+                    <% end %>
+                  </td>
+                  <td data-label="<%= t("#{scope}.changed_employees") %>" style="text-align: end;"><%= branch.changed_count %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    <% end %>
+
+    <h2 class="section-title"><%= t("#{scope}.employees_title") %></h2>
+    <section class="card" style="margin-bottom: var(--space-5);">
+      <div class="table-wrap table-wrap--cards">
+        <table data-testid="recalc-employees">
+          <thead>
+            <tr>
+              <th><%= t("#{scope}.employee") %></th>
+              <th style="text-align: end;"><%= t("#{scope}.totals.base_salary") %></th>
+              <th style="text-align: end;"><%= t("#{scope}.totals.gross") %></th>
+              <th style="text-align: end;"><%= t("#{scope}.totals.deductions") %></th>
+              <th style="text-align: end;"><%= t("#{scope}.totals.net") %></th>
+              <th><%= t("#{scope}.salary_breakdown") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @preview.changed_rows.sort_by { |r| r.delta("net_salary") }.each do |row| %>
+              <tr data-testid="recalc-row-<%= row.user_id %>">
+                <td data-label="<%= t("#{scope}.employee") %>">
+                  <bdi><%= row.employee_name %></bdi>
+                  <div><span class="badge badge-warning"><%= t("#{scope}.re_review_badge") %></span></div>
+                </td>
+                <% { base_salary: [ row.amount(:before, "base_salary"), row.amount(:after, "base_salary") ],
+                     gross:       [ row.gross(:before), row.gross(:after) ],
+                     deductions:  [ row.deductions(:before), row.deductions(:after) ],
+                     net:         [ row.amount(:before, "net_salary"), row.amount(:after, "net_salary") ] }.each do |field, (before, after)| %>
+                  <td data-label="<%= t("#{scope}.totals.#{field}") %>" style="text-align: end;">
+                    <div class="td-secondary"><%= format_currency(before) %></div>
+                    <div><%= format_currency(after) %></div>
+                  </td>
+                <% end %>
+                <td data-label="<%= t("#{scope}.salary_breakdown") %>">
+                  <% portions = Array(row.breakdown_after&.dig("portions")) %>
+                  <% if row.split_salary_after? %>
+                    <% portions.each do |portion| %>
+                      <div class="td-secondary">
+                        <%= l(Date.iso8601(portion["starts_on"]), format: :short) %> – <%= l(Date.iso8601(portion["ends_on"]), format: :short) %>:
+                        <%= format_currency(BigDecimal(portion["amount"])) %>
+                      </div>
+                    <% end %>
+                  <% else %>
+                    <span class="td-secondary"><%= t("#{scope}.single_profile") %></span>
+                  <% end %>
+                  <% if row.breakdown_before.nil? %>
+                    <div class="td-secondary"><%= t("#{scope}.breakdown_first_recorded") %></div>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <% unless @preview.blocked? %>
+      <%= form_with url: recalculate_payroll_period_path(@period), method: :patch, local: true, data: { testid: "recalc-form" } do %>
+        <%= hidden_field_tag :preview_digest, @preview.digest %>
+        <div class="form-group">
+          <%= label_tag :reason, t("#{scope}.reason_label"), class: "form-label" %>
+          <%= text_area_tag :reason, nil, required: true, rows: 2, class: "form-control",
+                            placeholder: t("#{scope}.reason_placeholder") %>
+        </div>
+        <div class="form-group">
+          <label class="form-check">
+            <%= check_box_tag :acknowledge, "1", false, required: true %>
+            <span><%= t("#{scope}.acknowledge", count: @preview.changed_count) %></span>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-warning"
+                  data-turbo-confirm="<%= t("#{scope}.confirm_prompt", count: @preview.changed_count) %>">
+            <%= t("#{scope}.confirm") %>
+          </button>
+          <%= link_to t("#{scope}.back"), payroll_period_path(@period), class: "btn btn-ghost" %>
+        </div>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>

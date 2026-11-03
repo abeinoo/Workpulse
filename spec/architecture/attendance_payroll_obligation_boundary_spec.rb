@@ -48,7 +48,9 @@ module ArchitectureSpecs
       "app/models/payroll_period.rb"                             => "AP payroll core: has_many :obligation_deductions",
       "app/services/payroll/entry_calculator.rb"                 => "AP payroll core: deducts via ObligationDeductor",
       "app/services/payroll/entry_recalculator.rb"               => "AP payroll core: rebuilds a user's obligation-deduction snapshots",
-      "app/services/payroll/period_generator.rb"                 => "AP payroll core: clears a period's obligation-deduction snapshots on regeneration"
+      "app/services/payroll/period_generator.rb"                 => "AP payroll core: clears a period's obligation-deduction snapshots on regeneration",
+      "app/services/payroll/period_recalculator.rb"              => "AP payroll core: Recalculate Payroll fingerprints obligations and the period's " \
+                                                                    "deduction snapshots (calculation inputs) for its stale-preview digest; read-only"
     }.freeze
 
     ATTENDANCE_PAYROLL_DIRS = [

@@ -12,6 +12,8 @@ module Payroll
   #
   # Both transitions are refused while the period still has adjustments pending
   # review (PayrollPeriod#pending_adjustments), with the count in the error.
+  # Finalizing is also refused while entries changed by Recalculate Payroll
+  # await review (PayrollEntry#recalculation_review_required).
   class Approver
     TRANSITIONS = {
       "branch_review_completed" => "finalized",
@@ -64,6 +66,18 @@ module Payroll
           raise ActiveRecord::Rollback
         end
 
+        # Not finalized while a recalculation's new figures still await review
+        # (Payroll::PeriodRecalculator): a branch sign-off given before the
+        # recalculation does not approve them. Cleared per entry by Mark
+        # Reviewed (Payroll::EntryReviewClearer); counted under the period lock,
+        # which the recalculation also holds while it sets the flags.
+        if next_status == "finalized"
+          unreviewed = @period.payroll_entries.where(recalculation_review_required: true).count
+          if unreviewed.positive?
+            transition_error = I18n.t("payroll.errors.recalculation_review_required_finalize", count: unreviewed)
+            raise ActiveRecord::Rollback
+          end
+        end
         case next_status
         when "finalized"
           from = @period.status
