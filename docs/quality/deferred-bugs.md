@@ -62,6 +62,7 @@ here only so its stable ID and history are kept.
 | BUG-038 | Daily-employee advance limit model spec fails on the 1st–9th of every month | Test suite (`employee_request_spec.rb`) | Low (CI fails on every branch nine days a month; no application defect) | Confirmed (CI run 41397083807 on PR #98, 2026-11-02; reproduced locally) | **Resolved** (`99ba409`, PR #99) | — |
 | BUG-039 | Device clocks not moved back at the end of Egypt DST: punches refused or stored one hour late; Nasr City device silent | Attendance & Payroll (device integration / operations) | **High** (lateness and payroll inputs; device 2 punches start expiring 2026-11-06) | Confirmed (rejections) / Suspected (accepted punches one hour late) | Open | Operations decision (before 2026-11-06) |
 | BUG-040 | Rule-profile grace / expected hours depend on the attendance source (mobile and recomputations yes; device and manager edits no) | Attendance & Payroll | Medium (no live effect: 0 rule profiles on 2026-11-02; becomes payroll-relevant with the first profile) | Confirmed (code; pinned by `punch_recalculation_spec.rb`) | Open | Product decision (before the first rule profile) |
+| BUG-042 | Employee form accepts another business's department | Organization & Access / Workforce (employee department) | Medium (cross-business reference: foreign name shown, counted in the other business's departments, cleared by its hard delete; needs a second business) | Confirmed (request spec on the unchanged code, 2026-11-03) | In Progress (fix on `fix/user-department-same-business`, PR open, not merged) | Merge of the fix PR |
 | BUG-043 | Till custody flows resolve the cashier's branch with the UTC calendar date (`Date.current`), not the business day | Finance & Sales (till custody / daily reconciliations) | Medium (only near the business-day rollover AND with a shift-assignment change at that boundary) | Suspected (code; same mechanism Confirmed for `OpeningFloatsController` by `opening_floats_spec.rb`) | Deferred | Next Finance & Sales till-custody fix |
 
 ---
@@ -1374,6 +1375,42 @@ here only so its stable ID and history are kept.
   `DerivedFields` to always pass the profile, drop `mobile_grace:`, and update the pinned expectations in
   `punch_recalculation_spec.rb` ("rule-profile grace is preserved per source").
 * **Review milestone:** product decision, before the first rule profile.
+
+## BUG-042 — Employee form accepts another business's department
+
+* **Source:** Tenant Isolation Gate, Phase 1 ownership inventory (2026-11-03). **Discovered:** 2026-11-03.
+  **Status:** In Progress — fix and regression spec on `fix/user-department-same-business` (PR open, not merged).
+  Mark Resolved only once merged. Rows written before the guard are not checked (BUG-027).
+  (BUG-041 was proposed and dropped during the punch-aggregation review on 2026-11-03 and never registered; the
+  number is not reused.)
+* **Domain / files:** Organization & Access (employee form) / Workforce (`Department`) —
+  `Admin::UsersController#create` / `#update` (`user_params`, `assign_attributes`), `UserPolicy::EMPLOYMENT_ATTRIBUTES`
+  (`department_id`), `User` (`belongs_to :department, optional: true`), `Department` (`has_many :users,
+  dependent: :nullify`).
+* **Observed (reproduced 2026-11-03, `spec/requests/security/user_department_business_scope_spec.rb` on the
+  unchanged code):** a user with `manage_employees` (business scope) — and the owner — could create an employee with,
+  or move an employee into, another business's department by posting its id: the create saved (user count +1) and the
+  update redirected with the change saved; `User` was valid with the foreign department. The form only lists the
+  business's own departments; the request was not checked. Only this form writes `users.department_id` (the API,
+  registration, password and employee-data-request paths do not set it).
+* **Impact:** the other business's department name shows on the employee's pages; the other business's departments
+  index counts the employee (`admin/departments/index.html.erb`) and its delete button is hidden while the employee is
+  linked; that business's hard delete of the department would clear this business's employee's department (`nullify`).
+  A new performance review for the employee copies the department and fails its own business guard. Needs a second
+  business on the same installation.
+* **Fix:** `User` — the department must belong to the user's business (`other_business` on `department_id`), checked
+  when `department_id` is written, like the existing role check (`permission_role_in_same_business`). Clearing the
+  department and same-business changes are unchanged; an employee whose department is unchanged keeps saving.
+  `department_id` attribute name added in `en` / `ar`.
+* **Verification (2026-11-03, seed 20261006):** new `spec/requests/security/user_department_business_scope_spec.rb`
+  (6; 4 fail on the unchanged code); user model specs, admin and performance request specs, employee-data-request
+  services, `spec/requests/security`, workforce characterization, performance services and `spec/architecture` — all
+  0 failures (see the PR).
+* **Not checked:** existing rows linking an employee to another business's department. Read-only check, not run
+  against production:
+  `SELECT u.id, u.business_id, d.business_id FROM users u JOIN departments d ON d.id = u.department_id
+  WHERE d.business_id <> u.business_id;`
+* **Review milestone:** merge of the fix PR.
 
 ## BUG-043 — Till custody flows resolve the cashier's branch with the UTC calendar date, not the business day
 
