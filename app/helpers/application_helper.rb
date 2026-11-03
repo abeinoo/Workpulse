@@ -211,7 +211,7 @@ module ApplicationHelper
     case action
     when "check_in", "check_in_updated" then "badge-success"
     when "check_out"                    then "badge-accent"
-    when "rejected_spam"                then "badge-neutral"
+    when "recorded", "rejected_spam"    then "badge-neutral"
     when "rejected_no_assignment"       then "badge-warning"
     when "rejected_not_allowed"         then "badge-danger"
     when "error"                        then "badge-danger"

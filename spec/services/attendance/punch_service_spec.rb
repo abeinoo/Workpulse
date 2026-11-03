@@ -65,21 +65,23 @@ RSpec.describe Attendance::PunchService do
     end
   end
 
-  # ───── Mobile check-in + biometric within check-in window → update check-in ──
+  # ───── Second entry punch within MIN_CHECK_OUT_GAP → recorded, nothing changes ─
 
   describe "biometric punch within CHECK_IN_UPDATE_WINDOW (mobile+biometric scenario)" do
     before { punch("2026-05-17 09:00:00 +03:00") } # simulates mobile check-in
 
-    it "treats a biometric punch within 1 hour (no checkout yet) as check_in_updated" do
+    it "records a later biometric punch within 1 hour (no checkout yet) without changing check-in or check-out" do
       result = punch("2026-05-17 09:05:00 +03:00") # 5 minutes after mobile check-in
-      expect(result.action).to eq("check_in_updated")
+      expect(result.action).to eq("recorded")
     end
 
-    it "updates check_in_at to the biometric punch time" do
-      result = punch("2026-05-17 09:05:00 +03:00")
-      expect(result.record.check_in_at).to be_within(1.second).of(
-        Time.zone.parse("2026-05-17 09:05:00 +03:00")
+    it "keeps the earlier check-in (the check-in is the earliest punch) and records no checkout" do
+      punch("2026-05-17 09:05:00 +03:00")
+      record = AttendanceRecord.find_by!(user: employee)
+      expect(record.check_in_at).to be_within(1.second).of(
+        Time.zone.parse("2026-05-17 09:00:00 +03:00")
       )
+      expect(record.check_out_at).to be_nil
     end
 
     it "treats a punch beyond 1 hour as checkout when no checkout exists" do
@@ -134,7 +136,8 @@ RSpec.describe Attendance::PunchService do
       punch("2026-05-17 09:01:00 +03:00")
       punch("2026-05-17 17:10:00 +03:00")
       result = punch("2026-05-17 17:05:00 +03:00") # older than current check_out
-      expect(result.action).to eq("rejected_spam") # treated as duplicate/old
+      expect(result.action).to eq("recorded") # kept as evidence, changes nothing
+      expect(result.record.check_out_at).to eq(Time.zone.parse("2026-05-17 17:10:00 +03:00"))
     end
   end
 
