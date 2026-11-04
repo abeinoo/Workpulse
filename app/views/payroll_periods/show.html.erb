@@ -222,7 +222,7 @@
         <div class="branch-review-list">
           <% @branch_reviews_for_manager.each do |br| %>
             <div class="branch-review-row">
-              <span><%= br.branch.name %></span>
+              <span><%= br.branch&.name || t("payroll.central_review.label") %></span>
               <span class="badge <%= br.completed? ? 'badge-success' : (br.changes_requested? ? 'badge-warning' : 'badge-neutral') %>">
                 <%= t("payroll.branch_review_statuses.#{br.status}") %>
               </span>
@@ -351,6 +351,12 @@
     <%= render "comparison" %>
   <% end %>
 
+  <% if @central_review_attention %>
+    <div class="alert alert-warning" data-testid="central-review-attention">
+      <p><%= t("payroll.central_review.attention_#{@central_review_attention}") %></p>
+    </div>
+  <% end %>
+
   <%# ── Branch review progress (period overseers — accounting/area/admin) ───── %>
   <% if (current_user.can?(:finalize_payroll) || current_user.can?(:pay_payroll)) && @all_branch_reviews&.any? %>
     <%# Summary counts for at-a-glance status %>
@@ -395,14 +401,28 @@
                                else                          "badge-neutral"
                                end %>
               <tr class="<%= 'review-row--changes' if br.changes_requested? %>">
-                <td data-label="<%= t('payroll.branch') %>"><%= br.branch.name %></td>
+                <td data-label="<%= t('payroll.branch') %>"><%= br.branch&.name || t("payroll.central_review.label") %></td>
                 <td data-label="<%= t('payroll.show.reviewer') %>">
-                  <%= br.reviewer&.full_name || "—" %>
+                  <%# Completed: who approved it. Changes requested: who asked. Pending:
+                      who it is assigned to — the branch manager, or any business-level
+                      reviewer for the central slot — never an earlier requester. %>
+                  <% if br.completed? %>
+                    <%= br.reviewer&.full_name || "—" %>
+                  <% elsif br.changes_requested? %>
+                    <%= t("payroll.show.changes_requested_by", name: br.reviewer&.full_name || "—") %>
+                  <% elsif br.central? %>
+                    <span class="td-secondary"><%= t("payroll.central_review.business_level_reviewer") %></span>
+                  <% else %>
+                    <%= br.branch&.branch_manager&.full_name || "—" %>
+                  <% end %>
                 </td>
                 <td data-label="<%= t('payroll.status') %>">
                   <span class="badge <%= badge_class %>">
                     <%= t("payroll.branch_review_statuses.#{br.status}") %>
                   </span>
+                  <% if br.central? && @central_review_stale %>
+                    <span class="badge badge-warning"><%= t("payroll.central_review.out_of_date") %></span>
+                  <% end %>
                 </td>
                 <td class="td-secondary" data-label="<%= t('payroll.show.reviewed_at') %>">
                   <%= br.completed_at ? local_datetime(br.completed_at) : "—" %>

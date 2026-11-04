@@ -13,7 +13,9 @@ module Payroll
   # Both transitions are refused while the period still has adjustments pending
   # review (PayrollPeriod#pending_adjustments), with the count in the error.
   # Finalizing is also refused while entries changed by Recalculate Payroll
-  # await review (PayrollEntry#recalculation_review_required).
+  # await review (PayrollEntry#recalculation_review_required), and while the
+  # central review (floating employees) is not completed — the under_review
+  # override skips branch reviews only, never the central one.
   class Approver
     TRANSITIONS = {
       "branch_review_completed" => "finalized",
@@ -52,6 +54,23 @@ module Payroll
         unless @period.status == observed_status
           transition_error = no_transition_error
           raise ActiveRecord::Rollback
+        end
+
+        # Not finalized unless the central review (floating employees) is
+        # current: synced first, under this lock, so floating employees who
+        # appeared — or whose payroll changed — since it was completed reopen it
+        # and send the period back to review (Payroll::CentralReview). That
+        # reopening is committed, the finalization refused; the under_review
+        # override skips branch reviews only, never this.
+        if next_status == "finalized"
+          central = Payroll::CentralReview.new(@period)
+          synced  = central.sync!(actor: @by)
+          unless central.current?
+            transition_error = I18n.t("payroll.errors.central_review_pending_finalize")
+            next if synced.changed? # commit the reopening, finalize nothing
+
+            raise ActiveRecord::Rollback
+          end
         end
 
         # Neither finalized nor paid while an adjustment still awaits review.
@@ -95,7 +114,8 @@ module Payroll
           insurance = Payroll::EmployerInsuranceCost.for(@period)
           Payroll::FinalizationEffects.period_finalized(
             period: @period, actor: @by,
-            employer_insurance_total: insurance.total, employer_insurance_by_branch: insurance.by_branch
+            employer_insurance_total: insurance.total, employer_insurance_by_branch: insurance.by_branch,
+            employer_insurance_unallocated: insurance.unallocated
           )
         when "paid"
           settle_advances!

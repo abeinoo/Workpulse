@@ -47,6 +47,12 @@ class PayrollPeriodPolicy < ApplicationPolicy
     can?(:complete_branch_review) && same_business?
   end
 
+  # The central review (floating employees): business-level reviewers only —
+  # never a branch or area manager (PayrollPeriodBranchReview.central_reviewer?).
+  def complete_central_review?
+    complete_branch_review? && PayrollPeriodBranchReview.central_reviewer?(user)
+  end
+
   # Bulk-clearing the "Needs Review" flag — same reviewer persona as Branch
   # Review, available for as long as the period stays editable.
   def mark_all_reviewed?

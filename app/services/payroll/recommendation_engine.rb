@@ -226,13 +226,15 @@ module Payroll
       branch_map = ShiftAssignment.branch_ids_by_user(
         user_ids, from: period.period_start, to: period.period_end
       )
-      names = @business.branches.where(id: branch_map.values.uniq).pluck(:id, :name).to_h
+      names    = @business.branches.where(id: branch_map.values.uniq).pluck(:id, :name).to_h
+      floating = ShiftAssignment.floating_user_ids(user_ids, from: period.period_start, to: period.period_end).to_set
 
       entries.each_with_object(Hash.new { |h, k| h[k] = { net: 0.0, overtime: 0.0 } }) do |(uid, net, ot), h|
         branch_id = branch_map[uid]
         next if branch_id && @payroll_branch_ids && !@payroll_branch_ids.include?(branch_id)
 
-        name = branch_id ? names[branch_id] : I18n.t("payroll_dashboard.no_branch")
+        no_branch = I18n.t(floating.include?(uid) ? "payroll_dashboard.unallocated" : "payroll_dashboard.no_branch")
+        name = branch_id ? names[branch_id] : no_branch
         h[name][:net]      += net.to_f
         h[name][:overtime] += ot.to_f
       end

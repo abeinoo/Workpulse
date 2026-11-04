@@ -328,7 +328,7 @@
             </td>
 
             <%# Branch %>
-            <td class="td-secondary"><%= rec.branch&.name || "—" %></td>
+            <td class="td-secondary"><%= rec.branch&.name || (rec.shift_assignment&.floating? ? t("attendance.floating_branch") : "—") %></td>
 
             <%# Shift %>
             <td class="td-secondary">

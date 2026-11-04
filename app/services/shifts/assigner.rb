@@ -54,15 +54,20 @@ module Shifts
     end
 
     # Closes the current open assignment for this user+branch so date ranges never overlap.
+    # A floating assignment has no branch and replaces the employee's open
+    # regular (and floating) assignments at every branch, closed the same way.
     def close_existing_assignment!(new_assignment)
-      existing = ShiftAssignment
-        .where(user_id: new_assignment.user_id, branch_id: new_assignment.branch_id)
-        .where(effective_to: nil)
-        .first
+      close_date = new_assignment.effective_from - 1.day
+      open_ones  = ShiftAssignment.where(user_id: new_assignment.user_id, effective_to: nil)
 
+      if new_assignment.floating?
+        open_ones.where(assignment_kind: %w[regular floating]).find_each { |a| a.update!(effective_to: close_date) }
+        return
+      end
+
+      existing = open_ones.where(branch_id: new_assignment.branch_id).first
       return unless existing
 
-      close_date = new_assignment.effective_from - 1.day
       existing.update!(effective_to: close_date)
     end
   end

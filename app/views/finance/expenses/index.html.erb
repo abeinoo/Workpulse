@@ -171,7 +171,7 @@
 
           <% @expenses.each do |expense| %>
             <%
-              branch_name    = expense.is_shared? ? t("finance.expenses.shared") : (expense.branch&.name || "—")
+              branch_name    = expense.is_shared? ? t("finance.expenses.shared") : (expense.branch&.name || (expense.unallocated? ? t("finance.reports.unallocated") : "—"))
               category_name  = expense.expense_category.name
               type_name      = expense.expense_type&.name || "—"
               creator_name   = expense.created_by&.full_name || "—"

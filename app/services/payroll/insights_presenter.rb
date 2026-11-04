@@ -150,6 +150,10 @@ class Payroll::InsightsPresenter
     branch_lookup = ShiftAssignment.branch_names_by_user(
       user_ids, from: @period.period_start, to: @period.period_end
     )
+    # An employee whose last assignment of the period is floating is grouped as
+    # Floating, not under an earlier branch (branch_names_by_user skips floating rows).
+    ShiftAssignment.floating_user_ids(user_ids, from: @period.period_start, to: @period.period_end)
+                   .each { |uid| branch_lookup[uid] = I18n.t("payroll_dashboard.floating_employee") }
 
     branch_data = Hash.new { |h, k| h[k] = { total: 0, count: 0 } }
     user_totals.each do |uid, mins|

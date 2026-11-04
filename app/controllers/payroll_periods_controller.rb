@@ -134,8 +134,22 @@ class PayrollPeriodsController < ApplicationController
     # permissions that imply business-wide payroll responsibility.
     if current_user.can?(:finalize_payroll) || current_user.can?(:pay_payroll)
       @all_branch_reviews = @period.payroll_period_branch_reviews
-                                   .includes(:branch, :reviewer)
+                                   .includes(:reviewer, branch: :branch_manager)
                                    .order("branches.name")
+    end
+
+    # Floating employees who appeared, or whose payroll changed, since the
+    # central review: derived (read-only) — the next sync, at the latest the
+    # finalization attempt, reopens it (Payroll::CentralReview).
+    if @all_branch_reviews || policy(@period).complete_central_review?
+      central = Payroll::CentralReview.new(@period)
+      @central_review_attention =
+        if Payroll::CentralReview::SYNCABLE_STATUSES.include?(@period.status) && !central.current?
+          if central.stale? then :changed
+          elsif central.slot.nil? then :required
+          end
+        end
+      @central_review_stale = central.stale?
     end
   end
 
@@ -176,10 +190,7 @@ class PayrollPeriodsController < ApplicationController
     @period = policy_scope(PayrollPeriod).find(params[:id])
     authorize @period, :complete_branch_review?
 
-    authorized_branch_ids = reviewable_branch_ids_for(current_user)
-    pending_reviews       = @period.payroll_period_branch_reviews
-                                   .where(branch_id: authorized_branch_ids, status: :pending)
-                                   .includes(:branch)
+    pending_reviews = reviewable_reviews(@period).where(status: :pending).includes(:branch)
 
     if pending_reviews.empty?
       return redirect_to payroll_period_path(@period),
@@ -214,10 +225,7 @@ class PayrollPeriodsController < ApplicationController
                          alert: t("flash.changes_request_comment_required")
     end
 
-    authorized_branch_ids = reviewable_branch_ids_for(current_user)
-    pending_reviews       = @period.payroll_period_branch_reviews
-                                   .where(branch_id: authorized_branch_ids, status: :pending)
-                                   .includes(:branch)
+    pending_reviews = reviewable_reviews(@period).where(status: :pending).includes(:branch)
 
     if pending_reviews.empty?
       return redirect_to payroll_period_path(@period),
@@ -489,9 +497,15 @@ class PayrollPeriodsController < ApplicationController
 
   def manager_branch_reviews
     return nil unless current_user.can?(:complete_branch_review)
-    @period.payroll_period_branch_reviews
-           .includes(:branch)
-           .where(branch_id: reviewable_branch_ids_for(current_user))
+    reviewable_reviews(@period).includes(:branch)
+  end
+
+  # The review slots this user may act on: those of the branches they may
+  # review, plus the central slot for a business-level reviewer.
+  def reviewable_reviews(period)
+    reviews = period.payroll_period_branch_reviews
+    scope   = reviews.where(branch_id: reviewable_branch_ids_for(current_user))
+    policy(period).complete_central_review? ? scope.or(reviews.central) : scope
   end
 
   # Branches a user is allowed to complete reviews for. Honors the configured
@@ -531,10 +545,15 @@ class PayrollPeriodsController < ApplicationController
     }
   end
 
+  # An employee whose last assignment of the period is floating shows as
+  # Floating — never an earlier branch (branch_names_by_user skips floating rows).
   def load_user_branch_names(user_ids)
     return {} if user_ids.empty?
-    ShiftAssignment.branch_names_by_user(
+    names = ShiftAssignment.branch_names_by_user(
       user_ids, from: @period.period_start, to: @period.period_end
     )
+    ShiftAssignment.floating_user_ids(user_ids, from: @period.period_start, to: @period.period_end)
+                   .each { |uid| names[uid] = t("payroll_dashboard.floating_employee") }
+    names
   end
 end

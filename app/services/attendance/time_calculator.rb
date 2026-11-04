@@ -4,14 +4,19 @@ module Attendance
   # rule_profile (ShiftRuleProfile | nil) — when present its grace windows and
   # expected_work_hours override the shift defaults before returning values.
   # Priority: rule_profile > shift defaults.
+  #
+  # business — the employee's business: its time zone places the shift's clock
+  # times on the punch's day. Never the branch: a floating employee's record has
+  # none, and the time zone is a business setting (there are no branch-specific
+  # attendance rules).
   module TimeCalculator
     # Minutes the employee was late relative to the shift start.
     # Grace from the rule profile is subtracted before returning (floor 0).
     # Returns 0 for hour-based shifts (no fixed start time penalty).
-    def self.late_minutes(shift, check_in_at, branch, rule_profile: nil)
-      return 0 unless shift.fixed_time? && shift.start_time && check_in_at && branch
+    def self.late_minutes(shift, check_in_at, business, rule_profile: nil)
+      return 0 unless shift.fixed_time? && shift.start_time && check_in_at
 
-      tz          = branch.business.timezone_object
+      tz          = business.timezone_object
       local_time  = check_in_at.in_time_zone(tz)
       shift_start = local_time.change(
         hour: shift.start_time.hour,
@@ -27,11 +32,11 @@ module Attendance
     # Minutes the employee left early relative to the shift end or required hours.
     # Grace from the rule profile is subtracted before returning (floor 0).
     # expected_work_hours on the profile overrides shift.required_hours for hour-based shifts.
-    def self.early_leave_minutes(shift, check_out_at, worked_minutes, branch, rule_profile: nil)
+    def self.early_leave_minutes(shift, check_out_at, worked_minutes, business, rule_profile: nil)
       return 0 unless check_out_at
 
       if shift.fixed_time? && shift.end_time
-        tz         = branch.business.timezone_object
+        tz         = business.timezone_object
         local_time = check_out_at.in_time_zone(tz)
         shift_end  = local_time.change(
           hour: shift.end_time.hour,

@@ -32,7 +32,8 @@ class Expense < ApplicationRecord
        default: "draft"
 
   # A branch is always required: either a specific branch, or the "shared" option
-  # (branch_id blank), split across branches via expense_allocations.
+  # (branch_id blank), split across branches via expense_allocations. The one
+  # exception is an unallocated expense (see #unallocated_payroll_only).
   DISTRIBUTION_METHODS = %w[equal percentage manual].freeze
 
   # How the expense is funded. "employee_custody" (deduct_from_balance checked),
@@ -109,6 +110,7 @@ class Expense < ApplicationRecord
   validate  :category_in_same_business
   validate  :type_matches_category
   validate  :allocations_consistent_when_shared
+  validate  :unallocated_payroll_only
   validate  :documents_acceptable
   validate  :creator_has_balance_account_if_deducting
 
@@ -119,6 +121,8 @@ class Expense < ApplicationRecord
   before_destroy :prevent_system_generated_destruction
 
   scope :for_business, ->(business)   { where(business: business) }
+  # Business-level payroll costs attributed to no branch (floating employees).
+  scope :business_level, -> { where(unallocated: true) }
   scope :for_branch,   ->(branch_id)  { where(branch_id: branch_id) if branch_id.present? }
   scope :with_status,  ->(status)     { where(status: status) if status.present? }
   scope :for_category, ->(id)         { where(expense_category_id: id) if id.present? }
@@ -155,13 +159,27 @@ class Expense < ApplicationRecord
   #                       true, so an incomplete distribution fails validation
   #                       loudly instead of silently saving as an unscoped expense.
   def normalize_branch_mode
-    if branch_id.present?
+    if unallocated?
+      self.is_shared = false
+    elsif branch_id.present?
       expense_allocations.each(&:mark_for_destruction)
       self.distribution_method = nil
       self.is_shared = false
     else
       self.is_shared = true
     end
+  end
+
+  # unallocated — a business-level cost recorded with no branch and no branch
+  # split. Only Finance::PayrollInsuranceExpense sets it, for the employer
+  # insurance of floating employees (no home branch); any other expense still
+  # needs a branch or a complete split. Also enforced by the
+  # expenses_unallocated_payroll_only check constraint.
+  def unallocated_payroll_only
+    return unless unallocated?
+
+    errors.add(:base, :unallocated_payroll_only) unless source_payroll_period_id.present? && branch_id.nil?
+    errors.add(:expense_allocations, :unallocated_without_allocations) if effective_allocations.any?
   end
 
   def branch_in_same_business

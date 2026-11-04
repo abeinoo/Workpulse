@@ -84,6 +84,7 @@ module Payroll
 
         plan.affected_rows.each { |row| apply_row!(row) }
         write_audit!(plan)
+        Payroll::CentralReview.new(period).sync!(actor: @actor) # repriced floating overtime reopens it
         result = Result.new(ok: true, preview: plan)
       end
       result

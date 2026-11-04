@@ -19,6 +19,13 @@ module Finance
     #                   the branch's allocated share of shared expenses.
     #   Laundry       : standard laundry/towel cost the branch was charged for the
     #                   month — see #laundry_costs.
+    #
+    # Unallocated (business-level) costs are kept apart from every branch hash:
+    # the gross salary of floating employees (no home branch — never the
+    # fallback branch) and approved unallocated expenses (Expense.business_level:
+    # their employer insurance). #unallocated_payroll_cost /
+    # #unallocated_expenses carry them, so a report can show them once, on their
+    # own line, in its business-wide total.
     class ExpenseSources
       def initialize(business, year:, month:)
         @business = business
@@ -32,9 +39,24 @@ module Finance
 
       def payroll_costs
         @payroll_costs ||= payroll_rows.each_with_object(Hash.new(0)) do |(user_id, amount), totals|
+          next if floating_payroll_user_ids.include?(user_id)
+
           branch_id = branch_by_payroll_user[user_id] || fallback_branch_id
           totals[branch_id] += amount if branch_id
         end
+      end
+
+      # Gross salary of the floating employees — in no branch's payroll_costs.
+      def unallocated_payroll_cost
+        @unallocated_payroll_cost ||= payroll_rows.sum(BigDecimal("0")) do |user_id, amount|
+          floating_payroll_user_ids.include?(user_id) ? amount : 0
+        end
+      end
+
+      # Approved unallocated expenses of the month — in no branch's direct or
+      # allocated expenses (they have no branch and no split).
+      def unallocated_expenses
+        @unallocated_expenses ||= unallocated_expenses_scope.sum(:amount)
       end
 
       def inventory_costs
@@ -65,9 +87,21 @@ module Finance
       # {branch_id => [PayrollEntry]} — same branch attribution payroll_costs
       # uses, just keyed to the full entries instead of a summed gross figure.
       def payroll_entries_by_branch
-        @payroll_entries_by_branch ||= payroll_entries.includes(:user).group_by do |entry|
+        @payroll_entries_by_branch ||= payroll_entries.includes(:user)
+                                                      .where.not(user_id: floating_payroll_user_ids.to_a)
+                                                      .group_by do |entry|
           branch_by_payroll_user[entry.user_id] || fallback_branch_id
         end
+      end
+
+      # [PayrollEntry] behind unallocated_payroll_cost.
+      def unallocated_payroll_entries
+        @unallocated_payroll_entries ||= payroll_entries.includes(:user).where(user_id: floating_payroll_user_ids.to_a).to_a
+      end
+
+      # [Expense] behind unallocated_expenses.
+      def unallocated_expense_records
+        @unallocated_expense_records ||= unallocated_expenses_scope.includes(:expense_category, :expense_type).to_a
       end
 
       # {branch_id => [{product:, category:, quantity:, unit_cost:, total:}]} —
@@ -142,6 +176,12 @@ module Finance
         @branch_by_payroll_user ||= ShiftAssignment.branch_ids_by_user(payroll_rows.map(&:first), from: @start, to: @end)
       end
 
+      # Floating employees (latest assignment of the period floating): their
+      # salary is business-level, never attributed through the fallback below.
+      def floating_payroll_user_ids
+        @floating_payroll_user_ids ||= ShiftAssignment.floating_user_ids(payroll_rows.map(&:first), from: @start, to: @end).to_set
+      end
+
       # Scoped to sales branches too — falling back to a non-sales branch id
       # here would compute a real cost into these hashes under a key
       # BranchProfitability's own sales-only branch loop never reads, which
@@ -159,6 +199,10 @@ module Finance
         @business.expenses
           .where(status: "approved").in_period(@start, @end)
           .where.not(branch_id: nil)
+      end
+
+      def unallocated_expenses_scope
+        @business.expenses.business_level.where(status: "approved").in_period(@start, @end)
       end
 
       def allocated_expenses_scope

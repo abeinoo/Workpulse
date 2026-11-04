@@ -112,19 +112,23 @@ class PayrollDashboardController < ApplicationController
   # Net pay per branch (the branch the employee worked at during the period,
   # as before) from the visible entries only, and only for branches of the
   # viewer's view_payroll scope — a branch outside it is not listed at all.
-  # Visible entries with no branch in the period stay under "no branch".
+  # Visible entries with no branch in the period stay under "no branch", except
+  # floating employees' (their last assignment of the period is floating), whose
+  # cost is "Unallocated" — never an earlier branch, never "no branch".
   def build_branch_costs(period)
     entries = visible_entries.where(payroll_period: period).pluck(:user_id, :net_salary)
     return [] if entries.empty?
 
     branch_by_user = ShiftAssignment.branch_ids_by_user(entries.map(&:first), from: period.period_start, to: period.period_end)
+    floating       = ShiftAssignment.floating_user_ids(entries.map(&:first), from: period.period_start, to: period.period_end).to_set
     names          = current_user.business.branches.where(id: branch_by_user.values.uniq).pluck(:id, :name).to_h
 
     entries.each_with_object(Hash.new(0.0)) do |(uid, net), totals|
       branch_id = branch_by_user[uid]
       next if branch_id && !payroll_branch_ids.include?(branch_id)
 
-      totals[branch_id ? names[branch_id] : t("payroll_dashboard.no_branch")] += net.to_f
+      no_branch = floating.include?(uid) ? t("payroll_dashboard.unallocated") : t("payroll_dashboard.no_branch")
+      totals[branch_id ? names[branch_id] : no_branch] += net.to_f
     end
       .sort_by { |_, v| -v }
       .first(6)

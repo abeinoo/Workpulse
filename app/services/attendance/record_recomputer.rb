@@ -51,26 +51,20 @@ module Attendance
     # Mutates record in place; returns true iff any field changed.
     def recompute!(record)
       shift        = record.shift   # shift_assignment&.shift
-      branch       = record.branch
+      business     = record.branch&.business || record.user.business
       rule_profile = record.shift_assignment&.rule_profile
-      ot_grace     = (branch&.business || record.user.business).overtime_grace_minutes.to_i
+      ot_grace     = business.overtime_grace_minutes.to_i
 
       new_late = shift ? TimeCalculator.late_minutes(
-        shift, record.check_in_at, branch, rule_profile: rule_profile
+        shift, record.check_in_at, business, rule_profile: rule_profile
       ) : 0
 
       if record.check_in_at.present? && record.check_out_at.present?
         worked_mins = ((record.check_out_at - record.check_in_at) / 60).to_i
 
-        # early_leave_minutes: fixed-time shifts require branch for TZ lookup;
-        # hour-based shifts only need worked vs required hours.
-        new_early = if shift && (shift.hour_based? || branch.present?)
-          TimeCalculator.early_leave_minutes(
-            shift, record.check_out_at, worked_mins, branch, rule_profile: rule_profile
-          )
-        else
-          0
-        end
+        new_early = shift ? TimeCalculator.early_leave_minutes(
+          shift, record.check_out_at, worked_mins, business, rule_profile: rule_profile
+        ) : 0
 
         new_overtime = TimeCalculator.overtime_minutes(
           shift, worked_mins, overtime_grace_minutes: ot_grace, rule_profile: rule_profile

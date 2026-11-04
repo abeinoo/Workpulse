@@ -35,7 +35,8 @@ RSpec.describe Payroll::FinalizationEffects do
   def finalized!
     described_class.period_finalized(period: period, actor: owner,
                                      employer_insurance_total: cost.total,
-                                     employer_insurance_by_branch: cost.by_branch)
+                                     employer_insurance_by_branch: cost.by_branch,
+                                     employer_insurance_unallocated: cost.unallocated)
   end
 
   describe "registration" do
@@ -67,7 +68,8 @@ RSpec.describe Payroll::FinalizationEffects do
       end
 
       expect(handler).to have_received(:period_finalized)
-        .with(period: period, actor: owner, employer_insurance_total: 100, employer_insurance_by_branch: { branch.id => 100 })
+        .with(period: period, actor: owner, employer_insurance_total: 100, employer_insurance_by_branch: { branch.id => 100 },
+              employer_insurance_unallocated: 0)
       expect(handler).to have_received(:period_reopened).with(period: period, actor: owner, reason: "Fix")
     end
 
@@ -89,7 +91,7 @@ RSpec.describe Payroll::FinalizationEffects do
       described_class.period_reopened(period: period, actor: owner, reason: "Fix")
 
       expect(Finance::PayrollInsuranceExpense).to have_received(:record)
-        .with(period: period, actor: owner, total: 100, by_branch: { branch.id => 100 })
+        .with(period: period, actor: owner, total: 100, by_branch: { branch.id => 100 }, unallocated: 0)
       expect(Finance::PayrollInsuranceExpense).to have_received(:void_for).with(period: period, actor: owner, reason: "Fix")
     end
 

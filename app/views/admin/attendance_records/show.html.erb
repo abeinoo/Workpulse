@@ -18,7 +18,7 @@
   <div class="page-header">
     <div>
       <h1 class="page-title"><%= l(@record.date, format: :long) %></h1>
-      <p class="page-subtitle"><%= @record.user.full_name %> &mdash; <%= @record.branch.name %></p>
+      <p class="page-subtitle"><%= @record.user.full_name %> &mdash; <%= @record.branch&.name || (@record.shift_assignment&.floating? ? t("attendance.floating_branch") : "—") %></p>
     </div>
     <span class="badge <%= @record.present? ? 'badge-success' : @record.late? ? 'badge-warning' : 'badge-neutral' %>">
       <%= t("attendance.statuses.#{@record.status}", default: @record.status.humanize) %>
@@ -54,7 +54,7 @@
     <% end %>
     <div class="info-card__row">
       <span class="info-card__label"><%= t("attendance.branch") %></span>
-      <span><%= @record.branch.name %></span>
+      <span><%= @record.branch&.name || (@record.shift_assignment&.floating? ? t("attendance.floating_branch") : "—") %></span>
     </div>
     <% if @record.check_in_latitude.present? %>
       <div class="info-card__row">
@@ -80,14 +80,16 @@
          <%= @record.check_out_latitude.present? ? 'data-location-map-has-check-out-value="true"' : "" %>
          <%= @record.check_out_latitude.present? ? "data-location-map-check-out-lat-value=\"#{@record.check_out_latitude}\"" : "" %>
          <%= @record.check_out_latitude.present? ? "data-location-map-check-out-lng-value=\"#{@record.check_out_longitude}\"" : "" %>
-         <%= branch.latitude.present? ? 'data-location-map-has-branch-value="true"' : "" %>
-         <%= branch.latitude.present? ? "data-location-map-branch-lat-value=\"#{branch.latitude}\"" : "" %>
-         <%= branch.latitude.present? ? "data-location-map-branch-lng-value=\"#{branch.longitude}\"" : "" %>
-         data-location-map-branch-radius-value="<%= branch.radius_meters || 100 %>">
+         <%= branch&.latitude.present? ? 'data-location-map-has-branch-value="true"' : "" %>
+         <%= branch&.latitude.present? ? "data-location-map-branch-lat-value=\"#{branch.latitude}\"" : "" %>
+         <%= branch&.latitude.present? ? "data-location-map-branch-lng-value=\"#{branch.longitude}\"" : "" %>
+         data-location-map-branch-radius-value="<%= branch&.radius_meters || 100 %>">
       <div data-location-map-target="container" class="branch-map"></div>
     </div>
     <div class="location-map-legend">
-      <span class="loc-legend-item"><span class="loc-marker loc-marker--branch loc-marker--sm">B</span> <%= t("attendance.records.legend_branch") %></span>
+      <% if branch %>
+        <span class="loc-legend-item"><span class="loc-marker loc-marker--branch loc-marker--sm">B</span> <%= t("attendance.records.legend_branch") %></span>
+      <% end %>
       <span class="loc-legend-item"><span class="loc-dot loc-dot--checkin"></span> <%= t("attendance.records.legend_check_in") %></span>
       <% if @record.check_out_latitude.present? %>
         <span class="loc-legend-item"><span class="loc-dot loc-dot--checkout"></span> <%= t("attendance.records.legend_check_out") %></span>

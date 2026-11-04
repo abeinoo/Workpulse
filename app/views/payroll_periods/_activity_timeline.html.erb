@@ -6,9 +6,9 @@
         dot_class = case log.action_type
                     when "finalized", "paid"
                       "payroll-timeline__dot--done"
-                    when "submitted_for_review", "branch_review_completed", "resubmitted_for_review"
+                    when "submitted_for_review", "branch_review_completed", "resubmitted_for_review", "review_slot_completed"
                       "payroll-timeline__dot--live"
-                    when "deleted", "adjustment_rejected", "adjustment_removed", "branch_changes_requested"
+                    when "deleted", "adjustment_rejected", "adjustment_removed", "branch_changes_requested", "central_review_reopened"
                       "payroll-timeline__dot--warn"
                     else
                       ""
@@ -41,6 +41,14 @@
           <% end %>
           <% if log.action_type == "branch_changes_requested" && meta["branch_name"].present? %>
             &middot; <span class="td-secondary"><%= meta["branch_name"] %></span>
+          <% elsif log.action_type == "branch_changes_requested" && meta["central"] %>
+            &middot; <span class="td-secondary"><%= t("payroll.central_review.label") %></span>
+          <% end %>
+          <% if log.action_type == "review_slot_completed" %>
+            &middot; <span class="td-secondary"><%= meta["central"] ? t("payroll.central_review.label") : meta["branch_name"] %></span>
+          <% end %>
+          <% if log.action_type == "central_review_reopened" && meta["reason"].present? %>
+            <div class="payroll-timeline__reason"><%= t("payroll.central_review.reopen_reasons.#{meta['reason']}") %></div>
           <% end %>
           <% if log.action_type == "branch_changes_requested" && meta["comment"].present? %>
             <div class="payroll-timeline__reason"><em><%= meta["comment"] %></em></div>

@@ -15,6 +15,7 @@ module Finance
         BOM + CSV.generate do |csv|
           csv << @table.columns.map(&:label)
           @table.rows.each { |row| csv << @table.columns.map { |c| row[c.key] } }
+          csv << @table.columns.map { |c| @table.unallocated[c.key] } if @table.unallocated?
           csv << totals_row if @table.totals?
         end
       end

@@ -5,6 +5,9 @@ module Finance
     #
     # Branch grouping is special: a shared expense has no branch_id, so its cost
     # is attributed to branches through expense_allocations (allocated_amount).
+    # An unallocated expense (Expense.business_level — floating employees'
+    # employer insurance) belongs to no branch: it is listed on its own
+    # "Unallocated" line (Table#unallocated) and counted once in the totals.
     # The other groupings count each expense once under its category/type.
     #
     # branch_id (category / type grouping only) narrows those to one branch with
@@ -49,7 +52,13 @@ module Finance
             total: (d_totals[bid] || 0) + (a_totals[bid] || 0) }
         end.sort_by { |r| -r[:total] }
 
-        build(I18n.t("finance.reports.titles.expenses_by_branch"), I18n.t("finance.expenses.branch"), rows)
+        unallocated = scoped.business_level
+        build(I18n.t("finance.reports.titles.expenses_by_branch"), I18n.t("finance.expenses.branch"), rows,
+              unallocated: unallocated_row(unallocated.count, unallocated.sum(:amount)))
+      end
+
+      def unallocated_row(count, total)
+        { label: I18n.t("finance.reports.unallocated"), count: count, total: total } if count.positive?
       end
 
       def grouped
@@ -91,7 +100,8 @@ module Finance
         end
       end
 
-      def build(title, group_label, rows)
+      def build(title, group_label, rows, unallocated: nil)
+        summed = unallocated ? rows + [ unallocated ] : rows
         Table.new(
           title:   title,
           columns: [
@@ -99,8 +109,9 @@ module Finance
             Column.new(key: :count, label: I18n.t("finance.reports.count"), money: false),
             Column.new(key: :total, label: I18n.t("finance.reports.total_amount"), money: true)
           ],
-          rows:    rows,
-          totals:  { count: rows.sum { |r| r[:count] }, total: rows.sum { |r| r[:total] } }
+          rows:        rows,
+          unallocated: unallocated,
+          totals:      { count: summed.sum { |r| r[:count] }, total: summed.sum { |r| r[:total] } }
         )
       end
     end

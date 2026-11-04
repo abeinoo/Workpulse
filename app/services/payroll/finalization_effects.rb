@@ -14,10 +14,14 @@ module Payroll
   # asynchronous work.
   #
   # A handler must respond to:
-  #   period_finalized(period:, actor:, employer_insurance_total:, employer_insurance_by_branch:)
+  #   period_finalized(period:, actor:, employer_insurance_total:, employer_insurance_by_branch:,
+  #                    employer_insurance_unallocated:)
   #     — after the period becomes "finalized"; the employer insurance cost is
-  #       passed as data ({branch_id => amount}, Payroll::EmployerInsuranceCost)
-  #       so the handler never reads payroll entries itself (§14.1 A)
+  #       passed as data (Payroll::EmployerInsuranceCost) so the handler never
+  #       reads payroll entries itself (§14.1 A): the total, the part attributed
+  #       to branches ({branch_id => amount}) and the part attributed to no
+  #       branch (floating employees — a business-level cost the handler must
+  #       record unallocated, never on a branch). total = by_branch + unallocated.
   #   period_reopened(period:, actor:, reason:)
   #     — after it leaves "finalized" for review
   module FinalizationEffects
@@ -39,10 +43,12 @@ module Payroll
         @handler || raise(NotRegistered, "No Payroll::FinalizationEffects handler is registered")
       end
 
-      def period_finalized(period:, actor:, employer_insurance_total:, employer_insurance_by_branch:)
+      def period_finalized(period:, actor:, employer_insurance_total:, employer_insurance_by_branch:,
+                           employer_insurance_unallocated:)
         handler.period_finalized(period: period, actor: actor,
                                  employer_insurance_total: employer_insurance_total,
-                                 employer_insurance_by_branch: employer_insurance_by_branch)
+                                 employer_insurance_by_branch: employer_insurance_by_branch,
+                                 employer_insurance_unallocated: employer_insurance_unallocated)
       end
 
       def period_reopened(period:, actor:, reason:)

@@ -1,4 +1,4 @@
-<% if table.rows.empty? %>
+<% if table.rows.empty? && !table.unallocated? %>
   <div class="empty-state">
     <%= render "finance/shared/empty_icon" %>
     <p class="empty-state__title"><%= t("finance.reports.no_data") %></p>
@@ -21,6 +21,19 @@
                   <%= content_tag :span, format_currency(row[col.key]), class: (row[col.key].to_d.negative? ? "amount-negative" : "amount-positive") %>
                 <% else %>
                   <%= row[col.key] %>
+                <% end %>
+              </td>
+            <% end %>
+          </tr>
+        <% end %>
+        <% if table.unallocated? %>
+          <tr data-testid="report-unallocated-row">
+            <% table.columns.each do |col| %>
+              <td style="<%= 'text-align: end;' if col.money %>">
+                <% if col.money %>
+                  <%= content_tag :span, format_currency(table.unallocated[col.key]), class: (table.unallocated[col.key].to_d.negative? ? "amount-negative" : "amount-positive") %>
+                <% else %>
+                  <em><%= table.unallocated[col.key] %></em>
                 <% end %>
               </td>
             <% end %>

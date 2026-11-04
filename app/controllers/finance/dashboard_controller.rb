@@ -101,9 +101,13 @@ class Finance::DashboardController < Finance::BaseController
     [ previous_to - (@filters.to - @filters.from), previous_to ]
   end
 
-  # payroll / net are nil when any branch in view withholds them.
+  # payroll / net are nil when any branch in view withholds them. A
+  # business-wide view also counts the unallocated costs (floating employees —
+  # Finance::Reports::BranchProfitability's own line, never a branch row) once.
   def profitability_for(month)
     rows = profitability_rows_for(month)
+    unallocated = profitability_table_for(month).unallocated
+    rows += [ unallocated ] if unallocated && business_wide_view?
     %i[revenue payroll inventory expenses net].index_with do |k|
       rows.any? { |r| r[k].nil? } ? nil : rows.sum { |r| r[k] }
     end
@@ -115,11 +119,22 @@ class Finance::DashboardController < Finance::BaseController
   # five grouped queries.
   def profitability_rows_for(month)
     @profitability_rows_by_month ||= {}
-    @profitability_rows_by_month[month] ||= begin
-      table = Finance::Reports::BranchProfitability.new(current_user.business, year: month.year, month: month.month,
-                                                        payroll_branch_ids: payroll_branch_ids).call
-      table.rows.select { |r| branch_names_by_id.value?(r[:branch]) }
-    end
+    @profitability_rows_by_month[month] ||=
+      profitability_table_for(month).rows.select { |r| branch_names_by_id.value?(r[:branch]) }
+  end
+
+  def profitability_table_for(month)
+    @profitability_tables_by_month ||= {}
+    @profitability_tables_by_month[month] ||=
+      Finance::Reports::BranchProfitability.new(current_user.business, year: month.year, month: month.month,
+                                                payroll_branch_ids: payroll_branch_ids,
+                                                unallocated_payroll: Finance::PayrollCostAccess.new(current_user).unallocated?).call
+  end
+
+  # No branch filter and every branch of the business in the viewer's scope, so
+  # business-level costs that belong to no branch count too.
+  def business_wide_view?
+    params[:branch_id].blank? && (all_branch_names_by_id.keys - @filters.branch_ids).empty?
   end
 
   # id => name for every branch in scope, cached business-wide (branch lists
@@ -138,9 +153,14 @@ class Finance::DashboardController < Finance::BaseController
     end
   end
 
+  # Unallocated expenses (business-level, floating employees) belong to no
+  # branch: counted only in the business-wide view — the same rule as the
+  # net-profit KPI (#profitability_for) — never under a branch filter or a
+  # narrower branch scope.
   def expenses_scope(from, to)
     scope = policy_scope(Expense).where(status: "approved").in_period(from, to)
                                   .where(branch_id: [ nil ] + @filters.branch_ids)
+    scope = scope.where(unallocated: false) unless business_wide_view?
     scope = scope.where(payment_source: @filters.payment_source) if @filters.payment_source
     scope
   end
@@ -370,8 +390,11 @@ class Finance::DashboardController < Finance::BaseController
   # ── Smart insights ───────────────────────────────────────────────────────
 
   def load_insights
-    by_branch = expenses_scope(@filters.from, @filters.to).group(:branch_id).sum(:amount)
-                  .map { |id, total| [ id ? branch_names_by_id[id] : t("finance.expenses.shared"), total ] }.to_h
+    by_branch = expenses_scope(@filters.from, @filters.to).group(:branch_id, :unallocated).sum(:amount)
+                  .each_with_object(Hash.new(0)) do |((id, unallocated), total), totals|
+                    label = id ? branch_names_by_id[id] : t(unallocated ? "finance.reports.unallocated" : "finance.expenses.shared")
+                    totals[label] += total
+                  end
 
     @insights = Finance::Dashboard::InsightsGenerator.new(
       by_category: @by_category.to_h,
