@@ -51,7 +51,7 @@ does not restate the architecture rules — it references them:
 
 ### 1.2 Approved for implementation (phases 4–14)
 
-* **Commit boundary:** one commit for the 78-file Floating Employees scope (§2) — message
+* **Commit boundary:** one commit for the 80-file Floating Employees scope (§2) — message
   `feat: floating employees — assignments, central payroll review, unallocated costs`. **Not yet authorised.**
 * **P9 — resolver:** existing `Shifts::AssignmentResolver` resolves one winning assignment per date: temporary
   coverage first, then latest `effective_from`, then highest id. Weekdays read only from the winner — never unioned
@@ -101,10 +101,15 @@ Recorded state (re-verify before use, §15): branch `feat/floating-employees`, H
 `stash@{2}` overlap commit files (shift-assignment files, locales, `db/schema.rb`) — **never apply, pop or include
 them.** PR #110 is merged (`6988782`) and must not be modified.
 
-**This plan document is NOT part of the 78-file manifest.** It is an additional untracked file; whether it is
+**Manifest expanded to 80 paths (owner-approved, 2026-11-04):** the H-1 fix
+(`app/views/dashboard/_widget_my_attendance.html.erb`, floating-employee dashboard check-out with a NULL branch) and
+its request spec (`spec/requests/dashboard_floating_attendance_spec.rb`) are part of the commit — 61 modified,
+19 untracked.
+
+**This plan document is NOT part of the 80-file manifest.** It is an additional untracked file; whether it is
 committed with the floating work or separately is a decision for the commit approval (§16).
 
-Modified (60):
+Modified (61):
 ```
 app/controllers/api/v1/payroll_periods_controller.rb
 app/controllers/finance/dashboard_controller.rb
@@ -147,6 +152,7 @@ app/views/admin/users/_shift_timeline.html.erb
 app/views/attendance_records/edit.html.erb
 app/views/attendance_records/index.html.erb
 app/views/attendance_records/show.html.erb
+app/views/dashboard/_widget_my_attendance.html.erb
 app/views/finance/expenses/index.html.erb
 app/views/finance/expenses/show.html.erb
 app/views/finance/reports/_table.html.erb
@@ -168,7 +174,7 @@ spec/services/payroll/finalization_effects_spec.rb
 spec/services/payroll/period_recalculator_spec.rb
 ```
 
-Untracked (18):
+Untracked (19):
 ```
 app/services/payroll/central_review.rb
 db/migrate/20261104190000_allow_central_payroll_period_review.rb
@@ -178,6 +184,7 @@ spec/models/shift_assignment_floating_spec.rb
 spec/policies/floating_employee_visibility_spec.rb
 spec/requests/api/v1/floating_punch_spec.rb
 spec/requests/attendance_records_floating_spec.rb
+spec/requests/dashboard_floating_attendance_spec.rb
 spec/requests/finance/dashboard_unallocated_spec.rb
 spec/requests/payroll_central_review_spec.rb
 spec/requests/shift_assignments_floating_spec.rb
@@ -233,7 +240,7 @@ Requests::Submitter / Approver /      │       │
 
 | # | Phase | Main files | Depends on |
 |---|---|---|---|
-| 1 | Final verification (§15) and owner-approved single commit of the floating work | the 78-file manifest | owner approval |
+| 1 | Final verification (§15) and owner-approved single commit of the floating work | the 80-file manifest | owner approval |
 | 2 | Open the Floating Employees PR — **no merge** without separate approval | — | 1 |
 | 3 | **Production NULL-branch pre-deployment query** (§15.3), read-only, by an authorised operator | — | before deploying 1 |
 | 4 | **Working weekdays:** schema, model, Assign Shift picker, schedule editing, `Shifts::ScheduleChanger` (end + successor) | migration; `shift_assignment.rb`; `shift_assignments_controller.rb`; `_form`/`edit`; `assignment_kind_fields_controller.js`; `shifts/assigner.rb` (optional parameter); bulk assign; new `shifts/schedule_changer.rb`; `shift_assignment_policy.rb`; locales | 1 |
@@ -552,7 +559,7 @@ Rollback considerations per change are in §6; standard procedure in `docs/rollb
 ## 15. Deployment and verification gates
 
 ### 15.1 Before the Floating Employees commit (read-only until the final, approved staging step)
-1. Write the §2 manifest (78 paths) to a temporary file outside the repository, e.g. `/tmp/manifest.txt`.
+1. Write the §2 manifest (80 paths) to a temporary file outside the repository, e.g. `/tmp/manifest.txt`.
 2. Branch is `feat/floating-employees`; HEAD `ce31dde`; base still equals `origin/main`.
 3. `git diff --cached --quiet` — zero staged files.
 4. Exact path comparison, not counts. The plan document is excluded unless the commit approval includes it:
