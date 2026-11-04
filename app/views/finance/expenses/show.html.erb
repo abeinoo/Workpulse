@@ -71,7 +71,7 @@
       </div>
       <div class="detail-list__row">
         <dt><%= t("finance.expenses.branch") %></dt>
-        <dd><%= @expense.is_shared? ? t("finance.expenses.shared") : (@expense.branch&.name || "—") %></dd>
+        <dd><%= @expense.is_shared? ? t("finance.expenses.shared") : (@expense.branch&.name || (@expense.unallocated? ? t("finance.reports.unallocated") : "—")) %></dd>
       </div>
       <div class="detail-list__row">
         <dt><%= t("finance.expenses.category") %></dt>

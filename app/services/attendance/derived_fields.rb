@@ -30,11 +30,11 @@ module Attendance
       late_profile  = rule_profile if mobile_grace && record.check_in_source == "mobile"
       early_profile = rule_profile if mobile_grace && record.check_out_source == "mobile"
 
-      late_mins = shift ? TimeCalculator.late_minutes(shift, record.check_in_at, branch, rule_profile: late_profile) : 0
+      late_mins = shift ? TimeCalculator.late_minutes(shift, record.check_in_at, business, rule_profile: late_profile) : 0
 
       if record.check_in_at && record.check_out_at
         worked_mins      = ((record.check_out_at - record.check_in_at) / 60).to_i
-        early_leave_mins = shift ? TimeCalculator.early_leave_minutes(shift, record.check_out_at, worked_mins, branch,
+        early_leave_mins = shift ? TimeCalculator.early_leave_minutes(shift, record.check_out_at, worked_mins, business,
                                                                       rule_profile: early_profile) : 0
         overtime_mins    = TimeCalculator.overtime_minutes(
           shift, worked_mins,

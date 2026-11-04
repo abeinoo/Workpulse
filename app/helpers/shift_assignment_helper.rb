@@ -36,6 +36,14 @@ module ShiftAssignmentHelper
     options_for_select(options, selected)
   end
 
+  # ── Branch label ─────────────────────────────────────────────────────────────
+
+  # The assignment's branch name; "Floating" for a floating assignment (which
+  # has no branch by design), "—" for any other assignment without one.
+  def assignment_branch_label(assignment)
+    assignment.branch_name || (assignment.floating? ? t("shift_assignments.floating.label") : "—")
+  end
+
   # ── Status badge ─────────────────────────────────────────────────────────────
 
   # Returns the CSS badge class (badge-success / badge-accent / badge-neutral)

@@ -410,6 +410,7 @@ en:
     date: "Date"
     work_date: "Work Date"
     branch: "Branch"
+    floating_branch: "Floating"
     shift: "Shift"
     status: "Status"
     notes: "Notes"
@@ -649,6 +650,8 @@ en:
     top_employees_title: "Top 5 Employees — %{label}"
     pending_title: "Pending Periods"
     no_branch: "No branch"
+    unallocated: "Unallocated"
+    floating_employee: "Floating"
     col_employee: "Employee"
     col_base: "Base"
     col_overtime: "Overtime"
@@ -656,9 +659,20 @@ en:
     col_net: "Net"
 
   payroll:
+    central_review:
+      label: "Central review (floating employees)"
+      business_level_reviewer: "Any business-level reviewer"
+      out_of_date: "Out of date"
+      attention_changed: "Floating employees' payroll changed after the central review was approved. The central review will be reopened and the period cannot be finalized until it is approved again."
+      attention_required: "Floating employees were added after this period was submitted. A central review will be opened and is required before finalization."
+      reopen_reasons:
+        floating_employees_added: "Floating employees appeared after submission"
+        content_changed: "Floating employees' payroll changed after approval"
     errors:
       pending_adjustments_finalize: "Payroll cannot be finalized: %{count} adjustment(s) are still pending review. Approve or reject them first."
       recalculation_review_required_finalize: "Payroll cannot be finalized: %{count} employee(s) changed by Recalculate Payroll still need review. Mark them reviewed first."
+      central_review_pending_finalize: "Payroll cannot be finalized: the central review of floating employees is not completed yet."
+      central_review_not_allowed: "Only business-level payroll reviewers can complete the central review of floating employees."
       pending_adjustments_pay: "Payroll cannot be marked as paid: %{count} adjustment(s) are still pending review. Reopen the payroll period to approve or reject them first."
     insurance_expense_void_reason: "Payroll period reopened: %{reason}"
     base_salary: "Base salary"
@@ -884,6 +898,7 @@ en:
       to_col: "To"
       date_col: "Date"
       branch_review_progress: "Branch Review Progress"
+      changes_requested_by: "Changes requested by %{name}"
       reviewer: "Reviewer"
       completed: "Completed"
       reviewed_at: "Last Reviewed"
@@ -1134,6 +1149,8 @@ en:
         nothing_to_change: "Nothing to recalculate: every entry already matches the current data."
         failed: "Recalculation failed and nothing was changed. Please try again; if it keeps failing, contact support."
     audit_log_action_types:
+      review_slot_completed: "Review approved"
+      central_review_reopened: "Central review reopened"
       recalculated: "Payroll recalculated"
       overtime_recalculated: "Overtime recalculated"
       generated: "Generated"
@@ -1765,6 +1782,8 @@ en:
       assignment_kind_label: "Assignment Kind"
       assignment_kind_regular: "Regular"
       assignment_kind_temporary_coverage: "Temporary Coverage"
+      assignment_kind_floating: "Floating (no home branch)"
+      floating_hint: "A floating employee has no home branch and may punch at any active branch of the business. Any open regular assignment must end before the floating assignment starts."
       assignment_kind_hint: "Temporary coverage does not change the employee's permanent branch — they automatically return to their regular assignment once the end date passes."
       reason_label: "Reason"
       reason_placeholder: "e.g. Covering another employee's absence"
@@ -1783,6 +1802,8 @@ en:
         other: "Lists employees with no active assignment, or whose current assignment ends within %{count} days — including employees at other branches."
     coverage:
       badge: "Coverage"
+    floating:
+      label: "Floating"
 
   # ── Shift Timeline (employee profile) ──────────────────────────────────────
   shift_timeline:
@@ -5633,6 +5654,8 @@ en:
         before_start: "must be on or after the start date"
         after_start: "must be on or after the start date"
         allocation_not_100: "branch allocations must total 100%"
+        unallocated_payroll_only: "Only a payroll-generated expense with no branch can be recorded as unallocated."
+        unallocated_without_allocations: "must be empty for an unallocated expense"
         allocation_duplicate_branch: "The same branch cannot be added more than once in an expense distribution."
         allocation_amount_short: "Branch distribution must equal the full expense amount. Remaining to distribute: %{amount}."
         allocation_amount_exceeds: "Branch distribution exceeds the expense amount by %{amount}."
@@ -5648,6 +5671,10 @@ en:
           branch_inactive_reopen: "This assignment's branch is inactive: the assignment cannot be reopened or extended. It can still be ended or shortened."
           shift_rule_profile_not_in_business: "The selected shift rule profile does not belong to your business."
           coverage_branch_not_allowed: "Choose a coverage branch other than your own branch."
+          floating_with_branch: "A floating assignment cannot have a branch."
+          floating_overlaps_assignment: "This employee has another assignment during these dates. End it before the floating assignment starts."
+          overlaps_floating_assignment: "This employee has a floating assignment during these dates. End it before this assignment starts."
+          floating_not_allowed: "Only users with business-wide shift assignment access can create a floating assignment."
           employee_not_available_for_assignment:
             one: "The selected employee is not available for a new assignment. Only employees with no active assignment, or whose current assignment ends within 1 day, can be assigned."
             other: "The selected employee is not available for a new assignment. Only employees with no active assignment, or whose current assignment ends within %{count} days, can be assigned."
@@ -7501,6 +7528,7 @@ en:
       month: "Month"
       monthly_equivalent: "Monthly Equivalent"
       untyped: "Untyped"
+      unallocated: "Unallocated (business-level)"
       no_data: "No data for the selected filters."
       no_data_hint: "Try a different period or branch, or check back once activity is recorded."
       export_csv: "Export CSV"

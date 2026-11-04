@@ -148,6 +148,35 @@ RSpec.describe Payroll::PeriodRecalculator do
       expect(north_impact.changed_count).to eq(1)
     end
 
+    context "when the changed employee is floating" do
+      let!(:ahmed_assignment) do
+        create(:shift_assignment, :floating, user: ahmed, shift: shift, effective_from: Date.new(2026, 1, 1))
+      end
+
+      before { create(:payroll_period_branch_review, :central, payroll_period: october) }
+
+      it "reports the central review as the affected sign-off, never a branch" do
+        impact = preview.branches.sole
+
+        expect(impact.branch_id).to be_nil
+        expect(impact.branch_name).to eq(I18n.t("payroll.central_review.label"))
+        expect(impact.review_status).to eq("pending")
+        expect(impact.changed_count).to eq(1)
+      end
+
+      it "reopens an approved central review when the recalculation changes the floating employee's figures" do
+        owner = create(:user, business: business).tap { |u| business.update!(owner: u) }
+        Payroll::BranchReviewCompleter.call(period: october.reload, branch: nil, reviewer: owner)
+        expect(october.payroll_period_branch_reviews.central.sole).to be_completed
+
+        expect(apply!).to be_ok
+
+        expect(october.payroll_period_branch_reviews.central.sole).to have_attributes(status: "pending", reviewer_id: nil)
+        expect(october.payroll_audit_logs.where(action_type: "central_review_reopened").sole.metadata_hash)
+          .to include("reason" => "content_changed")
+      end
+    end
+
     it "has zero persistent side effects: no row in any table, no job" do
       ActiveJob::Base.queue_adapter = :test
       before = database_checksum

@@ -3,14 +3,20 @@ module Finance
   # employer insurance cost, and its void when the period is reopened (FS-D1).
   # Reached only through Payroll::FinalizationEffects (implemented by
   # Finance::PayrollFinalizationEffects); Payroll supplies the cost as data
-  # (total + {branch_id => amount}), so this service reads no payroll entries
-  # or shift assignments.
+  # (total + {branch_id => amount} + unallocated amount), so this service reads
+  # no payroll entries or shift assignments.
   #
   # Purely a P&L record — never touches net salary; the employee share is
   # applied as a payroll deduction by Payroll::EntryCalculator. No liability
   # or settlement record is created. Idempotent: a period has at most one
-  # active (non-voided) insurance Expense, enforced by a partial unique index
-  # on expenses.source_payroll_period_id.
+  # active (non-voided) branch-attributed insurance Expense and one active
+  # unallocated one, enforced by a partial unique index on
+  # expenses.(source_payroll_period_id, unallocated).
+  #
+  # The unallocated part (floating employees, no home branch) is its own
+  # business-level Expense — unallocated: true, no branch, no split — so it is
+  # never attributed to a branch; the branch-attributed Expense is built exactly
+  # as before from the rest (total - unallocated).
   #
   # Moved unchanged from Payroll::InsuranceExpenseGenerator (Milestone 2 —
   # Finance & Sales Expenses, M4).
@@ -21,8 +27,8 @@ module Finance
 
     Result = Struct.new(:ok, :expense, :error, keyword_init: true) { def ok? = ok }
 
-    def self.record(period:, actor:, total:, by_branch:)
-      new(period: period, actor: actor).record(total: total, by_branch: by_branch)
+    def self.record(period:, actor:, total:, by_branch:, unallocated: 0)
+      new(period: period, actor: actor).record(total: total, by_branch: by_branch, unallocated: unallocated)
     end
 
     # The active insurance Expense no longer reflects the payroll once the
@@ -39,13 +45,15 @@ module Finance
       @actor  = actor
     end
 
-    def record(total:, by_branch:)
+    def record(total:, by_branch:, unallocated: 0)
       return Result.new(ok: true) if Expense.where(source_payroll_period: @period, voided_at: nil).exists?
       return Result.new(ok: true) if total <= 0
 
-      expense = build_employer_expense(@period.business, total, by_branch)
+      attributed     = total - unallocated
+      expense        = build_employer_expense(@period.business, attributed, by_branch) if attributed.positive?
+      business_level = build_unallocated_expense(@period.business, unallocated) if unallocated.positive?
 
-      Result.new(ok: true, expense: expense)
+      Result.new(ok: true, expense: expense || business_level)
     end
 
     def void_active!(reason:)
@@ -100,6 +108,28 @@ module Finance
 
       log_audit(actor: @actor, auditable: expense, action: "insurance_expense_generated",
                 metadata: { payroll_period_id: @period.id, employer_total: employer_total.to_s })
+      expense
+    end
+
+    # The floating employees' employer cost: one business-level Expense with no
+    # branch and no split (Expense#unallocated_payroll_only).
+    def build_unallocated_expense(business, amount)
+      expense = business.expenses.create!(
+        expense_category:      insurance_category(business),
+        deduct_from_balance:   false,
+        amount:                amount,
+        expense_date:          @period.period_end,
+        status:                "approved",
+        approved_at:           Time.current,
+        approved_by:           @actor,
+        created_by:            @actor,
+        source_payroll_period: @period,
+        unallocated:           true,
+        reference_number:      Finance::NumberSequencer.new(business, :expense).next_number
+      )
+
+      log_audit(actor: @actor, auditable: expense, action: "insurance_expense_generated",
+                metadata: { payroll_period_id: @period.id, employer_total: amount.to_s, unallocated: true })
       expense
     end
 

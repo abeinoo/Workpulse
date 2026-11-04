@@ -56,10 +56,12 @@ class Finance::ReportsController < Finance::BaseController
     # Payroll cost (and net profit, which reveals it) only for the branches of
     # the viewer's view_payroll scope — the HTML, CSV and charts all read @table.
     @table          = Finance::Reports::BranchProfitability.new(business, year: @year, month: @month,
-                                                                payroll_branch_ids: payroll_branch_ids).call
+                                                                payroll_branch_ids: payroll_branch_ids,
+                                                                unallocated_payroll: unallocated_payroll?).call
     previous_month  = Date.new(@year, @month, 1) - 1.month
     @previous_table = Finance::Reports::BranchProfitability.new(business, year: previous_month.year, month: previous_month.month,
-                                                                payroll_branch_ids: payroll_branch_ids).call
+                                                                payroll_branch_ids: payroll_branch_ids,
+                                                                unallocated_payroll: unallocated_payroll?).call
     @payroll_restricted = @table.rows.any? { |row| row[:payroll].nil? }
 
     # Branch Profitability is a Sales-branch report (see Finance::Reports::
@@ -130,7 +132,7 @@ class Finance::ReportsController < Finance::BaseController
       business, year: @period.from_year, month: @period.from_month,
       to_year: @period.to_year, to_month: @period.to_month,
       branch_id: @selected_branch_id, expense_type_id: @expense_type_id,
-      payroll_branch_ids: payroll_branch_ids
+      payroll_branch_ids: payroll_branch_ids, unallocated_payroll: unallocated_payroll?
     ).call
     @result.sections = @result.sections.select { |s| s.key == @selected_section.to_sym } if @selected_section
     shown_payroll_entries = restrict_payroll_rows!(@result)
@@ -158,6 +160,9 @@ class Finance::ReportsController < Finance::BaseController
   def payroll_branch_ids
     @payroll_branch_ids ||= Finance::PayrollCostAccess.new(current_user).branch_ids
   end
+
+  # Whether floating employees' salary (the Unallocated line) may be shown.
+  def unallocated_payroll? = Finance::PayrollCostAccess.new(current_user).unallocated?
 
   # The payroll section's employee rows name each employee's pay, so they are
   # shown only for the entries the viewer may see (PayrollEntryPolicy scope:

@@ -74,7 +74,7 @@
               data: {
                 controller: "attendance-location",
                 action: "submit->attendance-location#capture",
-                attendance_location_required_value: @today_record.branch.geolocation_enabled?
+                attendance_location_required_value: @today_record.branch&.geolocation_enabled? || false
               } do |f| %>
           <%= f.hidden_field :branch_id, value: @today_record.branch_id %>
           <%= f.hidden_field :latitude,  data: { attendance_location_target: "lat" } %>

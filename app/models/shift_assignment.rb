@@ -6,7 +6,9 @@ class ShiftAssignment < ApplicationRecord
 
   belongs_to :user
   belongs_to :shift
-  belongs_to :branch
+  # Required for regular and temporary_coverage assignments, absent for
+  # floating ones (see below).
+  belongs_to :branch, optional: true
   belongs_to :rule_profile, class_name: "ShiftRuleProfile",
                             foreign_key: :shift_rule_profile_id, optional: true
   belongs_to :created_by,      class_name: "User",          optional: true
@@ -20,13 +22,22 @@ class ShiftAssignment < ApplicationRecord
   # regular assignment row — see Shifts::AssignmentResolver, which prefers a
   # temporary_coverage assignment over a concurrent regular one when both are
   # active for the same date.
-  enum :assignment_kind, { regular: "regular", temporary_coverage: "temporary_coverage" }
+  # floating — an employee with no home branch (e.g. an area manager working
+  # across branches): the assignment carries their shift and rules but no
+  # branch, so it creates no branch membership and the attendance records
+  # matched to it keep a NULL branch (each punch keeps its actual branch on its
+  # BiometricPunchLog). It may not run alongside any other assignment of the
+  # same employee.
+  enum :assignment_kind, { regular: "regular", temporary_coverage: "temporary_coverage", floating: "floating" }
 
   validates :effective_from, presence: true
+  validates :branch,       presence: { message: :required }, unless: :floating?
+  validate  :floating_without_branch
   validates :reason,       presence: true, if: :temporary_coverage?
   validates :effective_to, presence: true, if: :temporary_coverage?
   validate  :effective_to_after_effective_from
   validate  :no_overlapping_assignment
+  validate  :floating_exclusive
   validate  :no_overlapping_shift_time
   # A deactivated branch takes no new assignments and no assignment there is
   # reopened or extended into effect (BUG-026); existing ones keep their branch
@@ -34,7 +45,8 @@ class ShiftAssignment < ApplicationRecord
   validate  :branch_active, if: -> { will_save_change_to_branch_id? || extends_into_effect? }
   # Backstop for every write path (web, API, template application, console):
   # the employee, shift and rule profile must belong to the business that owns
-  # the branch (BUG-031) — attendance penalties and payroll read them.
+  # the branch (BUG-031) — attendance penalties and payroll read them. With no
+  # branch (floating), the employee's business is the reference.
   validate  :references_in_branch_business,
             if: -> { will_save_change_to_branch_id? || will_save_change_to_user_id? ||
                      will_save_change_to_shift_id? || will_save_change_to_shift_rule_profile_id? }
@@ -110,6 +122,20 @@ class ShiftAssignment < ApplicationRecord
       .order(:effective_from)
       .pluck(:user_id, :branch_id)
       .each_with_object({}) { |(uid, branch_id), h| h[uid] = branch_id }
+  end
+
+  # user_ids whose latest-effective assignment during [from, to] — the one
+  # branch_ids_by_user attributes them by, where they map to nil — is floating:
+  # their costs belong to no branch (business-level, unallocated), never to a
+  # fallback branch. A floating assignment never overlaps another assignment of
+  # the same employee, so "latest" is unambiguous for them.
+  def self.floating_user_ids(user_ids, from:, to:)
+    active_during(from, to)
+      .where(user_id: user_ids)
+      .order(:effective_from)
+      .pluck(:user_id, :assignment_kind)
+      .each_with_object({}) { |(uid, kind), h| h[uid] = kind }
+      .filter_map { |uid, kind| uid if kind == "floating" }
   end
 
   # ── Status helpers ───────────────────────────────────────────────────────────
@@ -209,7 +235,7 @@ class ShiftAssignment < ApplicationRecord
   end
 
   def references_in_branch_business
-    business_id = branch&.business_id
+    business_id = branch ? branch.business_id : user&.business_id
     return if business_id.nil?
 
     errors.add(:user_id, :other_business)               if user && user.business_id != business_id
@@ -230,7 +256,32 @@ class ShiftAssignment < ApplicationRecord
     effective_to > previous && branch.present? && effective_to >= BusinessDay.current(context: branch.business)
   end
 
+  def floating_without_branch
+    errors.add(:base, :floating_with_branch) if floating? && branch_id.present?
+  end
+
+  # A floating assignment replaces every other assignment of the employee for
+  # its dates: it may not overlap one, and no assignment of any kind may overlap
+  # a floating one.
+  def floating_exclusive
+    return unless user_id && effective_from
+
+    others = overlapping_assignments_of_user
+    others = others.floating unless floating?
+    return unless others.exists?
+
+    errors.add(:base, floating? ? :floating_overlaps_assignment : :overlaps_floating_assignment)
+  end
+
+  def overlapping_assignments_of_user
+    ShiftAssignment.where(user_id: user_id).where.not(id: id)
+                   .where("effective_from <= ?", effective_to || Date.new(9999, 12, 31))
+                   .where("effective_to IS NULL OR effective_to >= ?", effective_from)
+  end
+
+  # Floating assignments are covered by #floating_exclusive.
   def no_overlapping_assignment
+    return if floating?
     return unless user_id && effective_from
 
     range_end  = effective_to || Date.new(9999, 12, 31)
@@ -266,6 +317,7 @@ class ShiftAssignment < ApplicationRecord
   # before — an employee still can't be double-booked at the same clock
   # hours in two regular shifts, or covering two branches at once.
   def no_overlapping_shift_time
+    return if floating? # #floating_exclusive refuses any overlap
     return unless user_id && effective_from && shift_id
     return unless shift&.fixed_time?
 

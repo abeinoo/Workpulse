@@ -8,7 +8,9 @@ module Payroll
   # exactly as Payroll::EntryRecalculator does for one employee. Regenerate
   # stays draft-only; finalized and paid periods are never recalculated.
   #
-  # What is kept: the period status, branch sign-offs, the audit history, each
+  # What is kept: the period status (except that changed floating-employee
+  # figures reopen a completed central review — Payroll::CentralReview), branch
+  # sign-offs, the audit history, each
   # entry's id and notes, payroll adjustment line items (any status, with their
   # review fields), API-added cash incentives, overtime overrides, deduction
   # waivers and addition cancellations (EntryRecalculator / EntryCalculator).
@@ -115,6 +117,9 @@ module Payroll
 
         flag_for_re_review!(plan)
         write_audit!(plan, reason.to_s.strip, snapshot.snapshot)
+        # New figures for floating employees reopen a completed central review
+        # (and return a branch-review-completed period to review).
+        Payroll::CentralReview.new(period).sync!(actor: @actor)
         result = Result.new(ok: true, preview: plan)
       end
       result
@@ -212,11 +217,13 @@ module Payroll
     end
 
     # The branches an employee worked at during the period — the same rule
-    # Payroll::SubmitForReview uses to open the branch review slots.
+    # Payroll::SubmitForReview uses to open the branch review slots. A floating
+    # assignment counts as nil: the central review slot (branch_id NULL).
     def branch_ids_by_user(user_ids)
       ShiftAssignment.active_during(period.period_start, period.period_end)
-                     .where(user_id: user_ids).distinct.pluck(:user_id, :branch_id)
-                     .group_by(&:first).transform_values { |pairs| pairs.map(&:last) }
+                     .where(user_id: user_ids).distinct.pluck(:user_id, :branch_id, :assignment_kind)
+                     .reject { |_, branch_id, kind| branch_id.nil? && kind != "floating" }
+                     .group_by(&:first).transform_values { |rows| rows.map(&:second).uniq }
     end
 
     def branch_impacts(rows)
@@ -230,7 +237,8 @@ module Payroll
         next if count.zero?
 
         review = reviews[branch_id]
-        BranchImpact.new(branch_id: branch_id, branch_name: names[branch_id], review_status: review&.status,
+        name   = branch_id ? names[branch_id] : I18n.t("payroll.central_review.label")
+        BranchImpact.new(branch_id: branch_id, branch_name: name, review_status: review&.status,
                          reviewer_name: review&.reviewer&.full_name, completed_at: review&.completed_at,
                          changed_count: count)
       end.sort_by { |b| b.branch_name.to_s }

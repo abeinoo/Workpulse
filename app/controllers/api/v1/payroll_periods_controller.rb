@@ -163,7 +163,7 @@ module Api
           data[:branch_reviews] = period.payroll_period_branch_reviews.includes(:branch, :reviewer).map do |r|
             {
               branch_id:    r.branch_id,
-              branch_name:  r.branch.name,
+              branch_name:  r.branch&.name,
               reviewer_id:  r.reviewer_id,
               status:       r.status,
               completed_at: r.completed_at

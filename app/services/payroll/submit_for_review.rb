@@ -1,7 +1,10 @@
 module Payroll
   # Transitions a draft period to under_review and creates a
   # PayrollPeriodBranchReview slot for every branch that has employees
-  # in this period (or just the period's specific branch if set).
+  # in this period (or just the period's specific branch if set), plus one
+  # central slot (no branch, no reviewer yet) when the period has floating
+  # employees — they belong to no branch, so no branch manager reviews them;
+  # see PayrollPeriodBranchReview.central_reviewer?.
   class SubmitForReview
     Result = Struct.new(:success, :period, :error, keyword_init: true) do
       def success? = success
@@ -35,6 +38,7 @@ module Payroll
     def submit_initial!
       ActiveRecord::Base.transaction do
         create_branch_review_slots!
+        create_central_review_slot!
         @period.update!(status: :under_review)
         PayrollAuditLog.create!(
           payroll_period: @period,
@@ -46,13 +50,21 @@ module Payroll
       end
     end
 
+    # The slots that requested changes go back to pending: their reviewer is
+    # again the one the slot is assigned to — the branch manager for a branch
+    # slot, nobody (any business-level reviewer) for the central one — never
+    # the person who requested the changes (kept in the
+    # branch_changes_requested audit event, with the comment). Then the central
+    # review is synced: a floating employee who joined since, or a completed
+    # central review whose content changed, is reviewed again
+    # (Payroll::CentralReview).
     def resubmit!
       ActiveRecord::Base.transaction do
-        @period.payroll_period_branch_reviews.changes_requested.update_all(
-          status:       "pending",
-          completed_at: nil,
-          notes:        nil
-        )
+        @period.payroll_period_branch_reviews.changes_requested.includes(:branch).find_each do |review|
+          review.update!(status: :pending, completed_at: nil, notes: nil,
+                         reviewer_id: review.central? ? nil : (review.branch.branch_manager_id || review.reviewer_id))
+        end
+        Payroll::CentralReview.new(@period).sync!(actor: @by)
         PayrollAuditLog.create!(
           payroll_period: @period,
           actor:          @by,
@@ -70,6 +82,14 @@ module Payroll
           r.reviewer = branch.branch_manager
           r.status   = :pending
         end
+      end
+    end
+
+    def create_central_review_slot!
+      return unless Payroll::CentralReview.new(@period).floating?
+
+      PayrollPeriodBranchReview.find_or_create_by!(payroll_period: @period, branch: nil) do |r|
+        r.status = :pending
       end
     end
 

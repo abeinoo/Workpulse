@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_04_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_04_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -758,6 +758,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_180000) do
     t.bigint "cancelled_by_id"
     t.text "cancellation_reason"
     t.string "payment_type", default: "direct", null: false
+    t.boolean "unallocated", default: false, null: false
     t.index ["approved_by_id"], name: "index_expenses_on_approved_by_id"
     t.index ["branch_id", "expense_date"], name: "index_expenses_on_branch_id_and_expense_date"
     t.index ["business_id", "expense_date"], name: "index_expenses_on_business_id_and_expense_date"
@@ -768,11 +769,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_180000) do
     t.index ["created_by_id"], name: "index_expenses_on_created_by_id"
     t.index ["expense_category_id"], name: "index_expenses_on_expense_category_id"
     t.index ["expense_type_id"], name: "index_expenses_on_expense_type_id"
-    t.index ["source_payroll_period_id"], name: "idx_expenses_on_active_source_payroll_period", unique: true, where: "((source_payroll_period_id IS NOT NULL) AND (voided_at IS NULL))"
+    t.index ["source_payroll_period_id", "unallocated"], name: "idx_expenses_on_active_source_payroll_period", unique: true, where: "((source_payroll_period_id IS NOT NULL) AND (voided_at IS NULL))"
     t.index ["source_pos_import_id", "branch_id"], name: "idx_expenses_on_source_pos_import_and_branch", unique: true, where: "(source_pos_import_id IS NOT NULL)"
     t.index ["source_recurring_expense_id", "expense_date"], name: "index_expenses_on_recurring_source_and_date", unique: true, where: "(source_recurring_expense_id IS NOT NULL)"
     t.index ["source_recurring_expense_id"], name: "index_expenses_on_source_recurring_expense_id"
     t.index ["voided_by_id"], name: "index_expenses_on_voided_by_id"
+    t.check_constraint "NOT unallocated OR branch_id IS NULL AND is_shared = false AND source_payroll_period_id IS NOT NULL", name: "expenses_unallocated_payroll_only"
   end
 
   create_table "financial_adjustments", force: :cascade do |t|
@@ -1181,17 +1183,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_180000) do
   end
 
   create_table "payroll_period_branch_reviews", force: :cascade do |t|
-    t.integer "branch_id", null: false
+    t.integer "branch_id"
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.text "notes"
     t.integer "payroll_period_id", null: false
-    t.integer "reviewer_id", null: false
+    t.integer "reviewer_id"
     t.string "status", default: "pending", null: false
     t.datetime "updated_at", null: false
     t.index ["branch_id"], name: "index_payroll_period_branch_reviews_on_branch_id"
     t.index ["payroll_period_id", "branch_id"], name: "index_payroll_period_branch_reviews_unique", unique: true
     t.index ["payroll_period_id"], name: "index_payroll_period_branch_reviews_on_payroll_period_id"
+    t.index ["payroll_period_id"], name: "index_payroll_period_branch_reviews_one_central", unique: true, where: "(branch_id IS NULL)"
     t.index ["reviewer_id"], name: "index_payroll_period_branch_reviews_on_reviewer_id"
   end
 

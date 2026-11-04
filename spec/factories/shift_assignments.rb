@@ -21,5 +21,11 @@ FactoryBot.define do
       effective_to    { Date.current + 1.day }
       reason          { "Covering another employee's absence" }
     end
+
+    # No home branch: the assignment's business is the employee's.
+    trait :floating do
+      assignment_kind { "floating" }
+      branch          { nil }
+    end
   end
 end

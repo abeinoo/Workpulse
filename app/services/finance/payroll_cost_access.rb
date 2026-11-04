@@ -21,5 +21,12 @@ module Finance
     end
 
     def branch?(branch_id) = branch_ids.include?(branch_id)
+
+    # Floating employees' payroll cost (the reports' Unallocated line): they
+    # belong to no branch, so only business-wide view_payroll (owners included)
+    # sees them — the scope at which PayrollEntryPolicy shows their entries.
+    def unallocated?
+      @user.can?(:view_payroll) && @user.scope_for(:view_payroll) == "business"
+    end
   end
 end

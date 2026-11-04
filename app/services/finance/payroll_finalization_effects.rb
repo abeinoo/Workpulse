@@ -6,10 +6,12 @@ module Finance
   module PayrollFinalizationEffects
     module_function
 
-    def period_finalized(period:, actor:, employer_insurance_total:, employer_insurance_by_branch:)
+    def period_finalized(period:, actor:, employer_insurance_total:, employer_insurance_by_branch:,
+                         employer_insurance_unallocated:)
       Finance::PayrollInsuranceExpense.record(period: period, actor: actor,
                                               total: employer_insurance_total,
-                                              by_branch: employer_insurance_by_branch)
+                                              by_branch: employer_insurance_by_branch,
+                                              unallocated: employer_insurance_unallocated)
     end
 
     def period_reopened(period:, actor:, reason:)

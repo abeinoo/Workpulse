@@ -21,9 +21,10 @@ RSpec.describe "Payroll finalization effects routing (M3)" do
 
       def initialize = @calls = []
 
-      def period_finalized(period:, actor:, employer_insurance_total:, employer_insurance_by_branch:)
+      def period_finalized(period:, actor:, employer_insurance_total:, employer_insurance_by_branch:,
+                           employer_insurance_unallocated:)
         @calls << [ :period_finalized, period, actor, ActiveRecord::Base.connection.open_transactions,
-                    employer_insurance_total, employer_insurance_by_branch ]
+                    employer_insurance_total, employer_insurance_by_branch, employer_insurance_unallocated ]
       end
 
       def period_reopened(period:, actor:, reason:)
@@ -59,11 +60,12 @@ RSpec.describe "Payroll finalization effects routing (M3)" do
     with_handler(handler) { expect(advance).to be_success }
 
     expect(handler.calls.size).to eq(1)
-    operation, called_period, actor, depth, total, by_branch = handler.calls.first
+    operation, called_period, actor, depth, total, by_branch, unallocated = handler.calls.first
     expect([ operation, called_period, actor ]).to eq([ :period_finalized, period, owner ])
     expect(depth).to be > outer
     expect(total).to eq(100)
     expect(by_branch).to eq(branch.id => 100)
+    expect(unallocated).to eq(0)
     expect(Finance::PayrollInsuranceExpense).not_to have_received(:record)
   end
 

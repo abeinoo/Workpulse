@@ -493,6 +493,18 @@ voids the expense; FS records it (`Finance::PayrollInsuranceExpense`). `Payroll:
 exists. `payroll.period_paid` and `advance.paid` are reserved for future financial records; **no Finance record is
 created for salary payment or advance disbursement today** (Reporting computes payroll cost from payroll entries).
 
+**Floating employees (2026-11-04).** The `period_finalized` payload carries `employer_insurance_total`,
+`employer_insurance_by_branch` ({branch_id => amount}) and `employer_insurance_unallocated` — the employer cost of
+floating employees (a `floating` ShiftAssignment, no branch), which is attributed to no branch, never to the
+first-branch fallback (`total = by_branch + unallocated`). FS records that part as its own business-level Expense
+(`expenses.unallocated`, no branch, no split — allowed only on a payroll-generated expense, check constraint
+`expenses_unallocated_payroll_only`); a period may have one active branch-attributed and one active unallocated
+insurance expense (partial unique index on `(source_payroll_period_id, unallocated)`). Finance reports read floating
+salaries the same way (`ShiftAssignment.floating_user_ids`) and show both on an explicit "Unallocated" line counted
+once in business-wide totals, never in a branch row. Payroll reviews floating employees in a central review slot
+(`payroll_period_branch_reviews.branch_id` NULL) that only business-scope `complete_branch_review` holders complete
+and that blocks finalization, the under-review override included.
+
 **B. Advance request**
 ```
 Workforce: employee submits salary-advance request → reviewer approves (Requests::Approver)

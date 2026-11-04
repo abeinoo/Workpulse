@@ -3,11 +3,12 @@ import { Controller } from "@hotwired/stimulus"
 // Shift assignment form: switches the employee and branch fields with the
 // assignment kind. Regular picks from employees available for a new
 // assignment and the manager's branches; temporary coverage picks from the
-// scoped employees and a coverage (target) branch. Every field is
+// scoped employees and a coverage (target) branch; floating uses the regular
+// employee picker and has no branch at all. Every field is
 // server-rendered — the inactive kind's are hidden and disabled so they are
 // never submitted, and leaving coverage clears its selections.
 export default class extends Controller {
-  static targets = ["kind", "regular", "coverage", "coverageEmployee", "coverageBranch", "route"]
+  static targets = ["kind", "regular", "regularBranch", "floating", "coverage", "coverageEmployee", "coverageBranch", "route"]
 
   connect() {
     this.updateRoute()
@@ -15,7 +16,11 @@ export default class extends Controller {
 
   toggle() {
     const coverage = this.kindTarget.value === "temporary_coverage"
+    const floating = this.kindTarget.value === "floating"
     this.regularTargets.forEach((group) => this.#setActive(group, !coverage))
+    this.regularBranchTargets.forEach((group) => this.#setActive(group, !coverage && !floating))
+    this.floatingTargets.forEach((group) => group.classList.toggle("hidden", !floating))
+    if (floating) this.regularBranchTargets.forEach((group) => this.#clear(group))
     this.coverageTargets.forEach((group) => this.#setActive(group, coverage))
     if (!coverage) this.coverageTargets.forEach((group) => this.#clear(group))
     this.updateRoute()

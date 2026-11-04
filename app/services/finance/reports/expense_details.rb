@@ -29,7 +29,7 @@ module Finance
       # reconciliation count only them, and payroll_restricted says so. nil
       # (the default) = every branch.
       def initialize(business, year:, month:, to_year: nil, to_month: nil, branch_id: nil, expense_type_id: nil,
-                     payroll_branch_ids: nil)
+                     payroll_branch_ids: nil, unallocated_payroll: payroll_branch_ids.nil?)
         @business         = business
         @year             = year
         @month            = month
@@ -41,6 +41,7 @@ module Finance
         @branch_id        = branch_id.presence
         @expense_type_id  = expense_type_id.presence
         @payroll_branch_ids = payroll_branch_ids
+        @unallocated_payroll = unallocated_payroll
       end
 
       # Section keys whose totals are directly comparable to Branch
@@ -140,27 +141,50 @@ module Finance
           entries = entries_by_branch[branch.id]
           next if entries.blank?
 
-          rows = entries.map do |entry|
-            {
-              payroll_entry_id:  entry.id, # lets the caller show only the entries the viewer may see
-              employee_name:     entry.user.full_name,
-              base_salary:       entry.base_salary,
-              total_overtime:    entry.total_overtime,
-              total_bonuses:     entry.total_bonuses,
-              total_deductions:  entry.total_deductions,
-              advances_deducted: entry.advances_deducted,
-              obligations_deducted: entry.obligations_deducted,
-              net_salary:        entry.net_salary,
-              gross:             entry.base_salary + entry.total_overtime + entry.total_bonuses
-            }
-          end
+          rows = entries.map { |entry| payroll_row(entry) }
 
           Group.new(label: branch.name, branch_id: branch.id, subtotal: rows.sum { |r| r[:gross] }, rows: rows)
         end
 
+        total = section_total(merged_totals(:payroll_costs), payroll_branches_in_scope)
+        if unallocated_payroll_shown?
+          entries = sources_by_month.flat_map(&:unallocated_payroll_entries)
+          if entries.any?
+            rows = entries.map { |entry| payroll_row(entry) }
+            groups << unallocated_group(rows.sum { |r| r[:gross] }, rows)
+            total += sources_by_month.sum(&:unallocated_payroll_cost)
+          end
+        end
+
         Section.new(key: :payroll, title: I18n.t("finance.reports.expense_details.sections.payroll"),
-                    total: section_total(merged_totals(:payroll_costs), payroll_branches_in_scope),
-                    applies_type_filter: false, groups: groups)
+                    total: total, applies_type_filter: false, groups: groups)
+      end
+
+      # Floating employees' salaries (business-level, no branch): only in the
+      # business-wide report — no branch filter — and only with business-wide
+      # payroll access, since they belong to no branch scope.
+      def unallocated_payroll_shown? = @branch_id.nil? && @unallocated_payroll
+
+      # Unallocated expenses (Expense.business_level): only without a branch filter.
+      def unallocated_expenses_shown? = @branch_id.nil?
+
+      def unallocated_group(subtotal, rows)
+        Group.new(label: I18n.t("finance.reports.unallocated"), branch_id: nil, subtotal: subtotal, rows: rows)
+      end
+
+      def payroll_row(entry)
+        {
+          payroll_entry_id:  entry.id, # lets the caller show only the entries the viewer may see
+          employee_name:     entry.user.full_name,
+          base_salary:       entry.base_salary,
+          total_overtime:    entry.total_overtime,
+          total_bonuses:     entry.total_bonuses,
+          total_deductions:  entry.total_deductions,
+          advances_deducted: entry.advances_deducted,
+          obligations_deducted: entry.obligations_deducted,
+          net_salary:        entry.net_salary,
+          gross:             entry.base_salary + entry.total_overtime + entry.total_bonuses
+        }
       end
 
       # ── Section 2: المغسلة ──────────────────────────────────────────────────
@@ -233,6 +257,15 @@ module Finance
         end
 
         total = @expense_type_id ? groups.sum(&:subtotal) : section_total(merged_totals(:direct_expenses))
+        if unallocated_expenses_shown?
+          records = sources_by_month.flat_map(&:unallocated_expense_records)
+          records = records.select { |e| e.expense_type_id == @expense_type_id } if @expense_type_id
+          if records.any?
+            rows = records.map { |expense| expense_row(expense) }
+            groups << unallocated_group(rows.sum { |r| r[:amount] }, rows)
+            total += rows.sum { |r| r[:amount] }
+          end
+        end
         Section.new(key: :branch_expenses, title: I18n.t("finance.reports.expense_details.sections.branch_expenses"),
                     total: total, applies_type_filter: true, groups: groups)
       end
@@ -280,7 +313,8 @@ module Finance
       end
 
       def unattributed_expenses_scope
-        scope = @business.expenses.where(status: "approved", branch_id: nil, is_shared: false).in_period(@start, @end)
+        scope = @business.expenses.where(status: "approved", branch_id: nil, is_shared: false, unallocated: false)
+                                  .in_period(@start, @end)
         scope = scope.where(expense_type_id: @expense_type_id) if @expense_type_id
         scope
       end
@@ -362,10 +396,12 @@ module Finance
       # counted only where this report shows it (nil there = not shown).
       def branch_profitability_total_for(year, month)
         table = Finance::Reports::BranchProfitability.new(@business, year: year, month: month,
-                                                          payroll_branch_ids: @payroll_branch_ids).call
+                                                          payroll_branch_ids: @payroll_branch_ids,
+                                                          unallocated_payroll: @unallocated_payroll).call
         names = branches_in_scope.map(&:name)
-        table.rows.select { |r| names.include?(r[:branch]) }
-             .sum { |r| (r[:payroll] || 0) + r[:inventory] + r[:expenses] }
+        rows  = table.rows.select { |r| names.include?(r[:branch]) }
+        rows << table.unallocated if table.unallocated? && @branch_id.nil? # the same line this report shows
+        rows.sum { |r| (r[:payroll] || 0) + r[:inventory] + r[:expenses] }
       end
     end
   end

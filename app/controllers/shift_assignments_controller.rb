@@ -106,7 +106,7 @@ class ShiftAssignmentsController < ApplicationController
     @assignment.created_by = current_user
     authorize @assignment
     if assignment_resources_in_business? && assignment_employee_available? &&
-       coverage_branch_allowed? && @assignment.save
+       coverage_branch_allowed? && floating_allowed? && @assignment.save
       redirect_to shift_assignments_path, notice: t("flash.shift_assigned")
     else
       load_form_data
@@ -348,6 +348,8 @@ class ShiftAssignmentsController < ApplicationController
       @employee_current_branches = Shifts::AssignmentResolver
                                      .for_many(users: @employees)
                                      .transform_values { |a| a&.branch_name }
+      @assignment_kinds = ShiftAssignment.assignment_kinds.keys
+      @assignment_kinds -= [ "floating" ] unless floating_assigner?
     end
 
     if effective_employee_scope == "business"
@@ -380,12 +382,12 @@ class ShiftAssignmentsController < ApplicationController
     @assignment.errors.empty?
   end
 
-  # Server-side twin of the regular employee picker: a regular assignment may
-  # only be created for an employee who is both selectable by this user and
+  # Server-side twin of the regular employee picker (also used for floating): a
+  # regular or floating assignment may only be created for an employee who is both selectable by this user and
   # available (no active assignment, or one ending within the window).
   # Temporary coverage keeps its existing rules.
   def assignment_employee_available?
-    return true unless @assignment.regular?
+    return true unless @assignment.regular? || @assignment.floating?
     return true if @assignment.user_id.blank?
     return true if assignment_eligibility.eligible_users(regular_employee_pool)
                                          .exists?(id: @assignment.user_id)
@@ -406,6 +408,19 @@ class ShiftAssignmentsController < ApplicationController
     @assignment.errors.add(:base, :coverage_branch_not_allowed)
     false
   end
+
+  # A floating employee belongs to no branch, so only a business-wide assigner
+  # (who keeps seeing them afterwards) may make one: a branch- or area-scoped
+  # manager would otherwise move an employee out of every branch scope.
+  def floating_allowed?
+    return true unless @assignment.floating?
+    return true if floating_assigner?
+
+    @assignment.errors.add(:base, :floating_not_allowed)
+    false
+  end
+
+  def floating_assigner? = effective_employee_scope == "business"
 
   def coverage_target_branches
     own_branch_ids = current_user.managed_branch_ids +
