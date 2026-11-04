@@ -266,6 +266,48 @@ RSpec.describe Payroll::PeriodRecalculator do
     end
   end
 
+  # Regression (PR #112 test on October 2026: 1 changed, 53 unchanged, every
+  # confirmation refused as "data changed"): an UNCHANGED employee with an
+  # obligation installment. The recalculation destroys and recreates that
+  # employee's ObligationDeduction snapshot, so its line item's source_id is a
+  # new sequence value on every run — the preview's (rolled back) and the
+  # confirmation's differ although no data changed. The digest must identify
+  # the deduction by its obligation, which is stable.
+  describe "an employee with an obligation installment" do
+    let!(:loan) do
+      create(:employee_obligation, business: business, user: sara, created_by: actor, total_amount: 3_000,
+                                   remaining_amount: 3_000, installment_amount: 500, start_year: 2026, start_month: 10)
+    end
+
+    before do
+      Payroll::EntryRecalculator.call(user: sara, period: october, triggered_by: actor)
+      october.payroll_entries.update_all(needs_review: false)
+    end
+
+    it "accepts the confirmation of its own preview" do
+      expect(entry_of(sara).payroll_line_items.where(item_type: "obligation_deduction").count).to eq(1)
+      plan = preview
+      expect([ plan.changed_count, plan.unchanged_count ]).to eq([ 1, 1 ])
+
+      result = apply!(plan.digest)
+      expect(result.error).to be_nil
+      expect(result).to be_ok
+      expect(entry_of(sara).obligations_deducted).to eq(BigDecimal("500"))
+      expect(loan.reload.remaining_amount).to eq(BigDecimal("2500")) # deducted once, not twice
+    end
+
+    it "gives the same digest on every preview" do
+      expect(Array.new(3) { preview.digest }.uniq.size).to eq(1)
+    end
+
+    it "still refuses when the obligation itself changes after the preview" do
+      digest = preview.digest
+      loan.update!(installment_amount: 600, installments_count: 5)
+
+      expect(apply!(digest).error).to eq(I18n.t("payroll.period_recalculation.errors.preview_changed"))
+    end
+  end
+
   describe "atomicity" do
     it "rolls back every entry, the snapshot and the audit when one employee fails" do
       digest = preview.digest

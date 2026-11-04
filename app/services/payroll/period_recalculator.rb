@@ -165,6 +165,7 @@ module Payroll
       end
 
       after_entries = PayrollEntry.where(id: entries.map(&:id)).includes(:payroll_line_items).index_by(&:id)
+      obligation_of = period.obligation_deductions.pluck(:id, :employee_obligation_id).to_h
       branches_by_user = branch_ids_by_user(entries.map(&:user_id))
       rows = entries.map do |entry|
         now = after_entries.fetch(entry.id)
@@ -172,7 +173,7 @@ module Payroll
                 branch_ids: branches_by_user.fetch(entry.user_id, []),
                 before: before[entry.id][:financial], after: state_of(now)[:financial],
                 breakdown_before: before[entry.id][:breakdown], breakdown_after: now.salary_breakdown,
-                line_items_after: line_item_signature(now))
+                line_items_after: line_item_signature(now, obligation_of))
       end
 
       Preview.new(period: period, rows: rows, totals_before: totals_0, totals_after: totals_for(entries.map(&:id)),
@@ -189,9 +190,15 @@ module Payroll
         breakdown: entry.salary_breakdown }
     end
 
-    def line_item_signature(entry)
+    # The planned line items, by identities that are stable across runs. Every
+    # source is an existing row, except an obligation deduction's: the run
+    # destroys and recreates its ObligationDeduction snapshot, so its id is a new
+    # sequence value each time (the rolled-back preview's and the confirmation's
+    # differ) — it is identified by its obligation instead.
+    def line_item_signature(entry, obligation_of)
       entry.payroll_line_items.map do |li|
-        [ li.item_type, li.amount.to_s, li.source_type, li.source_id, li.review_status,
+        source = li.source_type == "ObligationDeduction" ? [ :obligation, obligation_of.fetch(li.source_id) ] : li.source_id
+        [ li.item_type, li.amount.to_s, li.source_type, source, li.review_status,
           li.deduction_waived?, li.addition_cancelled?, li.already_paid? ]
       end.sort_by(&:to_s)
     end
