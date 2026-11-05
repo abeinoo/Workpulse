@@ -12,6 +12,15 @@ class PayrollEntryPolicy < ApplicationPolicy
   # same authority as regenerating the period's calculations.
   def update? = can?(:regenerate_payroll)
 
+  # Paying an entry withheld under a released Salary Payment Hold — the payroll
+  # payment authority, on a paid period of the actor's business
+  # (Payroll::ReleasedSalaryPayer re-checks the hold and the withholding).
+  def pay_released_salary?
+    can?(:pay_payroll) &&
+      record.payroll_period&.business_id == user.business_id &&
+      record.payroll_period&.paid?
+  end
+
   # Overriding payable overtime — dedicated permission, only while the period is
   # still editable (draft / under_review / branch_review_completed). Locked
   # (finalized / paid) periods are immutable.

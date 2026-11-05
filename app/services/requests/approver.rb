@@ -123,6 +123,7 @@ module Requests
 
       paid_at = @paid_at || Time.current
       refused = false
+      blocked = nil
 
       ActiveRecord::Base.transaction do
         # Lock the request row and re-check on the committed state (F-A1): a
@@ -134,6 +135,10 @@ module Requests
           refused = true
           raise ActiveRecord::Rollback
         end
+        # Before any write: may this employee be paid an advance at all (not
+        # while their salary payment is on hold)? Attendance & Payroll decides.
+        blocked = Requests::AdvanceEffects.advance_payment_refusal(request: @request)
+        raise ActiveRecord::Rollback if blocked
 
         update_attrs = { status: "paid", reviewed_by: @reviewed_by, reviewed_at: Time.current }
         update_attrs[:response_note] = @response_note if @response_note.present?
@@ -151,6 +156,13 @@ module Requests
       end
 
       return err(NOT_PAYABLE) if refused
+
+      if blocked
+        # Outside the rolled-back transaction, so the attempt stays on record.
+        log_audit(actor: @reviewed_by, auditable: @request, action: "pay_blocked",
+                  metadata: { amount: @request.amount, reason: blocked })
+        return err(blocked)
+      end
 
       Result.new(success: true, request: @request)
     rescue ActiveRecord::RecordInvalid => e

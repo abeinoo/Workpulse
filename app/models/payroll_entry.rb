@@ -3,6 +3,8 @@ class PayrollEntry < ApplicationRecord
   belongs_to :user
   belongs_to :overtime_overridden_by, class_name: "User", optional: true
   has_many   :payroll_line_items, dependent: :destroy
+  # Payment withheld under a salary hold (never deleted; paid periods only).
+  has_many   :salary_payment_withholdings, dependent: :restrict_with_exception
 
   STATUSES = %w[draft approved disputed].freeze
   # How a manager entered an overtime override (see migration for semantics).

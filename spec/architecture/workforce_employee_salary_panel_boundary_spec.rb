@@ -8,8 +8,10 @@ require "rails_helper"
 # 1. The employee page's controller and views name no salary constant or table
 #    (SalaryProfile, SalaryProfilePolicy, Salary::*, salary_profiles) and none of
 #    the panel's former instance variables.
-# 2. The page asks for the panel exactly once, in the controller, and renders it
-#    only from @salary_panel.
+# 2. The page asks for each panel exactly once, in the controller, and renders
+#    it only from its variable: the salary card (@salary_panel) and the Salary
+#    Payment Hold section (@salary_hold_panel, contract operation
+#    salary_hold_panel — owner decision A1, 2026-11-05).
 # 3. The contract names nothing from Attendance & Payroll; the implementation is
 #    named only by the composition root and is the registered handler; the card
 #    partial lives in Attendance & Payroll's salary-profile views.
@@ -24,7 +26,7 @@ module ArchitectureSpecs
     COMPOSITION_ROOT = "config/initializers/employee_profile_panels.rb".freeze
     PARTIAL          = "app/views/admin/salary_profiles/_employee_panel.html.erb".freeze
 
-    SALARY = /\bSalaryProfile(Policy)?\b|\bSalary::|\bsalary_profiles?\b(?!\.|_path|_url)|@(salary_visible|salary_manageable|active_salary_profile)\b/
+    SALARY = /\bSalaryProfile(Policy)?\b|\bSalary::|\bsalary_profiles?\b(?!\.|_path|_url)|@(salary_visible|salary_manageable|active_salary_profile)\b|\bSalaryPayment(Hold|Withholding)(Policy)?\b|\bsalary_payment_(holds|withholdings)\b(?!\.|_path|_url)/
 
     def code_lines(path)
       source = File.read(Rails.root.join(path))
@@ -49,11 +51,13 @@ RSpec.describe "Architecture: the Workforce employee page gets the salary card o
     expect(found).to be_empty, "Use Employee::ProfilePanels:\n#{found.join("\n")}"
   end
 
-  it "the controller asks once and the view renders only @salary_panel (rule 2)" do
+  it "the controller asks once per panel and the view renders only @salary_panel / @salary_hold_panel (rule 2)" do
     calls = boundary::PAGE_FILES.flat_map { boundary.matches_in(_1, /Employee::ProfilePanels\.\w+/) }
-    expect(calls.map { _1.split(":").first }).to eq([ "app/controllers/admin/users_controller.rb" ])
+    expect(calls.map { _1.split(":").first }).to eq([ "app/controllers/admin/users_controller.rb" ] * 2)
     expect(calls.first).to match(/Employee::ProfilePanels\.salary_panel\(viewer: current_user, employee: @user\)/)
-    expect(boundary.matches_in("app/views/admin/users/show.html.erb", /@salary_panel/).size).to eq(2)
+    expect(calls.second).to match(/Employee::ProfilePanels\.salary_hold_panel\(viewer: current_user, employee: @user\)/)
+    expect(boundary.matches_in("app/views/admin/users/show.html.erb", /@salary_panel\b/).size).to eq(2)
+    expect(boundary.matches_in("app/views/admin/users/show.html.erb", /@salary_hold_panel\b/).size).to eq(2)
   end
 
   it "the contract, implementation, composition root and partial are where they belong (rule 3)" do
@@ -72,6 +76,7 @@ RSpec.describe "Architecture: the Workforce employee page gets the salary card o
   describe "self-tests" do
     it "catches the former reads planted back, and ignores route helpers, i18n keys and comments" do
       [ "probe = SalaryProfile.new(user_id: @user.id)", "Salary::ViewAudit.record(actor: a)",
+        "SalaryPaymentHold.active.find_by(user: @user)", "policy(SalaryPaymentHold.new)",
         "<% if @salary_visible || @salary_manageable %>", "policy_scope(SalaryProfile)" ].each do |code|
         expect(code).to match(boundary::SALARY), code
       end

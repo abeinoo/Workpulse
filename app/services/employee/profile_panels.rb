@@ -17,8 +17,12 @@ module Employee
   #       partial path and its locals) or nil when the viewer may neither see nor
   #       manage that salary. Called once per page render; it may record the
   #       salary view (an audit row) exactly as the page always did.
+  #   salary_hold_panel(viewer:, employee:)
+  #     — the Salary Payment Hold section for `employee` as `viewer` may see
+  #       it (status, history, held amounts, place / release forms): a Panel or
+  #       nil when the viewer may not see that employee's holds. Read-only.
   module ProfilePanels
-    OPERATIONS = %i[salary_panel].freeze
+    OPERATIONS = %i[salary_panel salary_hold_panel].freeze
 
     Panel = Struct.new(:partial, :locals, keyword_init: true)
 
@@ -38,11 +42,20 @@ module Employee
       end
 
       def salary_panel(viewer:, employee:)
-        panel = handler.salary_panel(viewer: viewer, employee: employee)
+        checked(:salary_panel, handler.salary_panel(viewer: viewer, employee: employee))
+      end
+
+      def salary_hold_panel(viewer:, employee:)
+        checked(:salary_hold_panel, handler.salary_hold_panel(viewer: viewer, employee: employee))
+      end
+
+      private
+
+      def checked(operation, panel)
         return panel if panel.nil?
         return panel if panel.is_a?(Panel) && panel.partial.is_a?(String) && panel.locals.is_a?(Hash)
 
-        raise ArgumentError, "#{handler}.salary_panel returned #{panel.inspect}, expected a #{Panel} or nil"
+        raise ArgumentError, "#{handler}.#{operation} returned #{panel.inspect}, expected a #{Panel} or nil"
       end
     end
   end

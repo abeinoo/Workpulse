@@ -18,7 +18,28 @@ class PayrollEntriesController < ApplicationController
                              .map(&:source_id).compact
     @paid_adjustments = paid_adj_ids.any? ? PayrollAdjustment.where(id: paid_adj_ids).index_by(&:id) : {}
 
+    # Salary Payment Hold state — payroll staff only (never on one's own payslip view).
+    if current_user.can?(:view_payroll) && @entry.user_id != current_user.id
+      @payment_status = Payroll::SalaryPaymentStatus.new(period: @period, entries: [ @entry ]).for(@entry)
+      @hold_visible   = @payment_status.hold && policy(@payment_status.hold).show?
+    end
+
     Payroll::EntryViewAudit.record(actor: current_user, entries: [ @entry ], source: "payslip")
+  end
+
+  # Records the payment of a salary withheld under a hold that was released.
+  # Never automatic; refused while the hold is active (ReleasedSalaryPayer).
+  def pay_released_salary
+    authorize @entry, :pay_released_salary?
+
+    withholding = @entry.salary_payment_withholdings.live.first
+    return redirect_to(payroll_period_payroll_entry_path(@period, @entry),
+                       alert: t("salary_payment_holds.pay_released.errors.nothing_withheld")) unless withholding
+
+    result = Payroll::ReleasedSalaryPayer.new(actor: current_user, withholding_id: withholding.id,
+                                              note: params[:disbursement_note]).call
+    redirect_to payroll_period_payroll_entry_path(@period, @entry),
+                **(result.ok? ? { notice: t("salary_payment_holds.pay_released.flash.paid") } : { alert: result.error })
   end
 
   def override_overtime

@@ -41,6 +41,11 @@ module Payroll
       )
     end
 
+    # The Salary Payment Hold section of the same page (Payroll::SalaryHoldPanel).
+    def salary_hold_panel(viewer:, employee:)
+      Payroll::SalaryHoldPanel.call(viewer: viewer, employee: employee)
+    end
+
     # Every profile of the employee, newest first (the effective order). Status
     # from the effective date: after the business day → scheduled; the profile
     # in force today (SalaryProfile.effective_for, the payroll rule) → current;

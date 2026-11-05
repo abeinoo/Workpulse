@@ -187,6 +187,12 @@
           <strong><%= format_currency(@bank_transfer_summary[:total_amount]) %></strong>
           <%= t("payroll.bank_transfer.total_amount") %>
         </span>
+        <% if @bank_transfer_summary[:held_employees].to_i.positive? %>
+          <span class="text-danger" data-testid="bank-transfer-held">
+            <%= t("salary_payment_holds.bank_transfer_excluded", count: @bank_transfer_summary[:held_employees],
+                  amount: format_currency(@bank_transfer_summary[:held_amount])) %>
+          </span>
+        <% end %>
         <span class="<%= 'text-danger' if @bank_transfer_summary[:missing_national_id].positive? %>">
           <strong><%= @bank_transfer_summary[:missing_national_id] %></strong>
           <%= t("payroll.bank_transfer.missing_national_id") %>
@@ -449,6 +455,20 @@
     </div>
   <% end %>
 
+  <%# ── Salary Payment Holds — payment blocked / payable, never the figures ─── %>
+  <% if @payment_totals && (@payment_totals.held_count.positive? || @payment_totals.payable.positive? && @period.paid?) %>
+    <div class="alert <%= @payment_totals.held_count.positive? ? 'alert-danger' : 'alert-warning' %>" role="alert" data-testid="salary-hold-summary">
+      <strong><%= t("salary_payment_holds.period_summary.title", count: @payment_totals.held_count) %></strong>
+      <p style="margin: var(--space-2) 0 0;">
+        <%= t("salary_payment_holds.earned") %>: <strong><%= format_currency(@payment_totals.earned) %></strong> ·
+        <%= t("salary_payment_holds.held_amount") %>: <strong data-testid="salary-hold-summary-held"><%= format_currency(@payment_totals.held) %></strong> ·
+        <%= t("salary_payment_holds.payable_amount") %>: <strong data-testid="salary-hold-summary-payable"><%= format_currency(@payment_totals.payable) %></strong> ·
+        <%= t("salary_payment_holds.paid_amount") %>: <strong><%= format_currency(@payment_totals.paid) %></strong>
+      </p>
+      <p style="margin: var(--space-2) 0 0;"><%= t("salary_payment_holds.period_summary.note") %></p>
+    </div>
+  <% end %>
+
   <%# ── Attendance without a salary profile — unpaid days / not in payroll ─── %>
   <% if @unsalaried_attendance.present? %>
     <% ua_scope = "payroll.unsalaried_attendance" %>
@@ -593,6 +613,14 @@
                       <span class="payroll-entry-badge payroll-entry-badge--warning"
                             title="<%= t('payroll.needs_review.badge_title') %>">
                         <%= t("payroll.needs_review.badge") %>
+                      </span>
+                    </div>
+                  <% end %>
+                  <% hold_state = @payment_statuses&.for(entry)&.state %>
+                  <% if hold_state && !%i[normal paid].include?(hold_state) %>
+                    <div class="payroll-entry-badges" data-testid="salary-hold-badge-<%= entry.id %>">
+                      <span class="payroll-entry-badge payroll-entry-badge--<%= %i[on_hold held].include?(hold_state) ? 'danger' : (hold_state == :released ? 'warning' : 'neutral') %>">
+                        <%= t("salary_payment_holds.entry_states.#{hold_state}") %>
                       </span>
                     </div>
                   <% end %>

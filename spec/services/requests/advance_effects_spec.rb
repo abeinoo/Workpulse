@@ -46,6 +46,18 @@ RSpec.describe Requests::AdvanceEffects do
       expect(handler).to have_received(:advance_paid).with(request: request, paid_at: paid_at)
     end
 
+    it "returns the handler's refusal (a message or nil) and rejects any other answer" do
+      with_handler(double("handler", advance_payment_refusal: "on hold")) do
+        expect(described_class.advance_payment_refusal(request: request)).to eq("on hold")
+      end
+      with_handler(double("handler", advance_payment_refusal: nil)) do
+        expect(described_class.advance_payment_refusal(request: request)).to be_nil
+      end
+      with_handler(double("handler", advance_payment_refusal: true)) do
+        expect { described_class.advance_payment_refusal(request: request) }.to raise_error(ArgumentError)
+      end
+    end
+
     it "propagates a handler error" do
       handler = double("handler")
       allow(handler).to receive(:advance_paid).and_raise(ActiveRecord::RecordInvalid.new(Advance.new))
@@ -85,7 +97,7 @@ RSpec.describe Requests::AdvanceEffects do
     end
 
     it "rolls the paid status back when the handler fails" do
-      handler = double("handler")
+      handler = double("handler", advance_payment_refusal: nil)
       allow(handler).to receive(:advance_paid).and_raise(ActiveRecord::RecordInvalid.new(Advance.new))
 
       result = with_handler(handler) { Requests::Approver.pay(request: request, paid_by: accountant) }

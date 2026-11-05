@@ -14,6 +14,11 @@ module Reports
   # Eligibility (a row is excluded entirely when it fails either rule):
   #   - net salary must be > 0
   #   - the entry must be "active" (disputed entries are held back from payment)
+  #   - the entry must not be under a Salary Payment Hold: neither covered by an
+  #     active hold (a period not yet paid) nor withheld when the period was
+  #     paid — held, released-but-unpaid and paid-after-release amounts alike;
+  #     a released amount is paid through Pay Released Salary, never this file
+  #     (Payroll::SalaryPaymentStatus)
   #
   # A blank national ID does NOT exclude the row — it is still exported, flagged
   # in the Issues column so finance can chase the missing identity number.
@@ -44,7 +49,9 @@ module Reports
       {
         total_employees:     rows.size,
         total_amount:        rows.sum(&:net_salary).round(2),
-        missing_national_id: rows.count { |row| row.issues.present? }
+        missing_national_id: rows.count { |row| row.issues.present? },
+        held_employees:      hold_excluded_entries.size,
+        held_amount:         hold_excluded_entries.sum { |entry| entry.net_salary.to_d }.round(2)
       }
     end
 
@@ -63,12 +70,26 @@ module Reports
 
     # The entries the CSV contains (for the payroll-entry view audit).
     def eligible_entries
-      @eligible_entries ||= (@entries || @period.payroll_entries).includes(:user)
-                            .reject { |entry| entry.disputed? || entry.net_salary.to_f <= 0 }
-                            .sort_by { |entry| entry.user.employee_code.to_i }
+      @eligible_entries ||= candidate_entries.reject { |entry| hold_excluded?(entry) }
+    end
+
+    # Entries left out because of a Salary Payment Hold.
+    def hold_excluded_entries
+      @hold_excluded_entries ||= candidate_entries.select { |entry| hold_excluded?(entry) }
     end
 
     private
+
+    def candidate_entries
+      @candidate_entries ||= (@entries || @period.payroll_entries).includes(:user)
+                             .reject { |entry| entry.disputed? || entry.net_salary.to_f <= 0 }
+                             .sort_by { |entry| entry.user.employee_code.to_i }
+    end
+
+    def hold_excluded?(entry)
+      @payment_status ||= Payroll::SalaryPaymentStatus.new(period: @period, entries: candidate_entries)
+      @payment_status.for(entry).state != (@period.paid? ? :paid : :normal)
+    end
 
     def build_row(entry)
       national_id = entry.user.identity_card_number.presence

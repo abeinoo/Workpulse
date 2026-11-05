@@ -77,12 +77,16 @@ Rails.application.routes.draw do
 
     resources :users do
       resources :salary_profiles, only: [ :new, :create, :edit, :update ]
+      resources :salary_payment_holds, only: [ :create ]
       resource  :employee_insurance_profile, only: [ :edit, :update ]
       resource  :password, only: [ :edit, :update ], controller: "user_passwords"
       member do
         patch :transfer_ownership
         patch :toggle_active
       end
+    end
+    resources :salary_payment_holds, only: [] do
+      member { patch :release }
     end
 
     resources :branches do
@@ -254,6 +258,7 @@ Rails.application.routes.draw do
       member do
         patch :override_overtime
         patch :mark_reviewed
+        patch :pay_released_salary
       end
       resources :payroll_line_items, only: [] do
         member do

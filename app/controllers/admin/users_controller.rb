@@ -135,6 +135,7 @@ class Admin::UsersController < Admin::BaseController
   # (attendance_payroll_obligation_boundary_spec) — under EmployeeObligationPolicy.
   def load_salary
     @salary_panel = Employee::ProfilePanels.salary_panel(viewer: current_user, employee: @user)
+    @salary_hold_panel = Employee::ProfilePanels.salary_hold_panel(viewer: current_user, employee: @user)
   end
 
   # ── Shift timeline helpers ────────────────────────────────────────────────

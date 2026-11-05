@@ -124,11 +124,11 @@ module ArchitectureTools
       [ %r{\Aapp/jobs/payroll/}, AP ],
       [ %r{\Aapp/serializers/api/v1/advance_serializer\.rb\z}, AP ],
       [ %r{\Aapp/controllers/(attendance|attendance_records|adjustments|bulk_adjustments|payroll_adjustments|payroll_dashboard|payroll_entries|payroll_line_items|payroll_periods)_controller\.rb\z}, AP ],
-      [ %r{\Aapp/controllers/admin/(attendance_imports|attendance_records|biometric_devices|biometric_punch_logs|penalty_rules|salary_profiles|employee_obligations)_controller\.rb\z}, AP ],
+      [ %r{\Aapp/controllers/admin/(attendance_imports|attendance_records|biometric_devices|biometric_punch_logs|penalty_rules|salary_profiles|employee_obligations|salary_payment_holds)_controller\.rb\z}, AP ],
       [ %r{\Aapp/controllers/api/v1/(advances|attendance|attendance_records|payroll_adjustments|payroll_entries|payroll_line_items|payroll_periods|penalty_rules|punches|salary_profiles)_controller\.rb\z}, AP ],
       [ %r{\Aapp/controllers/api/v1/reports/}, AP ],
       [ %r{\Aapp/views/(attendance_records|adjustments|bulk_adjustments|payroll_adjustments|payroll_dashboard|payroll_entries|payroll_periods)/}, AP ],
-      [ %r{\Aapp/views/admin/(attendance_imports|attendance_records|biometric_devices|biometric_punch_logs|penalty_rules|salary_profiles|employee_obligations)/}, AP ],
+      [ %r{\Aapp/views/admin/(attendance_imports|attendance_records|biometric_devices|biometric_punch_logs|penalty_rules|salary_profiles|employee_obligations|salary_payment_holds)/}, AP ],
 
       # Workforce (§5).
       [ %r{\Aapp/models/workforce/}, WF ],
@@ -171,7 +171,7 @@ module ArchitectureTools
       AP => %w[AttendanceRecord AttendanceAdjustment AttendanceImportLog BiometricDevice BiometricPunchLog PenaltyRule
                SalaryProfile PayrollPeriod PayrollEntry PayrollLineItem PayrollAdjustment PayrollAdjustmentEdit
                PayrollAuditLog PayrollSnapshot PayrollPeriodBranchReview Advance EmployeeObligation ObligationDeduction
-               ObligationPostponement],
+               ObligationPostponement SalaryPaymentHold SalaryPaymentWithholding],
       IP => %w[Warehouse WarehouseAssignment WarehouseBranchSupply Product ProductBarcode ProductCategory Brand
                ProductWarehouseSetting InventoryMovement StockIssue StockIssueItem StockIssueImportBatch
                StockIssueImportRow StockTransfer StockTransferItem StockAdjustment StockAdjustmentItem StockCount

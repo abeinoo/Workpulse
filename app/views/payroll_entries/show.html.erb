@@ -37,6 +37,11 @@
     </div>
   </div>
 
+  <%# ── Salary Payment Hold (payment only — the figures below are unchanged) ── %>
+  <% if @payment_status && @payment_status.state != :normal && @payment_status.state != :paid %>
+    <%= render "payroll_entries/salary_payment_status", status: @payment_status, hold_visible: @hold_visible %>
+  <% end %>
+
   <%# ── Period lock notice ─────────────────────────────────────────────────── %>
   <% if @period.locked? %>
     <div class="payroll-lock-banner">

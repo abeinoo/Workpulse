@@ -16,7 +16,7 @@ RSpec.describe Employee::ProfilePanels do
   let(:panel)    { described_class::Panel.new(partial: "x/panel", locals: { a: 1 }) }
 
   it "lists its operation and has the Attendance & Payroll implementation registered at boot" do
-    expect(described_class::OPERATIONS).to eq(%i[salary_panel])
+    expect(described_class::OPERATIONS).to eq(%i[salary_panel salary_hold_panel])
     expect(described_class::Panel.members).to eq(%i[partial locals])
     expect(described_class.handler).to equal(Payroll::EmployeeSalaryPanel)
   end
