@@ -21,8 +21,12 @@ module Requests
   #       paid_at. The handler records the advance for request.user for the full
   #       request.amount, issued at paid_at, and returns nil. A record that
   #       cannot be saved raises ActiveRecord::RecordInvalid.
+  #   advance_payment_refusal(request:)
+  #     — asked by Requests::Approver#pay under the request lock, before any
+  #       write: nil when the advance may be paid out, else the message saying
+  #       why not (e.g. the employee's salary payment is on hold). Read-only.
   module AdvanceEffects
-    OPERATIONS = %i[advance_paid].freeze
+    OPERATIONS = %i[advance_paid advance_payment_refusal].freeze
 
     # Raised when an operation is requested before any handler is registered —
     # a payment is never recorded without its advance.
@@ -43,6 +47,13 @@ module Requests
       def advance_paid(request:, paid_at:)
         handler.advance_paid(request: request, paid_at: paid_at)
         nil
+      end
+
+      def advance_payment_refusal(request:)
+        refusal = handler.advance_payment_refusal(request: request)
+        return refusal if refusal.nil? || refusal.is_a?(String)
+
+        raise ArgumentError, "#{handler}.advance_payment_refusal returned #{refusal.inspect}, expected a String or nil"
       end
     end
   end

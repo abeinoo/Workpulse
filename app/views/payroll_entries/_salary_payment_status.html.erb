@@ -1,0 +1,42 @@
+<%# Salary Payment Hold state of one entry (Payroll::SalaryPaymentStatus):
+    on_hold / held — payment blocked; released — payable through Pay Released
+    Salary; disbursed — paid after the release. The calculated figures on this
+    page are never changed by a hold. Locals: status, hold_visible (the reason
+    only under SalaryPaymentHoldPolicy#show?). %>
+<% scope = "salary_payment_holds" %>
+<% blocked = %i[on_hold held].include?(status.state) %>
+<div class="alert <%= blocked ? 'alert-danger' : (status.state == :released ? 'alert-warning' : 'alert-info') %>"
+     role="<%= blocked ? 'alert' : 'note' %>" data-testid="entry-salary-hold">
+  <strong><%= t("#{scope}.entry_states.#{status.state}") %></strong>
+  <p style="margin: var(--space-2) 0 0;">
+    <%= t("#{scope}.earned") %>: <strong><%= format_currency(status.earned) %></strong> ·
+    <%= t("#{scope}.held_amount") %>: <strong><%= format_currency(status.held) %></strong> ·
+    <%= t("#{scope}.payable_amount") %>: <strong><%= format_currency(status.payable) %></strong>
+  </p>
+  <% if hold_visible && status.hold %>
+    <p style="margin: var(--space-2) 0 0;" data-testid="entry-salary-hold-reason">
+      <%= t("#{scope}.reason") %>: <%= t("#{scope}.reasons.#{status.hold.reason}") %> ·
+      <%= t("#{scope}.effective_from") %>: <%= local_date(status.hold.effective_from) %>
+    </p>
+  <% end %>
+  <% if status.state == :disbursed && status.withholding %>
+    <p style="margin: var(--space-2) 0 0;">
+      <%= t("#{scope}.disbursed_by", name: status.withholding.disbursed_by.full_name, at: local_datetime(status.withholding.disbursed_at)) %>
+      — <em><%= status.withholding.disbursement_note %></em>
+    </p>
+  <% end %>
+  <% if status.state == :released && policy(status.entry).pay_released_salary? %>
+    <%= form_with url: pay_released_salary_payroll_period_payroll_entry_path(status.entry.payroll_period, status.entry),
+                  method: :patch, local: true, data: { testid: "pay-released-salary-form" } do %>
+      <div class="form-group" style="margin-top: var(--space-3);">
+        <%= label_tag :disbursement_note, t("#{scope}.pay_released.note_label"), class: "form-label" %>
+        <%= text_area_tag :disbursement_note, nil, rows: 2, required: true, class: "form-control",
+                          placeholder: t("#{scope}.pay_released.note_placeholder") %>
+      </div>
+      <button type="submit" class="btn btn-primary"
+              data-turbo-confirm="<%= t("#{scope}.pay_released.confirm", amount: format_currency(status.earned)) %>">
+        <%= t("#{scope}.pay_released.action") %>
+      </button>
+    <% end %>
+  <% end %>
+</div>

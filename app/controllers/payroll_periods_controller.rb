@@ -100,6 +100,10 @@ class PayrollPeriodsController < ApplicationController
       @unsalaried_attendance = Payroll::UnsalariedAttendance.new(
         period: @period, users: PayrollEntryPolicy.visible_employees(current_user)
       ).rows
+      # Salary Payment Holds: per-entry payment state and held / payable totals
+      # over the entries the viewer sees (Payroll::SalaryPaymentStatus).
+      @payment_statuses = Payroll::SalaryPaymentStatus.new(period: @period, entries: @entries)
+      @payment_totals   = @payment_statuses.totals
     end
 
     # Audit trail is sensitive (who did what, when, why) — gated separately.

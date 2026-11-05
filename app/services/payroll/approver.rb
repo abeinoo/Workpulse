@@ -10,6 +10,11 @@ module Payroll
   #   under_review → finalized              (override: skip branch review)
   #   finalized → paid                      (settle advances)
   #
+  # Paying the period never blocks on a Salary Payment Hold: the entries of
+  # employees under an active hold covering the period are withheld
+  # (Payroll::SalaryWithholder) and everyone else is paid. Advances are settled
+  # for every entry — the withheld amount is the net after advance recovery.
+  #
   # Both transitions are refused while the period still has adjustments pending
   # review (PayrollPeriod#pending_adjustments), with the count in the error.
   # Finalizing is also refused while entries changed by Recalculate Payroll
@@ -119,13 +124,16 @@ module Payroll
           )
         when "paid"
           settle_advances!
+          withheld = Payroll::SalaryWithholder.withhold!(period: @period, actor: @by)
           @period.update!(status: "paid")
           PayrollAuditLog.create!(
             payroll_period: @period,
             actor:          @by,
             action_type:    :paid,
             from_status:    "finalized",
-            to_status:      "paid"
+            to_status:      "paid",
+            metadata:       ({ withheld_entry_ids: withheld.map(&:payroll_entry_id),
+                               withheld_total: withheld.sum { |w| w.amount.to_d }.to_s("F") }.to_json if withheld.any?)
           )
         end
       end

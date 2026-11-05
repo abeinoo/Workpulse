@@ -1,0 +1,82 @@
+en:
+  salary_payment_holds:
+    title: "Salary Payment Hold"
+    explanation: "A hold blocks PAYMENT of this employee's salary only. Payroll keeps calculating every entitlement normally; held amounts stay outstanding until the hold is released and they are paid."
+    active_title: "Salary payment is on hold"
+    reason: "Reason"
+    effective_from: "Effective from"
+    notes: "Internal notes"
+    created_by: "Placed by"
+    released_by: "Released"
+    history: "Hold history"
+    period: "Payroll period"
+    amount: "Amount"
+    payment_status: "Payment"
+    outstanding_title: "Outstanding salary under this hold"
+    held_total: "Held"
+    payable_total: "Payable (released, not yet paid)"
+    place_title: "Place salary payment on hold"
+    place: "Place on Hold"
+    place_confirm: "Place this employee's salary payment on hold? Salary keeps being calculated; payment is blocked until the hold is released."
+    release: "Release Hold"
+    release_reason: "Release reason (optional)"
+    release_note: "Releasing pays nothing: the held amounts become payable through the normal payment workflow."
+    release_confirm: "Release this salary hold? Held amounts become payable; nothing is paid automatically."
+    earned: "Earned"
+    held_amount: "Held"
+    payable_amount: "Payable"
+    paid_amount: "Paid"
+    disbursed_by: "Paid after release by %{name}, %{at}"
+    bank_transfer_excluded: "%{count} employee(s) excluded — salary hold (%{amount})"
+    reasons:
+      missing_documents: "Missing employment documents"
+      incomplete_hiring_paperwork: "Incomplete hiring paperwork"
+      pending_hr_review: "Pending HR review"
+      administrative_issue: "Administrative issue"
+      other: "Other"
+    status:
+      normal: "Active – Normal payment"
+      on_hold: "On Hold – Payment blocked"
+      held: "On Hold – Payment blocked"
+      released: "Released – Payment can proceed"
+    entry_states:
+      on_hold: "Salary payment on hold — will be withheld when the period is marked paid"
+      held: "Salary payment on hold — withheld, payment blocked"
+      released: "Hold released — payment can proceed (not yet paid)"
+      disbursed: "Withheld salary paid after the hold was released"
+      normal: "Normal payment"
+      paid: "Paid"
+    period_summary:
+      title: "%{count} employee(s) with salary payment on hold"
+      note: "Held employees stay in payroll with their full calculated figures. Mark Paid pays everyone else and withholds their entries; released amounts are paid from each employee's payroll entry."
+    pay_released:
+      action: "Pay Released Salary"
+      note_label: "How it was paid (method, reference)"
+      note_placeholder: "e.g. bank transfer ref. 12345 on 3 Feb"
+      confirm: "Record payment of %{amount} to this employee?"
+      flash:
+        paid: "Released salary payment recorded."
+      errors:
+        note_required: "Enter how the released salary was paid."
+        voided: "This withholding was voided when the period was reopened."
+        already_disbursed: "This released salary was already paid."
+        period_not_paid: "The payroll period is not paid."
+        hold_active: "Payment blocked: the employee's salary payment is on hold (%{reason})."
+        nothing_withheld: "Nothing is withheld for this employee in this period."
+    flash:
+      created: "Salary payment placed on hold."
+      released: "Salary hold released. Held amounts are now payable; nothing was paid."
+    errors:
+      already_active: "This employee already has an active salary payment hold."
+      already_released: "This salary hold was already released."
+      audit_failed: "The action could not be recorded in the audit log, so nothing was changed. Please try again."
+      advance_blocked: "Advance payout blocked: the employee's salary payment is on hold (%{reason})."
+      reopen_disbursed: "This paid period cannot be reopened: a salary withheld under a hold was already paid after its release."
+  activerecord:
+    errors:
+      models:
+        payroll_adjustment:
+          attributes:
+            paid_at:
+              required_during_salary_hold: "is required: the employee's salary payment is on hold, so only a cash payment that already happened can be recorded"
+              future_during_salary_hold: "cannot be in the future while the employee's salary payment is on hold"

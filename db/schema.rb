@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_04_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_05_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1646,6 +1646,53 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_200000) do
     t.index ["till_deposit_id"], name: "index_rdb_on_till_deposit_id"
   end
 
+  create_table "salary_payment_holds", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "user_id", null: false
+    t.date "effective_from", null: false
+    t.string "reason", null: false
+    t.text "notes"
+    t.bigint "created_by_id", null: false
+    t.datetime "released_at"
+    t.bigint "released_by_id"
+    t.text "release_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_salary_payment_holds_on_business_id"
+    t.index ["created_by_id"], name: "index_salary_payment_holds_on_created_by_id"
+    t.index ["released_by_id"], name: "index_salary_payment_holds_on_released_by_id"
+    t.index ["user_id"], name: "index_salary_payment_holds_on_user_id"
+    t.index ["user_id"], name: "index_salary_payment_holds_one_active_per_user", unique: true, where: "(released_at IS NULL)"
+    t.check_constraint "(released_at IS NULL) = (released_by_id IS NULL)", name: "salary_payment_holds_release_complete"
+    t.check_constraint "reason::text = ANY (ARRAY['missing_documents'::character varying, 'incomplete_hiring_paperwork'::character varying, 'pending_hr_review'::character varying, 'administrative_issue'::character varying, 'other'::character varying]::text[])", name: "salary_payment_holds_reason_known"
+  end
+
+  create_table "salary_payment_withholdings", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "payroll_entry_id", null: false
+    t.bigint "salary_payment_hold_id", null: false
+    t.datetime "withheld_at", null: false
+    t.bigint "withheld_by_id", null: false
+    t.datetime "disbursed_at"
+    t.bigint "disbursed_by_id"
+    t.text "disbursement_note"
+    t.datetime "voided_at"
+    t.bigint "voided_by_id"
+    t.text "void_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_salary_payment_withholdings_on_business_id"
+    t.index ["disbursed_by_id"], name: "index_salary_payment_withholdings_on_disbursed_by_id"
+    t.index ["payroll_entry_id"], name: "index_salary_payment_withholdings_on_payroll_entry_id"
+    t.index ["payroll_entry_id"], name: "index_salary_payment_withholdings_one_live_per_entry", unique: true, where: "(voided_at IS NULL)"
+    t.index ["salary_payment_hold_id"], name: "index_salary_payment_withholdings_on_salary_payment_hold_id"
+    t.index ["voided_by_id"], name: "index_salary_payment_withholdings_on_voided_by_id"
+    t.index ["withheld_by_id"], name: "index_salary_payment_withholdings_on_withheld_by_id"
+    t.check_constraint "(disbursed_at IS NULL) = (disbursed_by_id IS NULL)", name: "salary_payment_withholdings_disbursement_complete"
+    t.check_constraint "(voided_at IS NULL) = (voided_by_id IS NULL)", name: "salary_payment_withholdings_void_complete"
+    t.check_constraint "disbursed_at IS NULL OR voided_at IS NULL", name: "salary_payment_withholdings_not_disbursed_and_voided"
+  end
+
   create_table "salary_profiles", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.decimal "base_amount", precision: 12, scale: 2, null: false
@@ -2732,6 +2779,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_200000) do
   add_foreign_key "remaining_deposit_balances", "till_deposits"
   add_foreign_key "remaining_deposit_balances", "users", column: "created_by_id"
   add_foreign_key "remaining_deposit_balances", "users", column: "responsible_user_id"
+  add_foreign_key "salary_payment_holds", "businesses"
+  add_foreign_key "salary_payment_holds", "users"
+  add_foreign_key "salary_payment_holds", "users", column: "created_by_id"
+  add_foreign_key "salary_payment_holds", "users", column: "released_by_id"
+  add_foreign_key "salary_payment_withholdings", "businesses"
+  add_foreign_key "salary_payment_withholdings", "payroll_entries"
+  add_foreign_key "salary_payment_withholdings", "salary_payment_holds"
+  add_foreign_key "salary_payment_withholdings", "users", column: "disbursed_by_id"
+  add_foreign_key "salary_payment_withholdings", "users", column: "voided_by_id"
+  add_foreign_key "salary_payment_withholdings", "users", column: "withheld_by_id"
   add_foreign_key "salary_profiles", "users"
   add_foreign_key "sales_imports", "businesses"
   add_foreign_key "sales_imports", "users", column: "imported_by_id"

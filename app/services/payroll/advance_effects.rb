@@ -22,5 +22,15 @@ module Payroll
       )
       nil
     end
+
+    # A salary advance is a payment against salary: refused while the
+    # employee's salary payment is on hold (any active SalaryPaymentHold).
+    def advance_payment_refusal(request:)
+      hold = SalaryPaymentHold.active.find_by(user_id: request.user_id, business_id: request.user.business_id)
+      return nil unless hold
+
+      I18n.t("salary_payment_holds.errors.advance_blocked",
+             reason: I18n.t("salary_payment_holds.reasons.#{hold.reason}"))
+    end
   end
 end

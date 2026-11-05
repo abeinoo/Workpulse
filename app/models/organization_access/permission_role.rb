@@ -15,7 +15,8 @@ class PermissionRole < ApplicationRecord
        suffix: :workspace, default: "management"
 
   PERMISSION_GROUPS = {
-    employees:             %w[view_employees manage_employees manage_salary_profiles view_salary_history],
+    employees:             %w[view_employees manage_employees manage_salary_profiles view_salary_history
+                               view_salary_payment_holds manage_salary_payment_holds],
     # Employee Add Requests (طلبات إضافة موظف) — the onboarding workflow, kept
     # separate from employee management: none of these grants editing
     # employees, salary, branches, permissions, payroll or attendance.
@@ -145,6 +146,7 @@ class PermissionRole < ApplicationRecord
       view_employee_balances manage_employee_balances create_balance_requests approve_balance_requests
       view_expense_reports
       view_payroll view_draft_payroll view_payroll_analytics view_payroll_audit_log
+      view_salary_payment_holds
       view_adjustments approve_adjustments
       view_inventory view_inventory_reports view_stock_count_reports
       view_deposit_verification import_bank_statement
@@ -279,6 +281,9 @@ class PermissionRole < ApplicationRecord
     "manage_salary_profiles" => %w[view_employees],
     # Salary history is shown only within what view_payroll already shows.
     "view_salary_history"    => %w[view_payroll],
+    # Salary Payment Holds are seen only within the payroll already visible.
+    "view_salary_payment_holds"   => %w[view_payroll],
+    "manage_salary_payment_holds" => %w[view_salary_payment_holds],
     "create_employee_requests"   => %w[view_employee_requests],
     "view_all_employee_requests" => %w[view_employee_requests],
     "review_employee_requests"   => %w[view_all_employee_requests],

@@ -1,0 +1,149 @@
+<%# Attendance & Payroll's Salary Payment Hold section of the Workforce employee
+    page, contributed through Employee::ProfilePanels (Payroll::SalaryHoldPanel).
+    Locals: employee, holds (newest first, never deleted), active_hold,
+    outstanding (withholdings still held or payable), held_total, payable_total,
+    can_manage. A hold blocks payment only — never the salary calculation. %>
+<% scope = "salary_payment_holds" %>
+<div class="card" style="margin-top: var(--space-6);" data-testid="salary-hold-panel">
+  <div class="card-header">
+    <h2 class="card-title" style="font-size: var(--text-lg);"><%= t("#{scope}.title") %></h2>
+    <% if active_hold %>
+      <span class="badge badge-danger" data-testid="salary-hold-status"><%= t("#{scope}.status.on_hold") %></span>
+    <% else %>
+      <span class="badge badge-success" data-testid="salary-hold-status"><%= t("#{scope}.status.normal") %></span>
+    <% end %>
+  </div>
+
+  <div style="padding: var(--space-4);">
+    <p class="td-secondary" style="margin: 0 0 var(--space-3);"><%= t("#{scope}.explanation") %></p>
+
+    <% if active_hold %>
+      <div class="alert alert-danger" role="alert" data-testid="salary-hold-active">
+        <strong><%= t("#{scope}.active_title") %></strong>
+        <dl class="data-list" style="margin-top: var(--space-2);">
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("#{scope}.reason") %></dt>
+            <dd class="data-list__value"><%= t("#{scope}.reasons.#{active_hold.reason}") %></dd>
+          </div>
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("#{scope}.effective_from") %></dt>
+            <dd class="data-list__value"><%= local_date(active_hold.effective_from) %></dd>
+          </div>
+          <div class="data-list__item">
+            <dt class="data-list__label"><%= t("#{scope}.created_by") %></dt>
+            <dd class="data-list__value"><bdi><%= active_hold.created_by.full_name %></bdi> — <%= local_datetime(active_hold.created_at) %></dd>
+          </div>
+          <% if active_hold.notes.present? %>
+            <div class="data-list__item">
+              <dt class="data-list__label"><%= t("#{scope}.notes") %></dt>
+              <dd class="data-list__value"><%= active_hold.notes %></dd>
+            </div>
+          <% end %>
+        </dl>
+      </div>
+    <% end %>
+
+    <% if outstanding.any? %>
+      <h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--text-2); margin: var(--space-3) 0 var(--space-2);"><%= t("#{scope}.outstanding_title") %></h3>
+      <div class="table-wrap table-wrap--cards">
+        <table data-testid="salary-hold-outstanding">
+          <thead>
+            <tr>
+              <th><%= t("#{scope}.period") %></th>
+              <th style="text-align: end;"><%= t("#{scope}.amount") %></th>
+              <th><%= t("#{scope}.payment_status") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% outstanding.each do |withholding| %>
+              <tr>
+                <td data-label="<%= t("#{scope}.period") %>"><%= withholding.payroll_entry.payroll_period.period_label %></td>
+                <td data-label="<%= t("#{scope}.amount") %>" style="text-align: end;"><%= format_currency(withholding.amount) %></td>
+                <td data-label="<%= t("#{scope}.payment_status") %>">
+                  <% if withholding.held? %>
+                    <span class="badge badge-danger"><%= t("#{scope}.status.held") %></span>
+                  <% else %>
+                    <span class="badge badge-warning"><%= t("#{scope}.status.released") %></span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin: var(--space-2) 0 0;" data-testid="salary-hold-totals">
+        <%= t("#{scope}.held_total") %>: <strong><%= format_currency(held_total) %></strong> ·
+        <%= t("#{scope}.payable_total") %>: <strong><%= format_currency(payable_total) %></strong>
+      </p>
+    <% end %>
+
+    <% if can_manage && active_hold %>
+      <%= form_with url: release_admin_salary_payment_hold_path(active_hold), method: :patch, local: true,
+                    data: { testid: "salary-hold-release-form" } do %>
+        <div class="form-group" style="margin-top: var(--space-4);">
+          <%= label_tag :release_reason, t("#{scope}.release_reason"), class: "form-label" %>
+          <%= text_area_tag :release_reason, nil, rows: 2, class: "form-control" %>
+          <p class="td-secondary" style="margin: var(--space-1) 0 0;"><%= t("#{scope}.release_note") %></p>
+        </div>
+        <button type="submit" class="btn btn-warning"
+                data-turbo-confirm="<%= t("#{scope}.release_confirm") %>"><%= t("#{scope}.release") %></button>
+      <% end %>
+    <% elsif can_manage %>
+      <%= form_with url: admin_user_salary_payment_holds_path(employee), method: :post, local: true,
+                    data: { testid: "salary-hold-create-form" } do %>
+        <h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--text-2); margin: var(--space-4) 0 var(--space-2);"><%= t("#{scope}.place_title") %></h3>
+        <div class="form-group">
+          <%= label_tag :reason, t("#{scope}.reason"), class: "form-label" %>
+          <%= select_tag :reason, options_for_select(SalaryPaymentHold::REASONS.map { |r| [ t("#{scope}.reasons.#{r}"), r ] }),
+                         include_blank: true, required: true, class: "form-control" %>
+        </div>
+        <div class="form-group">
+          <%= label_tag :effective_from, t("#{scope}.effective_from"), class: "form-label" %>
+          <%= date_field_tag :effective_from, nil, required: true, class: "form-control" %>
+        </div>
+        <div class="form-group">
+          <%= label_tag :notes, t("#{scope}.notes"), class: "form-label" %>
+          <%= text_area_tag :notes, nil, rows: 2, class: "form-control" %>
+        </div>
+        <button type="submit" class="btn btn-danger"
+                data-turbo-confirm="<%= t("#{scope}.place_confirm") %>"><%= t("#{scope}.place") %></button>
+      <% end %>
+    <% end %>
+
+    <% if holds.any? %>
+      <h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--text-2); margin: var(--space-4) 0 var(--space-2);"><%= t("#{scope}.history") %></h3>
+      <div class="table-wrap table-wrap--cards">
+        <table data-testid="salary-hold-history">
+          <thead>
+            <tr>
+              <th><%= t("#{scope}.reason") %></th>
+              <th><%= t("#{scope}.effective_from") %></th>
+              <th><%= t("#{scope}.created_by") %></th>
+              <th><%= t("#{scope}.released_by") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% holds.each do |hold| %>
+              <tr data-testid="salary-hold-<%= hold.id %>">
+                <td data-label="<%= t("#{scope}.reason") %>">
+                  <%= t("#{scope}.reasons.#{hold.reason}") %>
+                  <% if hold.notes.present? %><div class="td-secondary"><%= hold.notes %></div><% end %>
+                </td>
+                <td data-label="<%= t("#{scope}.effective_from") %>"><%= local_date(hold.effective_from) %></td>
+                <td data-label="<%= t("#{scope}.created_by") %>"><bdi><%= hold.created_by.full_name %></bdi><div class="td-secondary"><%= local_datetime(hold.created_at) %></div></td>
+                <td data-label="<%= t("#{scope}.released_by") %>">
+                  <% if hold.released? %>
+                    <bdi><%= hold.released_by.full_name %></bdi><div class="td-secondary"><%= local_datetime(hold.released_at) %></div>
+                    <% if hold.release_reason.present? %><div class="td-secondary"><%= hold.release_reason %></div><% end %>
+                  <% else %>
+                    <span class="badge badge-danger"><%= t("#{scope}.status.on_hold") %></span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </div>
+</div>

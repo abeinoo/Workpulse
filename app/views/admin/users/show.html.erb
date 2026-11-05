@@ -236,6 +236,11 @@
     <%= render @salary_panel.partial, **@salary_panel.locals %>
   <% end %>
 
+  <%# Salary Payment Hold — Attendance & Payroll's, contributed through Employee::ProfilePanels. %>
+  <% if @salary_hold_panel %>
+    <%= render @salary_hold_panel.partial, **@salary_hold_panel.locals %>
+  <% end %>
+
   <%# Social Insurance %>
   <% insurance_profile = @user.employee_insurance_profile %>
   <% if policy(EmployeeInsuranceProfile.new(user: @user)).show? %>

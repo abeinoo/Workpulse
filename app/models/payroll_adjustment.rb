@@ -43,6 +43,12 @@ class PayrollAdjustment < ApplicationRecord
   validates :period_year,   presence: true, numericality: { greater_than: 2000 }
   validates :payment_method, inclusion: { in: PAYMENT_METHODS }, allow_nil: true
   validate  :already_paid_only_for_positive, if: -> { already_paid? }
+  # A cash incentive recorded as already paid while the employee's salary
+  # payment is on hold is a historical record of money handed over outside the
+  # system — never a new payout, never a release of the hold: it needs the
+  # actual payment date (not in the future) and is audited with the hold.
+  validate  :historical_payment_during_salary_hold, on: :create, if: -> { already_paid? && salary_hold_active? }
+  after_create :audit_payment_recorded_during_salary_hold, if: -> { already_paid? && salary_hold_active? }
   validate  :period_not_locked, on: :create
   validate  :pending_not_in_locked_period, on: :create, if: :pending_review?
   validate  :user_belongs_to_business
@@ -189,6 +195,30 @@ class PayrollAdjustment < ApplicationRecord
 
       yield
     end
+  end
+
+  def active_salary_hold
+    return @active_salary_hold if defined?(@active_salary_hold)
+
+    @active_salary_hold = user_id && SalaryPaymentHold.active.find_by(user_id: user_id, business_id: business_id)
+  end
+
+  def salary_hold_active? = active_salary_hold.present?
+
+  def historical_payment_during_salary_hold
+    if paid_at.blank?
+      errors.add(:paid_at, :required_during_salary_hold)
+    elsif paid_at > Time.current
+      errors.add(:paid_at, :future_during_salary_hold)
+    end
+  end
+
+  def audit_payment_recorded_during_salary_hold
+    AuditLog.create!(actor: created_by, business: business, auditable: self,
+                     action: "already_paid_recorded_during_salary_hold", changes_json: {},
+                     metadata: { salary_payment_hold_id: active_salary_hold.id, user_id: user_id,
+                                 amount: amount.to_s, paid_at: paid_at.iso8601, payment_method: payment_method,
+                                 reason: reason }.compact)
   end
 
   def already_paid_only_for_positive

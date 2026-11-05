@@ -7,6 +7,12 @@ module Payroll
   # Every reopen requires a non-blank reason and produces a PayrollAuditLog
   # entry so the action is traceable.
   #
+  # paid → finalized and Salary Payment Holds: refused when any entry withheld
+  # under a hold was already paid after its release (that payment is financial
+  # history); otherwise the outstanding withholdings are voided with the reason,
+  # and the next Mark Paid decides again from the holds active then. Runs under
+  # the period lock, as Payroll::ReleasedSalaryPayer does.
+  #
   # Authorization is enforced at the policy layer (PayrollPeriodPolicy#reopen?)
   # — this service only performs the state change and writes the audit log.
   class Reopener
@@ -37,7 +43,27 @@ module Payroll
 
       from_status = @period.status
 
+      refusal = nil
+      voided  = []
       ActiveRecord::Base.transaction do
+        @period.lock!
+        unless @period.status == from_status
+          refusal = "No reopen transition available from '#{@period.status}'"
+          raise ActiveRecord::Rollback
+        end
+        if from_status == "paid"
+          withholdings = SalaryPaymentWithholding.live.joins(:payroll_entry)
+                                                 .where(payroll_entries: { payroll_period_id: @period.id })
+          if withholdings.disbursed.exists?
+            refusal = I18n.t("salary_payment_holds.errors.reopen_disbursed")
+            raise ActiveRecord::Rollback
+          end
+          withholdings.lock.each do |withholding|
+            withholding.update!(voided_at: Time.current, voided_by: @by, void_reason: @reason)
+            voided << withholding.id
+          end
+        end
+
         update_attrs = { status: to_status }
         # Clear forward-state metadata so the next finalize/pay is a fresh action.
         case to_status
@@ -53,7 +79,7 @@ module Payroll
           action_type:    :reopened,
           from_status:    from_status,
           to_status:      to_status,
-          metadata:       { reason: @reason }.to_json
+          metadata:       { reason: @reason, voided_withholding_ids: voided.presence }.compact.to_json
         )
 
         # Leaving "finalized" means payroll may change before the next
@@ -63,6 +89,8 @@ module Payroll
           Payroll::FinalizationEffects.period_reopened(period: @period, actor: @by, reason: @reason)
         end
       end
+
+      return err(refusal) if refusal
 
       Result.new(success: true, period: @period)
     rescue ActiveRecord::RecordInvalid => e

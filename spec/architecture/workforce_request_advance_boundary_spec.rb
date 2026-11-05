@@ -135,6 +135,20 @@ RSpec.describe "Architecture: Workforce reaches the Advance only through Request
     expect(calls.map(&:strip)).to eq([ "Requests::AdvanceEffects.advance_paid(request: @request, paid_at: paid_at)" ])
   end
 
+  # Salary Payment Hold (owner decision A1, 2026-11-05): the approver asks the
+  # contract whether the advance may be paid out — once, in pay, before the
+  # request is written or the advance recorded — and never reads the hold itself.
+  it "the approver asks advance_payment_refusal once, in pay, before any write" do
+    source = File.read(Rails.root.join(boundary::APPROVER))
+    pay    = source[/^    def pay\n.*?^    end\n/m]
+    expect(source.scan("Requests::AdvanceEffects.advance_payment_refusal(").size).to eq(1)
+    expect(pay.index("advance_payment_refusal")).to be < pay.index("@request.update!")
+    expect(pay.index("advance_payment_refusal")).to be < pay.index("Requests::AdvanceEffects.advance_paid")
+    expect(boundary.source_files.select { |f| f.start_with?("app/services/requests/") }
+                   .flat_map { |f| File.read(Rails.root.join(f)).scan(/\bSalaryPayment(?:Hold|Withholding)\b/) }).to be_empty
+    expect(Requests::AdvanceEffects::OPERATIONS).to include(:advance_payment_refusal)
+  end
+
   it "the contract names nothing from Attendance & Payroll (rule 3)" do
     expect(boundary.matches_in(boundary::CONTRACT_FILE, /\bPayroll\b|\bAdvance\b|\b(?:Attendance|Salary)::/)).to be_empty
   end

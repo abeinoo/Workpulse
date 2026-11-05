@@ -98,7 +98,8 @@ RSpec.describe Reports::BankTransferCsvExporter, type: :service do
       ineligible = create(:user, business: business, employee_code: "1009", identity_card_number: nil)
       create(:payroll_entry, :approved, payroll_period: period, user: ineligible, net_salary: 0.0)
 
-      expect(exporter.summary).to eq(total_employees: 2, total_amount: 15_700.0, missing_national_id: 1)
+      expect(exporter.summary).to eq(total_employees: 2, total_amount: 15_700.0, missing_national_id: 1,
+                                     held_employees: 0, held_amount: 0)
     end
   end
 
