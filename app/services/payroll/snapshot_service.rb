@@ -2,19 +2,25 @@ module Payroll
   # Captures a lightweight JSON snapshot of a payroll period's current totals
   # and per-employee net amounts. Called before regeneration so diffs can be
   # shown afterwards and rollback is possible at the data level.
+  #
+  # absent_user_ids: employees with no entry yet that the triggering operation
+  # is about to add (Payroll::PeriodRecalculator) — recorded as
+  # { "user_id" => id, "in_payroll" => false } so the snapshot shows they were
+  # not in the payroll before it. They count toward no total or employee_count.
   class SnapshotService
     Result = Struct.new(:success, :snapshot, :error, keyword_init: true) do
       def success? = success
     end
 
-    def self.call(period:, taken_by:, trigger: "pre_regenerate")
-      new(period: period, taken_by: taken_by, trigger: trigger).call
+    def self.call(period:, taken_by:, trigger: "pre_regenerate", absent_user_ids: [])
+      new(period: period, taken_by: taken_by, trigger: trigger, absent_user_ids: absent_user_ids).call
     end
 
-    def initialize(period:, taken_by:, trigger:)
-      @period   = period
-      @taken_by = taken_by
-      @trigger  = trigger
+    def initialize(period:, taken_by:, trigger:, absent_user_ids: [])
+      @period          = period
+      @taken_by        = taken_by
+      @trigger         = trigger
+      @absent_user_ids = Array(absent_user_ids)
     end
 
     def call
@@ -30,6 +36,7 @@ module Payroll
           "bonuses"    => e.total_bonuses.to_f,
         }
       end
+      employee_details += @absent_user_ids.sort.map { |id| { "user_id" => id, "in_payroll" => false } }
 
       snapshot = PayrollSnapshot.create!(
         payroll_period:  @period,

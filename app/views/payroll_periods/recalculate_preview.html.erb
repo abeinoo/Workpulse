@@ -31,6 +31,49 @@
     </div>
   <% end %>
 
+  <% if @preview.added_rows.any? && !@preview.blocked? %>
+    <div class="alert alert-warning" role="note" style="margin-bottom: var(--space-4);" data-testid="recalc-added">
+      <strong><%= t("#{scope}.added_title", count: @preview.added_rows.size) %></strong>
+      <p style="margin: var(--space-2) 0 0;"><%= t("#{scope}.added_note") %></p>
+      <ul style="margin: var(--space-2) 0 0;">
+        <% @preview.added_rows.each do |row| %>
+          <li><bdi><%= row.employee_name %></bdi></li>
+        <% end %>
+      </ul>
+      <% if @preview.new_review_slots.any? %>
+        <p style="margin: var(--space-2) 0 0;" data-testid="recalc-new-slots">
+          <%= t("#{scope}.new_slots_note", branches: @preview.new_review_slots.map(&:name).to_sentence) %>
+        </p>
+      <% end %>
+      <% if @preview.reopens_period? %>
+        <p style="margin: var(--space-2) 0 0;" data-testid="recalc-reopens-period"><%= t("#{scope}.reopens_period_note") %></p>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if @preview.salary_start_alerts.any? && !@preview.blocked? %>
+    <div class="alert alert-danger" role="alert" style="margin-bottom: var(--space-4);" data-testid="recalc-salary-start-alerts">
+      <strong><%= t("#{scope}.salary_start.title", count: @preview.salary_start_alerts.size) %></strong>
+      <p style="margin: var(--space-2) 0 0;"><%= t("#{scope}.salary_start.note") %></p>
+      <ul style="margin: var(--space-2) 0 0;">
+        <% @preview.salary_start_alerts.each do |row| %>
+          <li data-testid="recalc-salary-start-<%= row.user_id %>">
+            <bdi><%= row.employee_name %></bdi> —
+            <%= t("#{scope}.salary_start.paid_from", date: l(row.salary_starts_on, format: :long)) %>;
+            <% if row.hire_date %>
+              <%= t("#{scope}.salary_start.hired_on", date: l(row.hire_date, format: :long)) %>
+            <% else %>
+              <%= t("#{scope}.salary_start.no_hire_date") %>
+            <% end %>
+            <% if row.first_attendance_on %>
+              ; <%= t("#{scope}.salary_start.first_attendance", date: l(row.first_attendance_on, format: :long)) %>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
   <div class="stats-grid" style="margin-bottom: var(--space-5);">
     <div class="stat-card">
       <span class="stat-card__label"><%= t("#{scope}.changed_employees") %></span>
@@ -40,6 +83,12 @@
       <span class="stat-card__label"><%= t("#{scope}.unchanged_employees") %></span>
       <span class="stat-card__value" data-testid="recalc-unchanged"><%= @preview.unchanged_count %></span>
     </div>
+    <% if @preview.added_rows.any? %>
+      <div class="stat-card">
+        <span class="stat-card__label"><%= t("#{scope}.added_employees") %></span>
+        <span class="stat-card__value" data-testid="recalc-added-count"><%= @preview.added_rows.size %></span>
+      </div>
+    <% end %>
     <div class="stat-card">
       <span class="stat-card__label"><%= t("#{scope}.re_review_employees") %></span>
       <span class="stat-card__value" data-testid="recalc-re-review"><%= @preview.changed_count %></span>
@@ -96,7 +145,9 @@
                 <tr data-testid="recalc-branch-<%= branch.branch_id %>">
                   <td data-label="<%= t("#{scope}.branch") %>"><bdi><%= branch.branch_name %></bdi></td>
                   <td data-label="<%= t("#{scope}.sign_off") %>">
-                    <% if branch.signed_off? %>
+                    <% if branch.opens_slot %>
+                      <span class="badge badge-warning"><%= t("#{scope}.slot_will_open") %></span>
+                    <% elsif branch.signed_off? %>
                       <span class="badge badge-warning"><%= t("#{scope}.signed_off") %></span>
                       <div class="td-secondary">
                         <%= t("#{scope}.signed_off_by", name: branch.reviewer_name, at: local_datetime(branch.completed_at)) %>
@@ -136,6 +187,12 @@
               <tr data-testid="recalc-row-<%= row.user_id %>">
                 <td data-label="<%= t("#{scope}.employee") %>">
                   <bdi><%= row.employee_name %></bdi>
+                  <% if row.added? %>
+                    <div><span class="badge badge-accent"><%= t("#{scope}.added_badge") %></span></div>
+                  <% end %>
+                  <% if row.salary_start_alert? %>
+                    <div><span class="badge badge-danger"><%= t("#{scope}.salary_start.badge") %></span></div>
+                  <% end %>
                   <div><span class="badge badge-warning"><%= t("#{scope}.re_review_badge") %></span></div>
                 </td>
                 <% { base_salary: [ row.amount(:before, "base_salary"), row.amount(:after, "base_salary") ],
@@ -143,7 +200,7 @@
                      deductions:  [ row.deductions(:before), row.deductions(:after) ],
                      net:         [ row.amount(:before, "net_salary"), row.amount(:after, "net_salary") ] }.each do |field, (before, after)| %>
                   <td data-label="<%= t("#{scope}.totals.#{field}") %>" style="text-align: end;">
-                    <div class="td-secondary"><%= format_currency(before) %></div>
+                    <div class="td-secondary"><%= row.added? ? "—" : format_currency(before) %></div>
                     <div><%= format_currency(after) %></div>
                   </td>
                 <% end %>
@@ -159,7 +216,7 @@
                   <% else %>
                     <span class="td-secondary"><%= t("#{scope}.single_profile") %></span>
                   <% end %>
-                  <% if row.breakdown_before.nil? %>
+                  <% if row.breakdown_before.nil? && !row.added? %>
                     <div class="td-secondary"><%= t("#{scope}.breakdown_first_recorded") %></div>
                   <% end %>
                 </td>
@@ -184,6 +241,14 @@
             <span><%= t("#{scope}.acknowledge", count: @preview.changed_count) %></span>
           </label>
         </div>
+        <% if @preview.salary_start_alerts.any? %>
+          <div class="form-group">
+            <label class="form-check">
+              <%= check_box_tag :acknowledge_salary_start, "1", false, required: true %>
+              <span><%= t("#{scope}.salary_start.acknowledge", count: @preview.salary_start_alerts.size) %></span>
+            </label>
+          </div>
+        <% end %>
         <div class="form-actions">
           <button type="submit" class="btn btn-warning"
                   data-turbo-confirm="<%= t("#{scope}.confirm_prompt", count: @preview.changed_count) %>">

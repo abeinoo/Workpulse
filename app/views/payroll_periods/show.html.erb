@@ -449,6 +449,34 @@
     </div>
   <% end %>
 
+  <%# ── Attendance without a salary profile — unpaid days / not in payroll ─── %>
+  <% if @unsalaried_attendance.present? %>
+    <% ua_scope = "payroll.unsalaried_attendance" %>
+    <div class="alert alert-warning" role="alert" data-testid="unsalaried-attendance">
+      <div>
+        <strong><%= t("#{ua_scope}.title", count: @unsalaried_attendance.size) %></strong>
+        <p style="margin: var(--space-2) 0 0;"><%= t("#{ua_scope}.note") %></p>
+        <ul style="margin: var(--space-2) 0 0;">
+          <% @unsalaried_attendance.each do |row| %>
+            <li data-testid="unsalaried-attendance-<%= row.user.id %>">
+              <bdi><%= row.user.full_name %></bdi> —
+              <%= t("#{ua_scope}.unpaid_days", count: row.unpaid_days) %>
+              (<%= l(row.first_date, format: :short) %><% if row.last_date != row.first_date %> – <%= l(row.last_date, format: :short) %><% end %>)
+              <% if row.in_payroll? %>
+                <span class="badge badge-neutral"><%= t("#{ua_scope}.in_payroll") %></span>
+              <% else %>
+                <span class="badge badge-danger"><%= t("#{ua_scope}.not_in_payroll") %></span>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+        <p style="margin: var(--space-2) 0 0;">
+          <%= t("#{ua_scope}.hint_#{@period.locked? ? 'locked' : (@period.draft? ? 'draft' : 'review')}") %>
+        </p>
+      </div>
+    </div>
+  <% end %>
+
   <%# ── Needs-review banner — visual aid only, does not touch Branch Review ─── %>
   <% if @needs_review_count.to_i > 0 %>
     <div class="alert alert-warning needs-review-banner">

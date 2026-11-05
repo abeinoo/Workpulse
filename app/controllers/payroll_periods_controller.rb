@@ -95,6 +95,11 @@ class PayrollPeriodsController < ApplicationController
     if current_user.can?(:view_payroll)
       @user_branch_names = load_user_branch_names(@entries.map(&:user_id))
       @last_snapshot     = @period.payroll_snapshots.order(created_at: :desc).first
+      # Attendance on days with no salary profile in force (unpaid; no entry at
+      # all when no day of the period has one) — read-only warning.
+      @unsalaried_attendance = Payroll::UnsalariedAttendance.new(
+        period: @period, users: PayrollEntryPolicy.visible_employees(current_user)
+      ).rows
     end
 
     # Audit trail is sensitive (who did what, when, why) — gated separately.
