@@ -217,4 +217,65 @@ RSpec.describe PayrollEntryPolicy, type: :model do
       end
     end
   end
+
+  # The employee form of Scope — used for employees without an entry (the
+  # period page's unsalaried-attendance warning). It must list exactly the
+  # employees whose entries Scope shows, for every kind of viewer.
+  describe ".visible_employees" do
+    let(:other_branch) { create(:branch, business: business) }
+    let(:outsider)     { create(:user, business: create(:business)) }
+
+    def role_user(permissions, scopes: {})
+      role = create(:permission_role, business: business, permissions: permissions, permission_scopes: scopes)
+      create(:user, business: business, permission_role: role)
+    end
+
+    let(:viewers) do
+      {
+        super_admin: super_admin, accountant: accountant, branch_manager: manager, area_manager: area_mgr,
+        employee: employee,
+        "view_payroll self":     role_user(%w[view_payroll], scopes: { "view_payroll" => "self" }),
+        "view_payroll branch":   role_user(%w[view_payroll], scopes: { "view_payroll" => "branch" }),
+        "view_payroll area":     role_user(%w[view_payroll], scopes: { "view_payroll" => "area" }),
+        "view_payroll business": role_user(%w[view_payroll], scopes: { "view_payroll" => "business" }),
+        "view_payroll default":  role_user(%w[view_payroll])
+      }
+    end
+
+    before do
+      create(:branch, business: business, area_manager: area_mgr).tap do |area_branch|
+        create(:shift_assignment, user: create(:user, business: business), branch: area_branch, shift: shift)
+      end
+      create(:shift_assignment, user: create(:user, business: business), branch: other_branch, shift: shift)
+      viewers # every viewer exists before the entries are written
+      open_period = create(:payroll_period, business: business, status: :under_review)
+      business.users.find_each { |u| create(:payroll_entry, payroll_period: open_period, user: u) }
+      create(:payroll_entry, payroll_period: create(:payroll_period, business: outsider.business), user: outsider)
+      @open_period = open_period
+    end
+
+    it "lists exactly the employees whose entries Scope shows, for every viewer" do
+      viewers.each do |label, viewer|
+        via_scope = described_class::Scope.new(viewer, PayrollEntry).resolve
+                                         .where(payroll_period: @open_period).pluck(:user_id).sort
+        expect(described_class.visible_employees(viewer).pluck(:id).sort).to eq(via_scope), "viewer: #{label}"
+      end
+    end
+
+    it "lists nobody for a viewer without view_payroll" do
+      expect(described_class.visible_employees(employee)).to be_empty
+    end
+
+    it "never lists another business's employees" do
+      viewers.each_value do |viewer|
+        expect(described_class.visible_employees(viewer).pluck(:id)).not_to include(outsider.id)
+      end
+    end
+
+    it "limits a branch-scoped viewer to their branch" do
+      ids = described_class.visible_employees(manager).pluck(:id)
+      expect(ids).to include(employee.id)
+      expect(ids).not_to include(*other_branch.then { |b| ShiftAssignment.where(branch: b).pluck(:user_id) })
+    end
+  end
 end

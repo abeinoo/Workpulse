@@ -5,9 +5,13 @@ on:
   push:
     branches: [ main ]
 
+# Runner image pinned (not ubuntu-latest): ruby/setup-ruby only ships prebuilt
+# Rubies for the latest patch of each series on newer images, so Ruby 4.0.3
+# (.ruby-version, Gemfile.lock, Dockerfile) 404s on ubuntu-26.04. Move the
+# image and .ruby-version together.
 jobs:
   scan_ruby:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
@@ -25,7 +29,7 @@ jobs:
         run: bin/bundler-audit
       
   scan_js:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
@@ -40,7 +44,7 @@ jobs:
         run: bin/importmap audit
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       RUBOCOP_CACHE_ROOT: tmp/rubocop
     steps:
@@ -77,7 +81,7 @@ jobs:
   # run can be compared by exact ID with the documented baseline
   # (docs/architecture/*-baseline-failures.txt). Known failures are not skipped.
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     services:
       postgres:
@@ -126,7 +130,7 @@ jobs:
           if-no-files-found: ignore
 
   system-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     services:
       postgres:

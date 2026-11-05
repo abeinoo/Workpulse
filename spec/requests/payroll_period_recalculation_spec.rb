@@ -268,4 +268,123 @@ RSpec.describe "Payroll period recalculation", type: :request do
       expect(period.reload.status).to eq("finalized")
     end
   end
+
+  # An employee excluded at generation (attendance, no salary profile), whose
+  # profile is entered afterwards: warned about on the period page, added only
+  # through Recalculate Payroll.
+  describe "a newly eligible employee" do
+    let(:east)  { create(:branch, business: business, name: "East") }
+    let(:omar)  { create(:user, business: business, first_name: "Omar", last_name: "Nasser") }
+
+    before do
+      east.update_column(:branch_manager_id, create(:user, business: business).id)
+      assignment = create(:shift_assignment, user: omar, branch: east, shift: shift, effective_from: Date.new(2026, 9, 1))
+      [ 3, 25, 26 ].each do |d|
+        create(:attendance_record, user: omar, branch: east, shift_assignment: assignment, date: oct(d), work_date: oct(d),
+               check_in_at: Time.zone.local(2026, 10, d, 9), check_out_at: Time.zone.local(2026, 10, d, 17),
+               worked_minutes: 480, late_minutes: 0, early_leave_minutes: 0, status: "present")
+      end
+    end
+
+    def warning_for(user) = Nokogiri::HTML(response.body).at_css("[data-testid='unsalaried-attendance-#{user.id}']")
+
+    it "is listed on the period page as not in payroll while no salary profile is in force" do
+      sign_in accountant
+      get payroll_period_path(period)
+
+      expect(warning_for(omar).text).to include("Omar Nasser", I18n.t("payroll.unsalaried_attendance.not_in_payroll"),
+                                                I18n.t("payroll.unsalaried_attendance.unpaid_days", count: 3))
+      expect(response.body).to include(I18n.t("payroll.unsalaried_attendance.hint_review"))
+      expect(warning_for(ahmed)).to be_nil
+    end
+
+    it "is added by Recalculate Payroll once a profile is entered, then shown with only the uncovered days" do
+      create(:salary_profile, :daily, user: omar, base_amount: 300, effective_from: oct(25))
+      sign_in accountant
+
+      get recalculate_preview_payroll_period_path(period)
+      page = Nokogiri::HTML(response.body)
+      expect(page.at_css("[data-testid='recalc-added']").text).to include("Omar Nasser")
+      expect(page.at_css("[data-testid='recalc-added-count']").text.strip).to eq("1")
+      expect(page.at_css("[data-testid='recalc-new-slots']").text).to include("East")
+      expect(page.at_css("[data-testid='recalc-row-#{omar.id}']").text)
+        .to include(I18n.t("payroll.period_recalculation.added_badge"), "600.00")
+      expect(page.at_css("[data-testid='recalc-branch-#{east.id}']").text)
+        .to include(I18n.t("payroll.period_recalculation.slot_will_open"))
+
+      patch recalculate_payroll_period_path(period), params: { preview_digest: digest_from_page, reason: "Omar's profile" }
+      expect(response).to redirect_to(payroll_period_path(period))
+      expect(entry_of(omar).base_salary).to eq(BigDecimal("600"))
+      expect(period.payroll_period_branch_reviews.find_by!(branch: east)).to be_pending
+
+      follow_redirect!
+      expect(warning_for(omar).text).to include(I18n.t("payroll.unsalaried_attendance.in_payroll"),
+                                                I18n.t("payroll.unsalaried_attendance.unpaid_days", count: 1))
+      expect(response.body).to include(I18n.t("payroll.period_recalculation.timeline_added", count: 1),
+                                       I18n.t("payroll.period_recalculation.timeline_slots_opened", branches: "East"))
+    end
+
+    it "exposes a salary starting before the hire date and requires checking it before confirming" do
+      omar.update_column(:hire_date, oct(20))
+      create(:salary_profile, :monthly, user: omar, base_amount: 9_000, effective_from: oct(1))
+      sign_in accountant
+
+      get recalculate_preview_payroll_period_path(period)
+      page = Nokogiri::HTML(response.body)
+      alert = page.at_css("[data-testid='recalc-salary-start-#{omar.id}']").text
+      expect(alert).to include("Omar Nasser", I18n.l(oct(1), format: :long), I18n.l(oct(20), format: :long))
+      expect(page.at_css("[data-testid='recalc-row-#{omar.id}']").text)
+        .to include(I18n.t("payroll.period_recalculation.salary_start.badge"))
+      expect(page.at_css("input[name='acknowledge_salary_start'][required]")).to be_present
+    end
+
+    it "asks no salary-start acknowledgement when no date needs checking" do
+      omar.update_column(:hire_date, oct(1))
+      create(:salary_profile, :daily, user: omar, base_amount: 300, effective_from: oct(25))
+      sign_in accountant
+
+      get recalculate_preview_payroll_period_path(period)
+      page = Nokogiri::HTML(response.body)
+      expect(page.at_css("[data-testid='recalc-salary-start-alerts']")).to be_nil
+      expect(page.at_css("input[name='acknowledge_salary_start']")).to be_nil
+    end
+
+    it "never shows the warning to an employee without view_payroll" do
+      sign_in omar
+      get payroll_period_path(period)
+      expect(response.body).not_to include(I18n.t("payroll.unsalaried_attendance.not_in_payroll"))
+    end
+
+    it "renders the added employee and the warning in Arabic" do
+      create(:salary_profile, :daily, user: omar, base_amount: 300, effective_from: oct(25))
+      accountant.update!(preferred_locale: "ar")
+      sign_in accountant
+
+      get recalculate_preview_payroll_period_path(period)
+      expect(response.body).to include("مضاف إلى الرواتب")
+      expect(response.body).not_to include("translation missing")
+
+      get payroll_period_path(period)
+      expect(response.body).to include("حضور بدون ملف راتب")
+      expect(response.body).not_to include("translation missing")
+    end
+
+    it "lists only employees within the viewer's payroll scope" do
+      north_manager = role_user(%w[view_payroll view_draft_payroll complete_branch_review], branch: north)
+      sign_in north_manager
+      get payroll_period_path(period)
+
+      expect(response).to have_http_status(:ok)
+      expect(warning_for(omar)).to be_nil
+    end
+
+    it "shows the locked-period hint on a finalized period" do
+      period.update_column(:status, "finalized")
+      sign_in accountant
+      get payroll_period_path(period)
+
+      expect(warning_for(omar)).to be_present
+      expect(response.body).to include(I18n.t("payroll.unsalaried_attendance.hint_locked"))
+    end
+  end
 end

@@ -51,17 +51,27 @@ class PayrollEntryPolicy < ApplicationPolicy
     BranchScope.new(user).for_scope(user.scope_for(:view_payroll)).to_set.freeze
   end
 
+  # The employees whose payroll a view_payroll holder may see — the employee
+  # form of Scope (its single definition): the configured view_payroll data
+  # scope plus the viewer, or, none configured, EmployeeScope's default. Also
+  # used for employees without an entry (Payroll::UnsalariedAttendance).
+  def self.visible_employees(user)
+    return User.none unless user.can?(:view_payroll)
+
+    if (configured = user.scope_for(:view_payroll))
+      User.where(id: EmployeeScope.new(user).for_scope(configured).select(:id)).or(User.where(id: user.id))
+    else
+      User.where(id: EmployeeScope.new(user).relation.select(:id))
+    end
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       business_scoped = scope.joins(:payroll_period)
                              .where(payroll_periods: { business_id: user.business_id })
 
       if user.can?(:view_payroll)
-        if (configured = user.scope_for(:view_payroll))
-          filter_by_data_scope(business_scoped, configured)
-        else
-          business_scoped.where(user_id: EmployeeScope.new(user).relation.select(:id))
-        end
+        business_scoped.where(user_id: PayrollEntryPolicy.visible_employees(user).select(:id))
       else
         scope.joins(:payroll_period)
              .where(user_id: user.id)

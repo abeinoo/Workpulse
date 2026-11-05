@@ -58,6 +58,12 @@
           <% end %>
           <% if log.action_type == "recalculated" %>
             &middot; <span class="td-secondary"><%= t("payroll.period_recalculation.timeline_changed", count: meta["changed_employee_count"].to_i) %></span>
+            <% if meta["added_employee_count"].to_i > 0 %>
+              &middot; <span class="td-secondary"><%= t("payroll.period_recalculation.timeline_added", count: meta["added_employee_count"].to_i) %></span>
+            <% end %>
+            <% if Array(meta["review_slots_opened"]).any? %>
+              <div class="payroll-timeline__reason"><%= t("payroll.period_recalculation.timeline_slots_opened", branches: Array(meta["review_slots_opened"]).map { |b| b["branch_name"] }.to_sentence) %></div>
+            <% end %>
             <% if meta["reason"].present? %>
               <div class="payroll-timeline__reason"><em><%= meta["reason"] %></em></div>
             <% end %>
