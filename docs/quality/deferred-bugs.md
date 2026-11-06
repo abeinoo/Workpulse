@@ -62,7 +62,7 @@ here only so its stable ID and history are kept.
 | BUG-038 | Daily-employee advance limit model spec fails on the 1st–9th of every month | Test suite (`employee_request_spec.rb`) | Low (CI fails on every branch nine days a month; no application defect) | Confirmed (CI run 41397083807 on PR #98, 2026-11-02; reproduced locally) | **Resolved** (`99ba409`, PR #99) | — |
 | BUG-039 | Device clocks not moved back at the end of Egypt DST: punches refused or stored one hour late; Nasr City device silent | Attendance & Payroll (device integration / operations) | **High** (lateness and payroll inputs; device 2 punches start expiring 2026-11-06) | Confirmed (rejections) / Suspected (accepted punches one hour late) | Open | Operations decision (before 2026-11-06) |
 | BUG-040 | Rule-profile grace / expected hours depend on the attendance source (mobile and recomputations yes; device and manager edits no) | Attendance & Payroll | Medium (no live effect: 0 rule profiles on 2026-11-02; becomes payroll-relevant with the first profile) | Confirmed (code; pinned by `punch_recalculation_spec.rb`) | Open | Product decision (before the first rule profile) |
-| BUG-042 | Employee form accepts another business's department | Organization & Access / Workforce (employee department) | Medium (cross-business reference: foreign name shown, counted in the other business's departments, cleared by its hard delete; needs a second business) | Confirmed (request spec on the unchanged code, 2026-11-03) | In Progress (fix on `fix/user-department-same-business`, PR open, not merged) | Merge of the fix PR |
+| BUG-042 | Employee form accepts another business's department | Organization & Access / Workforce (employee department) | Medium (cross-business reference: foreign name shown, counted in the other business's departments, cleared by its hard delete; needs a second business) | Confirmed (request spec on the unchanged code, 2026-11-03) | **Resolved** (`22823dc`, PR #108) | — |
 | BUG-043 | Till custody flows resolve the cashier's branch with the UTC calendar date (`Date.current`), not the business day | Finance & Sales (till custody / daily reconciliations) | Medium (only near the business-day rollover AND with a shift-assignment change at that boundary) | Suspected (code; same mechanism Confirmed for `OpeningFloatsController` by `opening_floats_spec.rb`) | Deferred | Next Finance & Sales till-custody fix |
 | BUG-044 | Biometric device create, edit, branch reassignment, token regeneration and delete write no audit entry | Attendance & Payroll (device administration) | Low–Medium (configuration, not money; every punch log records its own branch, so attribution stays traceable) | Confirmed (code reading, 2026-11-03) | Deferred | Before devices are managed by more than the owner, or the next device-administration change |
 | BUG-045 | Draft Regenerate drops entry notes, API-added cash incentives and adjustment line-item review state | Attendance & Payroll (payroll regeneration) | Medium (an API cash incentive silently leaves net pay; draft periods only; the pre-regenerate snapshot shows the change) | Confirmed (reproduction 2026-11-04, rolled-back test transaction) | Deferred | Next payroll-regeneration change, or before the API incentive endpoint is used on draft periods |
@@ -1396,8 +1396,8 @@ here only so its stable ID and history are kept.
 ## BUG-042 — Employee form accepts another business's department
 
 * **Source:** Tenant Isolation Gate, Phase 1 ownership inventory (2026-11-03). **Discovered:** 2026-11-03.
-  **Status:** In Progress — fix and regression spec on `fix/user-department-same-business` (PR open, not merged).
-  Mark Resolved only once merged. Rows written before the guard are not checked (BUG-027).
+  **Status:** **Resolved** by `22823dc` — merged into `main` in PR #108, merge commit `3482391` (2026-11-03).
+  Rows written before the guard are not checked (read-only check pending, see BUG-027).
   (BUG-041 was proposed and dropped during the punch-aggregation review on 2026-11-03 and never registered; the
   number is not reused.)
 * **Domain / files:** Organization & Access (employee form) / Workforce (`Department`) —
@@ -1426,8 +1426,8 @@ here only so its stable ID and history are kept.
 * **Not checked:** existing rows linking an employee to another business's department. Read-only check, not run
   against production:
   `SELECT u.id, u.business_id, d.business_id FROM users u JOIN departments d ON d.id = u.department_id
-  WHERE d.business_id <> u.business_id;`
-* **Review milestone:** merge of the fix PR.
+  WHERE d.business_id <> u.business_id;` The existing-data audit stays under BUG-027.
+* **Review milestone:** — (resolved).
 
 ## BUG-043 — Till custody flows resolve the cashier's branch with the UTC calendar date, not the business day
 
