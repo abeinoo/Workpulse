@@ -36,11 +36,9 @@ module Finance
     end
 
     def apply_equal(allocations)
-      n   = allocations.size
-      pct = (BigDecimal(100) / n).round(2)
-      allocations.each_with_index do |a, i|
-        a.allocation_percentage = (i == n - 1) ? 100 - (pct * (n - 1)) : pct
-      end
+      n = allocations.size
+      percentages = MoneySplitter.split(100, n) { BigDecimal(100) / n }
+      allocations.zip(percentages) { |a, pct| a.allocation_percentage = pct }
       distribute_amounts(allocations)
     end
 
@@ -65,16 +63,10 @@ module Finance
     # Set allocated_amount from each percentage, then push the rounding residual
     # onto the last row so the parts sum exactly to the total.
     def distribute_amounts(allocations)
-      running = BigDecimal(0)
-      allocations.each_with_index do |a, i|
-        if i == allocations.size - 1
-          a.allocated_amount = (total - running)
-        else
-          amt = (total * a.allocation_percentage.to_d / 100).round(2)
-          a.allocated_amount = amt
-          running += amt
-        end
+      amounts = MoneySplitter.split(total, allocations.size) do |i|
+        total * allocations[i].allocation_percentage.to_d / 100
       end
+      allocations.zip(amounts) { |a, amt| a.allocated_amount = amt }
     end
   end
 end

@@ -143,21 +143,15 @@ module Finance
 
     # Builds allocations with amounts taken directly from branch_totals (already
     # exact — no re-derivation), and percentages that sum to exactly 100 by
-    # absorbing rounding into the last row (mirrors AllocationCalculator's own
-    # #distribute_amounts residual technique). Deliberately doesn't go through
+    # absorbing rounding into the last row (Finance::MoneySplitter, shared with
+    # AllocationCalculator). Deliberately doesn't go through
     # AllocationCalculator's :manual mode, whose independently-rounded
     # percentages-from-amounts can sum to 99.99/100.01 for 3+ branches and trip
     # Expense's allocation_not_100 validation.
     def build_manual_allocations(expense, branch_totals, employer_total)
-      running_pct = 0.to_d
-      branch_totals.keys.each_with_index do |branch_id, i|
-        amount = branch_totals[branch_id]
-        pct = if i == branch_totals.size - 1
-          100 - running_pct
-        else
-          (amount.to_d / employer_total.to_d * 100).round(2)
-        end
-        running_pct += pct
+      amounts     = branch_totals.values
+      percentages = MoneySplitter.split(100, amounts.size) { |i| amounts[i].to_d / employer_total.to_d * 100 }
+      branch_totals.keys.zip(amounts, percentages) do |branch_id, amount, pct|
         expense.expense_allocations.build(branch_id: branch_id, allocated_amount: amount, allocation_percentage: pct)
       end
     end
