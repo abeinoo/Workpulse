@@ -66,6 +66,7 @@ here only so its stable ID and history are kept.
 | BUG-043 | Till custody flows resolve the cashier's branch with the UTC calendar date (`Date.current`), not the business day | Finance & Sales (till custody / daily reconciliations) | Medium (only near the business-day rollover AND with a shift-assignment change at that boundary) | Suspected (code; same mechanism Confirmed for `OpeningFloatsController` by `opening_floats_spec.rb`) | Deferred | Next Finance & Sales till-custody fix |
 | BUG-044 | Biometric device create, edit, branch reassignment, token regeneration and delete write no audit entry | Attendance & Payroll (device administration) | Low–Medium (configuration, not money; every punch log records its own branch, so attribution stays traceable) | Confirmed (code reading, 2026-11-03) | Deferred | Before devices are managed by more than the owner, or the next device-administration change |
 | BUG-045 | Draft Regenerate drops entry notes, API-added cash incentives and adjustment line-item review state | Attendance & Payroll (payroll regeneration) | Medium (an API cash incentive silently leaves net pay; draft periods only; the pre-regenerate snapshot shows the change) | Confirmed (reproduction 2026-11-04, rolled-back test transaction) | Deferred | Next payroll-regeneration change, or before the API incentive endpoint is used on draft periods |
+| BUG-046 | Payroll finalization is refused when a branch's employer-insurance share rounds to 0.00 % | Finance & Sales (payroll insurance expense) | Low–Medium (needs a branch amount under 0.005 % of the branch-attributed employer-insurance total; blocks finalization; no partial write) | Confirmed (reproduction 2026-11-07, rolled-back test transaction) | Deferred | R8 / R9 of the attendance and cost-allocation plan, together with its rounding rule |
 
 ---
 
@@ -1531,3 +1532,44 @@ here only so its stable ID and history are kept.
   `recalculate_totals!`.
 * **Review milestone:** the next payroll-regeneration change, or before the API incentive endpoint is used on draft
   periods.
+
+## BUG-046 — Payroll finalization is refused when a branch's employer-insurance share rounds to 0.00 %
+
+* **Source:** R2 (`Finance::MoneySplitter` extraction) review, `attendance-requirements-and-cost-allocation-plan.md`,
+  2026-11-07; noted as a known pre-existing issue in PR #119 (`bcd5b84`, merged `b4f8d2e`).
+  **Discovered:** 2026-11-07. **Status:** Deferred — R2 is behaviour-preserving and kept this behaviour on purpose;
+  PR #119 does not fix it.
+* **Domain / files:** Finance & Sales — `Finance::PayrollInsuranceExpense#build_manual_allocations` (percentages
+  from the exact branch amounts via `Finance::MoneySplitter.split`; used when `by_branch` has two or more branches),
+  reached from `Payroll::Approver` (finalize) through `Payroll::FinalizationEffects` →
+  `Finance::PayrollFinalizationEffects#period_finalized`; validation in
+  `app/models/finance_sales/expense_allocation.rb` (`allocation_percentage` greater than 0).
+* **Observed (reproduction, rolled-back test transaction, 2026-11-07, on the R2 code):**
+  `Finance::PayrollInsuranceExpense.record(total: 300.01, by_branch: { A => 0.01, B => 300.00 })` → A's percentage
+  is `(0.01 ÷ 300.01 × 100).round(2)` = 0.00 → `ActiveRecord::RecordInvalid: Validation failed: Expense allocations
+  allocation percentage must be greater than 0`; no expense is saved. 0.02 of 300.02 rounds to 0.01 % and is
+  recorded as `[0.01, 99.99]`. The loop R2 replaced computed the identical values (R2 parity and characterization
+  specs).
+* **Trigger:** two or more branches in `by_branch` where a row's rounded percentage is 0.00 or less: a branch before
+  the last with a share under 0.005 %, or the last branch (which takes the residual) when the rounded shares of the
+  others reach 100.00. The order of `by_branch` comes from an unordered `pluck` in `Payroll::EmployerInsuranceCost`,
+  so which branch is last is not deterministic.
+* **Expected:** finalization records the Social Insurance expense; every branch keeps its exact amount, and the
+  percentages are valid and sum to exactly 100.
+* **Impact:** `Payroll::Approver` runs the effect inside its transaction and rescues the error into a failed
+  Result, so the period is not finalized and nothing partial is written. Finalization keeps being refused while the
+  data stays the same, and the message ("allocation percentage must be greater than 0") does not tell the user why.
+* **Recommended fix (needs a decision — not a silent clamp):** decide, with the plan's rounding rule (§12, "Rounding
+  with many branches and employees": remainder to the largest share, then lowest branch id), how a positive amount
+  with a sub-0.01 % share is represented — e.g. a 0.01 % floor taken from the residual row, or relaxing the
+  percentage validation for amount-authoritative (insurance) allocations. Amounts must not be dropped or
+  reattributed.
+* **Regression tests:**
+  1. `spec/services/finance/payroll_insurance_expense_spec.rb`: `{ A => 0.01, B => 300.00 }`, total 300.01 → an
+     approved expense, amounts sum to 300.01, all percentages valid and summing to 100; boundary 0.02 / 300.02 →
+     `[0.01, 99.99]`.
+  2. Integration: `Payroll::Approver` finalizing a period whose `Payroll::EmployerInsuranceCost` returns
+     `{ A => 0.01, B => 300.00 }` → finalized, one Social Insurance expense, audit written. Before the fix, the same
+     setup is refused with the period status unchanged and no `Expense` or `AuditLog` row.
+* **Review milestone:** R8 / R9 of the attendance-requirements-and-cost-allocation plan (§13), together with the §12
+  rounding rule; R10 ("fully allocated insurance") changes the same expense.

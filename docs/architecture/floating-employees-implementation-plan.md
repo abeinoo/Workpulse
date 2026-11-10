@@ -4,6 +4,13 @@
 needs explicit owner authorisation (§15). The Floating Employees implementation itself (phase 1 scope) exists as
 uncommitted work on `feat/floating-employees` and is **not yet authorised for commit**.
 
+> **Partly superseded (owner decisions, 2026-11-04).** `docs/architecture/attendance-requirements-and-cost-allocation-plan.md`
+> replaces, for attendance requirements, absence and cost attribution: §12 Release 1's "no replacement checkbox" (X1);
+> the §7 "Daily exempt" rows (X2); `users.requires_attendance` as the record of truth (X3); the legacy rule for
+> undefined schedule dates (X4); phase 13 (X5); Unallocated costs for floating employees in new periods (X6); and the
+> §7 "No assignment" and "Floating … costs Unallocated" rows (X7, X8). Where the two documents differ, that plan
+> wins; every other decision here stands.
+
 **Single source of truth** for this work. It consolidates the approved decisions reached in review (Nov 2026). It
 does not restate the architecture rules — it references them:
 
