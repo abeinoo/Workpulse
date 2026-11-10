@@ -1,0 +1,57 @@
+ar:
+  nav:
+    audit_failures: "إخفاقات سجل التدقيق"
+    audit_failures_escalated:
+      zero: "لا إخفاقات تدقيق مُصعَّدة"
+      one: "إخفاق تدقيق واحد مُصعَّد"
+      two: "إخفاقا تدقيق مُصعَّدان"
+      few: "%{count} إخفاقات تدقيق مُصعَّدة"
+      many: "%{count} إخفاق تدقيق مُصعَّدًا"
+      other: "%{count} إخفاق تدقيق مُصعَّد"
+  audit_failures:
+    title: "إخفاقات سجل التدقيق"
+    intro: "قيود التدقيق في هذا النشاط التي لم تُسجَّل بعد. يُحتفظ بكل قيد ويُعاد تسجيله تلقائيًا حتى ينجح؛ وبعد ثلاث محاولات متتالية فاشلة يُصعَّد. لا يُعرض محتوى القيود هنا أبدًا."
+    show_title: "إخفاق التدقيق رقم %{id}"
+    show_intro: "معلومات تشغيلية فقط. يُسجَّل القيد في سجل التدقيق بوقته الأصلي عند نجاح إحدى المحاولات."
+    back: "العودة إلى إخفاقات سجل التدقيق"
+    view: "عرض"
+    attempts_title: "محاولات إعادة التسجيل"
+    no_attempts: "لم تُجرَ أي محاولة بعد."
+    summary:
+      escalated: "مُصعَّدة (غير محلولة)"
+      open: "غير محلولة"
+      resolved: "محلولة"
+    filters:
+      open: "غير محلولة"
+      escalated: "مُصعَّدة"
+      resolved: "محلولة"
+    empty:
+      open: "لا توجد إخفاقات تدقيق غير محلولة."
+      escalated: "لا توجد إخفاقات تدقيق مُصعَّدة."
+      resolved: "لا توجد إخفاقات تدقيق محلولة."
+    statuses:
+      pending: "قيد إعادة المحاولة"
+      escalated: "مُصعَّد"
+      resolved: "محلول"
+    fields:
+      status: "الحالة"
+      action: "الإجراء"
+      record: "السجل"
+      attempted_at: "المحاولة الأصلية"
+      attempts: "المحاولات"
+      consecutive_failures: "الإخفاقات المتتالية"
+      last_error: "آخر خطأ"
+      last_attempt_at: "آخر محاولة"
+      next_attempt_at: "المحاولة التالية"
+      escalated_at: "تاريخ التصعيد"
+      resolved_at: "تاريخ الحل"
+    attempt_fields:
+      started_at: "البدء"
+      kind: "النوع"
+      result: "النتيجة"
+      error: "الخطأ"
+    kinds:
+      automatic: "تلقائية"
+    results:
+      delivered: "سُجِّل"
+      failed: "فشل"

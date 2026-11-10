@@ -1,0 +1,53 @@
+en:
+  nav:
+    audit_failures: "Audit Failures"
+    audit_failures_escalated:
+      one: "%{count} escalated audit failure"
+      other: "%{count} escalated audit failures"
+  audit_failures:
+    title: "Audit Failures"
+    intro: "Audit entries of this business that could not be written yet. Each one is kept and retried automatically until it is recorded; after three consecutive failed retries it is escalated. Entry contents are never shown here."
+    show_title: "Audit Failure #%{id}"
+    show_intro: "Operational information only. The entry is recorded in the Audit Log with its original time once a retry succeeds."
+    back: "Back to Audit Failures"
+    view: "View"
+    attempts_title: "Retry attempts"
+    no_attempts: "No retry has run yet."
+    summary:
+      escalated: "Escalated (unresolved)"
+      open: "Unresolved"
+      resolved: "Resolved"
+    filters:
+      open: "Unresolved"
+      escalated: "Escalated"
+      resolved: "Resolved"
+    empty:
+      open: "No unresolved audit failures."
+      escalated: "No escalated audit failures."
+      resolved: "No resolved audit failures."
+    statuses:
+      pending: "Retrying"
+      escalated: "Escalated"
+      resolved: "Resolved"
+    fields:
+      status: "Status"
+      action: "Action"
+      record: "Record"
+      attempted_at: "Original attempt"
+      attempts: "Retries"
+      consecutive_failures: "Consecutive failures"
+      last_error: "Last error"
+      last_attempt_at: "Last retry"
+      next_attempt_at: "Next retry"
+      escalated_at: "Escalated"
+      resolved_at: "Resolved"
+    attempt_fields:
+      started_at: "Started"
+      kind: "Kind"
+      result: "Result"
+      error: "Error"
+    kinds:
+      automatic: "Automatic"
+    results:
+      delivered: "Recorded"
+      failed: "Failed"

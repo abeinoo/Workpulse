@@ -2912,6 +2912,7 @@ en:
         manage_branches: "Manage Branches"
         manage_obligations: "Manage Employee Obligations"
         manage_roles: "Manage Permission Roles"
+        monitor_audit_failures: "Monitor Audit Failures"
         pay_advances: "Pay Advances"
         view_inventory: "View Inventory"
         manage_inventory: "Manage Inventory"
@@ -3054,6 +3055,7 @@ en:
         manage_branches: "Create and manage branch locations"
         manage_obligations: "Create, edit, pause, and cancel employee obligation records"
         manage_roles: "Create and assign permission roles"
+        monitor_audit_failures: "View this business's audit entries that could not be written yet, their retries and escalations (no entry contents)"
         view_inventory: "View warehouses, products, stock levels, and movements"
         manage_inventory: "Full access to all inventory operations"
         view_inventory_reports: "View inventory reports only (stock, movements, purchases)"
@@ -5694,6 +5696,10 @@ en:
         allocation_amount_precision: "Branch distribution amounts can have at most 2 decimal places."
         at_least_one_branch_required: "at least one branch distribution row is required for a shared expense"
       models:
+        pending_audit_event:
+          attributes:
+            base:
+              resolved_event_unchanged: "A resolved audit event can no longer change"
         shift_assignment:
           employee_not_in_business: "The selected employee does not belong to your business."
           shift_not_in_business: "The selected shift does not belong to your business."

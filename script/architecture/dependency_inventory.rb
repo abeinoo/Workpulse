@@ -103,6 +103,10 @@ module ArchitectureTools
       [ %r{\Aapp/helpers/(application|attachment|workspace)_helper\.rb\z}, INFRA ],
       [ %r{\Aapp/views/(layouts|shared|pwa)/}, INFRA ],
       [ %r{\Aapp/(jobs/application_job|mailers/application_mailer)\.rb\z}, INFRA ],
+      # Durable audit record (R3.1): writer, delivery, jobs (module-boundaries.md §16 Audit).
+      [ %r{\Aapp/(services|jobs)/audit/}, INFRA ],
+      [ %r{\Aapp/(controllers/audit_failures_controller|policies/pending_audit_event_policy|helpers/audit_failures_helper)\.rb\z}, INFRA ],
+      [ %r{\Aapp/views/audit_failures/}, INFRA ],
 
       # Organization & Access (§4).
       [ %r{\Aapp/models/organization_access/}, OA ],
@@ -185,7 +189,7 @@ module ArchitectureTools
                RemainingDepositBalanceTransaction EmployeeReconciliationSummary EmployeeReconciliationSummaryAmount
                BankStatement BankStatementTransaction DepositMatch BankDispute SalesImport SalesTransaction PosImport
                PosImportIgnoredRow PosTransaction PosTerminal BranchRevenue],
-      INFRA => %w[ApplicationRecord AuditLog]
+      INFRA => %w[ApplicationRecord AuditLog DurableAuditReceipt PendingAuditEvent PendingAuditEventAttempt]
     }.flat_map { |domain, names| names.map { |name| [ name, domain ] } }.to_h.freeze
 
     # Non-model constants (exact name or namespace prefix "X::") → owner. The
@@ -217,7 +221,8 @@ module ArchitectureTools
       "BusinessDay" => SHARED, "PhoneNumber" => OA, "Voidable" => SHARED, "ImmutableDocument" => SHARED,
       "AuditLoggable" => INFRA, "Attachable" => INFRA, "ApplicationPolicy" => INFRA, "ApplicationController" => INFRA,
       "ApplicationHelper" => INFRA, "WorkspaceHelper" => INFRA, "AttachmentHelper" => INFRA, "ApplicationJob" => INFRA,
-      "ApplicationMailer" => INFRA, "ApiResponder" => INFRA, "Api::" => INFRA
+      "ApplicationMailer" => INFRA, "ApiResponder" => INFRA, "Api::" => INFRA, "Audit::" => INFRA,
+      "AuditFailuresController" => INFRA, "PendingAuditEventPolicy" => INFRA, "AuditFailuresHelper" => INFRA
     }.freeze
 
     # Policies whose owner is not the owner of the model named in their prefix.

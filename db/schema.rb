@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_05_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_08_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -489,6 +489,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_100000) do
     t.index ["initiated_by_id"], name: "index_deposit_responsibility_transfers_on_initiated_by_id"
     t.index ["rejected_by_id"], name: "index_deposit_responsibility_transfers_on_rejected_by_id"
     t.index ["to_user_id"], name: "index_deposit_responsibility_transfers_on_to_user_id"
+  end
+
+  create_table "durable_audit_receipts", force: :cascade do |t|
+    t.uuid "entry_key", null: false
+    t.bigint "audit_log_id", null: false
+    t.datetime "created_at", null: false
+    t.index ["audit_log_id"], name: "index_durable_audit_receipts_on_audit_log_id", unique: true
+    t.index ["entry_key", "audit_log_id"], name: "index_durable_audit_receipts_on_entry_key_and_audit_log", unique: true
+    t.index ["entry_key"], name: "index_durable_audit_receipts_on_entry_key", unique: true
   end
 
   create_table "employee_data_request_events", force: :cascade do |t|
@@ -1247,6 +1256,56 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_100000) do
     t.datetime "updated_at", null: false
     t.index ["shift_id", "rule_type", "threshold_minutes"], name: "index_penalty_rules_on_shift_type_threshold", unique: true
     t.index ["shift_id"], name: "index_penalty_rules_on_shift_id"
+  end
+
+  create_table "pending_audit_event_attempts", force: :cascade do |t|
+    t.bigint "pending_audit_event_id", null: false
+    t.bigint "business_id", null: false
+    t.string "kind", null: false
+    t.datetime "started_at", null: false
+    t.datetime "finished_at", null: false
+    t.string "result", null: false
+    t.string "error_class"
+    t.jsonb "error_details", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.index ["business_id"], name: "index_pending_audit_event_attempts_on_business_id"
+    t.index ["pending_audit_event_id"], name: "index_pending_audit_event_attempts_on_pending_audit_event_id"
+    t.check_constraint "finished_at >= started_at", name: "pending_audit_event_attempts_times_ordered"
+    t.check_constraint "kind::text = 'automatic'::text", name: "pending_audit_event_attempts_kind_known"
+    t.check_constraint "result::text = ANY (ARRAY['delivered'::character varying, 'failed'::character varying]::text[])", name: "pending_audit_event_attempts_result_known"
+  end
+
+  create_table "pending_audit_events", force: :cascade do |t|
+    t.uuid "entry_key", null: false
+    t.bigint "business_id", null: false
+    t.bigint "actor_id", null: false
+    t.string "auditable_type", null: false
+    t.bigint "auditable_id", null: false
+    t.string "action", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.datetime "attempted_at", null: false
+    t.integer "attempts", default: 0, null: false
+    t.integer "consecutive_failures", default: 0, null: false
+    t.string "last_error"
+    t.jsonb "last_error_details", default: {}, null: false
+    t.datetime "last_attempt_at"
+    t.datetime "next_attempt_at"
+    t.datetime "dispatch_claimed_until"
+    t.datetime "escalated_at"
+    t.datetime "resolved_at"
+    t.bigint "audit_log_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actor_id"], name: "index_pending_audit_events_on_actor_id"
+    t.index ["audit_log_id"], name: "index_pending_audit_events_on_audit_log_id", unique: true
+    t.index ["business_id"], name: "index_pending_audit_events_escalated_unresolved", where: "((escalated_at IS NOT NULL) AND (resolved_at IS NULL))"
+    t.index ["business_id"], name: "index_pending_audit_events_on_business_id"
+    t.index ["entry_key"], name: "index_pending_audit_events_on_entry_key", unique: true
+    t.index ["id", "business_id"], name: "index_pending_audit_events_on_id_and_business", unique: true
+    t.index ["next_attempt_at"], name: "index_pending_audit_events_due", where: "(resolved_at IS NULL)"
+    t.check_constraint "(resolved_at IS NULL) = (audit_log_id IS NULL)", name: "pending_audit_events_resolution_complete"
+    t.check_constraint "attempts >= 0 AND consecutive_failures >= 0 AND consecutive_failures <= attempts", name: "pending_audit_events_counters_valid"
+    t.check_constraint "resolved_at IS NOT NULL OR next_attempt_at IS NOT NULL", name: "pending_audit_events_unresolved_scheduled"
   end
 
   create_table "performance_observations", force: :cascade do |t|
@@ -2595,6 +2654,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_100000) do
   add_foreign_key "deposit_responsibility_transfers", "users", column: "initiated_by_id"
   add_foreign_key "deposit_responsibility_transfers", "users", column: "rejected_by_id"
   add_foreign_key "deposit_responsibility_transfers", "users", column: "to_user_id"
+  add_foreign_key "durable_audit_receipts", "audit_logs"
   add_foreign_key "employee_data_request_events", "employee_data_request_revisions", column: "revision_id"
   add_foreign_key "employee_data_request_events", "employee_data_requests"
   add_foreign_key "employee_data_request_events", "users", column: "actor_id"
@@ -2707,6 +2767,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_100000) do
   add_foreign_key "payroll_snapshots", "payroll_periods"
   add_foreign_key "payroll_snapshots", "users", column: "taken_by_id"
   add_foreign_key "penalty_rules", "shifts"
+  add_foreign_key "pending_audit_event_attempts", "businesses"
+  add_foreign_key "pending_audit_event_attempts", "pending_audit_events", column: ["pending_audit_event_id", "business_id"], primary_key: ["id", "business_id"], name: "fk_pending_audit_event_attempts_same_business"
+  add_foreign_key "pending_audit_events", "audit_logs"
+  add_foreign_key "pending_audit_events", "businesses"
+  add_foreign_key "pending_audit_events", "durable_audit_receipts", column: ["entry_key", "audit_log_id"], primary_key: ["entry_key", "audit_log_id"], name: "fk_pending_audit_events_resolved_by_own_receipt"
+  add_foreign_key "pending_audit_events", "users", column: "actor_id"
   add_foreign_key "performance_observations", "businesses"
   add_foreign_key "performance_observations", "evaluation_criteria"
   add_foreign_key "performance_observations", "users", column: "employee_id"
@@ -2916,4 +2982,54 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_100000) do
   add_foreign_key "warehouse_branch_supplies", "users", column: "updated_by_id"
   add_foreign_key "warehouse_branch_supplies", "warehouses"
   add_foreign_key "warehouses", "businesses"
+
+  # Functions and triggers (config/initializers/schema_dumper_database_guards.rb).
+  execute <<~'SQL'
+    CREATE OR REPLACE FUNCTION public.audit_append_only_guard()
+     RETURNS trigger
+     LANGUAGE plpgsql
+    AS $function$
+    BEGIN
+      RAISE EXCEPTION '% is append-only', TG_TABLE_NAME USING ERRCODE = 'restrict_violation';
+    END;
+    $function$
+  SQL
+  execute <<~'SQL'
+    CREATE OR REPLACE FUNCTION public.pending_audit_events_guard()
+     RETURNS trigger
+     LANGUAGE plpgsql
+    AS $function$
+    BEGIN
+      IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'pending_audit_events rows are never deleted' USING ERRCODE = 'restrict_violation';
+      END IF;
+      IF OLD.resolved_at IS NOT NULL THEN
+        RAISE EXCEPTION 'a resolved pending audit event never changes' USING ERRCODE = 'restrict_violation';
+      END IF;
+      IF NEW.id IS DISTINCT FROM OLD.id OR NEW.entry_key IS DISTINCT FROM OLD.entry_key
+         OR NEW.business_id IS DISTINCT FROM OLD.business_id OR NEW.actor_id IS DISTINCT FROM OLD.actor_id
+         OR NEW.auditable_type IS DISTINCT FROM OLD.auditable_type OR NEW.auditable_id IS DISTINCT FROM OLD.auditable_id
+         OR NEW.action IS DISTINCT FROM OLD.action OR NEW.payload IS DISTINCT FROM OLD.payload
+         OR NEW.attempted_at IS DISTINCT FROM OLD.attempted_at OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+        RAISE EXCEPTION 'pending audit event identity and payload never change' USING ERRCODE = 'restrict_violation';
+      END IF;
+      IF NEW.attempts < OLD.attempts THEN
+        RAISE EXCEPTION 'pending audit event attempts never decrease' USING ERRCODE = 'restrict_violation';
+      END IF;
+      IF OLD.escalated_at IS NOT NULL AND NEW.escalated_at IS DISTINCT FROM OLD.escalated_at THEN
+        RAISE EXCEPTION 'pending audit event escalation is set once' USING ERRCODE = 'restrict_violation';
+      END IF;
+      RETURN NEW;
+    END;
+    $function$
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER durable_audit_receipts_append_only BEFORE DELETE OR UPDATE ON public.durable_audit_receipts FOR EACH ROW EXECUTE FUNCTION audit_append_only_guard();
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER pending_audit_event_attempts_append_only BEFORE DELETE OR UPDATE ON public.pending_audit_event_attempts FOR EACH ROW EXECUTE FUNCTION audit_append_only_guard();
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER pending_audit_events_guard BEFORE DELETE OR UPDATE ON public.pending_audit_events FOR EACH ROW EXECUTE FUNCTION pending_audit_events_guard();
+  SQL
 end

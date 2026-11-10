@@ -89,7 +89,9 @@ class PermissionRole < ApplicationRecord
                                delete_import],
     settings:              %w[manage_settings manage_branches],
     obligations:           %w[manage_obligations],
-    administration:        %w[manage_roles],
+    # monitor_audit_failures: the business audit-failure dashboard (R3.1) — business
+    # level, never in a role preset; owners have it implicitly.
+    administration:        %w[manage_roles monitor_audit_failures],
     # Simplified to match the active transfer-driven workflow (Towel Balances
     # -> Towel Transfers -> Dispatch -> Receipt Confirmation -> Adjustments).
     # declare_dirty_towels/dispatch_clean_towels were never checked by any

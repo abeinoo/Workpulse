@@ -151,12 +151,19 @@
       <% show_settings    = current_user.can?(:manage_settings) %>
       <% show_departments = current_user.can?(:manage_evaluation_templates) %>
       <% show_job_titles  = policy(JobTitle).index? %>
-      <% if show_branches || show_devices || show_roles || show_settings || show_departments || show_job_titles %>
-        <% admin_paths = %w[/admin/branches /admin/biometric_devices /admin/permission_roles /admin/settings /admin/departments /admin/job_titles] %>
+      <% show_audit_failures = policy(PendingAuditEvent).index? %>
+      <% audit_escalations   = show_audit_failures ? audit_failure_escalation_count : 0 %>
+      <% admin_items = [ show_branches, show_devices, show_roles, show_settings, show_departments, show_job_titles, show_audit_failures ].count(true) %>
+      <%# One escalation badge per page: on the collapsible group heading (visible open or closed), or on the link when the section is a plain heading. %>
+      <% audit_badge_on_group = admin_items >= 2 %>
+      <% if show_branches || show_devices || show_roles || show_settings || show_departments || show_job_titles || show_audit_failures %>
+        <% admin_paths = %w[/admin/branches /admin/biometric_devices /admin/permission_roles /admin/settings /admin/departments /admin/job_titles /audit_failures] %>
         <% admin_active = admin_paths.any? { |p| request.path.start_with?(p) } %>
         <%= render layout: "layouts/sidebar_group",
               locals: { key: "administration", label: t("nav.section_administration"), active: admin_active, default_open: false,
-                      items: [ show_branches, show_devices, show_roles, show_settings, show_departments, show_job_titles ].count(true) } do %>
+                      items: admin_items,
+                      badge: (audit_badge_on_group ? audit_escalations : 0),
+                      badge_label: t("nav.audit_failures_escalated", count: audit_escalations) } do %>
           <% if show_branches %>
             <%= link_to admin_branches_path,
                   class: "sidebar__nav-item #{request.path.start_with?('/admin/branches') ? 'is-active' : ''}",
@@ -208,6 +215,19 @@
                   data: { action: "click->sidebar#close" } do %>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
               <%= t("nav.job_titles") %>
+            <% end %>
+          <% end %>
+
+          <% if show_audit_failures %>
+            <%= link_to audit_failures_path,
+                  class: "sidebar__nav-item #{request.path.start_with?('/audit_failures') ? 'is-active' : ''}",
+                  data: { action: "click->sidebar#close" } do %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <%= t("nav.audit_failures") %>
+              <% if audit_escalations.positive? && !audit_badge_on_group %>
+                <%= render "layouts/sidebar_group_badge", badge: audit_escalations,
+                           badge_label: t("nav.audit_failures_escalated", count: audit_escalations) %>
+              <% end %>
             <% end %>
           <% end %>
         <% end %>

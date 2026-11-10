@@ -2914,6 +2914,7 @@ ar:
         manage_branches: "إدارة الفروع"
         manage_obligations: "إدارة التزامات الموظفين"
         manage_roles: "إدارة أدوار الصلاحيات"
+        monitor_audit_failures: "متابعة إخفاقات سجل التدقيق"
         pay_advances: "صرف السلف"
         view_inventory: "عرض المخزون"
         manage_inventory: "إدارة المخزون"
@@ -3056,6 +3057,7 @@ ar:
         manage_branches: "إنشاء الفروع وإدارتها"
         manage_obligations: "إنشاء وتعديل وإيقاف وإلغاء التزامات الموظفين"
         manage_roles: "إنشاء أدوار الصلاحيات وتعيينها"
+        monitor_audit_failures: "عرض قيود التدقيق التي لم تُسجَّل بعد في هذا النشاط ومحاولات إعادتها وتصعيدها (دون محتوى القيود)"
         view_inventory: "عرض المستودعات والمنتجات ومستويات المخزون والحركات"
         manage_inventory: "وصول كامل لجميع عمليات المخزون"
         view_inventory_reports: "عرض تقارير المخزون فقط (المخزون، الحركات، المشتريات)"
@@ -5767,6 +5769,10 @@ ar:
         allocation_amount_precision: "يمكن أن تحتوي قيم توزيع الفروع على منزلتين عشريتين كحد أقصى."
         at_least_one_branch_required: "مطلوب صف توزيع فرع واحد على الأقل للمصروف المشترك"
       models:
+        pending_audit_event:
+          attributes:
+            base:
+              resolved_event_unchanged: "لا يمكن تعديل حدث تدقيق تم حله"
         shift_assignment:
           employee_not_in_business: "الموظف المحدد لا ينتمي إلى شركتك."
           shift_not_in_business: "الوردية المحددة لا تنتمي إلى شركتك."
