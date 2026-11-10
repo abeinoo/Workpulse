@@ -64,6 +64,8 @@ Call services in controllers, check `result.ok?`, redirect or re-render. Service
 
 Services include `AuditLoggable` and call `log_audit(actor:, auditable:, action:, metadata: {})`. The entry is written in its own savepoint: an audit-only failure is logged and reported, `log_audit` returns `nil`, and the primary operation continues; a lost connection or an already-aborted transaction is re-raised. `log_audit!` raises `AuditLoggable::AuditWriteFailed` instead (the service maps it to a failed Result), for operations whose audit entry is the only record of the change — in-place overwrites, deleted rows, repair evidence. Policy, the fail-closed callers and the open decisions: BUG-003 in `docs/quality/deferred-bugs.md`.
 
+**Durable audit (opt-in).** For an entry that must never be lost silently (first caller: the rejected-attempt audit of R3.4), call `Audit::DurableEntry.record(actor:, auditable:, action:, changes:, metadata:)` **outside any transaction** (it refuses inside one). It calls `log_audit!` once, together with a `durable_audit_receipts` row under the entry's unique `entry_key`; only when that fails is the entry kept in `pending_audit_events` and retried by `Audit::PendingEventDelivery` (row lock; the receipt makes a second AuditLog impossible even after a lost commit confirmation; original attempt time as `created_at`; escalated after three consecutive failed retries) until it reaches the Audit Log. Pending events are never deleted, their attempt log and receipts are append-only, and database triggers enforce this (they live in `db/schema.rb` via `config/initializers/schema_dumper_database_guards.rb` — keep that initializer). The full payload may reach the application log only when the pending event itself cannot be written (D28); every R3.1 error report is sanitized (`Audit::SafeReporting`). `log_audit` / `log_audit!` never write a pending event — do not connect existing callers to it. Business users holding `monitor_audit_failures` (owners implicitly) see operational information only, never the payload, on `/audit_failures`; the sidebar badge counts unresolved escalated events.
+
 ### Permissions system
 
 `PermissionRole` holds a `permissions` array and a `permission_scopes` hash. Groups are defined in `PermissionRole::PERMISSION_GROUPS`. Scopable permissions are listed in `SCOPABLE_PERMISSIONS`. Dependencies (e.g. `manage_attendance` requires `view_attendance`) are enforced by `PERMISSION_DEPENDENCIES` — always satisfy dependencies when adding a new permission.
@@ -103,7 +105,7 @@ Key derivations:
 
 ### Solid Queue / recurring jobs
 
-Background jobs run via Solid Queue. Recurring schedules are in `config/recurring.yml`. The `background` queue must have a worker running in production. Add new recurring jobs to `recurring.yml`; restart the Solid Queue supervisor to pick them up.
+Background jobs run via Solid Queue. Recurring schedules are in `config/recurring.yml`. The `background` queue must have a worker running in production. Add new recurring jobs to `recurring.yml`; restart the Solid Queue supervisor to pick them up. `sweep_pending_audit_events` (every 5 minutes) only recovers lost delivery jobs — each retry is enqueued at its exact time, under a dispatch claim the sweeper respects. Deployment, rollback (disable the entry, restart, drain or discard queued audit jobs, then revert code; never roll back the durable tables once events exist) and log handling: `docs/durable_audit_operations.md`.
 
 ### Localization
 

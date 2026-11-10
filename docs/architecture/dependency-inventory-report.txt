@@ -14,29 +14,29 @@
 #   boundary specs (spec/architecture/*_boundary_spec.rb). Dotfiles (.keep) are not listed.
 # allowed = §12.1 direction; classified = a D4 exception (ID, owner, guard); unclassified = a violation.
 #
-## Files under app/: 1246
-#   organization_access: 70
+## Files under app/: 1298
+#   organization_access: 75
 #   workforce: 175
-#   attendance_payroll: 196
-#   inventory_purchasing: 306
-#   finance_sales: 310
+#   attendance_payroll: 220
+#   inventory_purchasing: 307
+#   finance_sales: 317
 #   reporting: 60
 #   shared_kernel: 3
-#   infrastructure: 41
-#   frontend: 85
+#   infrastructure: 55
+#   frontend: 86
 #   unmapped: 0
 #
 ## Cross-domain references (distinct file + constant / reference lines) by status
-#   allowed: 393 / 570
+#   allowed: 415 / 614
 #   classified: 144 / 165
 #   unclassified: 0 / 0
 #
 ## Edges (source → target: distinct file + constant, by status)
-#   attendance_payroll → organization_access: allowed 57, classified 0, unclassified 0
-#   attendance_payroll → workforce: allowed 34, classified 0, unclassified 0
+#   attendance_payroll → organization_access: allowed 72, classified 0, unclassified 0
+#   attendance_payroll → workforce: allowed 37, classified 0, unclassified 0
 #   finance_sales → attendance_payroll: allowed 4, classified 0, unclassified 0
 #   finance_sales → inventory_purchasing: allowed 9, classified 0, unclassified 0
-#   finance_sales → organization_access: allowed 74, classified 0, unclassified 0
+#   finance_sales → organization_access: allowed 75, classified 0, unclassified 0
 #   finance_sales → reporting: allowed 0, classified 3, unclassified 0
 #   finance_sales → workforce: allowed 2, classified 0, unclassified 0
 #   infrastructure → attendance_payroll: allowed 0, classified 1, unclassified 0
@@ -45,7 +45,7 @@
 #   infrastructure → organization_access: allowed 0, classified 5, unclassified 0
 #   infrastructure → workforce: allowed 0, classified 3, unclassified 0
 #   inventory_purchasing → finance_sales: allowed 0, classified 18, unclassified 0
-#   inventory_purchasing → organization_access: allowed 72, classified 0, unclassified 0
+#   inventory_purchasing → organization_access: allowed 74, classified 0, unclassified 0
 #   organization_access → attendance_payroll: allowed 0, classified 13, unclassified 0
 #   organization_access → finance_sales: allowed 0, classified 22, unclassified 0
 #   organization_access → inventory_purchasing: allowed 0, classified 25, unclassified 0
@@ -53,7 +53,7 @@
 #   reporting → attendance_payroll: allowed 23, classified 0, unclassified 0
 #   reporting → finance_sales: allowed 24, classified 0, unclassified 0
 #   reporting → inventory_purchasing: allowed 9, classified 0, unclassified 0
-#   reporting → organization_access: allowed 9, classified 0, unclassified 0
+#   reporting → organization_access: allowed 10, classified 0, unclassified 0
 #   reporting → workforce: allowed 13, classified 0, unclassified 0
 #   shared_kernel → organization_access: allowed 0, classified 1, unclassified 0
 #   workforce → attendance_payroll: allowed 0, classified 5, unclassified 0
@@ -212,6 +212,7 @@ workforce → attendance_payroll  app/views/admin/users/show.html.erb  EmployeeO
 [allowed]
 attendance_payroll → organization_access  app/controllers/adjustments_controller.rb  Branch ×1
 attendance_payroll → organization_access  app/controllers/adjustments_controller.rb  EmployeeScope ×1
+attendance_payroll → organization_access  app/controllers/admin/salary_payment_holds_controller.rb  User ×1
 attendance_payroll → organization_access  app/controllers/api/v1/reports/attendance_controller.rb  BranchScope ×1
 attendance_payroll → organization_access  app/controllers/api/v1/salary_profiles_controller.rb  User ×1
 attendance_payroll → organization_access  app/controllers/attendance_controller.rb  Branch ×1
@@ -225,12 +226,18 @@ attendance_payroll → organization_access  app/models/advance.rb  User (associa
 attendance_payroll → organization_access  app/models/attendance_adjustment.rb  User (association) ×1
 attendance_payroll → organization_access  app/models/attendance_import_log.rb  Business (association) ×1
 attendance_payroll → organization_access  app/models/attendance_import_log.rb  User (association) ×1
+attendance_payroll → organization_access  app/models/attendance_payroll/biometric_device.rb  Branch (association) ×1
 attendance_payroll → organization_access  app/models/attendance_payroll/biometric_device.rb  Business (association) ×1
+attendance_payroll → organization_access  app/models/attendance_payroll/biometric_punch_log.rb  Branch (association) ×1
 attendance_payroll → organization_access  app/models/attendance_payroll/biometric_punch_log.rb  Business (association) ×1
 attendance_payroll → organization_access  app/models/attendance_payroll/biometric_punch_log.rb  User (association) ×1
 attendance_payroll → organization_access  app/models/attendance_payroll/employee_obligation.rb  Business (association) ×1
 attendance_payroll → organization_access  app/models/attendance_payroll/employee_obligation.rb  User (association) ×2
 attendance_payroll → organization_access  app/models/attendance_payroll/obligation_postponement.rb  User (association) ×1
+attendance_payroll → organization_access  app/models/attendance_payroll/salary_payment_hold.rb  Business (association) ×1
+attendance_payroll → organization_access  app/models/attendance_payroll/salary_payment_hold.rb  User (association) ×3
+attendance_payroll → organization_access  app/models/attendance_payroll/salary_payment_withholding.rb  Business (association) ×1
+attendance_payroll → organization_access  app/models/attendance_payroll/salary_payment_withholding.rb  User (association) ×3
 attendance_payroll → organization_access  app/models/attendance_record.rb  Branch (association) ×1
 attendance_payroll → organization_access  app/models/attendance_record.rb  User (association) ×4
 attendance_payroll → organization_access  app/models/payroll_adjustment.rb  Business (association) ×1
@@ -254,18 +261,26 @@ attendance_payroll → organization_access  app/policies/employee_obligation_pol
 attendance_payroll → organization_access  app/policies/employee_obligation_policy.rb  User ×3
 attendance_payroll → organization_access  app/policies/payroll_adjustment_policy.rb  EmployeeScope ×2
 attendance_payroll → organization_access  app/policies/payroll_entry_policy.rb  BranchScope ×1
-attendance_payroll → organization_access  app/policies/payroll_entry_policy.rb  EmployeeScope ×1
+attendance_payroll → organization_access  app/policies/payroll_entry_policy.rb  EmployeeScope ×2
+attendance_payroll → organization_access  app/policies/payroll_entry_policy.rb  User ×4
 attendance_payroll → organization_access  app/policies/payroll_line_item_policy.rb  EmployeeScope ×2
 attendance_payroll → organization_access  app/policies/payroll_period_policy.rb  EmployeeScope ×2
-attendance_payroll → organization_access  app/policies/salary_profile_policy.rb  EmployeeScope ×2
-attendance_payroll → organization_access  app/policies/salary_profile_policy.rb  User ×2
+attendance_payroll → organization_access  app/policies/salary_payment_hold_policy.rb  EmployeeScope ×2
+attendance_payroll → organization_access  app/policies/salary_payment_hold_policy.rb  User ×2
+attendance_payroll → organization_access  app/policies/salary_profile_policy.rb  EmployeeScope ×3
+attendance_payroll → organization_access  app/policies/salary_profile_policy.rb  User ×3
 attendance_payroll → organization_access  app/services/adjustments/bulk_csv_parser.rb  User ×2
 attendance_payroll → organization_access  app/services/adjustments/summary_data.rb  User ×1
+attendance_payroll → organization_access  app/services/attendance/branch_deactivation_notice.rb  OrganizationAccess::BranchDeactivationNotices::Line ×1
+attendance_payroll → organization_access  app/services/attendance/branch_deactivation_notice.rb  OrganizationAccess::BranchDeactivationNotices::Notice ×1
 attendance_payroll → organization_access  app/services/attendance/historical_backfill.rb  Business ×1
 attendance_payroll → organization_access  app/services/payroll/adjustment_approval.rb  User ×1
 attendance_payroll → organization_access  app/services/payroll/draft_regenerator.rb  User ×1
+attendance_payroll → organization_access  app/services/payroll/period_recalculator.rb  Branch ×2
 attendance_payroll → organization_access  app/services/payroll/recommendation_engine.rb  User ×1
+attendance_payroll → organization_access  app/services/payroll/salary_hold_creator.rb  User ×1
 attendance_payroll → organization_access  app/services/payroll/submit_for_review.rb  Branch ×1
+attendance_payroll → organization_access  app/services/payroll/unsalaried_attendance.rb  User ×1
 attendance_payroll → organization_access  app/views/bulk_adjustments/preview.html.erb  User ×1
 attendance_payroll → workforce  app/controllers/admin/biometric_punch_logs_controller.rb  ShiftAssignment ×2
 attendance_payroll → workforce  app/controllers/admin/employee_obligations_controller.rb  ShiftAssignment ×1
@@ -273,9 +288,9 @@ attendance_payroll → workforce  app/controllers/admin/penalty_rules_controller
 attendance_payroll → workforce  app/controllers/api/v1/attendance_controller.rb  ShiftAssignment ×1
 attendance_payroll → workforce  app/controllers/attendance_controller.rb  ShiftAssignment ×1
 attendance_payroll → workforce  app/controllers/attendance_records_controller.rb  Shift ×1
-attendance_payroll → workforce  app/controllers/payroll_dashboard_controller.rb  ShiftAssignment ×1
+attendance_payroll → workforce  app/controllers/payroll_dashboard_controller.rb  ShiftAssignment ×2
 attendance_payroll → workforce  app/controllers/payroll_entries_controller.rb  EmployeeRequest ×1
-attendance_payroll → workforce  app/controllers/payroll_periods_controller.rb  ShiftAssignment ×1
+attendance_payroll → workforce  app/controllers/payroll_periods_controller.rb  ShiftAssignment ×2
 attendance_payroll → workforce  app/models/advance.rb  EmployeeRequest (association) ×1
 attendance_payroll → workforce  app/models/attendance_payroll/employee_obligation.rb  BranchMembership ×1
 attendance_payroll → workforce  app/models/attendance_payroll/penalty_rule.rb  Shift (association) ×1
@@ -289,16 +304,19 @@ attendance_payroll → workforce  app/services/attendance/punch_correction_effec
 attendance_payroll → workforce  app/services/attendance/punch_service.rb  Shifts::AssignmentResolver ×1
 attendance_payroll → workforce  app/services/attendance/punch_window.rb  Shifts::AssignmentResolver ×1
 attendance_payroll → workforce  app/services/payroll/branch_review_completer.rb  ShiftAssignment ×1
+attendance_payroll → workforce  app/services/payroll/central_review.rb  ShiftAssignment ×1
 attendance_payroll → workforce  app/services/payroll/employee_salary_panel.rb  Employee::ProfilePanels::Panel ×1
-attendance_payroll → workforce  app/services/payroll/employer_insurance_cost.rb  ShiftAssignment ×1
+attendance_payroll → workforce  app/services/payroll/employer_insurance_cost.rb  ShiftAssignment ×2
 attendance_payroll → workforce  app/services/payroll/entry_calculator.rb  EmployeeRequest ×2
 attendance_payroll → workforce  app/services/payroll/entry_calculator.rb  ShiftAssignment ×1
-attendance_payroll → workforce  app/services/payroll/insights_presenter.rb  ShiftAssignment ×1
-attendance_payroll → workforce  app/services/payroll/recommendation_engine.rb  ShiftAssignment ×2
+attendance_payroll → workforce  app/services/payroll/insights_presenter.rb  ShiftAssignment ×2
+attendance_payroll → workforce  app/services/payroll/period_recalculator.rb  ShiftAssignment ×2
+attendance_payroll → workforce  app/services/payroll/recommendation_engine.rb  ShiftAssignment ×3
 attendance_payroll → workforce  app/services/payroll/request_form_reads.rb  Requests::RequestFormReads::AdvanceLimit ×1
 attendance_payroll → workforce  app/services/payroll/request_form_reads.rb  Requests::RequestFormReads::AdvanceLimitView ×2
 attendance_payroll → workforce  app/services/payroll/request_form_reads.rb  Requests::RequestFormReads::AttendanceDay ×1
 attendance_payroll → workforce  app/services/payroll/request_form_reads.rb  Requests::RequestFormReads::RECENT_CHECK_INS_DAYS ×1
+attendance_payroll → workforce  app/services/payroll/salary_hold_panel.rb  Employee::ProfilePanels::Panel ×1
 attendance_payroll → workforce  app/services/payroll/submit_for_review.rb  ShiftAssignment ×1
 attendance_payroll → workforce  app/services/salary/advance_eligibility_calculator.rb  EmployeeRequest ×1
 finance_sales → attendance_payroll  app/controllers/finance/reports_controller.rb  Payroll::EntryViewAudit ×2
@@ -314,6 +332,7 @@ finance_sales → inventory_purchasing  app/services/finance/purchase_request_ad
 finance_sales → inventory_purchasing  app/services/finance/purchase_request_advance_effects.rb  Inventory::PurchaseRequestAdvanceEffects::Reversal ×1
 finance_sales → inventory_purchasing  app/views/finance/custody_accounts/show.html.erb  GoodsReceipt ×3
 finance_sales → inventory_purchasing  app/views/finance/custody_accounts/show.html.erb  PurchaseRequest ×3
+finance_sales → organization_access  app/controllers/finance/bank_statements_controller.rb  BranchScope ×1
 finance_sales → organization_access  app/controllers/finance/base_controller.rb  BranchScope ×1
 finance_sales → organization_access  app/controllers/finance/daily_reconciliations_controller.rb  BranchScope ×1
 finance_sales → organization_access  app/controllers/finance/deposit_verifications_controller.rb  BranchScope ×1
@@ -457,6 +476,8 @@ inventory_purchasing → organization_access  app/services/inventory/purchase_re
 inventory_purchasing → organization_access  app/services/inventory/stock_count_approver.rb  Approvals::SelfApproval ×3
 inventory_purchasing → organization_access  app/services/inventory/stock_issue_approval.rb  Approvals::SelfApproval ×3
 inventory_purchasing → organization_access  app/services/inventory/warehouse_supply_assigner.rb  Branch ×1
+inventory_purchasing → organization_access  app/services/laundry/branch_deactivation_notice.rb  OrganizationAccess::BranchDeactivationNotices::Line ×1
+inventory_purchasing → organization_access  app/services/laundry/branch_deactivation_notice.rb  OrganizationAccess::BranchDeactivationNotices::Notice ×1
 inventory_purchasing → organization_access  app/views/inventory/goods_receipts/_form.html.erb  Business::CURRENCIES ×2
 inventory_purchasing → organization_access  app/views/inventory/purchase_request_advances/new.html.erb  Business::CURRENCIES ×2
 inventory_purchasing → organization_access  app/views/inventory/purchase_requests/_form.html.erb  Business::CURRENCIES ×2
@@ -490,7 +511,7 @@ reporting → finance_sales  app/controllers/finance/dashboard_controller.rb  Cu
 reporting → finance_sales  app/controllers/finance/dashboard_controller.rb  Expense ×2
 reporting → finance_sales  app/controllers/finance/dashboard_controller.rb  Finance::BaseController ×1
 reporting → finance_sales  app/controllers/finance/dashboard_controller.rb  Finance::DashboardController ×1
-reporting → finance_sales  app/controllers/finance/dashboard_controller.rb  Finance::PayrollCostAccess ×1
+reporting → finance_sales  app/controllers/finance/dashboard_controller.rb  Finance::PayrollCostAccess ×2
 reporting → finance_sales  app/controllers/finance/dashboard_controller.rb  RecurringExpense ×1
 reporting → finance_sales  app/controllers/finance/dashboard_controller.rb  RemainingDepositBalance ×2
 reporting → finance_sales  app/controllers/laundry/reports/cost_summary_controller.rb  Finance::PayrollCostAccess ×1
@@ -518,6 +539,7 @@ reporting → inventory_purchasing  app/services/finance/reports/expense_sources
 reporting → inventory_purchasing  app/services/finance/reports/expense_sources.rb  Product ×1
 reporting → inventory_purchasing  app/services/finance/reports/laundry_cost_summary.rb  Laundry::BranchTowelConsumptionReport ×1
 reporting → inventory_purchasing  app/services/finance/reports/laundry_cost_summary.rb  StockIssue ×1
+reporting → organization_access  app/controllers/admin/dashboard_controller.rb  User ×1
 reporting → organization_access  app/controllers/dashboard_controller.rb  Branch ×2
 reporting → organization_access  app/controllers/dashboard_controller.rb  EmployeeScope ×2
 reporting → organization_access  app/controllers/dashboard_controller.rb  User ×1
@@ -538,7 +560,7 @@ reporting → workforce  app/services/dashboard/area_manager_data.rb  EmployeeRe
 reporting → workforce  app/services/dashboard/area_manager_data.rb  ShiftAssignment ×3
 reporting → workforce  app/services/dashboard/owner_data.rb  EmployeeRequest ×1
 reporting → workforce  app/services/dashboard/owner_data.rb  ShiftAssignment ×1
-reporting → workforce  app/services/finance/reports/expense_sources.rb  ShiftAssignment ×1
+reporting → workforce  app/services/finance/reports/expense_sources.rb  ShiftAssignment ×2
 reporting → workforce  app/services/finance/reports/laundry_cost_summary.rb  ShiftAssignment ×1
 workforce → organization_access  app/controllers/admin/shift_templates_controller.rb  Branch ×2
 workforce → organization_access  app/controllers/admin/shift_templates_controller.rb  EmployeeScope ×1
@@ -563,6 +585,7 @@ workforce → organization_access  app/models/employee_data_request_revision.rb 
 workforce → organization_access  app/models/employee_request.rb  User (association) ×4
 workforce → organization_access  app/models/shift.rb  Business (association) ×1
 workforce → organization_access  app/models/shift_assignment.rb  Branch (association) ×1
+workforce → organization_access  app/models/shift_assignment.rb  Branch ×1
 workforce → organization_access  app/models/shift_assignment.rb  User (association) ×3
 workforce → organization_access  app/models/shift_rule_profile.rb  Business (association) ×1
 workforce → organization_access  app/models/shift_template.rb  Business (association) ×1

@@ -69,6 +69,9 @@ Rails.application.routes.draw do
 
   get "up" => "rails/health#show", as: :rails_health_check
 
+  # Business audit-failure dashboard (R3.1): read-only, monitor_audit_failures.
+  resources :audit_failures, only: [ :index, :show ]
+
   # ── Super Admin ───────────────────────────────────────────────────────────
   namespace :admin do
     root to: "dashboard#index"

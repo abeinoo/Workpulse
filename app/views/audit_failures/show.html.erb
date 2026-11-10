@@ -1,0 +1,85 @@
+<% content_for :title, t("audit_failures.show_title", id: @event.id) %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("audit_failures.show_title", id: @event.id) %></h1>
+    <%= link_to t("audit_failures.back"), audit_failures_path, class: "btn btn-secondary btn-sm" %>
+  </div>
+
+  <p class="form-hint"><%= t("audit_failures.show_intro") %></p>
+
+  <div class="card">
+    <dl class="detail-list" style="margin-bottom: 0;">
+      <div class="detail-list__row">
+        <dt><%= t("audit_failures.fields.status") %></dt>
+        <dd><%= audit_failure_status_badge(@event) %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("audit_failures.fields.action") %></dt>
+        <dd><code><%= @event.action %></code></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("audit_failures.fields.record") %></dt>
+        <dd><%= @event.auditable_type %> #<%= @event.auditable_id %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("audit_failures.fields.attempted_at") %></dt>
+        <dd><%= audit_failure_time(@event.attempted_at) %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("audit_failures.fields.attempts") %></dt>
+        <dd><%= @event.attempts %> · <%= t("audit_failures.fields.consecutive_failures") %>: <%= @event.consecutive_failures %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("audit_failures.fields.last_error") %></dt>
+        <dd><%= @event.last_error || "—" %> <span class="td-secondary"><%= audit_failure_error_details(@event.last_error_details) %></span></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("audit_failures.fields.last_attempt_at") %></dt>
+        <dd><%= audit_failure_time(@event.last_attempt_at) %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("audit_failures.fields.next_attempt_at") %></dt>
+        <dd><%= audit_failure_time(@event.next_attempt_at) %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("audit_failures.fields.escalated_at") %></dt>
+        <dd><%= audit_failure_time(@event.escalated_at) %></dd>
+      </div>
+      <div class="detail-list__row">
+        <dt><%= t("audit_failures.fields.resolved_at") %></dt>
+        <dd><%= audit_failure_time(@event.resolved_at) %></dd>
+      </div>
+    </dl>
+  </div>
+
+  <h2 class="section-title"><%= t("audit_failures.attempts_title") %></h2>
+  <% if @attempts.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("audit_failures.no_attempts") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("audit_failures.attempt_fields.started_at") %></th>
+            <th><%= t("audit_failures.attempt_fields.kind") %></th>
+            <th><%= t("audit_failures.attempt_fields.result") %></th>
+            <th><%= t("audit_failures.attempt_fields.error") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @attempts.each do |attempt| %>
+            <tr>
+              <td data-label="<%= t("audit_failures.attempt_fields.started_at") %>"><%= audit_failure_time(attempt.started_at) %></td>
+              <td data-label="<%= t("audit_failures.attempt_fields.kind") %>"><%= t("audit_failures.kinds.#{attempt.kind}") %></td>
+              <td data-label="<%= t("audit_failures.attempt_fields.result") %>"><%= t("audit_failures.results.#{attempt.result}") %></td>
+              <td class="td-secondary" data-label="<%= t("audit_failures.attempt_fields.error") %>">
+                <%= attempt.error_class || "—" %> <%= audit_failure_error_details(attempt.error_details) if attempt.error_class %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

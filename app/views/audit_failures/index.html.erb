@@ -1,0 +1,73 @@
+<% content_for :title, t("audit_failures.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("audit_failures.title") %></h1>
+  </div>
+
+  <p class="form-hint"><%= t("audit_failures.intro") %></p>
+
+  <div class="stats-grid">
+    <div class="stat-card <%= "stat-card--danger" if @counts[:escalated].positive? %>">
+      <span class="stat-card__label"><%= t("audit_failures.summary.escalated") %></span>
+      <span class="stat-card__value"><%= @counts[:escalated] %></span>
+    </div>
+    <div class="stat-card <%= "stat-card--warning" if @counts[:open].positive? %>">
+      <span class="stat-card__label"><%= t("audit_failures.summary.open") %></span>
+      <span class="stat-card__value"><%= @counts[:open] %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("audit_failures.summary.resolved") %></span>
+      <span class="stat-card__value"><%= @counts[:resolved] %></span>
+    </div>
+  </div>
+
+  <div class="filter-tabs">
+    <% AuditFailuresController::STATUSES.each do |status| %>
+      <%= link_to audit_failures_path(status: status), class: "filter-tab #{"filter-tab--active" if @status == status}" do %>
+        <%= t("audit_failures.filters.#{status}") %>
+        <span class="badge badge-neutral badge-xs"><%= @counts[status.to_sym] %></span>
+      <% end %>
+    <% end %>
+  </div>
+
+  <% if @events.empty? %>
+    <div class="empty-state">
+      <p class="empty-state__title"><%= t("audit_failures.empty.#{@status}") %></p>
+    </div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("audit_failures.fields.status") %></th>
+            <th><%= t("audit_failures.fields.action") %></th>
+            <th><%= t("audit_failures.fields.record") %></th>
+            <th><%= t("audit_failures.fields.attempted_at") %></th>
+            <th><%= t("audit_failures.fields.attempts") %></th>
+            <th><%= t("audit_failures.fields.last_error") %></th>
+            <th><%= t("audit_failures.fields.next_attempt_at") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @events.each do |event| %>
+            <tr>
+              <td data-label="<%= t("audit_failures.fields.status") %>"><%= audit_failure_status_badge(event) %></td>
+              <td data-label="<%= t("audit_failures.fields.action") %>"><code><%= event.action %></code></td>
+              <td class="td-secondary" data-label="<%= t("audit_failures.fields.record") %>"><%= event.auditable_type %> #<%= event.auditable_id %></td>
+              <td class="td-secondary" data-label="<%= t("audit_failures.fields.attempted_at") %>"><%= audit_failure_time(event.attempted_at) %></td>
+              <td data-label="<%= t("audit_failures.fields.attempts") %>"><%= event.attempts %></td>
+              <td class="td-secondary" data-label="<%= t("audit_failures.fields.last_error") %>"><%= event.last_error || "—" %></td>
+              <td class="td-secondary" data-label="<%= t("audit_failures.fields.next_attempt_at") %>"><%= audit_failure_time(event.next_attempt_at) %></td>
+              <td class="td-actions"><%= link_to t("audit_failures.view"), audit_failure_path(event), class: "link-muted" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <%= render "shared/pagination", page: @page, total_pages: @total_pages,
+               path_proc: ->(p) { audit_failures_path(status: @status, page: p) } %>
+  <% end %>
+</div>

@@ -226,10 +226,12 @@ RSpec.describe "Sidebar collapsible groups", type: :request do
       expect(workspace_entries.map { |a| a.text.strip }).to eq([ I18n.t("nav.section_attendance_shifts"), I18n.t("nav.section_performance") ])
       expect(section_hrefs("workspaces")).to eq([ finance_root_path, inventory_root_path, laundry_root_path ])
       # Administration holds system configuration only — no employee workflows,
-      # and evaluation templates moved into the Performance workspace.
+      # and evaluation templates moved into the Performance workspace. Audit
+      # failures (R3.1, monitor_audit_failures) is last.
       expect(section_hrefs("administration")).to eq([ admin_branches_path, admin_biometric_devices_path,
                                                       admin_permission_roles_path, admin_settings_path,
-                                                      admin_departments_path, admin_job_titles_path ])
+                                                      admin_departments_path, admin_job_titles_path,
+                                                      audit_failures_path ])
       # No attendance/shift or performance child page is linked from the main sidebar.
       sidebar = html.css(".sidebar a").map { |a| a["href"] }
       expect(sidebar).not_to include(admin_shifts_path, shift_assignments_path, admin_shift_rule_profiles_path,

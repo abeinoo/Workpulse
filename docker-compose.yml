@@ -1,7 +1,19 @@
+# Bounded container logs: Docker's default json-file driver never rotates, and
+# the application log can hold sensitive values (the durable audit last-resort
+# entry, D28 — see docs/durable_audit_operations.md). Approved default per owner
+# decision D34: 20 MB per file, 5 files (at most 100 MB per container). Takes
+# effect when the containers are recreated (docker compose up -d).
+x-logging: &bounded-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *bounded-logging
     ports:
       - "127.0.0.1:5432:5432"   # localhost only — never expose PostgreSQL publicly
     volumes:
@@ -22,6 +34,7 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    logging: *bounded-logging
     ports:
       - "127.0.0.1:3000:80"   # Nginx proxies to this port; never bind to 0.0.0.0
     depends_on:

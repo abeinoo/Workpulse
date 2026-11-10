@@ -324,7 +324,7 @@ account can be selected" — superseded by the September 2026 eligibility change
 | **Inventory & Purchasing** | `Warehouse`, `WarehouseAssignment`, `WarehouseBranchSupply`, `Product`, `ProductBarcode`, `ProductCategory`, `Brand`, `ProductWarehouseSetting`, `InventoryMovement`, `StockIssue`, `StockIssueItem`, `StockIssueImportBatch`, `StockIssueImportRow`, `StockTransfer`, `StockTransferItem`, `StockAdjustment`, `StockAdjustmentItem`, `StockCount`, `StockCountItem`, `Supplier`, `PurchaseRequest`, `PurchaseRequestItem`, `PurchaseRequestAdvance`, `GoodsReceipt`, `GoodsReceiptItem`, `TowelType`, `TowelLedgerEntry`, `TowelTransfer`, `TowelTransferItem`, `TowelAdjustment`, `LaundryBatch`, `LaundryBatchConsumption`, `LaundryStandardCostRate`, `Service` (inactive) |
 | **Finance & Sales** | `Expense`, `ExpenseAllocation`, `ExpenseCategory`, `ExpenseType`, `ExpenseTag`, `ExpenseTagging`, `RecurringExpense`, `RecurringExpenseAllocation`, `CustodyAccount`, `CustodyTransaction`, `BalanceRequest`, `FinancialSettlement`, `PaymentMethod`, `FinancialAdjustment`, `DailyReconciliation`, `TillSession`, `TillSessionAmount`, `TillHandover`, `TillHandoverAmount`, `TillDeposit`, `TillRefund`, `DepositResponsibilityTransfer`, `RemainingDepositBalance`, `RemainingDepositBalanceTransaction`, `EmployeeReconciliationSummary`, `EmployeeReconciliationSummaryAmount`, `BankStatement`, `BankStatementTransaction`, `DepositMatch`, `BankDispute`, `SalesImport`, `SalesTransaction`, `PosImport`, `PosImportIgnoredRow`, `PosTransaction`, `PosTerminal`, `BranchRevenue` (legacy) |
 | **Reporting** | — (owns no models) |
-| **Infrastructure** | `AuditLog`, `ApplicationRecord` |
+| **Infrastructure** | `AuditLog`, `ApplicationRecord`, `PendingAuditEvent`, `PendingAuditEventAttempt`, `DurableAuditReceipt` (durable audit record, its attempt log and idempotency receipts, R3.1) |
 
 ### 10.1 Rationale for the supporting-model decisions
 
@@ -362,6 +362,7 @@ Tables follow model ownership (§10). No migrations, renames or moves are propos
 | `payment_methods`, `financial_adjustments` | FS | §10.1 |
 | `pos_terminals` | FS | Edited on OA's branch form; written only through the OA contract `OrganizationAccess::BranchTerminalSettings`, implemented by FS (Pilot 12, §14.2 #8) |
 | `audit_logs` | Infrastructure | Polymorphic cross-domain audit |
+| `pending_audit_events` / `pending_audit_event_attempts` / `durable_audit_receipts` | Infrastructure (Audit) | Durable record of an audit entry whose write failed through the opt-in `Audit::DurableEntry` API, its append-only attempt log, and the idempotency receipt written with every AuditLog of that API (unique `entry_key`, R3.1); plain `business_id` / `actor_id` foreign keys, no OA association; database guard triggers (dumped into `db/schema.rb` by `config/initializers/schema_dumper_database_guards.rb`) |
 | `payroll_audit_logs` / `user_audit_logs` | AP / OA | Domain audit trails |
 | `notifications` | Legacy (Infrastructure) | §20 |
 | `product_variants` | Legacy (IP) | §20 |
@@ -601,7 +602,7 @@ Extremely small: primitives and contracts only. **No business models or business
 | Authorization mechanism | Pundit, `ApplicationPolicy`, scope helpers (rules from OA and each domain's policies) |
 | API foundation | `Api::V1::BaseController`, `Api::*` concerns, `Api::ListQuery`, `Api::Errors`, serializers base, rate-limit store |
 | Logging / tracing | Structured API request log, `request_id`, parameter filtering |
-| Audit | `AuditLog` / `AuditLoggable` |
+| Audit | `AuditLog` / `AuditLoggable`; the opt-in durable path (R3.1): `PendingAuditEvent`, `PendingAuditEventAttempt`, `DurableAuditReceipt`, `Audit::DurableEntry`, `Audit::PendingEventDelivery`, `Audit::SafeReporting`, the delivery and sweeper jobs (`config/recurring.yml`), and the business audit-failure dashboard (`monitor_audit_failures`). `log_audit` / `log_audit!` are unchanged and never write the durable record |
 | Background jobs | Solid Queue, `ApplicationJob`, `config/recurring.yml` (domain jobs belong to AP and FS) |
 | Domain-event dispatch (future) | In-process publisher/subscriber with transactional handlers or outbox — infrastructure, not a domain |
 | Caching | Solid Cache |

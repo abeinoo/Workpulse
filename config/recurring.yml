@@ -23,3 +23,10 @@ production:
     class: Finance::GenerateDueRecurringExpensesJob
     queue: background
     schedule: every day at 6:30am
+
+  # R3.1 durable audit record: re-enqueue due pending audit events (a lost
+  # enqueue only delays delivery). Needs a Solid Queue supervisor restart.
+  sweep_pending_audit_events:
+    class: Audit::PendingEventSweepJob
+    queue: background
+    schedule: every 5 minutes

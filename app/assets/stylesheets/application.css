@@ -2244,6 +2244,9 @@ body.is-authenticated {
   position: relative;
 }
 
+/* Count badge pushed to the end of a nav item or group heading (R3.1 audit-failure escalations). */
+.sidebar__nav-count { margin-inline-start: auto; }
+
 .sidebar__nav-item:hover {
   background: rgba(var(--overlay-rgb),0.05);
   color: var(--text-1);
