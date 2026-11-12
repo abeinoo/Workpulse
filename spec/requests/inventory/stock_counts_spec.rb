@@ -390,6 +390,70 @@ RSpec.describe "Inventory::StockCounts", type: :request do
       expect(response.body).to include(I18n.t("inventory.stock_counts.sources.legacy"))   # row label stays
     end
 
+    describe "fractional ledger quantities (SC-000008 regression)" do
+      let!(:serum) do
+        business.products.create!(name: "Serum", sku: "GKM-84978", initial_cost_price: 50, average_cost_price: 50).tap do |p|
+          r = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current)
+          r.items.build(product: p, quantity: BigDecimal("4.004"), unit_cost: 50)
+          Inventory::GoodsReceiptPoster.new(r).call
+        end
+      end
+
+      # A pre-repair in-progress count holding unverified quantities.
+      def legacy_in_progress_count
+        count = business.stock_counts.build(warehouse: warehouse, counted_on: Date.current, created_by: counter, status: :in_progress)
+        count.items.build(product: product, system_quantity: 20, counted_quantity: 18)
+        count.items.build(product: serum, system_quantity: 4, counted_quantity: 3)
+        count.save!
+        count
+      end
+
+      it "completes over HTTP and shows 4.004 exactly, marked as a system quantity" do
+        count = legacy_in_progress_count
+        complete_as(count, counter)
+        expect(count).to be_completed
+        expect(flash[:alert]).to be_nil
+
+        get inventory_stock_count_path(count)
+        row = Nokogiri::HTML(response.body).css("tr").find { |tr| tr.text.include?("GKM-84978") }
+        cells = row.css("td").map { |td| td.text.squish }
+        expect(cells[2..4]).to eq([ "4.004", "4.004", "0" ])
+        expect(cells[5]).to include(I18n.t("inventory.stock_counts.sources.system"))
+      end
+
+      it "shows the adopted quantity as a hint (blank input) on the counting form after a reopen" do
+        count = legacy_in_progress_count
+        complete_as(count, counter)
+        sign_in approver
+        patch reopen_inventory_stock_count_path(count)
+
+        sign_in counter
+        get edit_inventory_stock_count_path(count)
+        doc  = Nokogiri::HTML(response.body)
+        row  = doc.css("tr[data-line-row]").find { |tr| tr["data-sku"] == "GKM-84978" }
+        expect(row["data-system-quantity"]).to eq("4.004")
+        expect(row.css("td")[2].text.squish).to eq("4.004")
+        expect(row.at_css("input[data-quantity-field]")["value"]).to be_nil
+        expect(row.text).to include(I18n.t("inventory.stock_counts.sources.system_hint", quantity: "4.004"))
+
+        # Saving the sheet as rendered keeps the row system-derived.
+        item = count.items.find_by!(product: serum)
+        patch inventory_stock_count_path(count), params: {
+          stock_count: { items_attributes: { "0" => { id: item.id, product_id: serum.id, counted_quantity: "" } } }
+        }
+        expect(item.reload).to have_attributes(quantity_source: "system", counted_quantity: BigDecimal("4.004"), difference: 0)
+      end
+
+      it "names the product's SKU in a completion error" do
+        count = legacy_in_progress_count
+        business.products.create!(name: "Serum mini", sku: "GKM-84978-M", parent_product_id: serum.id,
+                                  initial_cost_price: 50, average_cost_price: 50)
+        complete_as(count, counter)
+        expect(count).to be_in_progress
+        expect(flash[:alert]).to start_with("GKM-84978: ")
+      end
+    end
+
     it "ignores a system quantity posted by the client" do
       count = start_session(as: counter)
       item  = count.items.first

@@ -15,12 +15,17 @@ class StockCountItem < ApplicationRecord
 
   has_one :business, through: :stock_count
 
-  # Counted quantity is whole units only; blank (nil) means "not counted yet".
-  # (only_integer can't be used: the value lives in a decimal column, so it comes
-  # back as BigDecimal "n.0" and the integer string-regex would reject every value;
-  # we instead reject genuinely fractional inputs while accepting whole values.)
+  # A counted quantity entered by a person is whole units only; blank (nil)
+  # means "not counted yet". (only_integer can't be used: the value lives in a
+  # decimal column, so it comes back as BigDecimal "n.0" and the integer
+  # string-regex would reject every value; we instead reject genuinely
+  # fractional inputs while accepting whole values.)
+  #
+  # A system-derived row holds the ledger on-hand adopted at completion (D9),
+  # which can be fractional (e.g. 4.004 after a 0.004 receipt). It is kept
+  # exactly — never rounded — so the whole-number rule does not apply to it.
   validates :counted_quantity, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
-  validate  :counted_quantity_is_whole
+  validate  :counted_quantity_is_whole, unless: :system_derived?
   validates :product_id, uniqueness: { scope: :stock_count_id }
   validates :quantity_source, inclusion: { in: QUANTITY_SOURCES }, allow_nil: true
   validate  :product_is_transactable

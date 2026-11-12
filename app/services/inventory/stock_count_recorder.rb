@@ -15,7 +15,11 @@ module Inventory
   # Decisions D8/D9 — a legacy row (quantity entered before per-product count
   # times existed) is never treated as a physical count: a blank entry leaves
   # it untouched; a new entry is a physical recount, and the old unverified
-  # quantity is preserved in legacy_counted_quantity.
+  # quantity is preserved in legacy_counted_quantity. A system-derived row
+  # (ledger quantity adopted at completion, visible again after a reopen) is
+  # likewise kept as it is — source, baseline and time — when it comes back
+  # blank or with its own quantity; only a different quantity makes it a
+  # physical recount.
   #
   # entries: [{ id:, product_id:, counted_quantity: }] — id names an existing
   # row of this count; product_id alone adds a row (barcode scanner / import).
@@ -57,7 +61,7 @@ module Inventory
       end
       success
     rescue ActiveRecord::RecordInvalid => e
-      failure(e.record.errors.full_messages.to_sentence)
+      failure(record_error_message(e.record))
     rescue InvalidEntry => e
       failure(e.message)
     end
@@ -99,14 +103,14 @@ module Inventory
       if quantity.nil?
         # Blank never discards a legacy quantity (it simply was not recounted);
         # on any other row it clears the count.
-        return nil if item.legacy_unverified? || !item.counted?
+        return nil if item.legacy_unverified? || item.system_derived? || !item.counted?
 
         change = audit_change(item, nil)
         item.assign_attributes(counted_quantity: nil, counted_at: nil, baseline_at: nil, quantity_source: nil)
         return change
       end
 
-      return nil if item.physical? && item.counted_quantity.to_d == quantity
+      return nil if (item.physical? || item.system_derived?) && item.counted_quantity.to_d == quantity
 
       change = audit_change(item, quantity)
       item.legacy_counted_quantity = item.counted_quantity if item.legacy_unverified?

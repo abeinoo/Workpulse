@@ -50,11 +50,16 @@ module Inventory
       I18n.t("inventory.stock_counts.errors.#{key}", **options)
     end
 
-    def quantity_string(value)
-      return nil if value.nil?
+    def quantity_string(value) = QuantityFormat.plain(value)
 
-      d = value.to_d
-      d.frac.zero? ? d.to_i.to_s : d.to_s("F")
+    # A failed row save as a user-facing message naming the product
+    # ("GKM-84978: Counted quantity must be an integer") — validation messages
+    # only, never exception internals.
+    def record_error_message(record)
+      messages = record.errors.full_messages.to_sentence
+      return messages unless record.is_a?(StockCountItem) && record.product
+
+      "#{record.product.sku}: #{messages}"
     end
   end
 end

@@ -39,7 +39,7 @@ module Inventory
       end
       success
     rescue ActiveRecord::RecordInvalid => e
-      failure(e.record.errors.full_messages.to_sentence)
+      failure(record_error_message(e.record))
     rescue AuditLoggable::AuditWriteFailed
       failure(t_error("audit_failed"))
     end

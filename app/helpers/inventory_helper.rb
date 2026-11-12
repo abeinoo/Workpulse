@@ -60,6 +60,10 @@ module InventoryHelper
     end
   end
 
+  # Inventory quantities exactly as stored (4.004 stays 4.004; 7.000 shows 7).
+  def inventory_quantity(value) = Inventory::QuantityFormat.plain(value)
+  def inventory_signed_quantity(value) = Inventory::QuantityFormat.signed(value)
+
   def stock_count_status_class(status)
     STOCK_COUNT_STATUS_BADGES.fetch(status.to_s, "badge-neutral")
   end

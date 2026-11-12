@@ -5328,6 +5328,7 @@ en:
         legacy: "Unverified (no count time)"
         previous_unverified: "Previous unverified quantity: %{quantity}"
         legacy_hint: "Previous unverified quantity: %{quantity} — leave blank to keep it as history, or enter a recount."
+        system_hint: "System quantity adopted at completion: %{quantity} (not physically counted) — leave blank to keep it, or enter a recount."
       history:
         title: "Activity"
         adjustments_title: "Posted Adjustments"

@@ -12,6 +12,6 @@
 <% end %>
 <% if item.legacy_counted_quantity %>
   <div class="td-secondary" style="font-size: var(--text-xs);">
-    <%= t("inventory.stock_counts.sources.previous_unverified", quantity: item.legacy_counted_quantity.to_i) %>
+    <%= t("inventory.stock_counts.sources.previous_unverified", quantity: inventory_quantity(item.legacy_counted_quantity)) %>
   </div>
 <% end %>
