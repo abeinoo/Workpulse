@@ -21,7 +21,7 @@
       <% if policy(@stock_count).complete? %>
         <%= button_to t("inventory.stock_counts.complete_action"), complete_inventory_stock_count_path(@stock_count),
               method: :patch, class: "btn btn-primary btn-sm",
-              data: { turbo_confirm: t("inventory.stock_counts.complete_confirm") } %>
+              data: { turbo_confirm: @unverified_count.positive? ? t("inventory.stock_counts.complete_confirm_unverified", count: @unverified_count) : t("inventory.stock_counts.complete_confirm") } %>
       <% end %>
       <% if policy(@stock_count).approve? %>
         <% if policy(@stock_count).owner_self_approval? %>

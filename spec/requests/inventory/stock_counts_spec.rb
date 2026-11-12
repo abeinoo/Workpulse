@@ -225,20 +225,21 @@ RSpec.describe "Inventory::StockCounts", type: :request do
 
   describe "lifecycle repair (D1–D9) over HTTP" do
     # Submits the counting form exactly as the page rendered it (every input
-    # the browser would send), optionally changing some rows' quantities.
-    def submit_sheet_as_rendered(count, changes = {})
+    # the browser would send), optionally typing into some rows — which, as
+    # count-sheet#recalc does in the browser, also sets the row's entered flag.
+    def submit_sheet_as_rendered(count, changes = {}, extra = {})
       get edit_inventory_stock_count_path(count)
       form = Nokogiri::HTML(response.body).at_css("form[data-controller~='count-sheet']")
       params = form.css("input[name^='stock_count[']").each_with_object({}) do |input, acc|
         acc[input["name"]] = input["value"].to_s
       end
       changes.each do |product, quantity|
-        row   = form.css("tr[data-line-row]").find { |tr| tr["data-product-id"] == product.id.to_s }
-        field = row.at_css("input[data-quantity-field]")["name"]
-        params[field] = quantity.to_s
+        row = form.css("tr[data-line-row]").find { |tr| tr["data-product-id"] == product.id.to_s }
+        params[row.at_css("input[data-quantity-field]")["name"]] = quantity.to_s
+        params[row.at_css("input[data-entered-flag]")["name"]]   = "1"
       end
-      patch inventory_stock_count_path(count), params: Rack::Utils.parse_nested_query(params.to_query)
-      expect(response).to redirect_to(inventory_stock_count_path(count))
+      patch inventory_stock_count_path(count), params: Rack::Utils.parse_nested_query(params.merge(extra).to_query)
+      expect(response).to redirect_to(inventory_stock_count_path(count)) unless extra.any?
     end
 
     describe "resuming a count (last entered quantities)" do
@@ -299,6 +300,14 @@ RSpec.describe "Inventory::StockCounts", type: :request do
                                                system_quantity: BigDecimal("6.004"), difference: BigDecimal("-1.004"))
         expect(item.counted_at).to be > first_counted_at
         expect(serum_input(count)).to eq("5")
+      end
+
+      it "records a retyped quantity equal to the previous one as a fresh physical count" do
+        count, item = physical_count_with_serum(3)
+        first = item.counted_at
+        travel_to(1.hour.from_now) { submit_sheet_as_rendered(count, serum => 3) }
+        expect(item.reload).to have_attributes(counted_quantity: 3, quantity_source: "physical")
+        expect(item.counted_at).to be > first
       end
 
       it "leaves rows that were never counted blank and uncounted" do
@@ -524,6 +533,71 @@ RSpec.describe "Inventory::StockCounts", type: :request do
         submit_sheet_as_rendered(count)
         expect(item.reload.attributes.slice(*before.keys)).to eq(before)
         expect(item).to have_attributes(quantity_source: "system", counted_quantity: BigDecimal("4.004"), difference: 0)
+      end
+
+      it "SC-000008: retyping the unverified 3 keeps 3 as a physical count through completion and approval" do
+        count = legacy_in_progress_count                     # serum legacy 3, ledger 4.004
+        sign_in counter
+        submit_sheet_as_rendered(count, serum => 3)
+        item = count.items.find_by!(product: serum)
+        expect(item).to have_attributes(quantity_source: "physical", counted_quantity: 3,
+                                        system_quantity: BigDecimal("4.004"), difference: BigDecimal("-1.004"),
+                                        legacy_counted_quantity: 3)
+        expect(item.counted_at).to be_present
+
+        complete_as(count, counter)
+        expect(item.reload).to have_attributes(quantity_source: "physical", counted_quantity: 3)      # not 4.004
+        expect(count.items.find_by!(product: product)).to have_attributes(quantity_source: "system")  # untouched legacy row
+
+        later = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current)
+        later.items.build(product: serum, quantity: 2, unit_cost: 50)
+        Inventory::GoodsReceiptPoster.new(later).call                                                # after the count
+        approve_as(count, approver)
+        expect(count.active_stock_adjustment.items.map { |i| [ i.product_id, i.quantity_difference ] })
+          .to eq([ [ serum.id, BigDecimal("-1.004") ] ])
+        expect(serum.stock_in(warehouse)).to eq(5)          # 4.004 − 1.004 + 2: the later receipt is kept
+      end
+
+      it "leaving the unverified 3 untouched adopts the system quantity at completion (D9)" do
+        count = legacy_in_progress_count
+        sign_in counter
+        submit_sheet_as_rendered(count)
+        complete_as(count, counter)
+        expect(count.items.find_by!(product: serum)).to have_attributes(quantity_source: "system", counted_quantity: BigDecimal("4.004"))
+      end
+
+      it "Save & Complete saves the typed quantities, then completes" do
+        count = legacy_in_progress_count
+        sign_in counter
+        submit_sheet_as_rendered(count, { serum => 3 }, { "save_and_complete" => "Save & Complete" })
+        expect(response).to redirect_to(inventory_stock_count_path(count))
+        expect(flash[:notice]).to eq(I18n.t("inventory.stock_counts.saved_and_completed"))
+        expect(count.reload).to be_completed
+        expect(count.items.find_by!(product: serum)).to have_attributes(quantity_source: "physical", counted_quantity: 3)
+      end
+
+      it "Save & Complete does not complete when saving fails" do
+        count = legacy_in_progress_count
+        sign_in counter
+        submit_sheet_as_rendered(count, { serum => "2.5" }, { "save_and_complete" => "Save & Complete" })
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("GKM-84978: ")
+        expect(count.reload).to be_in_progress
+        expect(count.items.find_by!(product: serum)).to have_attributes(counted_quantity: 3, quantity_source: nil)
+        expect(AuditLog.for_auditable(count).where(action: "complete")).to be_empty
+      end
+
+      it "Complete warns how many products were not physically counted" do
+        count = legacy_in_progress_count
+        sign_in counter
+        get inventory_stock_count_path(count)
+        button = Nokogiri::HTML(response.body).css("form").find { |f| f["action"] == complete_inventory_stock_count_path(count) }
+                                             .at_css("button, input[type=submit]")
+        expect(button["data-turbo-confirm"]).to eq(I18n.t("inventory.stock_counts.complete_confirm_unverified", count: 2))
+
+        get edit_inventory_stock_count_path(count)
+        save_complete = Nokogiri::HTML(response.body).at_css("input[name='save_and_complete']")
+        expect(save_complete["data-confirm-some"]).to eq(I18n.t("inventory.stock_counts.save_and_complete_confirm.some", count: "__COUNT__"))
       end
 
       it "names the product's SKU in a completion error" do

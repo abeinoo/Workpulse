@@ -18,12 +18,15 @@
    diff_class = !counted ? "badge-neutral" : (diff.zero? ? "badge-success" : (diff.positive? ? "badge-warning" : "badge-danger")) %>
 <% pb_loaded = product.association(:product_barcodes).loaded?
    all_barcodes = pb_loaded ? product.product_barcodes.map(&:barcode).compact.join("|") : product.barcode.to_s %>
-<tr data-line-row data-product-id="<%= product.id %>" data-barcode="<%= product.barcode %>" data-barcodes="<%= all_barcodes %>" data-sku="<%= product.sku %>" data-system-quantity="<%= inventory_quantity(system_qty) %>">
+<tr data-line-row data-product-id="<%= product.id %>" data-barcode="<%= product.barcode %>" data-barcodes="<%= all_barcodes %>" data-sku="<%= product.sku %>" data-system-quantity="<%= inventory_quantity(system_qty) %>" data-unverified="<%= legacy || system %>">
   <td>
     <%= product.name %> <span class="td-secondary">(<%= product.sku %>)</span>
     <%= f.hidden_field :id %>
     <%= f.hidden_field :product_id %>
     <%= hidden_field_tag "#{f.object_name}[original_counted_quantity]", inventory_quantity(entered), id: nil %>
+    <%# Set to 1 by count-sheet#recalc as soon as the person types in this row:
+        a typed quantity is always a fresh physical count. %>
+    <%= hidden_field_tag "#{f.object_name}[entered]", "0", id: nil, data: { entered_flag: true } %>
   </td>
   <td class="td-secondary"><%= product.barcode.presence || "—" %></td>
   <td style="text-align: end;"><%= inventory_quantity(system_qty) %></td>

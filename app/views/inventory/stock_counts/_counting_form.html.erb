@@ -69,7 +69,15 @@
   </template>
 
   <div class="form-actions">
-    <%= f.submit t("inventory.stock_counts.save_counts"), class: "btn btn-primary" %>
+    <%= f.submit t("inventory.stock_counts.save_counts"), class: "btn btn-secondary" %>
+    <% if stock_count.in_progress? || stock_count.draft? %>
+      <%# Saves every quantity, then submits for approval — only if the save succeeded. %>
+      <%= f.submit t("inventory.stock_counts.save_and_complete_action"), name: "save_and_complete", class: "btn btn-primary",
+            data: { action: "click->count-sheet#confirmComplete",
+                    turbo_confirm: t("inventory.stock_counts.save_and_complete_confirm.none"),
+                    confirm_none: t("inventory.stock_counts.save_and_complete_confirm.none"),
+                    confirm_some: t("inventory.stock_counts.save_and_complete_confirm.some", count: "__COUNT__") } %>
+    <% end %>
     <%= link_to t("common.cancel"), inventory_stock_count_path(stock_count), class: "btn btn-ghost" %>
   </div>
 <% end %>

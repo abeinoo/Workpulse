@@ -17,9 +17,25 @@ export default class extends Controller {
 
   recalc(event) {
     const input = event.target
+    // Typing in a row is an explicit entry: the server records it as a fresh
+    // physical count, even if the value equals the previous one.
+    const flag = input.closest("[data-line-row]")?.querySelector("[data-entered-flag]")
+    if (flag) flag.value = "1"
     this.#applyDifference(input)
     this.#applyFilter(input.closest("[data-line-row]"))
     this.#refreshProgress()
+  }
+
+  // "Save & Complete": before Turbo asks for confirmation, say how many
+  // products were not physically counted (untouched unverified / system rows)
+  // and will therefore use their system quantity at completion.
+  confirmComplete(event) {
+    const button = event.currentTarget
+    const pending = this.#rows().filter((row) =>
+      row.dataset.unverified === "true" && row.querySelector("[data-entered-flag]")?.value !== "1").length
+    button.dataset.turboConfirm = pending > 0
+      ? button.dataset.confirmSome.replace("__COUNT__", pending)
+      : button.dataset.confirmNone
   }
 
   // Enter in a counted-quantity field → back to the barcode field for the next scan.

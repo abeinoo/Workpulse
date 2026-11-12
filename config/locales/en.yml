@@ -5256,6 +5256,13 @@ en:
       continue_counting: "Continue Counting"
       complete_action: "Mark Complete"
       complete_confirm: "Submit this count for approval? Inventory is not changed until it is approved."
+      complete_confirm_unverified: "%{count} product(s) were not physically counted and will use their current system quantity (no adjustment). Submit this count for approval? Inventory is not changed until it is approved."
+      save_and_complete_action: "Save & Complete"
+      save_and_complete_confirm:
+        none: "Save all quantities and submit this count for approval? Inventory is not changed until it is approved."
+        some: "%{count} product(s) were not physically counted and will use their current system quantity (no adjustment). Save all quantities and submit this count for approval?"
+      saved_and_completed: "Counts saved and submitted for approval."
+      saved_not_completed: "Counts saved, but the count could not be submitted: %{error}"
       approve_action: "Approve"
       approve_confirm: "Approve this count? It will create stock adjustments for every difference and freeze the count."
       approve_confirm_partial: "Approve this count? %{count} uncounted products will be skipped (left untouched), adjustments created for counted differences, and the count frozen."

@@ -22,6 +22,8 @@ class Inventory::StockCountsController < Inventory::BaseController
     @items             = @stock_count.items
     @product_barcodes  = Product.barcode_lookup(@items.map(&:product_id))
     @legacy_count      = @items.count(&:legacy_unverified?)
+    # Products not physically counted that keep / adopt the system quantity at completion.
+    @unverified_count  = @items.count { |item| item.legacy_unverified? || item.system_derived? }
     @adjustments       = @stock_count.stock_adjustments.sort_by(&:id)
     @active_adjustment = @stock_count.active_stock_adjustment
     @history           = AuditLog.for_auditable(@stock_count).includes(:actor).order(:created_at, :id).last(100)
@@ -65,13 +67,14 @@ class Inventory::StockCountsController < Inventory::BaseController
       entries: count_entries, notes: params.dig(:stock_count, :notes)
     ).call
 
-    if result.ok?
-      redirect_to inventory_stock_count_path(@stock_count), notice: t("inventory.stock_counts.updated")
-    else
+    unless result.ok?
       flash.now[:alert] = result.error
       load_counting_screen
-      render :edit, status: :unprocessable_entity
+      return render :edit, status: :unprocessable_entity
     end
+    return complete_after_save if params[:save_and_complete].present?
+
+    redirect_to inventory_stock_count_path(@stock_count), notice: t("inventory.stock_counts.updated")
   end
 
   # Hard delete — only a never-posted count still being worked on.
@@ -159,6 +162,21 @@ class Inventory::StockCountsController < Inventory::BaseController
     policy_scope(StockCount).find(params[:id])
   end
 
+  # "Save & Complete": runs only after every quantity was saved (a failed save
+  # re-renders the sheet above and never completes). Completion is authorized
+  # on the saved count, exactly like the Complete action.
+  def complete_after_save
+    @stock_count.reload
+    authorize @stock_count, :complete?
+    result = Inventory::StockCountCompletion.new(stock_count_id: @stock_count.id, actor: current_user).call
+    if result.ok?
+      redirect_to inventory_stock_count_path(@stock_count), notice: t("inventory.stock_counts.saved_and_completed")
+    else
+      redirect_to inventory_stock_count_path(@stock_count),
+                  alert: t("inventory.stock_counts.saved_not_completed", error: result.error)
+    end
+  end
+
   def redirect_with(result, notice)
     if result.ok?
       redirect_to inventory_stock_count_path(@stock_count), notice: notice
@@ -183,10 +201,11 @@ class Inventory::StockCountsController < Inventory::BaseController
   # Only counted quantities are editable on the counting screen; product_id
   # rides along for rows the barcode scanner adds on the fly, and
   # original_counted_quantity is the value the screen displayed (so an
-  # unchanged row is recognised). A system quantity is never taken from the
+  # unchanged row is recognised) and entered marks a row the person typed in
+  # (always a fresh physical count). A system quantity is never taken from the
   # client — the recorder reads the ledger.
   def count_entries
-    attrs = params.require(:stock_count).permit(items_attributes: [ :id, :product_id, :counted_quantity, :original_counted_quantity ])
+    attrs = params.require(:stock_count).permit(items_attributes: [ :id, :product_id, :counted_quantity, :original_counted_quantity, :entered ])
     (attrs[:items_attributes] || {}).to_h.values.map(&:symbolize_keys)
   end
 end

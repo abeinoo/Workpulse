@@ -193,6 +193,35 @@ RSpec.describe "Stock count fractional and system-derived quantities", type: :mo
       expect(item.counted_at).to be_present
     end
 
+    it "records a typed quantity equal to the unverified one as a fresh physical count (entered)" do
+      count = legacy_count(lines: [ [ serum, 4, 3 ] ])
+      item  = item_for(count, serum)
+      save(count, { id: item.id, counted_quantity: "3", original_counted_quantity: "3", entered: "1" })
+      expect(item.reload).to have_attributes(quantity_source: "physical", counted_quantity: 3, legacy_counted_quantity: 3,
+                                             system_quantity: BigDecimal("4.004"), difference: BigDecimal("-1.004"))
+      complete(count)
+      expect(item_for(count, serum)).to have_attributes(quantity_source: "physical", counted_quantity: 3)
+    end
+
+    it "records a typed quantity on a system-derived row as a physical count, and re-stamps a retyped physical one" do
+      count = legacy_count(lines: [ [ serum, 4, 3 ] ])
+      complete(count)
+      reopen_stock_count(count, approver, reason: nil)
+      item = item_for(count, serum)
+      save(count, { id: item.id, counted_quantity: "3", original_counted_quantity: "3", entered: "1" })
+      expect(item.reload).to have_attributes(quantity_source: "physical", counted_quantity: 3)
+      first = item.counted_at
+      travel_to(1.hour.from_now) { save(count, { id: item.id, counted_quantity: "3", original_counted_quantity: "3", entered: "1" }) }
+      expect(item.reload.counted_at).to be > first
+    end
+
+    it "an entered blank never discards an unverified or system-derived quantity" do
+      count = legacy_count(lines: [ [ wax, 7, 5 ] ])
+      item  = item_for(count, wax)
+      save(count, { id: item.id, counted_quantity: "", original_counted_quantity: "5", entered: "1" })
+      expect(item.reload).to have_attributes(counted_quantity: 5, quantity_source: nil)
+    end
+
     it "keeps the stored-row comparison for entries with no displayed value (CSV import)" do
       count = legacy_count(lines: [ [ wax, 7, 5 ] ])
       item  = item_for(count, wax)

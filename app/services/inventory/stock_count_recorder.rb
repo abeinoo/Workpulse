@@ -35,6 +35,12 @@ module Inventory
   # new physical count. Entries without original_counted_quantity (CSV import)
   # are compared with the stored row, as before.
   #
+  # entered: true means the person typed in that row's field on the counting
+  # screen. A typed quantity is ALWAYS a fresh physical count — new count time
+  # and ledger baseline — even when it equals the previous (e.g. unverified
+  # legacy) quantity; that is how a counter confirms "I counted 3". A blank
+  # typed entry follows the blank rules below.
+  #
   # The count row is locked, so a save racing with Complete either lands
   # before the cutoff or is refused.
   class StockCountRecorder
@@ -85,12 +91,12 @@ module Inventory
       by_id      = @count.items.index_by(&:id)
       by_product = @count.items.index_by(&:product_id)
       resolved   = @entries.reject { |entry| unchanged_on_screen?(entry) }
-                           .map { |entry| [ resolve_item(entry, by_id, by_product), parse(entry[:counted_quantity]) ] }
-      on_hand    = on_hand_for(resolved.map { |item, _| item.product_id }.compact)
+                           .map { |entry| [ resolve_item(entry, by_id, by_product), parse(entry[:counted_quantity]), entered?(entry) ] }
+      on_hand    = on_hand_for(resolved.map { |item, *| item.product_id }.compact)
       now        = Time.current
 
-      changes = resolved.filter_map do |item, quantity|
-        change = apply(item, quantity, on_hand[item.product_id].to_d, now)
+      changes = resolved.filter_map do |item, quantity, entered|
+        change = apply(item, quantity, on_hand[item.product_id].to_d, now, entered: entered)
         next unless change
 
         item.save!
@@ -100,9 +106,11 @@ module Inventory
       changes
     end
 
-    # The row came back exactly as the counting screen displayed it.
+    def entered?(entry) = ActiveModel::Type::Boolean.new.cast(entry[:entered]) == true
+
+    # The row came back exactly as the counting screen displayed it, untouched.
     def unchanged_on_screen?(entry)
-      return false unless entry.key?(:original_counted_quantity)
+      return false if entered?(entry) || !entry.key?(:original_counted_quantity)
 
       parse(entry[:original_counted_quantity]) == parse(entry[:counted_quantity])
     end
@@ -117,7 +125,7 @@ module Inventory
     end
 
     # Returns the audit change for the row, or nil when nothing changed.
-    def apply(item, quantity, on_hand, now)
+    def apply(item, quantity, on_hand, now, entered: false)
       if quantity.nil?
         # Blank never discards a legacy quantity (it simply was not recounted);
         # on any other row it clears the count.
@@ -128,7 +136,9 @@ module Inventory
         return change
       end
 
-      return nil if (item.physical? || item.system_derived?) && item.counted_quantity.to_d == quantity
+      unless entered
+        return nil if (item.physical? || item.system_derived?) && item.counted_quantity.to_d == quantity
+      end
 
       change = audit_change(item, quantity)
       item.legacy_counted_quantity = item.counted_quantity if item.legacy_unverified?
