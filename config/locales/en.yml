@@ -5335,7 +5335,7 @@ en:
         legacy: "Unverified (no count time)"
         previous_unverified: "Previous unverified quantity: %{quantity}"
         legacy_hint: "Entered before per-product count times (unverified). Saving it unchanged keeps it unverified; change it to record a recount."
-        system_hint: "Not physically counted: the system quantity %{quantity} was adopted at completion. Saving unchanged keeps it; change the value to record a recount."
+        system_hint: "Previous unverified quantity: %{previous} · Accepted system quantity: %{quantity} (not physically counted). Saving unchanged keeps it; type a quantity to record a physical recount."
       history:
         title: "Activity"
         adjustments_title: "Posted Adjustments"

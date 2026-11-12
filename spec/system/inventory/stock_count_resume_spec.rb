@@ -76,4 +76,59 @@ RSpec.describe "Stock count — resuming and completing (browser)", type: :syste
     expect(item(serum)).to have_attributes(quantity_source: "physical", counted_quantity: 3)
     expect(item(wax)).to have_attributes(quantity_source: "system")
   end
+
+  describe "after complete → reopen (the SC-000008 screenshot: 3 shown as 4)" do
+    before do
+      Inventory::StockCountCompletion.new(stock_count_id: count.id, actor: owner).call   # serum adopts 4.004
+      Inventory::StockCountReopener.new(stock_count_id: count.id, actor: owner).call
+    end
+
+    def entered_flag(sku) = row_for(sku).find("input[data-entered-flag]", visible: false)
+
+    def wheel_over(field, delta_y)
+      rect = field.evaluate_script("(r => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 }))(this.getBoundingClientRect())")
+      page.driver.browser.execute_cdp("Input.dispatchMouseEvent", type: "mouseWheel", x: rect["x"], y: rect["y"],
+                                      deltaX: 0, deltaY: delta_y)
+    end
+
+    it "shows the previous unverified quantity, the accepted system quantity and the input as distinct values" do
+      visit inventory_stock_count_path(count)
+      cells = find("tr", text: "GKM-84978").all("td").map { |td| td.text.squish }
+      expect(cells[2..4]).to eq([ "4.004", "4.004", "0" ])                       # system · accepted · difference
+      expect(cells[5]).to include(I18n.t("inventory.stock_counts.sources.previous_unverified", quantity: "3"))
+
+      visit edit_inventory_stock_count_path(count)
+      expect(quantity_field("GKM-84978").value).to eq("3")
+      expect(row_for("GKM-84978")).to have_text(
+        I18n.t("inventory.stock_counts.sources.system_hint", quantity: "4.004", previous: "3"))
+    end
+
+    it "does not step the quantity on a mouse-wheel scroll or an arrow key, and saving keeps the row system-derived" do
+      visit edit_inventory_stock_count_path(count)
+      field = quantity_field("GKM-84978")
+      field.click                                                             # focused, as after a scan
+      wheel_over(field, -100)
+      wheel_over(field, 100)
+      field.send_keys(:arrow_up)
+      field.send_keys(:arrow_down)
+      expect(field.value).to eq("3")
+      expect(entered_flag("GKM-84978").value).to eq("0")
+
+      before = item(serum).attributes.slice("quantity_source", "counted_quantity", "system_quantity", "baseline_at", "counted_at")
+      click_button I18n.t("inventory.stock_counts.save_counts")
+      expect(page).to have_current_path(inventory_stock_count_path(count))
+      expect(item(serum).attributes.slice(*before.keys)).to eq(before)
+      expect(item(serum)).to have_attributes(quantity_source: "system", counted_quantity: BigDecimal("4.004"))
+    end
+
+    it "still records a typed 3 as a physical count" do
+      visit edit_inventory_stock_count_path(count)
+      quantity_field("GKM-84978").fill_in(with: "3")
+      expect(entered_flag("GKM-84978").value).to eq("1")
+      click_button I18n.t("inventory.stock_counts.save_counts")
+      expect(page).to have_current_path(inventory_stock_count_path(count))
+      expect(item(serum)).to have_attributes(quantity_source: "physical", counted_quantity: 3,
+                                             system_quantity: BigDecimal("4.004"), difference: BigDecimal("-1.004"))
+    end
+  end
 end

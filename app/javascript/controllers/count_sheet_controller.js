@@ -6,6 +6,10 @@ import { Controller } from "@hotwired/stimulus"
 //  • row filters (all / counted / not counted / differences only)
 //  • quick-scan loop: pressing Enter in a counted-quantity field returns focus to
 //    the barcode field, so scan → type → Enter → scan never needs the mouse.
+//  • quantities change only by typing: a number field steps its value on a
+//    mouse-wheel / trackpad scroll or an Arrow key while focused (a scan focuses
+//    it), which silently turned a saved 3 into 4 and marked it as entered. Those
+//    gestures are blocked here; the page still scrolls.
 export default class extends Controller {
   static targets = ["progressBar", "counted", "remaining", "total", "percent", "filterButton"]
 
@@ -13,6 +17,15 @@ export default class extends Controller {
     this.filterMode = "all"
     this.element.querySelectorAll("[data-quantity-field]").forEach((input) => this.#applyDifference(input))
     this.#refreshProgress()
+    this.blockWheel = this.#blockWheel.bind(this)
+    this.blockArrows = this.#blockArrows.bind(this)
+    this.element.addEventListener("wheel", this.blockWheel, { passive: false })
+    this.element.addEventListener("keydown", this.blockArrows)
+  }
+
+  disconnect() {
+    this.element.removeEventListener("wheel", this.blockWheel)
+    this.element.removeEventListener("keydown", this.blockArrows)
   }
 
   recalc(event) {
@@ -54,6 +67,21 @@ export default class extends Controller {
   }
 
   // ── internals ──────────────────────────────────────────────────────────
+  // Scrolling over a focused quantity field scrolls the page instead of
+  // stepping the value.
+  #blockWheel(event) {
+    const field = event.target.closest?.("[data-quantity-field]")
+    if (!field || document.activeElement !== field) return
+    event.preventDefault()
+    window.scrollBy(event.deltaX, event.deltaY)
+  }
+
+  // Arrow Up / Down never step a quantity.
+  #blockArrows(event) {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
+    if (event.target.closest?.("[data-quantity-field]")) event.preventDefault()
+  }
+
   #rows() {
     return Array.from(this.element.querySelectorAll("[data-line-row]"))
   }

@@ -41,7 +41,8 @@
       </div>
     <% elsif system %>
       <div class="form-hint" style="font-size: var(--text-xs);">
-        <%= t("inventory.stock_counts.sources.system_hint", quantity: inventory_quantity(item.counted_quantity)) %>
+        <%= t("inventory.stock_counts.sources.system_hint", quantity: inventory_quantity(item.counted_quantity),
+              previous: inventory_quantity(item.legacy_counted_quantity) || "—") %>
       </div>
     <% end %>
   </td>

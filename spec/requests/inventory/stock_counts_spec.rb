@@ -526,7 +526,7 @@ RSpec.describe "Inventory::StockCounts", type: :request do
         expect(row["data-system-quantity"]).to eq("4.004")
         expect(row.css("td")[2].text.squish).to eq("4.004")
         expect(row.at_css("input[data-quantity-field]")["value"]).to eq("3")          # the person's entry, not 4.004
-        expect(row.text).to include(I18n.t("inventory.stock_counts.sources.system_hint", quantity: "4.004"))
+        expect(row.text).to include(I18n.t("inventory.stock_counts.sources.system_hint", quantity: "4.004", previous: "3"))
 
         item   = count.items.find_by!(product: serum)
         before = item.attributes.slice("quantity_source", "counted_quantity", "system_quantity", "baseline_at", "counted_at", "difference")
