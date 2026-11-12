@@ -21,9 +21,19 @@ module Inventory
   # blank or with its own quantity; only a different quantity makes it a
   # physical recount.
   #
-  # entries: [{ id:, product_id:, counted_quantity: }] — id names an existing
-  # row of this count; product_id alone adds a row (barcode scanner / import).
-  # A client-supplied system quantity is never accepted.
+  # entries: [{ id:, product_id:, counted_quantity:, original_counted_quantity: }]
+  # — id names an existing row of this count; product_id alone adds a row
+  # (barcode scanner / import). A client-supplied system quantity is never
+  # accepted.
+  #
+  # The counting screen pre-fills each row with the last quantity a person
+  # entered and saved, and sends that displayed value back as
+  # original_counted_quantity. A row whose submitted quantity equals what was
+  # displayed is UNCHANGED and is not touched at all — its quantity, source,
+  # count time and baseline stay as they were — so resuming a count and saving
+  # never creates a recount. Only a quantity the person actually changed is a
+  # new physical count. Entries without original_counted_quantity (CSV import)
+  # are compared with the stored row, as before.
   #
   # The count row is locked, so a save racing with Complete either lands
   # before the cutoff or is refused.
@@ -74,7 +84,8 @@ module Inventory
     def record_entries!
       by_id      = @count.items.index_by(&:id)
       by_product = @count.items.index_by(&:product_id)
-      resolved   = @entries.map { |entry| [ resolve_item(entry, by_id, by_product), parse(entry[:counted_quantity]) ] }
+      resolved   = @entries.reject { |entry| unchanged_on_screen?(entry) }
+                           .map { |entry| [ resolve_item(entry, by_id, by_product), parse(entry[:counted_quantity]) ] }
       on_hand    = on_hand_for(resolved.map { |item, _| item.product_id }.compact)
       now        = Time.current
 
@@ -87,6 +98,13 @@ module Inventory
       end
       @applied_count = changes.size
       changes
+    end
+
+    # The row came back exactly as the counting screen displayed it.
+    def unchanged_on_screen?(entry)
+      return false unless entry.key?(:original_counted_quantity)
+
+      parse(entry[:original_counted_quantity]) == parse(entry[:counted_quantity])
     end
 
     def resolve_item(entry, by_id, by_product)

@@ -181,10 +181,12 @@ class Inventory::StockCountsController < Inventory::BaseController
   end
 
   # Only counted quantities are editable on the counting screen; product_id
-  # rides along for rows the barcode scanner adds on the fly. A system
-  # quantity is never taken from the client — the recorder reads the ledger.
+  # rides along for rows the barcode scanner adds on the fly, and
+  # original_counted_quantity is the value the screen displayed (so an
+  # unchanged row is recognised). A system quantity is never taken from the
+  # client — the recorder reads the ledger.
   def count_entries
-    attrs = params.require(:stock_count).permit(items_attributes: [ :id, :product_id, :counted_quantity ])
+    attrs = params.require(:stock_count).permit(items_attributes: [ :id, :product_id, :counted_quantity, :original_counted_quantity ])
     (attrs[:items_attributes] || {}).to_h.values.map(&:symbolize_keys)
   end
 end

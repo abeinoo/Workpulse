@@ -1,16 +1,20 @@
-<%# A physically counted row shows the baseline captured at its count time; any
-    other row shows the live on-hand its count would be compared to. A legacy
-    (pre-upgrade, unverified) quantity and a system-derived quantity (ledger
-    on-hand adopted at completion) are not pre-filled: leaving them blank keeps
-    them as they are; typing a value records a physical recount (D8/D9).
-    Quantities are shown exactly (4.004 stays 4.004). %>
+<%# Each row is pre-filled with the LAST QUANTITY A PERSON ENTERED AND SAVED:
+    a physical count, a legacy (pre-upgrade, unverified) quantity, or — for a
+    system-derived row — the person's earlier entry it replaced (the adopted
+    ledger quantity is shown as a hint, never in the input). The displayed value
+    is sent back as original_counted_quantity, so saving a row unchanged leaves
+    it exactly as it was (source, time, baseline); only a changed value becomes a
+    physical recount (D2/D8/D9). A physically counted row shows the baseline
+    captured at its count time; any other row shows the live on-hand its count
+    would be compared to. Quantities are shown exactly (4.004 stays 4.004). %>
 <% item = f.object
    product = item.product
    legacy = item.legacy_unverified?
    system = item.system_derived?
    system_qty = item.physical? ? item.system_quantity.to_d : (@live_on_hand || {}).fetch(product.id, item.system_quantity).to_d
-   counted = item.counted? && !legacy && !system
-   diff = counted ? item.counted_quantity.to_d - system_qty : 0
+   entered = system ? item.legacy_counted_quantity : item.counted_quantity
+   counted = !entered.nil?
+   diff = counted ? entered.to_d - system_qty : 0
    diff_class = !counted ? "badge-neutral" : (diff.zero? ? "badge-success" : (diff.positive? ? "badge-warning" : "badge-danger")) %>
 <% pb_loaded = product.association(:product_barcodes).loaded?
    all_barcodes = pb_loaded ? product.product_barcodes.map(&:barcode).compact.join("|") : product.barcode.to_s %>
@@ -19,12 +23,13 @@
     <%= product.name %> <span class="td-secondary">(<%= product.sku %>)</span>
     <%= f.hidden_field :id %>
     <%= f.hidden_field :product_id %>
+    <%= hidden_field_tag "#{f.object_name}[original_counted_quantity]", inventory_quantity(entered), id: nil %>
   </td>
   <td class="td-secondary"><%= product.barcode.presence || "—" %></td>
   <td style="text-align: end;"><%= inventory_quantity(system_qty) %></td>
   <td>
     <%= f.number_field :counted_quantity, step: 1, min: 0, class: "form-control qty-input",
-          value: (legacy || system ? nil : inventory_quantity(item.counted_quantity)),
+          value: inventory_quantity(entered),
           inputmode: "numeric", pattern: "[0-9]*", placeholder: "—",
           data: { quantity_field: true, action: "input->count-sheet#recalc keydown.enter->count-sheet#focusScanner" } %>
     <% if legacy %>

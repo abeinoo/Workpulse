@@ -164,6 +164,43 @@ RSpec.describe "Stock count fractional and system-derived quantities", type: :mo
     end
   end
 
+  describe "rows re-submitted exactly as the counting screen displayed them" do
+    def save(count, entry) = Inventory::StockCountRecorder.new(stock_count_id: count.id, actor: counter, entries: [ entry ]).call
+
+    it "leaves a legacy row untouched when its displayed quantity comes back unchanged" do
+      count = legacy_count(lines: [ [ wax, 7, 5 ] ])
+      item  = item_for(count, wax)
+      expect(save(count, { id: item.id, counted_quantity: "5", original_counted_quantity: "5" }).ok?).to be(true)
+      expect(item.reload).to have_attributes(counted_quantity: 5, quantity_source: nil, counted_at: nil, legacy_counted_quantity: nil)
+    end
+
+    it "leaves a system-derived row untouched when the person's last entry comes back unchanged" do
+      count = legacy_count(lines: [ [ serum, 4, 3 ] ])
+      complete(count)
+      reopen_stock_count(count, approver, reason: nil)
+      item   = item_for(count, serum)
+      before = item.attributes
+      save(count, { id: item.id, counted_quantity: "3", original_counted_quantity: "3" })   # form shows 3, not 4.004
+      expect(item.reload.attributes).to eq(before)
+      expect(item).to have_attributes(quantity_source: "system", counted_quantity: BigDecimal("4.004"), difference: 0)
+    end
+
+    it "records a physical recount when the displayed quantity was changed" do
+      count = legacy_count(lines: [ [ wax, 7, 5 ] ])
+      item  = item_for(count, wax)
+      save(count, { id: item.id, counted_quantity: "6", original_counted_quantity: "5" })
+      expect(item.reload).to have_attributes(counted_quantity: 6, quantity_source: "physical", legacy_counted_quantity: 5, system_quantity: 7)
+      expect(item.counted_at).to be_present
+    end
+
+    it "keeps the stored-row comparison for entries with no displayed value (CSV import)" do
+      count = legacy_count(lines: [ [ wax, 7, 5 ] ])
+      item  = item_for(count, wax)
+      save(count, { id: item.id, counted_quantity: "5" })                 # an import row re-confirming 5
+      expect(item.reload).to have_attributes(quantity_source: "physical", counted_quantity: 5)
+    end
+  end
+
   describe "completion errors" do
     it "name the product whose row could not be saved" do
       count = legacy_count(lines: [ [ wax, 7, 5 ] ])

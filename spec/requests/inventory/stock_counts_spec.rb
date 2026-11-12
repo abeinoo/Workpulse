@@ -224,6 +224,91 @@ RSpec.describe "Inventory::StockCounts", type: :request do
   end
 
   describe "lifecycle repair (D1–D9) over HTTP" do
+    # Submits the counting form exactly as the page rendered it (every input
+    # the browser would send), optionally changing some rows' quantities.
+    def submit_sheet_as_rendered(count, changes = {})
+      get edit_inventory_stock_count_path(count)
+      form = Nokogiri::HTML(response.body).at_css("form[data-controller~='count-sheet']")
+      params = form.css("input[name^='stock_count[']").each_with_object({}) do |input, acc|
+        acc[input["name"]] = input["value"].to_s
+      end
+      changes.each do |product, quantity|
+        row   = form.css("tr[data-line-row]").find { |tr| tr["data-product-id"] == product.id.to_s }
+        field = row.at_css("input[data-quantity-field]")["name"]
+        params[field] = quantity.to_s
+      end
+      patch inventory_stock_count_path(count), params: Rack::Utils.parse_nested_query(params.to_query)
+      expect(response).to redirect_to(inventory_stock_count_path(count))
+    end
+
+    describe "resuming a count (last entered quantities)" do
+      let!(:serum) do
+        business.products.create!(name: "Serum", sku: "GKM-84978", initial_cost_price: 50, average_cost_price: 50).tap do |p|
+          r = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current)
+          r.items.build(product: p, quantity: BigDecimal("4.004"), unit_cost: 50)
+          Inventory::GoodsReceiptPoster.new(r).call
+        end
+      end
+
+      def physical_count_with_serum(quantity)
+        count = start_session(as: counter)
+        sign_in counter
+        item = count.items.find_by!(product: serum)
+        patch inventory_stock_count_path(count), params: {
+          stock_count: { items_attributes: { "0" => { id: item.id, product_id: serum.id, counted_quantity: quantity } } }
+        }
+        [ count.reload, item.reload ]
+      end
+
+      def serum_input(count)
+        get edit_inventory_stock_count_path(count)
+        Nokogiri::HTML(response.body).css("tr[data-line-row]").find { |tr| tr["data-sku"] == "GKM-84978" }
+                                     .at_css("input[data-quantity-field]")["value"]
+      end
+
+      it "shows a saved physical quantity of 3, not the 4.004 system stock, on every return to the sheet" do
+        count, item = physical_count_with_serum(3)
+        expect(item).to have_attributes(quantity_source: "physical", system_quantity: BigDecimal("4.004"))
+
+        expect(serum_input(count)).to eq("3")
+        get inventory_stock_count_path(count)                 # navigate away …
+        expect(serum_input(count)).to eq("3")                 # … and back / refresh
+      end
+
+      it "does not change the quantity, source or timestamp by opening or re-saving the sheet" do
+        count, item = physical_count_with_serum(3)
+        before = item.attributes.slice("counted_quantity", "quantity_source", "counted_at", "baseline_at", "system_quantity", "difference")
+
+        travel_to(1.hour.from_now) do
+          serum_input(count)
+          submit_sheet_as_rendered(count)
+        end
+        expect(item.reload.attributes.slice(*before.keys)).to eq(before)
+        expect(AuditLog.for_auditable(count).where(action: "record_counts").count).to eq(1)   # no new recount
+      end
+
+      it "records a new physical recount only when the quantity is changed and saved" do
+        count, item = physical_count_with_serum(3)
+        first_counted_at = item.counted_at
+        receive_more = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current)
+        receive_more.items.build(product: serum, quantity: 2, unit_cost: 50)
+        Inventory::GoodsReceiptPoster.new(receive_more).call            # serum now 6.004
+
+        travel_to(1.hour.from_now) { submit_sheet_as_rendered(count, serum => 5) }
+        expect(item.reload).to have_attributes(counted_quantity: 5, quantity_source: "physical",
+                                               system_quantity: BigDecimal("6.004"), difference: BigDecimal("-1.004"))
+        expect(item.counted_at).to be > first_counted_at
+        expect(serum_input(count)).to eq("5")
+      end
+
+      it "leaves rows that were never counted blank and uncounted" do
+        count, = physical_count_with_serum(3)
+        submit_sheet_as_rendered(count)
+        other = count.items.find_by!(product: product)
+        expect(other).to have_attributes(counted_quantity: nil, quantity_source: nil)
+      end
+    end
+
     def complete_as(count, user)
       sign_in user
       patch complete_inventory_stock_count_path(count)
@@ -354,7 +439,7 @@ RSpec.describe "Inventory::StockCounts", type: :request do
       expect(adjustment.reload).not_to be_voided
     end
 
-    it "shows a legacy quantity blank on the counting screen and keeps it when left blank" do
+    it "pre-fills a legacy quantity and keeps it unverified when the sheet is saved unchanged" do
       count = start_session(as: counter)
       item  = count.items.first
       item.update!(counted_quantity: 8)                     # pre-upgrade style: no source, no time
@@ -362,14 +447,12 @@ RSpec.describe "Inventory::StockCounts", type: :request do
 
       sign_in counter
       get edit_inventory_stock_count_path(count)
-      expect(response.body).to include(I18n.t("inventory.stock_counts.sources.legacy_hint", quantity: 8))
+      expect(response.body).to include(I18n.t("inventory.stock_counts.sources.legacy_hint"))
       input = Nokogiri::HTML(response.body).at_css("input[name='stock_count[items_attributes][0][counted_quantity]']")
-      expect(input["value"]).to be_nil
+      expect(input["value"]).to eq("8")
 
-      patch inventory_stock_count_path(count), params: {
-        stock_count: { items_attributes: { "0" => { id: item.id, product_id: product.id, counted_quantity: "" } } }
-      }
-      expect(item.reload).to have_attributes(counted_quantity: 8, quantity_source: nil)
+      submit_sheet_as_rendered(count)
+      expect(item.reload).to have_attributes(counted_quantity: 8, quantity_source: nil, counted_at: nil)
       get inventory_stock_count_path(count)
       expect(response.body).to include(I18n.t("inventory.stock_counts.sources.legacy"))
     end
@@ -421,7 +504,7 @@ RSpec.describe "Inventory::StockCounts", type: :request do
         expect(cells[5]).to include(I18n.t("inventory.stock_counts.sources.system"))
       end
 
-      it "shows the adopted quantity as a hint (blank input) on the counting form after a reopen" do
+      it "after a reopen, pre-fills the last entered quantity and keeps the row system-derived when saved unchanged" do
         count = legacy_in_progress_count
         complete_as(count, counter)
         sign_in approver
@@ -433,15 +516,14 @@ RSpec.describe "Inventory::StockCounts", type: :request do
         row  = doc.css("tr[data-line-row]").find { |tr| tr["data-sku"] == "GKM-84978" }
         expect(row["data-system-quantity"]).to eq("4.004")
         expect(row.css("td")[2].text.squish).to eq("4.004")
-        expect(row.at_css("input[data-quantity-field]")["value"]).to be_nil
+        expect(row.at_css("input[data-quantity-field]")["value"]).to eq("3")          # the person's entry, not 4.004
         expect(row.text).to include(I18n.t("inventory.stock_counts.sources.system_hint", quantity: "4.004"))
 
-        # Saving the sheet as rendered keeps the row system-derived.
-        item = count.items.find_by!(product: serum)
-        patch inventory_stock_count_path(count), params: {
-          stock_count: { items_attributes: { "0" => { id: item.id, product_id: serum.id, counted_quantity: "" } } }
-        }
-        expect(item.reload).to have_attributes(quantity_source: "system", counted_quantity: BigDecimal("4.004"), difference: 0)
+        item   = count.items.find_by!(product: serum)
+        before = item.attributes.slice("quantity_source", "counted_quantity", "system_quantity", "baseline_at", "counted_at", "difference")
+        submit_sheet_as_rendered(count)
+        expect(item.reload.attributes.slice(*before.keys)).to eq(before)
+        expect(item).to have_attributes(quantity_source: "system", counted_quantity: BigDecimal("4.004"), difference: 0)
       end
 
       it "names the product's SKU in a completion error" do
