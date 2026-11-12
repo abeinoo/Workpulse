@@ -261,7 +261,7 @@
                     <td class="td-secondary"><%= local_date(row.movement.occurred_on) %></td>
                     <td>
                       <span class="badge <%= row.direction == 'in' ? 'badge-success' : 'badge-neutral' %>"><%= t("inventory.movements.directions.#{row.direction}") %></span>
-                      <span class="td-secondary"><%= t("inventory.movements.reasons.#{row.reason}") %></span>
+                      <span class="td-secondary"><%= inventory_movement_reason_label(row.reason, source: row.source) %></span>
                     </td>
                     <td style="text-align: end;"><%= row.signed_quantity.positive? ? "+" : "" %><%= qty.(row.signed_quantity) %></td>
                     <td class="td-secondary"><%= row.warehouse.name %></td>

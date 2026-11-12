@@ -1,0 +1,17 @@
+<%# Where a row's counted quantity came from (decisions D2/D8/D9). locals: item %>
+<% if item.physical? %>
+  <span class="badge badge-success"><%= t("inventory.stock_counts.sources.physical") %></span>
+  <span class="td-secondary" style="font-size: var(--text-xs);"><%= l(item.counted_at, format: :long) %></span>
+<% elsif item.system_derived? %>
+  <span class="badge badge-neutral"><%= t("inventory.stock_counts.sources.system") %></span>
+  <span class="td-secondary" style="font-size: var(--text-xs);"><%= l(item.baseline_at, format: :long) %></span>
+<% elsif item.legacy_unverified? %>
+  <span class="badge badge-warning"><%= t("inventory.stock_counts.sources.legacy") %></span>
+<% else %>
+  —
+<% end %>
+<% if item.legacy_counted_quantity %>
+  <div class="td-secondary" style="font-size: var(--text-xs);">
+    <%= t("inventory.stock_counts.sources.previous_unverified", quantity: item.legacy_counted_quantity.to_i) %>
+  </div>
+<% end %>

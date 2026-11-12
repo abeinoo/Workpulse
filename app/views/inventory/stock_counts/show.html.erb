@@ -24,6 +24,9 @@
               data: { turbo_confirm: t("inventory.stock_counts.complete_confirm") } %>
       <% end %>
       <% if policy(@stock_count).approve? %>
+        <% if policy(@stock_count).owner_self_approval? %>
+          <span class="badge badge-warning"><%= t("inventory.stock_counts.owner_self_approval_badge") %></span>
+        <% end %>
         <% if @stock_count.uncounted_count.positive? %>
           <span class="badge badge-neutral"><%= t("inventory.stock_counts.uncounted_skipped", count: @stock_count.uncounted_count) %></span>
         <% end %>
@@ -31,13 +34,63 @@
               method: :patch, class: "btn btn-primary btn-sm",
               data: { turbo_confirm: @stock_count.fully_counted? ? t("inventory.stock_counts.approve_confirm") : t("inventory.stock_counts.approve_confirm_partial", count: @stock_count.uncounted_count) } %>
       <% end %>
-      <% if policy(@stock_count).reopen? %>
+      <% if @stock_count.completed? && policy(@stock_count).reopen? %>
         <%= button_to t("inventory.stock_counts.reopen_action"), reopen_inventory_stock_count_path(@stock_count),
               method: :patch, class: "btn btn-ghost btn-sm",
               data: { turbo_confirm: t("inventory.stock_counts.reopen_confirm") } %>
       <% end %>
     </div>
   </div>
+
+  <%# ── Lifecycle guidance: inventory changes only on approval ─────── %>
+  <% case @stock_count.status %>
+  <% when "draft", "in_progress" %>
+    <div class="alert alert-info" style="margin-bottom: var(--space-4);"><%= t("inventory.stock_counts.guidance.counting") %></div>
+  <% when "completed" %>
+    <div class="alert alert-info" style="margin-bottom: var(--space-4);">
+      <%= t("inventory.stock_counts.guidance.awaiting_approval") %>
+      <% if policy(@stock_count).owner_self_approval? %>
+        <%= t("inventory.stock_counts.guidance.owner_self_approval") %>
+      <% elsif !policy(@stock_count).approve? && [ @stock_count.created_by_id, @stock_count.completed_by_id ].include?(current_user.id) %>
+        <%= t("inventory.stock_counts.guidance.self_approval_blocked") %>
+      <% end %>
+    </div>
+  <% when "approved" %>
+    <div class="alert alert-info" style="margin-bottom: var(--space-4);"><%= t("inventory.stock_counts.guidance.approved") %></div>
+  <% when "cancelled" %>
+    <div class="alert alert-warning" style="margin-bottom: var(--space-4);">
+      <%= t("inventory.stock_counts.guidance.cancelled", by: @stock_count.cancelled_by&.full_name || "—",
+            at: l(@stock_count.cancelled_at, format: :long), reason: @stock_count.cancel_reason) %>
+    </div>
+  <% end %>
+  <% if @legacy_count.positive? && (@stock_count.editable_counts? || @stock_count.completed?) %>
+    <div class="alert alert-warning" style="margin-bottom: var(--space-4);">
+      <%= t(@stock_count.completed? ? "inventory.stock_counts.guidance.legacy_completed" : "inventory.stock_counts.guidance.legacy_editable",
+            count: @legacy_count) %>
+    </div>
+  <% end %>
+
+  <% if @stock_count.approved? && policy(@stock_count).reopen? %>
+    <%= render "reason_action", panel_id: "reopen-panel", path: reopen_inventory_stock_count_path(@stock_count), method: :patch,
+          action_label: t("inventory.stock_counts.reopen_approved_action"),
+          hint: t("inventory.stock_counts.reopen_approved_hint"),
+          confirm_dialog: t("inventory.stock_counts.reopen_approved_confirm"),
+          reason_label: t("inventory.stock_counts.reason_label") %>
+  <% end %>
+  <% if policy(@stock_count).cancel? %>
+    <%= render "reason_action", panel_id: "cancel-panel", path: cancel_inventory_stock_count_path(@stock_count), method: :patch,
+          action_label: t("inventory.stock_counts.cancel_action"),
+          hint: t("inventory.stock_counts.cancel_hint"),
+          confirm_dialog: t("inventory.stock_counts.cancel_confirm"),
+          reason_label: t("inventory.stock_counts.reason_label") %>
+  <% end %>
+  <% if policy(@stock_count).destroy? %>
+    <%= render "reason_action", panel_id: "delete-panel", path: inventory_stock_count_path(@stock_count), method: :delete,
+          action_label: t("inventory.stock_counts.delete_action"),
+          hint: t("inventory.stock_counts.delete_hint"),
+          confirm_dialog: t("inventory.stock_counts.delete_confirm"),
+          reason_label: t("inventory.stock_counts.reason_label") %>
+  <% end %>
 
   <%# ── Report summary ──────────────────────────────────────── %>
   <div class="stats-grid" style="margin-bottom: var(--space-5);">
@@ -51,7 +104,7 @@
 
   <%# ── Inventory value impact (approved counts, from the generated adjustment) ── %>
   <% if @stock_count.approved? %>
-    <% adj = @stock_count.stock_adjustment %>
+    <% adj = @active_adjustment %>
     <h2 class="section-title"><%= t("inventory.stock_counts.impact.title") %></h2>
     <div class="stats-grid" style="margin-bottom: var(--space-5);">
       <div class="stat-card stat-card--danger"><div class="stat-card__label"><%= t("inventory.stock_counts.impact.total_shortages") %></div><div class="stat-card__value text-danger"><%= format_currency(adj ? adj.shortage_value : 0) %></div></div>
@@ -70,10 +123,10 @@
       <% end %>
       <% if @stock_count.approved? %>
         <div class="detail-list__row"><dt><%= t("inventory.stock_counts.approved_by") %></dt><dd><%= @stock_count.approved_by&.full_name || "—" %> · <%= l(@stock_count.approved_at, format: :long) %></dd></div>
-        <% if @stock_count.stock_adjustment %>
+        <% if @active_adjustment %>
           <div class="detail-list__row">
             <dt><%= t("inventory.stock_counts.adjustment") %></dt>
-            <dd><%= link_to @stock_count.stock_adjustment.adjustment_number, inventory_stock_adjustment_path(@stock_count.stock_adjustment), class: "link" %></dd>
+            <dd><%= link_to @active_adjustment.adjustment_number, inventory_stock_adjustment_path(@active_adjustment), class: "link" %></dd>
           </div>
         <% end %>
       <% end %>
@@ -93,6 +146,7 @@
         <th style="text-align: end;"><%= t("inventory.stock_counts.system_quantity") %></th>
         <th style="text-align: end;"><%= t("inventory.stock_counts.counted_quantity") %></th>
         <th style="text-align: end;"><%= t("inventory.stock_counts.difference") %></th>
+        <th><%= t("inventory.stock_counts.quantity_source") %></th>
       </tr></thead>
       <tbody>
         <% @items.each do |item| %>
@@ -108,9 +162,77 @@
                 <%= item.counted? ? "#{diff.positive? ? '+' : ''}#{diff.to_i}" : "—" %>
               </span>
             </td>
+            <td><%= render "quantity_source", item: item %></td>
           </tr>
         <% end %>
       </tbody>
     </table>
   </div>
+  <%# ── History: every posted adjustment (active or reversed) and the audit trail ── %>
+  <% if @adjustments.any? %>
+    <h2 class="section-title" style="margin-top: var(--space-6);"><%= t("inventory.stock_counts.history.adjustments_title") %></h2>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("inventory.stock_counts.adjustment") %></th>
+          <th><%= t("inventory.stock_counts.history.posted") %></th>
+          <th><%= t("inventory.stock_counts.status") %></th>
+          <th><%= t("inventory.stock_counts.history.reversal") %></th>
+        </tr></thead>
+        <tbody>
+          <% @adjustments.each do |adjustment| %>
+            <tr>
+              <td><%= link_to adjustment.adjustment_number, inventory_stock_adjustment_path(adjustment), class: "link" %></td>
+              <td class="td-secondary"><%= adjustment.created_by&.full_name || "—" %> · <%= l(adjustment.created_at, format: :long) %></td>
+              <td>
+                <span class="badge <%= adjustment.voided? ? 'badge-danger' : 'badge-success' %>">
+                  <%= adjustment.voided? ? t("inventory.stock_counts.history.reversed") : t("inventory.stock_counts.history.active") %>
+                </span>
+              </td>
+              <td class="td-secondary td-wrap">
+                <% if adjustment.voided? %>
+                  <%= adjustment.voided_by&.full_name || "—" %> · <%= l(adjustment.voided_at, format: :long) %> — <%= adjustment.void_reason %>
+                <% else %>—<% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <% if @history.any? %>
+    <h2 class="section-title" style="margin-top: var(--space-6);"><%= t("inventory.stock_counts.history.title") %></h2>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("inventory.stock_counts.history.when") %></th>
+          <th><%= t("inventory.stock_counts.history.who") %></th>
+          <th><%= t("inventory.stock_counts.history.what") %></th>
+        </tr></thead>
+        <tbody>
+          <% @history.each do |entry| %>
+            <tr>
+              <td class="td-secondary"><%= l(entry.created_at, format: :long) %></td>
+              <td><%= entry.actor&.full_name || "—" %></td>
+              <td class="td-wrap">
+                <%= t("inventory.stock_counts.history.actions.#{entry.action}", default: entry.action.humanize) %>
+                <% if entry.metadata["owner_self_approval"] %>
+                  <span class="badge badge-warning"><%= t("inventory.stock_counts.owner_self_approval_badge") %></span>
+                <% end %>
+                <% if entry.metadata["reason"].present? %>
+                  <span class="td-secondary">— <%= entry.metadata["reason"] %></span>
+                <% end %>
+                <% if entry.metadata["reversed_adjustment_number"].present? %>
+                  <span class="td-secondary">(<%= t("inventory.stock_counts.history.reversed_adjustment", number: entry.metadata["reversed_adjustment_number"]) %>)</span>
+                <% elsif entry.metadata["adjustment_number"].present? %>
+                  <span class="td-secondary">(<%= entry.metadata["adjustment_number"] %>)</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
 </div>

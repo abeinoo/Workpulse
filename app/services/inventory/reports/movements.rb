@@ -32,10 +32,13 @@ module Inventory
         "LaundryBatch"    => [ "laundry_batches",   "doc_lb", :batch_number ]
       }.freeze
       DOCUMENT_NUMBER_COLUMNS = DOCUMENTS.transform_values(&:last).freeze
-      DOCUMENT_JOINS = DOCUMENTS.map do |type, (table, as, _)|
+      # A stock-count adjustment (and its reversal) is referenced by its count's
+      # SC number as well as its own ADJ number.
+      DOCUMENT_JOINS = (DOCUMENTS.map do |type, (table, as, _)|
         "LEFT JOIN #{table} #{as} ON inventory_movements.source_type = '#{type}' AND #{as}.id = inventory_movements.source_id"
-      end.freeze
+      end + [ "LEFT JOIN stock_counts doc_sc ON doc_sc.id = doc_sa.stock_count_id" ]).freeze
       DOCUMENT_NUMBER_SQL = "COALESCE(#{DOCUMENTS.values.map { |_, as, col| "#{as}.#{col}" }.join(', ')})".freeze
+      STOCK_COUNT_NUMBER_SQL = "doc_sc.count_number".freeze
 
       SIGNED = "CASE WHEN inventory_movements.direction = 'in' " \
                "THEN inventory_movements.quantity ELSE -inventory_movements.quantity END".freeze
@@ -46,7 +49,7 @@ module Inventory
       Row = Struct.new(
         :movement, :product, :warehouse, :direction, :reason,
         :quantity, :signed_quantity, :balance_after,
-        :unit_cost, :total_value, :source, :document_number,
+        :unit_cost, :total_value, :source, :document_number, :stock_count,
         keyword_init: true
       ) do
         def in_quantity    = direction == "in"  ? quantity : 0
@@ -84,6 +87,20 @@ module Inventory
       def self.document_number_for(source)
         column = source && DOCUMENT_NUMBER_COLUMNS[source.class.name]
         column && source.public_send(column)
+      end
+
+      # The stock count behind a movement — the count of its StockAdjustment
+      # source (original lines and reversals alike) — or nil.
+      def self.stock_count_for(source)
+        source.stock_count if source.is_a?(StockAdjustment) && source.stock_count_id
+      end
+
+      # Preloads the stock count of every StockAdjustment source in one query,
+      # so rows can show SC-xxxx without a query per row.
+      def self.preload_stock_counts(movements)
+        adjustments = movements.map(&:source).grep(StockAdjustment).select(&:stock_count_id)
+        ActiveRecord::Associations::Preloader.new(records: adjustments, associations: :stock_count).call if adjustments.any?
+        movements
       end
 
       def total_count
@@ -126,7 +143,7 @@ module Inventory
       private
 
       def build_rows(movements)
-        movements.map do |movement|
+        self.class.preload_stock_counts(movements.to_a).map do |movement|
           Row.new(
             movement:        movement,
             product:         movement.product,
@@ -139,7 +156,8 @@ module Inventory
             unit_cost:       movement.unit_cost,
             total_value:     movement.quantity * movement.unit_cost,
             source:          movement.source,
-            document_number: self.class.document_number_for(movement.source)
+            document_number: self.class.document_number_for(movement.source),
+            stock_count:     self.class.stock_count_for(movement.source)
           )
         end
       end
@@ -168,9 +186,10 @@ module Inventory
                    .where("#{ConsumptionLedger::BRANCH_SQL} = ?", @branch_id)
         end
         if @document_number
+          pattern = "%#{ActiveRecord::Base.sanitize_sql_like(@document_number.downcase)}%"
           rel = rel.joins(DOCUMENT_JOINS.join(" "))
-                   .where("LOWER(#{DOCUMENT_NUMBER_SQL}) LIKE ?",
-                          "%#{ActiveRecord::Base.sanitize_sql_like(@document_number.downcase)}%")
+                   .where("LOWER(#{DOCUMENT_NUMBER_SQL}) LIKE :pattern OR LOWER(#{STOCK_COUNT_NUMBER_SQL}) LIKE :pattern",
+                          pattern: pattern)
         end
         rel
       end

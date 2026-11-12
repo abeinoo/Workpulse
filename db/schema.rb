@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_08_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_12_100100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -2097,9 +2097,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_100000) do
     t.text "void_reason"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "stock_count_id"
     t.index ["business_id", "adjustment_number"], name: "index_stock_adjustments_on_business_id_and_adjustment_number", unique: true
     t.index ["business_id"], name: "index_stock_adjustments_on_business_id"
     t.index ["created_by_id"], name: "index_stock_adjustments_on_created_by_id"
+    t.index ["stock_count_id"], name: "index_stock_adjustments_on_stock_count_id"
+    t.index ["stock_count_id"], name: "index_stock_adjustments_one_active_per_stock_count", unique: true, where: "((stock_count_id IS NOT NULL) AND (voided_at IS NULL))"
     t.index ["voided_by_id"], name: "index_stock_adjustments_on_voided_by_id"
     t.index ["warehouse_id"], name: "index_stock_adjustments_on_warehouse_id"
   end
@@ -2112,9 +2115,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_100000) do
     t.decimal "difference", precision: 12, scale: 3
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "counted_at"
+    t.datetime "baseline_at"
+    t.string "quantity_source"
+    t.decimal "legacy_counted_quantity", precision: 12, scale: 3
     t.index ["product_id"], name: "index_stock_count_items_on_product_id"
     t.index ["stock_count_id", "product_id"], name: "index_stock_count_items_on_stock_count_id_and_product_id", unique: true
     t.index ["stock_count_id"], name: "index_stock_count_items_on_stock_count_id"
+    t.check_constraint "quantity_source IS NULL OR (quantity_source::text = ANY (ARRAY['physical'::character varying, 'system'::character varying]::text[]))", name: "stock_count_items_quantity_source_check"
   end
 
   create_table "stock_counts", force: :cascade do |t|
@@ -2133,9 +2141,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_100000) do
     t.datetime "started_at"
     t.datetime "completed_at"
     t.bigint "completed_by_id"
+    t.datetime "cancelled_at"
+    t.bigint "cancelled_by_id"
+    t.text "cancel_reason"
     t.index ["approved_by_id"], name: "index_stock_counts_on_approved_by_id"
     t.index ["business_id", "count_number"], name: "index_stock_counts_on_business_id_and_count_number", unique: true
     t.index ["business_id"], name: "index_stock_counts_on_business_id"
+    t.index ["cancelled_by_id"], name: "index_stock_counts_on_cancelled_by_id"
     t.index ["completed_by_id"], name: "index_stock_counts_on_completed_by_id"
     t.index ["created_by_id"], name: "index_stock_counts_on_created_by_id"
     t.index ["stock_adjustment_id"], name: "index_stock_counts_on_stock_adjustment_id"
@@ -2887,6 +2899,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_100000) do
   add_foreign_key "stock_adjustment_items", "products"
   add_foreign_key "stock_adjustment_items", "stock_adjustments"
   add_foreign_key "stock_adjustments", "businesses"
+  add_foreign_key "stock_adjustments", "stock_counts", on_delete: :restrict
   add_foreign_key "stock_adjustments", "users", column: "created_by_id"
   add_foreign_key "stock_adjustments", "users", column: "voided_by_id"
   add_foreign_key "stock_adjustments", "warehouses"
@@ -2895,6 +2908,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_100000) do
   add_foreign_key "stock_counts", "businesses"
   add_foreign_key "stock_counts", "stock_adjustments"
   add_foreign_key "stock_counts", "users", column: "approved_by_id"
+  add_foreign_key "stock_counts", "users", column: "cancelled_by_id"
   add_foreign_key "stock_counts", "users", column: "completed_by_id"
   add_foreign_key "stock_counts", "users", column: "created_by_id"
   add_foreign_key "stock_counts", "warehouses"

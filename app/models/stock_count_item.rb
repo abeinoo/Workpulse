@@ -1,4 +1,15 @@
 class StockCountItem < ApplicationRecord
+  # Where a counted quantity came from (see Inventory::StockCountRecorder and
+  # Inventory::StockCountCompletion):
+  #   physical — entered by a counter; counted_at is the entry time and
+  #              system_quantity the ledger quantity read at that same moment.
+  #   system   — not recounted on a legacy count: the ledger quantity at the
+  #              completion cutoff was adopted (difference 0). Never a physical
+  #              count.
+  #   nil      — not counted, or a legacy quantity entered before per-product
+  #              count times existed (see #legacy_unverified?).
+  QUANTITY_SOURCES = %w[physical system].freeze
+
   belongs_to :stock_count
   belongs_to :product
 
@@ -11,6 +22,7 @@ class StockCountItem < ApplicationRecord
   validates :counted_quantity, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validate  :counted_quantity_is_whole
   validates :product_id, uniqueness: { scope: :stock_count_id }
+  validates :quantity_source, inclusion: { in: QUANTITY_SOURCES }, allow_nil: true
   validate  :product_is_transactable
   validate  :product_in_same_business, if: :will_save_change_to_product_id?
 
@@ -35,6 +47,15 @@ class StockCountItem < ApplicationRecord
     !counted_quantity.nil?
   end
 
+  def physical? = quantity_source == "physical"
+  def system_derived? = quantity_source == "system"
+
+  # A quantity entered before per-product count times existed: kept as
+  # history, never trusted as a physical count (decisions D8/D9).
+  def legacy_unverified?
+    counted? && quantity_source.nil?
+  end
+
   private
 
   def counted_quantity_is_whole
@@ -42,9 +63,10 @@ class StockCountItem < ApplicationRecord
     errors.add(:counted_quantity, :not_an_integer) unless counted_quantity == counted_quantity.to_i
   end
 
-  # difference = counted − system (nil while uncounted). Positive means surplus to
-  # add, negative a shortfall to remove. Recomputed from the live system quantity
-  # at approval time.
+  # difference = counted − system (nil while uncounted). For a physical row the
+  # system quantity is the ledger quantity at the row's count time, so the
+  # difference is exactly what the approval posts — movements after the count
+  # are left as they are.
   def compute_difference
     self.system_quantity ||= 0
     self.difference = counted? ? counted_quantity.to_d - system_quantity.to_d : nil

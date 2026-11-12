@@ -2,10 +2,13 @@ require "csv"
 
 module Inventory
   module Imports
-    # Imports counted quantities into an existing DRAFT stock count from a CSV of
-    # "SKU, Counted Quantity" rows. Products are matched by SKU; the system
-    # quantity is snapshotted from live stock in the count's warehouse and the
-    # variance computed. Existing lines for the same product are updated.
+    # Imports counted quantities into a draft / in-progress stock count from a
+    # CSV of "SKU, Counted Quantity" rows. Products are matched by SKU; the
+    # quantities are written through Inventory::StockCountRecorder — the one
+    # counting write path — so each imported row is a physical count with its
+    # own count time and ledger baseline (decision D2), exactly like a quantity
+    # typed on the counting screen. Existing lines for the same product are
+    # updated. Rows with an unknown SKU or an unreadable quantity are skipped.
     class StockCountImporter
       REQUIRED_HEADERS = [ "sku", "counted quantity" ].freeze
 
@@ -17,11 +20,15 @@ module Inventory
 
       Skip = Struct.new(:row_number, :sku, :reason, keyword_init: true)
 
-      def initialize(stock_count, csv_data)
+      def initialize(stock_count, csv_data, actor:)
         @count    = stock_count
         @business = stock_count.business
         @csv_data = csv_data
+        @actor    = actor
       end
+
+      # Set when the recorder refused the whole import (nothing written).
+      attr_reader :error
 
       def call
         return Result.new(applied: 0, skipped: [], header_error: :not_draft) unless @count.editable_counts?
@@ -29,29 +36,30 @@ module Inventory
         table = parse
         return Result.new(applied: 0, skipped: [], header_error: :invalid_headers) unless headers_valid?(table)
 
-        applied = 0
+        entries = []
         skipped = []
 
-        ActiveRecord::Base.transaction do
-          table.each.with_index(2) do |row, line|
-            sku     = row["sku"].to_s.strip
-            counted = decimal(row["counted quantity"])
+        table.each.with_index(2) do |row, line|
+          sku     = row["sku"].to_s.strip
+          counted = decimal(row["counted quantity"])
 
-            if sku.blank?
-              skipped << Skip.new(row_number: line, sku: sku, reason: :invalid_row); next
-            end
-            product = @business.products.active.find_by("LOWER(sku) = ?", sku.downcase)
-            if product.nil?
-              skipped << Skip.new(row_number: line, sku: sku, reason: :unknown_sku); next
-            end
-
-            item = @count.items.find_or_initialize_by(product: product)
-            item.system_quantity  = product.stock_in(@count.warehouse)
-            item.counted_quantity = counted
-            item.save!
-            applied += 1
+          if sku.blank? || counted.nil?
+            skipped << Skip.new(row_number: line, sku: sku, reason: :invalid_row); next
           end
+          product = @business.products.active.find_by("LOWER(sku) = ?", sku.downcase)
+          if product.nil?
+            skipped << Skip.new(row_number: line, sku: sku, reason: :unknown_sku); next
+          end
+
+          entries << { product_id: product.id, counted_quantity: counted.to_s("F") }
         end
+
+        result = Inventory::StockCountRecorder.new(stock_count_id: @count.id, actor: @actor, entries: entries).call
+        unless result.ok?
+          @error = result.error
+          return Result.new(applied: 0, skipped: skipped, header_error: :rejected)
+        end
+        applied = entries.size
 
         Result.new(applied: applied, skipped: skipped)
       end
@@ -69,7 +77,7 @@ module Inventory
       def decimal(value)
         BigDecimal(value.to_s.strip)
       rescue ArgumentError, TypeError
-        0
+        nil
       end
     end
   end

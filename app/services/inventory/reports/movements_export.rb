@@ -52,15 +52,23 @@ module Inventory
           row.product.name,
           row.product.sku,
           row.warehouse.name,
-          I18n.t("inventory.movements.reasons.#{row.reason}"),
+          I18n.t(row.stock_count ? "inventory.movements.stock_count_reasons.#{row.reason}" : "inventory.movements.reasons.#{row.reason}",
+                 default: I18n.t("inventory.movements.reasons.#{row.reason}")),
           row.in_quantity.to_d,
           row.out_quantity.to_d,
           row.balance_after.to_d,
           row.unit_cost.to_d,
           row.total_value.to_d.round(2),
-          row.source && I18n.t("inventory.reports.source_types.#{row.source.class.name}", default: row.source.class.name),
-          row.document_number
+          source_label(row),
+          row.stock_count ? "#{row.stock_count.count_number} / #{row.document_number}" : row.document_number
         ]
+      end
+
+      def source_label(row)
+        return I18n.t("inventory.reports.source_types.StockCount") if row.stock_count
+        return nil if row.source.nil?
+
+        I18n.t("inventory.reports.source_types.#{row.source.class.name}", default: row.source.class.name)
       end
     end
   end

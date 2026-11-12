@@ -49,7 +49,7 @@
                 <span class="badge <%= row.direction == 'in' ? 'badge-success' : 'badge-neutral' %>">
                   <%= t("inventory.movements.directions.#{row.direction}") %>
                 </span>
-                <span class="td-secondary"><%= t("inventory.movements.reasons.#{row.reason}") %></span>
+                <span class="td-secondary"><%= inventory_movement_reason_label(row.reason, source: row.source) %></span>
               </td>
               <td style="text-align: end;"><%= row.in_quantity.positive? ? "+#{row.in_quantity.to_i}" : "—" %></td>
               <td style="text-align: end;"><%= row.out_quantity.positive? ? "-#{row.out_quantity.to_i}" : "—" %></td>

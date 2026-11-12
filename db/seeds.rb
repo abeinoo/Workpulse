@@ -896,34 +896,45 @@ if business.inventory_movements.none?
   # then counted quantities are entered (plan = small, realistic variances).
   # partial: true leaves products outside the plan uncounted (blank) — to show the
   # in-progress progress bar / filters; otherwise every product is counted.
+  # Counted quantities go through the counting service, so every row carries
+  # its own count time and ledger baseline (plan = small, realistic variances).
   build_count = lambda do |warehouse:, on:, counter:, plan:, notes:, partial: false|
-    count = business.stock_counts.build(warehouse: warehouse, counted_on: on, created_by: counter, notes: notes)
-    business.products.ordered.each do |product|
-      system_qt = product.stock_in(warehouse)
+    created = Inventory::StockCountCreator.new(actor: counter, warehouse_id: warehouse.id, counted_on: on, notes: notes).call
+    raise "Stock count seed failed: #{created.error}" unless created.ok?
+
+    count   = created.count
+    entries = count.items.includes(:product).filter_map do |item|
+      system_qt = item.product.stock_in(warehouse)
       counted =
-        if plan.key?(product.sku) then [ system_qt + plan[product.sku], 0 ].max
-        elsif partial             then nil                 # left uncounted
+        if plan.key?(item.product.sku) then [ system_qt + plan[item.product.sku], 0 ].max
+        elsif partial                  then nil                 # left uncounted
         else system_qt
         end
-      count.items.build(product: product, system_quantity: system_qt, counted_quantity: counted)
+      { id: item.id, counted_quantity: counted&.to_s } unless counted.nil?
     end
-    count.save!
-    count.start_counting!(counter)   # draft → in_progress
-    count
+    recorded = Inventory::StockCountRecorder.new(stock_count_id: count.id, actor: counter, entries: entries).call
+    raise "Stock count seed failed: #{recorded.error}" unless recorded.ok?   # draft → in_progress
+
+    count.reload
+  end
+
+  complete = lambda do |count, by|
+    result = Inventory::StockCountCompletion.new(stock_count_id: count.id, actor: by).call
+    raise "Stock count completion seed failed: #{result.error}" unless result.ok?
   end
 
   # (a) Approved — runs through approval, generating a real stock-count adjustment.
   approved_count = build_count.call(warehouse: w_main, on: 1.day.ago.to_date, counter: mgr_riyadh,
                                     plan: { "HC-DB-100" => -2, "SH-1L-200" => +3, "SK-FM-300" => 0 },
                                     notes: "Monthly physical count — Riyadh")
-  approved_count.mark_completed!(mgr_riyadh)
-  approve_result = Inventory::StockCountApprover.new(approved_count, user: admin).call
-  raise "Stock count approval seed failed: #{approved_count.errors.full_messages.join('; ')}" unless approve_result.ok?
+  complete.call(approved_count, mgr_riyadh)
+  approve_result = Inventory::StockCountApprover.new(stock_count_id: approved_count.id, actor: admin).call
+  raise "Stock count approval seed failed: #{approve_result.error}" unless approve_result.ok?
 
   # (b) Completed — counted and submitted, awaiting approval.
   completed_count = build_count.call(warehouse: w_jeddah, on: Date.current, counter: mgr_jeddah,
                                      plan: { "SH-1L-200" => -1 }, notes: "Weekly count — Jeddah")
-  completed_count.mark_completed!(mgr_jeddah)
+  complete.call(completed_count, mgr_jeddah)
 
   # (c) In progress — counting underway, most products still uncounted.
   build_count.call(warehouse: w_central, on: Date.current, counter: admin,

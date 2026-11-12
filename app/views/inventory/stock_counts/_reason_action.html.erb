@@ -1,0 +1,16 @@
+<%#
+  A destructive / irreversible stock count action that requires a reason and an
+  explicit confirmation (reopen an approved count, cancel, delete).
+  locals: panel_id, path, method, action_label, hint, confirm_dialog, reason_label
+%>
+<details id="<%= panel_id %>" class="card" style="padding: var(--space-4); margin-bottom: var(--space-5);">
+  <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer;"><%= action_label %></summary>
+  <%= form_with url: path, method: method, class: "mt-4" do |f| %>
+    <p class="form-hint"><%= hint %></p>
+    <div class="form-group">
+      <label class="form-label" for="<%= panel_id %>-reason"><%= reason_label %></label>
+      <textarea id="<%= panel_id %>-reason" name="reason" rows="2" class="form-control" required></textarea>
+    </div>
+    <%= f.submit action_label, class: "btn btn-danger btn-sm", data: { turbo_confirm: confirm_dialog } %>
+  <% end %>
+</details>

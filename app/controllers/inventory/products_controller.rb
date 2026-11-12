@@ -119,9 +119,11 @@ class Inventory::ProductsController < Inventory::BaseController
       @display_stock       = @stock_by_warehouse.values.sum
       @display_stock_value = @display_stock * @product.average_cost_price
 
-      movements = @product.inventory_movements.includes(:warehouse)
+      movements = @product.inventory_movements.includes(:warehouse, :source)
       movements = movements.where(warehouse_id: wh_ids) if wh_ids
-      @recent_movements = movements.order(occurred_on: :desc, id: :desc).limit(15)
+      @recent_movements = Inventory::Reports::Movements.preload_stock_counts(
+        movements.order(occurred_on: :desc, id: :desc).limit(15).to_a
+      )
 
       load_purchase_history
       load_consumption_stats

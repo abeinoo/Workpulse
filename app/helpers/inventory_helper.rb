@@ -2,7 +2,7 @@ module InventoryHelper
   # Badge colour for a stock-count session status.
   STOCK_COUNT_STATUS_BADGES = {
     "draft" => "badge-neutral", "in_progress" => "badge-warning",
-    "completed" => "badge-accent", "approved" => "badge-success"
+    "completed" => "badge-accent", "approved" => "badge-success", "cancelled" => "badge-danger"
   }.freeze
 
   # Links a ledger movement's source document by its number — the document a
@@ -18,6 +18,16 @@ module InventoryHelper
   def inventory_source_document_link(source, number)
     return "—" if source.nil?
 
+    # A stock count's adjustment (or its reversal) is referenced by the count:
+    # SC-xxxx links to the count, with the ADJ number alongside.
+    if (count = Inventory::Reports::Movements.stock_count_for(source))
+      return safe_join([
+        link_to(count.count_number, inventory_stock_count_path(count), class: "link"),
+        content_tag(:span, " · ", class: "td-secondary"),
+        link_to(source.adjustment_number, inventory_stock_adjustment_path(source), class: "link td-secondary")
+      ])
+    end
+
     label = number.presence ||
             "#{t("inventory.reports.source_types.#{source.class.name}", default: source.class.name)} ##{source.id}"
     path  = INVENTORY_SOURCE_PATHS[source.class.name]
@@ -32,9 +42,22 @@ module InventoryHelper
     "adjustment" => [ :adjustment, "badge-neutral" ], "reversal" => [ :reversal, "badge-danger" ]
   }.freeze
 
-  def inventory_movement_badge(reason)
+  def inventory_movement_badge(reason, source: nil)
     kind, css = MOVEMENT_KINDS.fetch(reason.to_s, [ :adjustment, "badge-neutral" ])
+    if Inventory::Reports::Movements.stock_count_for(source)
+      kind, css = reason.to_s == "reversal" ? [ :stock_count_reversal, "badge-danger" ] : [ :stock_count, "badge-accent" ]
+    end
     content_tag(:span, t("inventory.dashboard.overview.kinds.#{kind}"), class: "badge #{css}")
+  end
+
+  # Movement type text: a stock count's adjustment and its reversal are named
+  # as such, never as an anonymous manual adjustment.
+  def inventory_movement_reason_label(reason, source: nil)
+    if Inventory::Reports::Movements.stock_count_for(source)
+      t("inventory.movements.stock_count_reasons.#{reason}", default: t("inventory.movements.reasons.#{reason}"))
+    else
+      t("inventory.movements.reasons.#{reason}")
+    end
   end
 
   def stock_count_status_class(status)

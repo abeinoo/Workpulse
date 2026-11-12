@@ -9,17 +9,20 @@ class StockAdjustment < ApplicationRecord
   has_many :items, class_name: "StockAdjustmentItem", dependent: :destroy
   has_many :inventory_movements, as: :source, dependent: :destroy
 
-  # The physical count that generated this adjustment, if any (back-navigation).
-  # The FK lives on stock_counts.stock_adjustment_id; nullified if the adjustment
-  # is ever removed so the count is never left pointing at a missing record.
-  has_one :source_stock_count, class_name: "StockCount",
-          foreign_key: :stock_adjustment_id, inverse_of: :stock_adjustment, dependent: :nullify
+  # The physical count that generated this adjustment, if any. A count may own
+  # several adjustments over its life (approve → reopen voids → approve again),
+  # at most one active — DB partial unique index
+  # index_stock_adjustments_one_active_per_stock_count.
+  belongs_to :stock_count, optional: true, inverse_of: :stock_adjustments
 
   accepts_nested_attributes_for :items,
                                 allow_destroy: true,
                                 reject_if:     ->(attrs) { attrs[:product_id].blank? }
 
   REASONS = %w[opening_balance stock_count damaged lost expired manual_correction].freeze
+  # Reasons a person may choose for a manual adjustment — "stock_count" is
+  # posted only by a stock count approval (see stock_count_reason_matches_link).
+  MANUAL_REASONS = (REASONS - %w[stock_count]).freeze
   enum :reason, REASONS.index_with(&:itself)
 
   validates :adjustment_number, presence: true,
@@ -29,6 +32,9 @@ class StockAdjustment < ApplicationRecord
   validate  :has_at_least_one_item
   validate  :opening_balance_lines_require_cost
   validate  :warehouse_in_same_business, if: :will_save_change_to_warehouse_id?
+  # Only a stock count's approval may post a "stock_count" adjustment, and it
+  # must name its count — a manual adjustment can never pose as a count.
+  validate  :stock_count_reason_matches_link, on: :create
 
   scope :for_business, ->(business) { where(business: business) }
   scope :recent,       -> { order(adjusted_on: :desc, id: :desc) }
@@ -73,6 +79,18 @@ class StockAdjustment < ApplicationRecord
       next unless item.quantity_difference.to_d.positive?
       errors.add(:base, :opening_balance_needs_cost, product: item.product&.name) if item.unit_cost.to_d <= 0
     end
+  end
+
+  def stock_count_reason_matches_link
+    if stock_count?
+      errors.add(:reason, :stock_count_requires_count) if stock_count_id.nil?
+    elsif stock_count_id.present?
+      errors.add(:reason, :count_link_requires_stock_count_reason)
+    end
+    return if stock_count.nil?
+
+    errors.add(:stock_count_id, :other_business) if stock_count.business_id != business_id
+    errors.add(:warehouse_id, :differs_from_stock_count) if stock_count.warehouse_id != warehouse_id
   end
 
   # The warehouse id comes straight from form params — never trust one that

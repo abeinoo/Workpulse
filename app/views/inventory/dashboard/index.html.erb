@@ -331,7 +331,7 @@
               <tr>
                 <td class="td-secondary"><%= local_date(row.movement.occurred_on) %> <span style="font-size: var(--text-xs);"><%= local_time_12h(row.movement.created_at) %></span></td>
                 <td class="td-wrap"><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %></td>
-                <td><%= inventory_movement_badge(row.reason) %></td>
+                <td><%= inventory_movement_badge(row.reason, source: row.source) %></td>
                 <td style="text-align: end; font-weight: 600;"><%= row.signed_quantity.positive? ? "+" : "−" %><%= qty.(row.quantity) %></td>
                 <td class="td-secondary"><%= row.warehouse.name %></td>
                 <td class="td-secondary"><%= @recent_branches[branch_id]&.name || "—" %></td>

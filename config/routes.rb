@@ -432,6 +432,7 @@ Rails.application.routes.draw do
         patch :complete
         patch :approve
         patch :reopen
+        patch :cancel
         get   :export
         get   :import
         patch :run_import, path: "import"

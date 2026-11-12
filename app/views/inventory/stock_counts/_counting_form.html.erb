@@ -3,6 +3,7 @@
 <%= form_with model: [:inventory, stock_count], method: :patch,
       class: "form-card", data: { controller: "line-items count-sheet" } do |f| %>
   <%= render "shared/error_messages", object: stock_count %>
+  <div class="alert alert-info" style="margin-bottom: var(--space-4);"><%= t("inventory.stock_counts.guidance.counting_screen") %></div>
 
   <h2 class="section-title"><%= t("inventory.stock_counts.section_items") %></h2>
   <%= render "inventory/shared/barcode_scanner", scanner_mode: "rows" %>
@@ -54,7 +55,6 @@
       <td>
         __NAME__ <span class="td-secondary">(__SKU__)</span>
         <input type="hidden" name="stock_count[items_attributes][NEW_INDEX][product_id]" value="__PID__">
-        <input type="hidden" name="stock_count[items_attributes][NEW_INDEX][system_quantity]" value="0">
       </td>
       <td class="td-secondary">__BARCODE__</td>
       <td style="text-align: end;">0</td>
