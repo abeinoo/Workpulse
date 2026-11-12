@@ -204,12 +204,9 @@ RSpec.describe "Inventory::Reports dashboard services", type: :model do
       receive(qty: 10)
       adjust(diff: 2, reason: "manual_correction")
       counter = create(:user, :super_admin, business: business)
-      count = business.stock_counts.build(warehouse: main, counted_on: today, created_by: counter)
-      count.items.build(product: product, counted_quantity: 9)
-      count.save!
-      count.start_counting!(counter)
-      count.mark_completed!(counter)
-      expect(Inventory::StockCountApprover.new(count, user: user).call.ok?).to be(true)
+      count = record_stock_count!(business: business, warehouse: main, counter: counter, counted_on: today,
+                                  lines: [ [ product, 9 ] ], complete: true)
+      expect(approve_stock_count(count, user).ok?).to be(true)
 
       stock_count_rows = described_class.new(business, reason: "stock_count").rows
       expect(stock_count_rows.map { |r| [ r.balance_before, r.signed_quantity, r.balance_after ] }).to eq([ [ 12, -3, 9 ] ])

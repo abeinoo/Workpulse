@@ -13,7 +13,7 @@
     <div class="form-group">
       <%= f.label :reason, t("inventory.stock_adjustments.reason"), class: "form-label" %>
       <%= f.select :reason,
-            StockAdjustment::REASONS.map { |r| [t("inventory.stock_adjustments.reasons.#{r}"), r] },
+            StockAdjustment::MANUAL_REASONS.map { |r| [t("inventory.stock_adjustments.reasons.#{r}"), r] },
             {}, class: "form-control" %>
     </div>
     <div class="form-group">

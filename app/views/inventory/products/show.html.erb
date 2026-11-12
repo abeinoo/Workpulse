@@ -387,6 +387,7 @@
             <th><%= t("inventory.movements.warehouse") %></th>
             <th><%= t("inventory.movements.type") %></th>
             <th style="text-align: end;"><%= t("inventory.movements.quantity") %></th>
+            <th><%= t("inventory.reports.fields.document_number") %></th>
           </tr></thead>
           <tbody>
             <% @recent_movements.each do |m| %>
@@ -397,9 +398,10 @@
                   <span class="badge <%= m.direction_in? ? 'badge-success' : 'badge-neutral' %>">
                     <%= t("inventory.movements.directions.#{m.direction}") %>
                   </span>
-                  <span class="td-secondary"><%= t("inventory.movements.reasons.#{m.reason}") %></span>
+                  <span class="td-secondary"><%= inventory_movement_reason_label(m.reason, source: m.source) %></span>
                 </td>
                 <td style="text-align: end;"><%= m.direction_in? ? "+" : "−" %><%= m.quantity.to_i %></td>
+                <td><%= inventory_source_document_link(m.source, Inventory::Reports::Movements.document_number_for(m.source)) %></td>
               </tr>
             <% end %>
           </tbody>

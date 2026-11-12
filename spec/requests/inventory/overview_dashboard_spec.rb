@@ -41,11 +41,8 @@ RSpec.describe "Inventory overview dashboard", type: :request do
       business.purchase_requests.build(supplier: supplier, status: "pending_approval")
               .tap { |pr| pr.items.build(product: low, quantity: 5, unit_price: 10) }.save!
       counter = create(:user, :super_admin, business: business)
-      count = business.stock_counts.build(warehouse: main, counted_on: today, created_by: counter)
-      count.items.build(product: low, counted_quantity: 4)
-      count.save!
-      count.start_counting!(counter)
-      count.mark_completed!(counter)
+      record_stock_count!(business: business, warehouse: main, counter: counter, counted_on: today,
+                          lines: [ [ low, 4 ] ], complete: true)
       sign_in owner
     end
 

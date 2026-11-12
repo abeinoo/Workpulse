@@ -11,13 +11,13 @@ class Inventory::StockAdjustmentsController < Inventory::BaseController
 
     # For stock-count adjustments, surface the originating count so the page can
     # link back and show the System/Counted/Difference behind each line.
-    @source_count = @stock_adjustment.source_stock_count
+    @source_count = @stock_adjustment.stock_count
     @count_items_by_product = @source_count ? @source_count.items.index_by(&:product_id) : {}
   end
 
   def new
     @stock_adjustment = current_user.business.stock_adjustments.build(
-      adjusted_on: Date.current, reason: "stock_count"
+      adjusted_on: Date.current, reason: "manual_correction"
     )
     @stock_adjustment.items.build
     authorize @stock_adjustment
@@ -43,7 +43,8 @@ class Inventory::StockAdjustmentsController < Inventory::BaseController
   def void
     @stock_adjustment = find_adjustment
     authorize @stock_adjustment, :void?
-    result = Inventory::DocumentVoider.new(@stock_adjustment, user: current_user, reason: params[:void_reason]).call
+    result = Inventory::DocumentVoider.new(@stock_adjustment, user: current_user, reason: params[:void_reason],
+                                           audit: true).call
     if result.ok?
       redirect_to inventory_stock_adjustment_path(@stock_adjustment), notice: t("inventory.stock_adjustments.voided")
     else

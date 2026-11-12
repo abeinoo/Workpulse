@@ -1,38 +1,53 @@
-# A physical-inventory count for one warehouse, run as a session through four
-# states:
+# A physical-inventory count for one warehouse, run as a session:
 #
 #   draft        — created with every product preloaded as a row, system quantity
-#                  snapshotted from live stock
-#   in_progress  — counting underway; counted quantities (and difference) editable
-#   completed    — counter has submitted; counts locked, awaiting approval
-#   approved     — approver has approved → ONE stock-count Inventory Adjustment is
-#                  generated from the non-zero differences (full audit trail,
-#                  voidable) and the count is frozen permanently
+#                  snapshotted from live stock (display only)
+#   in_progress  — counting underway; counted quantities editable. Each physical
+#                  entry records its own count time and the ledger quantity at
+#                  that moment (StockCountItem#system_quantity).
+#   completed    — counter has submitted; counts locked, AWAITING APPROVAL.
+#                  Inventory is not changed by completing.
+#   approved     — approver has approved → ONE stock-count Inventory Adjustment
+#                  is posted from the non-zero differences (counted − ledger
+#                  quantity at count time), so movements after the count are
+#                  preserved.
+#   cancelled    — terminal; only for a reopened count that once posted stock
+#                  (such a count is never hard-deleted).
 #
-# Counting (draft/in_progress) is intentionally editable; completed is read-only
-# and approved is immutable. Approval is a separate, higher-trust action
-# (segregation of duties) handled by Inventory::StockCountApprover.
+# Reopening an approved count voids its active adjustment (compensating
+# movements) and returns it to in_progress; a count therefore owns many
+# adjustments over its life, at most one active (DB partial unique index).
+#
+# Every transition goes through a service in Inventory::StockCount* — the
+# model only holds derived state and guard rails.
 class StockCount < ApplicationRecord
   belongs_to :business
   belongs_to :warehouse
   belongs_to :created_by,       class_name: "User", optional: true
   belongs_to :completed_by,     class_name: "User", optional: true
   belongs_to :approved_by,      class_name: "User", optional: true
-  belongs_to :stock_adjustment, optional: true, inverse_of: :source_stock_count
+  belongs_to :cancelled_by,     class_name: "User", optional: true
+  # Pre-repair link (stock_counts.stock_adjustment_id). Historical data only —
+  # no longer written; the canonical link is stock_adjustments.stock_count_id.
+  belongs_to :legacy_stock_adjustment, class_name: "StockAdjustment",
+             foreign_key: :stock_adjustment_id, optional: true
 
   has_many :items, class_name: "StockCountItem", dependent: :destroy
+  has_many :stock_adjustments, inverse_of: :stock_count, dependent: :restrict_with_exception
 
   accepts_nested_attributes_for :items,
                                 allow_destroy: true,
                                 reject_if:     ->(attrs) { attrs[:product_id].blank? }
 
-  enum :status, { draft: "draft", in_progress: "in_progress", completed: "completed", approved: "approved" }
+  enum :status, { draft: "draft", in_progress: "in_progress", completed: "completed",
+                  approved: "approved", cancelled: "cancelled" }
 
   # count_number is auto-assigned in before_create (which runs inside the save
   # transaction, so the advisory lock is held to commit); the DB NOT NULL + unique
   # index are the hard guards, so only uniqueness-when-present is validated here.
   validates :count_number, uniqueness: { scope: :business_id, case_sensitive: false }, allow_nil: true
   validates :counted_on, presence: true
+  validates :cancel_reason, presence: true, if: :cancelled?
   validate  :has_at_least_one_item
   validate  :products_are_unique
   validate  :warehouse_in_same_business, if: :will_save_change_to_warehouse_id?
@@ -41,9 +56,8 @@ class StockCount < ApplicationRecord
   scope :recent,       -> { order(counted_on: :desc, id: :desc) }
 
   before_create  :assign_count_number
-  # Guard rails: an approved count is permanent.
-  before_update  :reject_changes_when_approved
-  before_destroy :reject_destroy_unless_draft, prepend: true
+  before_update  :reject_changes_when_frozen
+  before_destroy :reject_destroy_unless_deletable, prepend: true
 
   # Counts may only be edited while the session is still being worked on.
   def editable_counts?
@@ -55,22 +69,32 @@ class StockCount < ApplicationRecord
     created_by
   end
 
-  # draft → in_progress on the first save of counted quantities.
-  def start_counting!(user)
-    return unless draft?
-    update!(status: :in_progress, started_at: Time.current, created_by: created_by || user)
+  # The adjustment currently in effect (not voided), if any.
+  def active_stock_adjustment
+    if stock_adjustments.loaded?
+      stock_adjustments.detect(&:active?)
+    else
+      stock_adjustments.active.first
+    end
   end
 
-  # in_progress → completed: counter submits for approval.
-  def mark_completed!(user)
-    return false unless in_progress?
-    update!(status: :completed, completed_at: Time.current, completed_by: user)
+  # True once this count has posted stock at least once — even if every
+  # adjustment was later voided by a reopen. Such a count is never
+  # hard-deleted (the voided adjustments reference it); it can be cancelled.
+  def ever_posted?
+    return true if stock_adjustment_id.present?
+
+    stock_adjustments.loaded? ? stock_adjustments.any? : stock_adjustments.exists?
   end
 
-  # completed → in_progress: approver sends it back for recount.
-  def reopen!
-    return false unless completed?
-    update!(status: :in_progress, completed_at: nil, completed_by: nil)
+  # Hard deletion: only a count still being worked on that never posted stock.
+  def deletable?
+    (draft? || in_progress?) && !ever_posted?
+  end
+
+  # Cancellation: a reopened count that once posted stock.
+  def cancellable?
+    in_progress? && ever_posted?
   end
 
   # ── Counting progress ────────────────────────────────────────────────────
@@ -79,6 +103,10 @@ class StockCount < ApplicationRecord
   def counted_products   = counted_items.size
   def remaining_products = total_products - counted_products
   alias_method :uncounted_count, :remaining_products
+
+  # Rows holding a pre-upgrade quantity with no trustworthy count time.
+  def legacy_items = items.select(&:legacy_unverified?)
+  def legacy_items? = legacy_items.any?
 
   def completion_percentage
     return 0 if total_products.zero?
@@ -129,17 +157,21 @@ class StockCount < ApplicationRecord
     errors.add(:warehouse_id, :other_business) if warehouse.business_id != business_id
   end
 
-  # Block edits to an already-approved count, while still allowing the
-  # completed→approved transition itself (status_was is "completed" during it).
-  def reject_changes_when_approved
-    return unless status_was == "approved"
-    errors.add(:base, :approved_immutable)
+  # An approved count changes only by being reopened (approved → in_progress,
+  # Inventory::StockCountReopener); a cancelled count never changes.
+  def reject_changes_when_frozen
+    reopening = status_was == "approved" && will_save_change_to_status? && in_progress?
+    return unless (status_was == "approved" && !reopening) || status_was == "cancelled"
+
+    errors.add(:base, status_was == "cancelled" ? :cancelled_immutable : :approved_immutable)
     throw :abort
   end
 
-  def reject_destroy_unless_draft
-    return if draft?
+  def reject_destroy_unless_deletable
+    return if deletable?
+
     raise ImmutableDocument::DeletionNotAllowedError,
-          "StockCount ##{id} is past draft and cannot be deleted — void its adjustment to reverse it."
+          "StockCount ##{id} cannot be deleted — it is past counting or has posted stock " \
+          "(reopen and cancel it instead)."
   end
 end

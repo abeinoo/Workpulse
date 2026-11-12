@@ -1,27 +1,73 @@
-<% product = f.object.product
-   system_qty = f.object.system_quantity.to_d
-   counted = f.object.counted?
-   diff = f.object.difference.to_d
+<%# Each row is pre-filled with the LAST QUANTITY A PERSON ENTERED AND SAVED:
+    a physical count, a legacy (pre-upgrade, unverified) quantity, or — for a
+    system-derived row — the person's earlier entry it replaced (the adopted
+    ledger quantity is shown as a hint, never in the input). The displayed value
+    is sent back as original_counted_quantity, so saving a row unchanged leaves
+    it exactly as it was (source, time, baseline); only a changed value becomes a
+    physical recount (D2/D8/D9). A physically counted row shows the baseline
+    captured at its count time; any other row shows the live on-hand its count
+    would be compared to. Quantities are shown exactly (4.004 stays 4.004). %>
+<% item = f.object
+   product = item.product
+   legacy = item.legacy_unverified?
+   system = item.system_derived?
+   system_qty = item.physical? ? item.system_quantity.to_d : (@live_on_hand || {}).fetch(product.id, item.system_quantity).to_d
+   entered = system ? item.legacy_counted_quantity : item.counted_quantity
+   counted = !entered.nil?
+   diff = counted ? entered.to_d - system_qty : 0
    diff_class = !counted ? "badge-neutral" : (diff.zero? ? "badge-success" : (diff.positive? ? "badge-warning" : "badge-danger")) %>
 <% pb_loaded = product.association(:product_barcodes).loaded?
    all_barcodes = pb_loaded ? product.product_barcodes.map(&:barcode).compact.join("|") : product.barcode.to_s %>
-<tr data-line-row data-product-id="<%= product.id %>" data-barcode="<%= product.barcode %>" data-barcodes="<%= all_barcodes %>" data-sku="<%= product.sku %>" data-system-quantity="<%= system_qty %>">
+<tr data-line-row data-product-id="<%= product.id %>" data-barcode="<%= product.barcode %>" data-barcodes="<%= all_barcodes %>" data-sku="<%= product.sku %>" data-system-quantity="<%= inventory_quantity(system_qty) %>" data-unverified="<%= legacy || system %>">
   <td>
     <%= product.name %> <span class="td-secondary">(<%= product.sku %>)</span>
     <%= f.hidden_field :id %>
     <%= f.hidden_field :product_id %>
-    <%= f.hidden_field :system_quantity %>
+    <%= hidden_field_tag "#{f.object_name}[original_counted_quantity]", inventory_quantity(entered), id: nil %>
+    <%# Set to 1 by count-sheet#recalc as soon as the person types in this row:
+        a typed quantity is always a fresh physical count. %>
+    <%= hidden_field_tag "#{f.object_name}[entered]", "0", id: nil, data: { entered_flag: true } %>
   </td>
   <td class="td-secondary"><%= product.barcode.presence || "—" %></td>
-  <td style="text-align: end;"><%= system_qty.to_i %></td>
+  <td style="text-align: end;"><%= inventory_quantity(system_qty) %></td>
   <td>
     <%= f.number_field :counted_quantity, step: 1, min: 0, class: "form-control qty-input",
+          value: inventory_quantity(entered),
           inputmode: "numeric", pattern: "[0-9]*", placeholder: "—",
           data: { quantity_field: true, action: "input->count-sheet#recalc keydown.enter->count-sheet#focusScanner" } %>
+    <%# Live status of this row's quantity: what it is now, and — once the person
+        types in it or confirms it — that saving will record a new physical
+        count (count-sheet#markEntered). %>
+    <% status_key, status_class = if legacy then [ "legacy", "badge-warning" ]
+                                  elsif system then [ "system", "badge-neutral" ]
+                                  elsif item.physical? then [ "physical", "badge-success" ]
+                                  end %>
+    <div class="flex items-center" style="gap: var(--space-2); margin-top: var(--space-1); flex-wrap: wrap;">
+      <span class="badge <%= status_class %>" data-entry-status
+            data-entered-label="<%= t("inventory.stock_counts.sources.entered_status") %>"
+            <%= "hidden" unless status_key %>>
+        <%= t("inventory.stock_counts.sources.#{status_key}") if status_key %>
+      </span>
+      <% if legacy || system %>
+        <%# Confirms the shown quantity as physically counted, without retyping it. %>
+        <button type="button" class="btn btn-ghost btn-sm" data-confirm-row
+                data-action="count-sheet#confirmRow"><%= t("inventory.stock_counts.sources.confirm_action") %></button>
+      <% end %>
+    </div>
+    <% if legacy %>
+      <div class="form-hint" style="font-size: var(--text-xs);">
+        <%= t("inventory.stock_counts.sources.legacy_hint", quantity: inventory_quantity(item.counted_quantity)) %>
+      </div>
+    <% elsif system %>
+      <div class="form-hint" style="font-size: var(--text-xs);">
+        <%= t("inventory.stock_counts.sources.system_hint", quantity: inventory_quantity(item.counted_quantity),
+              previous: inventory_quantity(item.legacy_counted_quantity) || "—") %>
+      </div>
+    <% end %>
   </td>
   <td style="text-align: end;">
     <span data-difference class="badge <%= diff_class %>">
-      <%= counted ? "#{diff.positive? ? '+' : ''}#{diff.to_i}" : "—" %>
+      <%= counted ? inventory_signed_quantity(diff) : "—" %>
     </span>
   </td>
 </tr>

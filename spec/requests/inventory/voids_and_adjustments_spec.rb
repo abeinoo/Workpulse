@@ -87,7 +87,7 @@ RSpec.describe "Inventory voids & adjustments", type: :request do
     it "forbids a view-only user from creating an adjustment" do
       sign_in viewer
       post inventory_stock_adjustments_path, params: {
-        stock_adjustment: { warehouse_id: warehouse.id, adjusted_on: Date.current, reason: "stock_count",
+        stock_adjustment: { warehouse_id: warehouse.id, adjusted_on: Date.current, reason: "manual_correction",
                             items_attributes: { "0" => { product_id: product.id, quantity_difference: 1 } } }
       }
       expect(response).to redirect_to(root_path)

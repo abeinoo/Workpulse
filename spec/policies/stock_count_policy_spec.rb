@@ -66,4 +66,56 @@ RSpec.describe StockCountPolicy do
     count.update_column(:completed_by_id, counter.id)
     expect(StockCountPolicy.new(approver, count.reload).approve?).to be(true)
   end
+
+  # Decision D1: the business owner is the one self-approval exception.
+  it "lets the business owner approve their own count, flagged as the exception" do
+    owner = create(:user, :owner, business: business)
+    own = count_at(:completed)
+    own.update_columns(created_by_id: owner.id, completed_by_id: owner.id)
+    policy = StockCountPolicy.new(owner, own.reload)
+    expect(policy.approve?).to be(true)
+    expect(policy.owner_self_approval?).to be(true)
+    expect(StockCountPolicy.new(owner, count_at(:completed)).owner_self_approval?).to be(false)
+  end
+
+  it "does not grant the exception to an ordinary approver" do
+    own = count_at(:completed)
+    own.update_column(:created_by_id, approver.id)
+    expect(StockCountPolicy.new(approver, own.reload).owner_self_approval?).to be(false)
+    expect(StockCountPolicy.new(approver, own).approve?).to be(false)
+  end
+
+  it "lets an approver (not a counter) reopen a completed or approved count, nothing else" do
+    expect(StockCountPolicy.new(approver, count_at(:approved)).reopen?).to be(true)
+    expect(StockCountPolicy.new(counter, count_at(:approved)).reopen?).to be(false)
+    %i[draft in_progress cancelled].each do |status|
+      expect(StockCountPolicy.new(approver, count_at(status)).reopen?).to be(false)
+    end
+  end
+
+  describe "delete vs cancel (D4)" do
+    def posted(count)
+      adjustment = StockAdjustment.new(business: business, warehouse: warehouse, stock_count: count,
+                                       adjusted_on: Date.current, reason: "stock_count", adjustment_number: "ADJ-#{SecureRandom.hex(3)}",
+                                       voided_at: Time.current, void_reason: "reopened")
+      adjustment.save!(validate: false)
+      count.reload
+    end
+
+    it "deletes only a never-posted draft or in-progress count" do
+      expect(StockCountPolicy.new(counter, count_at(:draft)).destroy?).to be(true)
+      expect(StockCountPolicy.new(counter, count_at(:in_progress)).destroy?).to be(true)
+      %i[completed approved cancelled].each do |status|
+        expect(StockCountPolicy.new(counter, count_at(status)).destroy?).to be(false)
+      end
+      expect(StockCountPolicy.new(counter, posted(count_at(:in_progress))).destroy?).to be(false)
+      expect(StockCountPolicy.new(viewer, count_at(:draft)).destroy?).to be(false)
+    end
+
+    it "cancels only a reopened count that once posted stock" do
+      expect(StockCountPolicy.new(counter, posted(count_at(:in_progress))).cancel?).to be(true)
+      expect(StockCountPolicy.new(counter, count_at(:in_progress)).cancel?).to be(false)
+      expect(StockCountPolicy.new(viewer, posted(count_at(:in_progress))).cancel?).to be(false)
+    end
+  end
 end

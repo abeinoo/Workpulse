@@ -92,8 +92,8 @@ RSpec.describe "Inventory::StockCounts", type: :request do
       expect(response).to redirect_to(inventory_stock_count_path(count))
       expect(count.reload).to be_approved
       expect(product.reload.current_stock).to eq(17)
-      expect(count.stock_adjustment).to be_present
-      expect(count.stock_adjustment.reason).to eq("stock_count")
+      expect(count.active_stock_adjustment).to be_present
+      expect(count.active_stock_adjustment.reason).to eq("stock_count")
     end
 
     it "lets an approver send a completed count back (reopen)" do
@@ -166,7 +166,7 @@ RSpec.describe "Inventory::StockCounts", type: :request do
       expect(product.reload.current_stock).to eq(17)      # counted product corrected
       expect(other.reload.current_stock).to eq(9)         # uncounted product untouched
       # no adjustment line for the uncounted product
-      expect(count.stock_adjustment.items.map(&:product)).to eq([ product ])
+      expect(count.active_stock_adjustment.items.map(&:product)).to eq([ product ])
     end
   end
 
@@ -207,7 +207,7 @@ RSpec.describe "Inventory::StockCounts", type: :request do
       patch complete_inventory_stock_count_path(count)
       sign_in approver
       patch approve_inventory_stock_count_path(count)
-      adj = count.reload.stock_adjustment
+      adj = count.reload.active_stock_adjustment
       expect(adj).to be_present
 
       # Adjustment → source count
@@ -220,6 +220,404 @@ RSpec.describe "Inventory::StockCounts", type: :request do
       expect(response.body).to include(adj.adjustment_number)
       expect(response.body).to include(inventory_stock_adjustment_path(adj))
       expect(response.body).to include(I18n.t("inventory.stock_counts.impact.title"))
+    end
+  end
+
+  describe "lifecycle repair (D1–D9) over HTTP" do
+    # Submits the counting form exactly as the page rendered it (every input
+    # the browser would send), optionally typing into some rows — which, as
+    # count-sheet#recalc does in the browser, also sets the row's entered flag.
+    def submit_sheet_as_rendered(count, changes = {}, extra = {})
+      get edit_inventory_stock_count_path(count)
+      form = Nokogiri::HTML(response.body).at_css("form[data-controller~='count-sheet']")
+      params = form.css("input[name^='stock_count[']").each_with_object({}) do |input, acc|
+        acc[input["name"]] = input["value"].to_s
+      end
+      changes.each do |product, quantity|
+        row = form.css("tr[data-line-row]").find { |tr| tr["data-product-id"] == product.id.to_s }
+        params[row.at_css("input[data-quantity-field]")["name"]] = quantity.to_s
+        params[row.at_css("input[data-entered-flag]")["name"]]   = "1"
+      end
+      patch inventory_stock_count_path(count), params: Rack::Utils.parse_nested_query(params.merge(extra).to_query)
+      expect(response).to redirect_to(inventory_stock_count_path(count)) unless extra.any?
+    end
+
+    describe "resuming a count (last entered quantities)" do
+      let!(:serum) do
+        business.products.create!(name: "Serum", sku: "GKM-84978", initial_cost_price: 50, average_cost_price: 50).tap do |p|
+          r = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current)
+          r.items.build(product: p, quantity: BigDecimal("4.004"), unit_cost: 50)
+          Inventory::GoodsReceiptPoster.new(r).call
+        end
+      end
+
+      def physical_count_with_serum(quantity)
+        count = start_session(as: counter)
+        sign_in counter
+        item = count.items.find_by!(product: serum)
+        patch inventory_stock_count_path(count), params: {
+          stock_count: { items_attributes: { "0" => { id: item.id, product_id: serum.id, counted_quantity: quantity } } }
+        }
+        [ count.reload, item.reload ]
+      end
+
+      def serum_input(count)
+        get edit_inventory_stock_count_path(count)
+        Nokogiri::HTML(response.body).css("tr[data-line-row]").find { |tr| tr["data-sku"] == "GKM-84978" }
+                                     .at_css("input[data-quantity-field]")["value"]
+      end
+
+      it "shows a saved physical quantity of 3, not the 4.004 system stock, on every return to the sheet" do
+        count, item = physical_count_with_serum(3)
+        expect(item).to have_attributes(quantity_source: "physical", system_quantity: BigDecimal("4.004"))
+
+        expect(serum_input(count)).to eq("3")
+        get inventory_stock_count_path(count)                 # navigate away …
+        expect(serum_input(count)).to eq("3")                 # … and back / refresh
+      end
+
+      it "does not change the quantity, source or timestamp by opening or re-saving the sheet" do
+        count, item = physical_count_with_serum(3)
+        before = item.attributes.slice("counted_quantity", "quantity_source", "counted_at", "baseline_at", "system_quantity", "difference")
+
+        travel_to(1.hour.from_now) do
+          serum_input(count)
+          submit_sheet_as_rendered(count)
+        end
+        expect(item.reload.attributes.slice(*before.keys)).to eq(before)
+        expect(AuditLog.for_auditable(count).where(action: "record_counts").count).to eq(1)   # no new recount
+      end
+
+      it "records a new physical recount only when the quantity is changed and saved" do
+        count, item = physical_count_with_serum(3)
+        first_counted_at = item.counted_at
+        receive_more = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current)
+        receive_more.items.build(product: serum, quantity: 2, unit_cost: 50)
+        Inventory::GoodsReceiptPoster.new(receive_more).call            # serum now 6.004
+
+        travel_to(1.hour.from_now) { submit_sheet_as_rendered(count, serum => 5) }
+        expect(item.reload).to have_attributes(counted_quantity: 5, quantity_source: "physical",
+                                               system_quantity: BigDecimal("6.004"), difference: BigDecimal("-1.004"))
+        expect(item.counted_at).to be > first_counted_at
+        expect(serum_input(count)).to eq("5")
+      end
+
+      it "records a retyped quantity equal to the previous one as a fresh physical count" do
+        count, item = physical_count_with_serum(3)
+        first = item.counted_at
+        travel_to(1.hour.from_now) { submit_sheet_as_rendered(count, serum => 3) }
+        expect(item.reload).to have_attributes(counted_quantity: 3, quantity_source: "physical")
+        expect(item.counted_at).to be > first
+      end
+
+      it "leaves rows that were never counted blank and uncounted" do
+        count, = physical_count_with_serum(3)
+        submit_sheet_as_rendered(count)
+        other = count.items.find_by!(product: product)
+        expect(other).to have_attributes(counted_quantity: nil, quantity_source: nil)
+      end
+    end
+
+    def complete_as(count, user)
+      sign_in user
+      patch complete_inventory_stock_count_path(count)
+      count.reload
+    end
+
+    def approve_as(count, user)
+      sign_in user
+      patch approve_inventory_stock_count_path(count)
+      count.reload
+    end
+
+    def approved_count
+      count = start_session(as: counter)
+      set_count(count, 17, as: counter)          # −3
+      complete_as(count, counter)
+      approve_as(count, approver)
+    end
+
+    it "explains on the page that completing does not change inventory" do
+      count = start_session(as: counter)
+      set_count(count, 17, as: counter)
+      complete_as(count, counter)
+      expect(product.reload.current_stock).to eq(20)
+
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.statuses.completed"))
+      expect(response.body).to include(I18n.t("inventory.stock_counts.guidance.awaiting_approval"))
+      expect(response.body).to include(I18n.t("inventory.stock_counts.guidance.self_approval_blocked"))
+    end
+
+    it "lets the owner approve their own count, with the exception shown and audited" do
+      count = start_session(as: owner)
+      set_count(count, 17, as: owner)
+      complete_as(count, owner)
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.owner_self_approval_badge"))
+
+      approve_as(count, owner)
+      expect(count).to be_approved
+      expect(product.reload.current_stock).to eq(17)
+      expect(AuditLog.for_auditable(count).find_by(action: "approve").metadata["owner_self_approval"]).to be(true)
+    end
+
+    it "reopens an approved count with a reason, reversing its adjustment" do
+      count = approved_count
+      adjustment = count.active_stock_adjustment
+
+      sign_in approver
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(ERB::Util.html_escape(I18n.t("inventory.stock_counts.reopen_approved_action")))
+      patch reopen_inventory_stock_count_path(count), params: { reason: "Shelf B missed" }
+
+      expect(response).to redirect_to(inventory_stock_count_path(count))
+      expect(count.reload).to be_in_progress
+      expect(adjustment.reload).to be_voided
+      expect(product.reload.current_stock).to eq(20)
+    end
+
+    it "refuses to reopen an approved count without a reason" do
+      count = approved_count
+      sign_in approver
+      patch reopen_inventory_stock_count_path(count), params: { reason: "" }
+      expect(flash[:alert]).to eq(I18n.t("inventory.stock_counts.errors.reopen_reason_required"))
+      expect(count.reload).to be_approved
+    end
+
+    it "forbids a counter from reopening an approved count" do
+      count = approved_count
+      sign_in counter
+      patch reopen_inventory_stock_count_path(count), params: { reason: "x" }
+      expect(response).to redirect_to(root_path)
+      expect(count.reload).to be_approved
+    end
+
+    it "deletes an unposted count with a reason and confirmation, audited" do
+      count = start_session(as: counter)
+      sign_in counter
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.delete_confirm"))
+
+      delete inventory_stock_count_path(count), params: { reason: "Wrong warehouse" }
+      expect(response).to redirect_to(inventory_stock_counts_path)
+      expect(StockCount.exists?(count.id)).to be(false)
+      expect(AuditLog.where(auditable_type: "StockCount", auditable_id: count.id, action: "delete")).to exist
+    end
+
+    it "never answers a refused delete with a 500" do
+      count = start_session(as: counter)
+      set_count(count, 17, as: counter)
+      complete_as(count, counter)
+
+      sign_in counter
+      delete inventory_stock_count_path(count), params: { reason: "x" }   # completed: policy refuses
+      expect(response).to redirect_to(root_path)
+      expect(StockCount.exists?(count.id)).to be(true)
+
+      in_progress = start_session(as: counter)
+      delete inventory_stock_count_path(in_progress), params: { reason: "" }   # allowed, but no reason
+      expect(response).to redirect_to(inventory_stock_count_path(in_progress))
+      expect(flash[:alert]).to eq(I18n.t("inventory.stock_counts.errors.removal_reason_required"))
+    end
+
+    it "cancels (never deletes) a reopened count that posted stock" do
+      count = approved_count
+      sign_in approver
+      patch reopen_inventory_stock_count_path(count), params: { reason: "recount" }
+
+      sign_in counter
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.cancel_action"))
+      expect(response.body).not_to include(I18n.t("inventory.stock_counts.delete_action"))
+
+      patch cancel_inventory_stock_count_path(count), params: { reason: "Superseded" }
+      expect(count.reload).to be_cancelled
+      expect(count.stock_adjustments.count).to eq(1)
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.statuses.cancelled"))
+      expect(response.body).to include(I18n.t("inventory.stock_counts.history.adjustments_title"))
+    end
+
+    it "blocks voiding a count's adjustment from the adjustment page" do
+      count = approved_count
+      adjustment = count.active_stock_adjustment
+      sign_in owner
+      patch void_inventory_stock_adjustment_path(adjustment), params: { void_reason: "x" }
+      expect(response).to redirect_to(root_path)
+      expect(adjustment.reload).not_to be_voided
+    end
+
+    it "pre-fills a legacy quantity and keeps it unverified when the sheet is saved unchanged" do
+      count = start_session(as: counter)
+      item  = count.items.first
+      item.update!(counted_quantity: 8)                     # pre-upgrade style: no source, no time
+      count.update_column(:status, "in_progress")
+
+      sign_in counter
+      get edit_inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.sources.legacy_hint"))
+      input = Nokogiri::HTML(response.body).at_css("input[name='stock_count[items_attributes][0][counted_quantity]']")
+      expect(input["value"]).to eq("8")
+
+      submit_sheet_as_rendered(count)
+      expect(item.reload).to have_attributes(counted_quantity: 8, quantity_source: nil, counted_at: nil)
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.sources.legacy"))
+    end
+
+    it "shows the legacy-quantity banner on an editable count but not on a historical approved one" do
+      count = start_session(as: counter)
+      count.items.first.update!(counted_quantity: 8)        # pre-upgrade style
+      count.update_column(:status, "in_progress")
+      banner = I18n.t("inventory.stock_counts.guidance.legacy_editable", count: 1)
+
+      sign_in counter
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(ERB::Util.html_escape(banner))
+
+      count.update_columns(status: "approved", approved_at: 1.day.ago)
+      get inventory_stock_count_path(count)
+      expect(response.body).not_to include(ERB::Util.html_escape(banner))
+      expect(response.body).to include(I18n.t("inventory.stock_counts.sources.legacy"))   # row label stays
+    end
+
+    describe "fractional ledger quantities (SC-000008 regression)" do
+      let!(:serum) do
+        business.products.create!(name: "Serum", sku: "GKM-84978", initial_cost_price: 50, average_cost_price: 50).tap do |p|
+          r = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current)
+          r.items.build(product: p, quantity: BigDecimal("4.004"), unit_cost: 50)
+          Inventory::GoodsReceiptPoster.new(r).call
+        end
+      end
+
+      # A pre-repair in-progress count holding unverified quantities.
+      def legacy_in_progress_count
+        count = business.stock_counts.build(warehouse: warehouse, counted_on: Date.current, created_by: counter, status: :in_progress)
+        count.items.build(product: product, system_quantity: 20, counted_quantity: 18)
+        count.items.build(product: serum, system_quantity: 4, counted_quantity: 3)
+        count.save!
+        count
+      end
+
+      it "completes over HTTP and shows 4.004 exactly, marked as a system quantity" do
+        count = legacy_in_progress_count
+        complete_as(count, counter)
+        expect(count).to be_completed
+        expect(flash[:alert]).to be_nil
+
+        get inventory_stock_count_path(count)
+        row = Nokogiri::HTML(response.body).css("tr").find { |tr| tr.text.include?("GKM-84978") }
+        cells = row.css("td").map { |td| td.text.squish }
+        expect(cells[2..4]).to eq([ "4.004", "4.004", "0" ])
+        expect(cells[5]).to include(I18n.t("inventory.stock_counts.sources.system"))
+      end
+
+      it "after a reopen, pre-fills the last entered quantity and keeps the row system-derived when saved unchanged" do
+        count = legacy_in_progress_count
+        complete_as(count, counter)
+        sign_in approver
+        patch reopen_inventory_stock_count_path(count)
+
+        sign_in counter
+        get edit_inventory_stock_count_path(count)
+        doc  = Nokogiri::HTML(response.body)
+        row  = doc.css("tr[data-line-row]").find { |tr| tr["data-sku"] == "GKM-84978" }
+        expect(row["data-system-quantity"]).to eq("4.004")
+        expect(row.css("td")[2].text.squish).to eq("4.004")
+        expect(row.at_css("input[data-quantity-field]")["value"]).to eq("3")          # the person's entry, not 4.004
+        expect(row.text).to include(I18n.t("inventory.stock_counts.sources.system_hint", quantity: "4.004", previous: "3"))
+
+        item   = count.items.find_by!(product: serum)
+        before = item.attributes.slice("quantity_source", "counted_quantity", "system_quantity", "baseline_at", "counted_at", "difference")
+        submit_sheet_as_rendered(count)
+        expect(item.reload.attributes.slice(*before.keys)).to eq(before)
+        expect(item).to have_attributes(quantity_source: "system", counted_quantity: BigDecimal("4.004"), difference: 0)
+      end
+
+      it "SC-000008: retyping the unverified 3 keeps 3 as a physical count through completion and approval" do
+        count = legacy_in_progress_count                     # serum legacy 3, ledger 4.004
+        sign_in counter
+        submit_sheet_as_rendered(count, serum => 3)
+        item = count.items.find_by!(product: serum)
+        expect(item).to have_attributes(quantity_source: "physical", counted_quantity: 3,
+                                        system_quantity: BigDecimal("4.004"), difference: BigDecimal("-1.004"),
+                                        legacy_counted_quantity: 3)
+        expect(item.counted_at).to be_present
+
+        complete_as(count, counter)
+        expect(item.reload).to have_attributes(quantity_source: "physical", counted_quantity: 3)      # not 4.004
+        expect(count.items.find_by!(product: product)).to have_attributes(quantity_source: "system")  # untouched legacy row
+
+        later = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current)
+        later.items.build(product: serum, quantity: 2, unit_cost: 50)
+        Inventory::GoodsReceiptPoster.new(later).call                                                # after the count
+        approve_as(count, approver)
+        expect(count.active_stock_adjustment.items.map { |i| [ i.product_id, i.quantity_difference ] })
+          .to eq([ [ serum.id, BigDecimal("-1.004") ] ])
+        expect(serum.stock_in(warehouse)).to eq(5)          # 4.004 − 1.004 + 2: the later receipt is kept
+      end
+
+      it "leaving the unverified 3 untouched adopts the system quantity at completion (D9)" do
+        count = legacy_in_progress_count
+        sign_in counter
+        submit_sheet_as_rendered(count)
+        complete_as(count, counter)
+        expect(count.items.find_by!(product: serum)).to have_attributes(quantity_source: "system", counted_quantity: BigDecimal("4.004"))
+      end
+
+      it "Save & Complete saves the typed quantities, then completes" do
+        count = legacy_in_progress_count
+        sign_in counter
+        submit_sheet_as_rendered(count, { serum => 3 }, { "save_and_complete" => "Save & Complete" })
+        expect(response).to redirect_to(inventory_stock_count_path(count))
+        expect(flash[:notice]).to eq(I18n.t("inventory.stock_counts.saved_and_completed"))
+        expect(count.reload).to be_completed
+        expect(count.items.find_by!(product: serum)).to have_attributes(quantity_source: "physical", counted_quantity: 3)
+      end
+
+      it "Save & Complete does not complete when saving fails" do
+        count = legacy_in_progress_count
+        sign_in counter
+        submit_sheet_as_rendered(count, { serum => "2.5" }, { "save_and_complete" => "Save & Complete" })
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("GKM-84978: ")
+        expect(count.reload).to be_in_progress
+        expect(count.items.find_by!(product: serum)).to have_attributes(counted_quantity: 3, quantity_source: nil)
+        expect(AuditLog.for_auditable(count).where(action: "complete")).to be_empty
+      end
+
+      it "Complete warns how many products were not physically counted" do
+        count = legacy_in_progress_count
+        sign_in counter
+        get inventory_stock_count_path(count)
+        button = Nokogiri::HTML(response.body).css("form").find { |f| f["action"] == complete_inventory_stock_count_path(count) }
+                                             .at_css("button, input[type=submit]")
+        expect(button["data-turbo-confirm"]).to eq(I18n.t("inventory.stock_counts.complete_confirm_unverified", count: 2))
+
+        get edit_inventory_stock_count_path(count)
+        save_complete = Nokogiri::HTML(response.body).at_css("input[name='save_and_complete']")
+        expect(save_complete["data-confirm-some"]).to eq(I18n.t("inventory.stock_counts.save_and_complete_confirm.some", count: "__COUNT__"))
+      end
+
+      it "names the product's SKU in a completion error" do
+        count = legacy_in_progress_count
+        business.products.create!(name: "Serum mini", sku: "GKM-84978-M", parent_product_id: serum.id,
+                                  initial_cost_price: 50, average_cost_price: 50)
+        complete_as(count, counter)
+        expect(count).to be_in_progress
+        expect(flash[:alert]).to start_with("GKM-84978: ")
+      end
+    end
+
+    it "ignores a system quantity posted by the client" do
+      count = start_session(as: counter)
+      item  = count.items.first
+      sign_in counter
+      patch inventory_stock_count_path(count), params: {
+        stock_count: { items_attributes: { "0" => { id: item.id, product_id: product.id, counted_quantity: 17, system_quantity: 999 } } }
+      }
+      expect(item.reload).to have_attributes(system_quantity: 20, difference: -3, quantity_source: "physical")
     end
   end
 end

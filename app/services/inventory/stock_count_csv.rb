@@ -34,9 +34,6 @@ module Inventory
     private
 
     # Whole numbers without a trailing ".0"; fractional counts keep their decimals.
-    def fmt(value)
-      d = value.to_d
-      d.frac.zero? ? d.to_i.to_s : d.to_s("F")
-    end
+    def fmt(value) = QuantityFormat.plain(value)
   end
 end

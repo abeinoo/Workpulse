@@ -1,104 +1,116 @@
 module Inventory
-  # Approves a completed physical count: refreshes each line's system quantity from
-  # live stock, computes the difference (counted − system), and generates ONE
-  # stock-count Inventory Adjustment from the non-zero differences — so the ledger
-  # is corrected through the normal adjustment path (full audit trail, voidable).
-  # The count is then frozen as "approved".
+  # completed → approved: posts ONE stock-count Inventory Adjustment from the
+  # non-zero differences, through the normal adjustment path (ledger
+  # movements, cost recompute, audit, voidable only by reopening the count).
   #
-  # Recomputing the system quantity at approval time guarantees the warehouse ends
-  # at exactly the counted quantity and never produces negative stock (a shortfall
-  # can't exceed what's on hand).
+  # Decision D2 — each line posts counted − ledger on-hand AT THAT PRODUCT'S
+  # COUNT TIME (StockCountItem#difference, fixed when the quantity was entered
+  # or, for system-derived rows, at completion). Live stock is NOT re-read, so
+  # a receipt, issue, transfer or adjustment committed after the count stays
+  # in effect: e.g. counted 3 of 4, then +10 received → adjustment −1, final 13.
+  # If later movements already took more stock than the count leaves, the
+  # adjustment is refused (AdjustmentPoster's insufficient-stock check) and
+  # nothing is written.
+  #
+  # Idempotency and concurrency: the count row is locked and its status and
+  # active adjustment re-checked inside the transaction, so a double click or
+  # two approvers can only ever produce one adjustment; the partial unique
+  # index (one active adjustment per count) is the database backstop, and
+  # AdjustmentPoster locks the products before its stock check.
+  #
+  # Segregation of duties (decision D1): whoever ran or submitted the count may
+  # not approve it — except the business owner, whose self-approval is allowed
+  # and recorded as an explicit exception on the audit entry.
+  #
+  # A count completed before per-product count times existed still holds
+  # legacy rows; it must be reopened and completed again (decision D9 adopts
+  # the system quantity for every row not recounted) before it can be approved.
   class StockCountApprover
-    Result = Struct.new(:ok, :count, keyword_init: true) do
-      def ok? = ok
-    end
+    include StockCountService
 
-    def initialize(count, user:)
-      @count = count
-      @user  = user
+    def initialize(stock_count_id:, actor:)
+      @stock_count_id = stock_count_id
+      @actor          = actor
     end
 
     def call
-      unless @count.completed?
-        @count.errors.add(:base, :not_completed)
-        return failure
-      end
-
-      # Segregation of duties: whoever ran or submitted the count may not approve
-      # it themselves. Backstop for direct service calls (the policy hides the UI).
-      if self_approval?
-        @count.errors.add(:base, Approvals::SelfApproval.error_message)
-        return failure
-      end
-
-      # Belt-and-suspenders against a duplicate: a count may only ever own one
-      # adjustment. (The state machine already prevents re-approval — an approved
-      # count can't be reopened — but never create a second adjustment regardless.)
-      if @count.stock_adjustment_id.present?
-        @count.errors.add(:base, :already_approved)
-        return failure
-      end
-
+      @error = nil
       ActiveRecord::Base.transaction do
-        refresh_differences!
+        lock_count!
+        @error = precondition_error
+        raise ActiveRecord::Rollback if @error
 
-        # Only counted rows with a real variance generate an adjustment line.
-        # Uncounted (blank) rows are left untouched — never treated as a zero
-        # count, so they cannot affect stock.
-        diff_items = @count.counted_items.select { |item| item.difference.to_d.nonzero? }
-        if diff_items.any?
-          adjustment = build_adjustment(diff_items)
-          result = AdjustmentPoster.new(adjustment).call
-          unless result.ok?
-            copy_adjustment_errors(result.adjustment)
-            raise ActiveRecord::Rollback
-          end
-          @count.stock_adjustment = adjustment
-        end
+        owner_exception = own_count?
+        adjustment = post_adjustment!
+        raise ActiveRecord::Rollback if @error
 
-        @count.update!(status: :approved, approved_at: Time.current, approved_by: @user)
-        return Result.new(ok: true, count: @count)
+        @count.update!(status: :approved, approved_at: Time.current, approved_by: @actor)
+        log_audit!(actor: @actor, auditable: @count, action: "approve",
+                   changes: { status: %w[completed approved] },
+                   metadata: approval_metadata(adjustment, owner_exception))
       end
-
-      failure
+      @error ? failure(@error) : success
+    rescue ActiveRecord::RecordInvalid => e
+      failure(e.record.errors.full_messages.to_sentence)
+    rescue ActiveRecord::RecordNotUnique
+      failure(t_error("already_approved"))
+    rescue AuditLoggable::AuditWriteFailed
+      failure(t_error("audit_failed"))
     end
 
     private
 
-    def self_approval?
-      Approvals::SelfApproval.by_requester?(approver: @user, requester: @count.completed_by_id) ||
-        Approvals::SelfApproval.by_requester?(approver: @user, requester: @count.created_by_id)
+    def precondition_error
+      return t_error("not_completed") unless @count.completed?
+      return Approvals::SelfApproval.error_message if own_count? && !@actor.owner?
+      return t_error("legacy_requires_recompletion", count: @count.legacy_items.size) if @count.legacy_items?
+      return t_error("already_approved") if @count.stock_adjustments.active.exists?
+
+      nil
     end
 
-    # Refresh system quantity (and the derived variance) for COUNTED rows only;
-    # blank rows are deliberately not touched.
-    def refresh_differences!
-      @count.counted_items.each do |item|
-        system_qty = item.product.stock_in(@count.warehouse)
-        item.update!(system_quantity: system_qty)   # difference recomputed by callback
-      end
+    # The count's "requester": whoever ran it (created_by) or submitted it
+    # (completed_by).
+    def own_count?
+      Approvals::SelfApproval.by_requester?(approver: @actor, requester: @count.completed_by_id) ||
+        Approvals::SelfApproval.by_requester?(approver: @actor, requester: @count.created_by_id)
     end
 
-    def build_adjustment(diff_items)
+    # Only counted rows with a real variance generate an adjustment line.
+    # Uncounted (blank) rows are left untouched — never treated as a zero
+    # count. A perfect count approves with no adjustment.
+    def post_adjustment!
+      diff_items = @count.items.select { |item| item.counted? && item.difference.to_d.nonzero? }
+      return nil if diff_items.empty?
+
       adjustment = @count.business.stock_adjustments.build(
         warehouse:   @count.warehouse,
+        stock_count: @count,
         adjusted_on: @count.counted_on,
         reason:      :stock_count,
-        created_by:  @user,
+        created_by:  @actor,
         notes:       I18n.t("inventory.stock_counts.adjustment_note", number: @count.count_number)
       )
       diff_items.each do |item|
         adjustment.items.build(product: item.product, quantity_difference: item.difference)
       end
-      adjustment
+
+      result = AdjustmentPoster.new(adjustment).call
+      return adjustment if result.ok?
+
+      @error = adjustment.errors.full_messages.to_sentence.presence || t_error("approve_failed")
+      nil
     end
 
-    def copy_adjustment_errors(adjustment)
-      adjustment.errors.full_messages.each { |msg| @count.errors.add(:base, msg) }
-    end
-
-    def failure
-      Result.new(ok: false, count: @count)
+    def approval_metadata(adjustment, owner_exception)
+      {
+        count_number:        @count.count_number,
+        adjustment_id:       adjustment&.id,
+        adjustment_number:   adjustment&.adjustment_number,
+        owner_self_approval: owner_exception,
+        self_approval_exception: (owner_exception ? "business_owner" : nil),
+        lines: adjustment ? adjustment.items.map { |i| { product_id: i.product_id, quantity_difference: quantity_string(i.quantity_difference) } } : []
+      }.compact
     end
   end
 end

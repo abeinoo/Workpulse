@@ -11,15 +11,31 @@ module Inventory
   # Guards: a document can't be voided twice, a reason is required, and a void is
   # refused if reversing it would drive any warehouse negative (e.g. receipt goods
   # already issued out) — that would create an impossible stock state.
+  #
+  # The affected products are row-locked (StockAvailability.lock_products!)
+  # after the document and before the on-hand check, so a concurrent issue,
+  # transfer or adjustment can't consume the stock the reversal needs between
+  # the check and the compensating OUT movement.
+  #
+  # A stock-count adjustment is voided only by reopening its count
+  # (Inventory::StockCountReopener passes stock_count_reopen: true) — voiding it
+  # alone would leave the count "approved" with no stock effect.
+  #
+  # audit: true writes a "void" audit entry on the document (stock adjustments;
+  # GoodsReceiptVoider audits the receipt itself).
   class DocumentVoider
+    include AuditLoggable
+
     Result = Struct.new(:ok, :document, keyword_init: true) do
       def ok? = ok
     end
 
-    def initialize(document, user:, reason:)
-      @document = document
-      @user     = user
-      @reason   = reason.to_s.strip
+    def initialize(document, user:, reason:, audit: false, stock_count_reopen: false)
+      @document           = document
+      @user               = user
+      @reason             = reason.to_s.strip
+      @audit              = audit
+      @stock_count_reopen = stock_count_reopen
     end
 
     # The document row is locked (and reloaded) before any guard runs, inside the
@@ -31,6 +47,7 @@ module Inventory
     def call
       ActiveRecord::Base.transaction do
         @document.lock!
+        StockAvailability.lock_products!(@document.affected_products.map(&:id))
         next failure unless voidable?
 
         @document.reversal_entries.each do |entry|
@@ -43,6 +60,12 @@ module Inventory
         @document.update!(voided_at: Time.current, voided_by: @user, void_reason: @reason)
 
         @document.affected_products.each { |product| ProductCostRecalculator.new(product).recompute! }
+
+        if @audit
+          log_audit(actor: @user, auditable: @document, action: "void",
+                    changes: { voided_at: [ nil, @document.voided_at.iso8601 ] },
+                    metadata: { reason: @reason, reversal: @document.reversal_entries.map { |e| reversal_audit(e) } })
+        end
 
         Result.new(ok: true, document: @document)
       end
@@ -60,6 +83,11 @@ module Inventory
 
       if @reason.blank?
         @document.errors.add(:void_reason, :blank)
+        return false
+      end
+
+      if stock_count_adjustment? && !@stock_count_reopen
+        @document.errors.add(:base, :void_via_stock_count_reopen)
         return false
       end
 
@@ -85,6 +113,15 @@ module Inventory
         { product: product.name, sku: product.sku, warehouse: warehouse.name,
           available: available.to_s, needed: needed.to_s }
       end
+    end
+
+    def stock_count_adjustment?
+      @document.is_a?(StockAdjustment) && @document.stock_count_id.present?
+    end
+
+    def reversal_audit(entry)
+      { product_id: entry[:product].id, warehouse_id: entry[:warehouse].id,
+        direction: entry[:direction].to_s, quantity: entry[:quantity].to_d.to_s }
     end
 
     def failure

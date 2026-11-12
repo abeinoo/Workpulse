@@ -6,6 +6,10 @@ import { Controller } from "@hotwired/stimulus"
 //  • row filters (all / counted / not counted / differences only)
 //  • quick-scan loop: pressing Enter in a counted-quantity field returns focus to
 //    the barcode field, so scan → type → Enter → scan never needs the mouse.
+//  • quantities change only by typing: a number field steps its value on a
+//    mouse-wheel / trackpad scroll or an Arrow key while focused (a scan focuses
+//    it), which silently turned a saved 3 into 4 and marked it as entered. Those
+//    gestures are blocked here; the page still scrolls.
 export default class extends Controller {
   static targets = ["progressBar", "counted", "remaining", "total", "percent", "filterButton"]
 
@@ -13,13 +17,49 @@ export default class extends Controller {
     this.filterMode = "all"
     this.element.querySelectorAll("[data-quantity-field]").forEach((input) => this.#applyDifference(input))
     this.#refreshProgress()
+    this.blockWheel = this.#blockWheel.bind(this)
+    this.blockArrows = this.#blockArrows.bind(this)
+    this.element.addEventListener("wheel", this.blockWheel, { passive: false })
+    this.element.addEventListener("keydown", this.blockArrows)
+  }
+
+  disconnect() {
+    this.element.removeEventListener("wheel", this.blockWheel)
+    this.element.removeEventListener("keydown", this.blockArrows)
   }
 
   recalc(event) {
     const input = event.target
+    // Typing in a row is an explicit entry: the server records it as a fresh
+    // physical count, even if the value equals the previous one.
+    this.#markEntered(input.closest("[data-line-row]"))
     this.#applyDifference(input)
     this.#applyFilter(input.closest("[data-line-row]"))
     this.#refreshProgress()
+  }
+
+  // "Confirm count" on an unverified / system row: the shown quantity was
+  // physically counted — recorded on save exactly as if it had been typed.
+  confirmRow(event) {
+    const row = event.currentTarget.closest("[data-line-row]")
+    const input = row?.querySelector("[data-quantity-field]")
+    if (!input) return
+    if (input.value.trim() === "") { input.focus(); return }
+    this.#markEntered(row)
+    this.#applyDifference(input)
+    this.#refreshProgress()
+  }
+
+  // "Save & Complete": before Turbo asks for confirmation, say how many
+  // products were not physically counted (untouched unverified / system rows)
+  // and will therefore use their system quantity at completion.
+  confirmComplete(event) {
+    const button = event.currentTarget
+    const pending = this.#rows().filter((row) =>
+      row.dataset.unverified === "true" && row.querySelector("[data-entered-flag]")?.value !== "1").length
+    button.dataset.turboConfirm = pending > 0
+      ? button.dataset.confirmSome.replace("__COUNT__", pending)
+      : button.dataset.confirmNone
   }
 
   // Enter in a counted-quantity field → back to the barcode field for the next scan.
@@ -38,6 +78,35 @@ export default class extends Controller {
   }
 
   // ── internals ──────────────────────────────────────────────────────────
+  #markEntered(row) {
+    if (!row) return
+    const flag = row.querySelector("[data-entered-flag]")
+    if (flag) flag.value = "1"
+    const status = row.querySelector("[data-entry-status]")
+    if (status) {
+      status.hidden = false
+      status.textContent = status.dataset.enteredLabel
+      status.classList.remove("badge-warning", "badge-neutral")
+      status.classList.add("badge-success")
+    }
+    row.querySelector("[data-confirm-row]")?.setAttribute("hidden", "")
+  }
+
+  // Scrolling over a focused quantity field scrolls the page instead of
+  // stepping the value.
+  #blockWheel(event) {
+    const field = event.target.closest?.("[data-quantity-field]")
+    if (!field || document.activeElement !== field) return
+    event.preventDefault()
+    window.scrollBy(event.deltaX, event.deltaY)
+  }
+
+  // Arrow Up / Down never step a quantity.
+  #blockArrows(event) {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
+    if (event.target.closest?.("[data-quantity-field]")) event.preventDefault()
+  }
+
   #rows() {
     return Array.from(this.element.querySelectorAll("[data-line-row]"))
   }

@@ -4076,6 +4076,8 @@ en:
           transfer: "Transfer"
           adjustment: "Adjustment"
           reversal: "Reversal"
+          stock_count: "Stock count"
+          stock_count_reversal: "Count reversal"
       needs_action: "Need action"
       pending_approval: "Pending approval"
       recent_movements: "Latest Stock Movements"
@@ -4791,6 +4793,9 @@ en:
       has_history_cannot_delete: "This product has historical inventory records and cannot be deleted. Archive it instead."
       archive_has_active_children: "Cannot archive a parent product that has active child products. Archive the children first, or use Archive Family."
     movements:
+      stock_count_reasons:
+        adjustment: "Stock count adjustment"
+        reversal: "Stock count reversal"
       date: "Date"
       warehouse: "Warehouse"
       type: "Type"
@@ -5231,8 +5236,9 @@ en:
       statuses:
         draft: "Draft"
         in_progress: "In Progress"
-        completed: "Completed"
+        completed: "Submitted — Awaiting Approval"
         approved: "Approved"
+        cancelled: "Cancelled"
       notes: "Notes"
       counted_by: "Counted By"
       completed_by: "Completed By"
@@ -5249,7 +5255,14 @@ en:
       save_counts: "Save Counts"
       continue_counting: "Continue Counting"
       complete_action: "Mark Complete"
-      complete_confirm: "Mark this count complete and send it for approval?"
+      complete_confirm: "Submit this count for approval? Inventory is not changed until it is approved."
+      complete_confirm_unverified: "%{count} product(s) were not physically counted and will use their current system quantity (no adjustment). Submit this count for approval? Inventory is not changed until it is approved."
+      save_and_complete_action: "Save & Complete"
+      save_and_complete_confirm:
+        none: "Save all quantities and submit this count for approval? Inventory is not changed until it is approved."
+        some: "%{count} product(s) were not physically counted and will use their current system quantity (no adjustment). Save all quantities and submit this count for approval?"
+      saved_and_completed: "Counts saved and submitted for approval."
+      saved_not_completed: "Counts saved, but the count could not be submitted: %{error}"
       approve_action: "Approve"
       approve_confirm: "Approve this count? It will create stock adjustments for every difference and freeze the count."
       approve_confirm_partial: "Approve this count? %{count} uncounted products will be skipped (left untouched), adjustments created for counted differences, and the count frozen."
@@ -5289,6 +5302,81 @@ en:
       approved: "Stock count approved — adjustments created for all differences."
       approve_failed: "Could not approve this stock count."
       reopened: "Stock count reopened for counting."
+      cancelled: "Stock count cancelled."
+      owner_self_approval_badge: "Owner self-approval exception"
+      reason_label: "Reason (required)"
+      quantity_source: "Quantity Source"
+      reopen_approved_action: "Reopen & Reverse"
+      reopen_approved_hint: "Reopening reverses this count's posted adjustment with compensating movements against today's stock (later receipts, issues and transfers are kept), then returns the count to counting. It is refused if the reversal would leave too little stock."
+      reopen_approved_confirm: "Reverse this count's inventory adjustment and reopen it for recounting?"
+      cancel_action: "Cancel Count"
+      cancel_hint: "This count posted stock before it was reopened, so it is kept for the audit trail and cannot be deleted. Cancelling closes it permanently; inventory is not changed."
+      cancel_confirm: "Cancel this stock count permanently?"
+      delete_action: "Delete Count"
+      delete_hint: "This count never changed inventory. Deleting removes it and its counted quantities; the deletion and your reason are kept in the audit log."
+      delete_confirm: "Delete this stock count permanently?"
+      guidance:
+        counting: "Counting in progress. Inventory is not changed until the count is completed AND approved."
+        counting_screen: "Each quantity you enter is recorded with its own count time and compared to the stock on hand at that moment — later receipts, issues and transfers are not overwritten."
+        awaiting_approval: "Submitted — awaiting approval. Inventory is not changed until an approver approves this count."
+        owner_self_approval: "As the business owner you may approve your own count; it is recorded as an owner self-approval exception."
+        self_approval_blocked: "You ran or submitted this count, so another authorized approver must approve it."
+        approved: "Approved — the count's adjustment has been posted to inventory. Reopening reverses it."
+        cancelled: "Cancelled by %{by} on %{at}: %{reason}"
+        legacy_editable:
+          one: "1 product has a quantity entered before per-product count times were recorded. It is kept as history and NOT used as a physical count: recount it, or on Complete it takes the system quantity at that moment (no adjustment)."
+          other: "%{count} products have quantities entered before per-product count times were recorded. They are kept as history and NOT used as physical counts: recount them, or on Complete they take the system quantity at that moment (no adjustment)."
+        legacy_completed:
+          one: "This count was submitted before per-product count times were recorded (1 unverified quantity). Reopen it and complete it again before approval."
+          other: "This count was submitted before per-product count times were recorded (%{count} unverified quantities). Reopen it and complete it again before approval."
+      sources:
+        physical: "Physical count"
+        system: "System quantity (not recounted)"
+        legacy: "Unverified (no count time)"
+        previous_unverified: "Previous unverified quantity: %{quantity}"
+        entered_status: "New physical count — recorded when saved"
+        confirm_action: "Confirm count"
+        legacy_hint: "Entered before per-product count times (unverified). Saving it unchanged keeps it unverified; change it to record a recount."
+        system_hint: "Previous unverified quantity: %{previous} · Accepted system quantity: %{quantity} (not physically counted). Saving unchanged keeps it; type a quantity to record a physical recount."
+      history:
+        title: "Activity"
+        adjustments_title: "Posted Adjustments"
+        posted: "Posted"
+        reversal: "Reversal"
+        reversed: "Reversed"
+        active: "Active"
+        when: "When"
+        who: "By"
+        what: "Action"
+        reversed_adjustment: "reversed %{number}"
+        actions:
+          create: "Count started"
+          start_counting: "Counting started"
+          record_counts: "Quantities recorded"
+          complete: "Submitted for approval"
+          approve: "Approved — adjustment posted"
+          reopen: "Reopened"
+          cancel: "Cancelled"
+          delete: "Deleted"
+      errors:
+        not_editable: "This stock count can no longer be edited."
+        unknown_row: "A submitted row does not belong to this stock count."
+        invalid_quantity: "\"%{value}\" is not a valid quantity."
+        not_in_progress: "Only a stock count in progress can be submitted."
+        not_completed: "Only a submitted (completed) stock count can be approved."
+        already_approved: "This stock count already has an active adjustment and cannot be approved again."
+        approve_failed: "Could not approve this stock count."
+        legacy_requires_recompletion:
+          one: "This count was submitted before per-product count times were recorded (1 unverified quantity). Reopen it and complete it again before approving."
+          other: "This count was submitted before per-product count times were recorded (%{count} unverified quantities). Reopen it and complete it again before approving."
+        not_reopenable: "Only a completed or approved stock count can be reopened."
+        reopen_reason_required: "A reason is required to reopen an approved stock count."
+        reopen_failed: "Could not reverse this stock count's adjustment."
+        legacy_link_unresolved: "This count was approved before the stock-count link existed and its adjustment could not be matched to it automatically. Reopening is blocked so the adjustment is not applied twice — ask an administrator to reconcile it."
+        not_deletable: "This stock count cannot be deleted — it is submitted, approved, or has posted stock (cancel it instead)."
+        not_cancellable: "Only a reopened stock count that previously posted stock can be cancelled."
+        removal_reason_required: "A reason is required."
+        audit_failed: "The audit entry could not be recorded, so nothing was changed. Please try again."
     reports:
       title: "Inventory Reports"
       hub_subtitle: "Stock, movements, purchasing, transfers and adjustments — all from the posted inventory ledger."
@@ -5314,6 +5402,7 @@ en:
         StockTransfer: "Stock transfer"
         StockAdjustment: "Stock adjustment"
         LaundryBatch: "Laundry batch"
+        StockCount: "Stock count"
       export_columns:
         date: "Date"
         time: "Time"
@@ -5684,6 +5773,7 @@ en:
           other: "is too short (minimum is %{count} characters)"
         already_voided: "has already been voided"
         void_would_oversell: "cannot void — only %{available} of %{product} (%{sku}) on hand in %{warehouse}, but reversing needs %{needed}"
+        void_via_stock_count_reopen: "This adjustment was posted by a stock count — reopen the stock count to reverse it"
         before_start: "must be on or after the start date"
         after_start: "must be on or after the start date"
         allocation_not_100: "branch allocations must total 100%"
@@ -5809,6 +5899,13 @@ en:
               no_items: "Add at least one product to adjust"
               insufficient_stock: "Not enough stock for %{product} (%{sku}): %{available} available, %{requested} requested"
               opening_balance_needs_cost: "Opening balance for %{product} requires a unit cost"
+            reason:
+              stock_count_requires_count: "\"Stock count correction\" is reserved for adjustments posted by a stock count approval — choose another reason"
+              count_link_requires_stock_count_reason: "must be \"Stock count correction\" for an adjustment posted by a stock count"
+            stock_count_id:
+              other_business: "belongs to another business"
+            warehouse_id:
+              differs_from_stock_count: "must be the stock count's warehouse"
         stock_count:
           attributes:
             base:
@@ -5817,6 +5914,9 @@ en:
               approved_immutable: "An approved stock count cannot be changed"
               already_approved: "This stock count already has an adjustment and cannot be approved again"
               duplicate_product: "Each product can appear only once in a count"
+              cancelled_immutable: "A cancelled stock count cannot be changed"
+            cancel_reason:
+              blank: "is required to cancel a stock count"
         expense:
           attributes:
             base:

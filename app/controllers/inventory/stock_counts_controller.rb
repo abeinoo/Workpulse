@@ -15,9 +15,18 @@ class Inventory::StockCountsController < Inventory::BaseController
     # worksheet rows share one load, instead of the summaries re-loading items
     # and each product one by one. Barcodes come from one bulk lookup (same
     # primary/first rule as Product#barcode).
-    ActiveRecord::Associations::Preloader.new(records: [ @stock_count ], associations: { items: :product }).call
-    @items            = @stock_count.items
-    @product_barcodes = Product.barcode_lookup(@items.map(&:product_id))
+    ActiveRecord::Associations::Preloader.new(
+      records: [ @stock_count ],
+      associations: [ { items: :product }, { stock_adjustments: [ :created_by, :voided_by ] }, :cancelled_by ]
+    ).call
+    @items             = @stock_count.items
+    @product_barcodes  = Product.barcode_lookup(@items.map(&:product_id))
+    @legacy_count      = @items.count(&:legacy_unverified?)
+    # Products not physically counted that keep / adopt the system quantity at completion.
+    @unverified_count  = @items.count { |item| item.legacy_unverified? || item.system_derived? }
+    @adjustments       = @stock_count.stock_adjustments.sort_by(&:id)
+    @active_adjustment = @stock_count.active_stock_adjustment
+    @history           = AuditLog.for_auditable(@stock_count).includes(:actor).order(:created_at, :id).last(100)
   end
 
   def new
@@ -26,81 +35,94 @@ class Inventory::StockCountsController < Inventory::BaseController
     @warehouses = accessible_warehouses
   end
 
-  # Creating a session preloads a count row for every product in the business,
-  # snapshotting the live on-hand per row so the counter sees the variance live.
+  # Creating a session preloads a count row for every product in the business.
   def create
-    @stock_count = current_user.business.stock_counts.build(session_params)
-    @stock_count.created_by = current_user
-    authorize @stock_count
-    ensure_warehouses_accessible!(@stock_count.warehouse_id)
-    preload_products(@stock_count)
+    authorize StockCount
+    ensure_warehouses_accessible!(session_params[:warehouse_id])
+    result = Inventory::StockCountCreator.new(actor: current_user, **session_params.to_h.symbolize_keys).call
 
-    if @stock_count.save
-      redirect_to edit_inventory_stock_count_path(@stock_count), notice: t("inventory.stock_counts.created")
+    if result.ok?
+      redirect_to edit_inventory_stock_count_path(result.count), notice: t("inventory.stock_counts.created")
     else
-      @warehouses = accessible_warehouses
+      @stock_count = result.count
+      @warehouses  = accessible_warehouses
       render :new, status: :unprocessable_entity
     end
   end
 
-  # The counting screen.
+  # The counting screen. Rows not yet physically counted show the warehouse's
+  # live on-hand (the baseline their count will be compared to).
   def edit
     @stock_count = find_count
     authorize @stock_count
-    @products = current_user.business.products.transactable.ordered
+    load_counting_screen
   end
 
   # Saving counted quantities; the first save moves draft → in_progress.
   def update
     @stock_count = find_count
     authorize @stock_count
-    ActiveRecord::Base.transaction do
-      @stock_count.update!(counts_params)
-      @stock_count.start_counting!(current_user)
+    result = Inventory::StockCountRecorder.new(
+      stock_count_id: @stock_count.id, actor: current_user,
+      entries: count_entries, notes: params.dig(:stock_count, :notes)
+    ).call
+
+    unless result.ok?
+      flash.now[:alert] = result.error
+      load_counting_screen
+      return render :edit, status: :unprocessable_entity
     end
+    return complete_after_save if params[:save_and_complete].present?
+
     redirect_to inventory_stock_count_path(@stock_count), notice: t("inventory.stock_counts.updated")
-  rescue ActiveRecord::RecordInvalid
-    @products = current_user.business.products.transactable.ordered
-    render :edit, status: :unprocessable_entity
   end
 
+  # Hard delete — only a never-posted count still being worked on.
   def destroy
     @stock_count = find_count
     authorize @stock_count
-    @stock_count.destroy
-    redirect_to inventory_stock_counts_path, notice: t("inventory.stock_counts.deleted")
+    result = Inventory::StockCountRemoval.new(stock_count_id: @stock_count.id, actor: current_user,
+                                              reason: params[:reason]).delete!
+    if result.ok?
+      redirect_to inventory_stock_counts_path, notice: t("inventory.stock_counts.deleted")
+    else
+      redirect_to inventory_stock_count_path(@stock_count), alert: result.error
+    end
   end
 
-  # in_progress → completed (counter submits for approval).
+  # Cancel — a reopened count that once posted stock (never hard-deleted).
+  def cancel
+    @stock_count = find_count
+    authorize @stock_count, :cancel?
+    result = Inventory::StockCountRemoval.new(stock_count_id: @stock_count.id, actor: current_user,
+                                              reason: params[:reason]).cancel!
+    redirect_with(result, t("inventory.stock_counts.cancelled"))
+  end
+
+  # in_progress → completed (counter submits for approval; no stock change).
   def complete
     @stock_count = find_count
     authorize @stock_count, :complete?
-    if @stock_count.mark_completed!(current_user)
-      redirect_to inventory_stock_count_path(@stock_count), notice: t("inventory.stock_counts.completed")
-    else
-      redirect_to inventory_stock_count_path(@stock_count), alert: t("inventory.stock_counts.complete_failed")
-    end
+    result = Inventory::StockCountCompletion.new(stock_count_id: @stock_count.id, actor: current_user).call
+    redirect_with(result, t("inventory.stock_counts.completed"))
   end
 
-  # completed → approved (approver). Generates the stock-count adjustment.
+  # completed → approved (approver). Posts the stock-count adjustment.
   def approve
     @stock_count = find_count
     authorize @stock_count, :approve?
-    result = Inventory::StockCountApprover.new(@stock_count, user: current_user).call
-    if result.ok?
-      redirect_to inventory_stock_count_path(@stock_count), notice: t("inventory.stock_counts.approved")
-    else
-      redirect_to inventory_stock_count_path(@stock_count),
-                  alert: @stock_count.errors.full_messages.to_sentence.presence || t("inventory.stock_counts.approve_failed")
-    end
+    result = Inventory::StockCountApprover.new(stock_count_id: @stock_count.id, actor: current_user).call
+    redirect_with(result, t("inventory.stock_counts.approved"))
   end
 
-  # completed → in_progress (approver sends it back for recount).
+  # completed / approved → in_progress (approver). Reverses an approved
+  # count's adjustment first.
   def reopen
     @stock_count = find_count
     authorize @stock_count, :reopen?
-    @stock_count.reopen!
-    redirect_to inventory_stock_count_path(@stock_count), notice: t("inventory.stock_counts.reopened")
+    result = Inventory::StockCountReopener.new(stock_count_id: @stock_count.id, actor: current_user,
+                                               reason: params[:reason]).call
+    redirect_with(result, t("inventory.stock_counts.reopened"))
   end
 
   def export
@@ -123,13 +145,14 @@ class Inventory::StockCountsController < Inventory::BaseController
       redirect_to import_inventory_stock_count_path(@stock_count), alert: t("inventory.imports.no_file") and return
     end
 
-    result = Inventory::Imports::StockCountImporter.new(@stock_count, file.read).call
+    importer = Inventory::Imports::StockCountImporter.new(@stock_count, file.read, actor: current_user)
+    result   = importer.call
     if result.ok?
-      @stock_count.start_counting!(current_user)
       redirect_to inventory_stock_count_path(@stock_count),
                   notice: t("inventory.imports.count_summary", applied: result.applied_count, skipped: result.skipped_count)
     else
-      redirect_to import_inventory_stock_count_path(@stock_count), alert: t("inventory.imports.invalid_headers")
+      redirect_to import_inventory_stock_count_path(@stock_count),
+                  alert: importer.error.presence || t("inventory.imports.invalid_headers")
     end
   end
 
@@ -139,14 +162,35 @@ class Inventory::StockCountsController < Inventory::BaseController
     policy_scope(StockCount).find(params[:id])
   end
 
-  # Build a count row for every product, snapshotting its on-hand in the warehouse.
-  # Skipped for another business's warehouse: StockCount's validation refuses it
-  # anyway, and its on-hand must never be read (IP-1 / BUG-025).
-  def preload_products(count)
-    return if count.warehouse.nil? || count.warehouse.business_id != count.business_id
-    current_user.business.products.transactable.ordered.each do |product|
-      count.items.build(product: product, system_quantity: product.stock_in(count.warehouse))
+  # "Save & Complete": runs only after every quantity was saved (a failed save
+  # re-renders the sheet above and never completes). Completion is authorized
+  # on the saved count, exactly like the Complete action.
+  def complete_after_save
+    @stock_count.reload
+    authorize @stock_count, :complete?
+    result = Inventory::StockCountCompletion.new(stock_count_id: @stock_count.id, actor: current_user).call
+    if result.ok?
+      redirect_to inventory_stock_count_path(@stock_count), notice: t("inventory.stock_counts.saved_and_completed")
+    else
+      redirect_to inventory_stock_count_path(@stock_count),
+                  alert: t("inventory.stock_counts.saved_not_completed", error: result.error)
     end
+  end
+
+  def redirect_with(result, notice)
+    if result.ok?
+      redirect_to inventory_stock_count_path(@stock_count), notice: notice
+    else
+      redirect_to inventory_stock_count_path(@stock_count), alert: result.error
+    end
+  end
+
+  def load_counting_screen
+    @products = current_user.business.products.transactable.ordered
+    ActiveRecord::Associations::Preloader.new(records: [ @stock_count ], associations: { items: :product }).call
+    @live_on_hand = Inventory::StockAvailability
+                      .on_hand_by(warehouse_ids: @stock_count.warehouse_id, product_ids: @stock_count.items.map(&:product_id))
+                      .transform_keys(&:last)
   end
 
   # Header-only attributes used when creating a session.
@@ -154,12 +198,14 @@ class Inventory::StockCountsController < Inventory::BaseController
     params.require(:stock_count).permit(:warehouse_id, :counted_on, :notes)
   end
 
-  # Only counted quantities are editable on the counting screen; product_id /
-  # system_quantity ride along for rows the barcode scanner adds on the fly.
-  def counts_params
-    params.require(:stock_count).permit(
-      :notes,
-      items_attributes: [ :id, :product_id, :counted_quantity, :system_quantity ]
-    )
+  # Only counted quantities are editable on the counting screen; product_id
+  # rides along for rows the barcode scanner adds on the fly, and
+  # original_counted_quantity is the value the screen displayed (so an
+  # unchanged row is recognised) and entered marks a row the person typed in
+  # (always a fresh physical count). A system quantity is never taken from the
+  # client — the recorder reads the ledger.
+  def count_entries
+    attrs = params.require(:stock_count).permit(items_attributes: [ :id, :product_id, :counted_quantity, :original_counted_quantity, :entered ])
+    (attrs[:items_attributes] || {}).to_h.values.map(&:symbolize_keys)
   end
 end
