@@ -1,7 +1,9 @@
 # Attendance Requirements, Central & Floating Employees, and Cost Allocation — Business Rules & Implementation Plan
 
-**Status:** owner-reviewed plan, **not authorised for implementation**. Each phase in §13 needs its own explicit
-owner authorisation. Nothing here describes current behaviour unless labelled **[C]**.
+**Status:** owner-approved primary roadmap (revision 17, approved 2026-11-10; see revision 18). The approval of the
+roadmap is **not an authorisation to implement**: each phase in §19.10 needs its own explicit owner authorisation,
+and production work, migrations and deployments need separate approval. Nothing here describes current behaviour
+unless labelled **[C]**.
 
 **Baseline:** `origin/main` `7585f16` (merge of PR #114). PR #110 (`5c4e145`), #114 (`7585f16`) and #115 (`aab5554`)
 merged. Every code reference below was re-read at this commit.
@@ -172,6 +174,13 @@ hardening choices are T-R31-11 … T-R31-15 (§19.13); T-R31-1, T-R31-7 and T-R3
 (§2 V): bounded Docker log rotation (20 MB × 5 files, at most 100 MB per container, effective once the containers are
 recreated), no automatic deletion of the full payload kept in the database, and never an automatic send of the full
 payload to an external error reporter. This closes the open log-retention point of §5.
+
+**Revision 18 (2026-11-11):** records that on 2026-11-10 the owner approved revision 17 of this plan as the primary
+roadmap for the remaining phases. This closes the first approval gate of §19.12 and meets the prerequisite "owner
+approval of this plan" of R1, R4 and R6 (§19.10). It authorises no phase: every phase still needs its own explicit
+authorisation in the order of §19.10, and production work, migrations and deployments need separate approval. R1
+was then authorised separately and merged (PR #121). Q55, the R7.0 design (A1–A6), the G1 design (G-A1–G-A6) and
+D20 (1) stay open. No phase scope, dependency or owner decision is changed.
 
 **Labels**
 
@@ -2710,7 +2719,8 @@ Q13, Q14, Q43 and Q45 (a)(b)(c)(e)(f)(g)(h) are technical decisions **[T]** (§1
 |---|---|---|---|---|
 | **Q55** (from D25) | How a D25 pending settlement (leaver required to attend, no preceding reliable Payroll Period with scheduled working days) is eventually resolved: whether review steps like D20 (2) and (3) apply, and on which payout basis | D25 keeps the case pending HR/Payroll review but defines no resolution; D20 covers only not-required leavers (D18); a payout basis without a reference period would be a new pricing rule | **No recommendation.** Until decided, the case stays pending and listed for HR/Payroll review; nothing is paid, forfeited, zeroed or discarded (D25); the final payroll is finalized without the payout line (§18.10.2 K53) | Nothing: R7 builds the pending case; only its resolution waits |
 
-**Approval gates that are not questions** (§19.12): owner approval of this plan (R1); the R7.0 design (§19.4,
+**Approval gates that are not questions** (§19.12): owner approval of this plan (R1; given on 2026-11-10, revision
+18); the R7.0 design (§19.4,
 with its approval items A1–A6); the G1 design (§19.5, approval items G-A1–G-A6); the formal approval of the payout
 calculation for not-required employees (D20 (1)); each phase's implementation authorisation.
 
@@ -3202,7 +3212,8 @@ mapping of every new table in the same commit; no commit or merge without the ow
 
 ### 19.12 Approval gates that remain for the owner
 
-1. Approval of this plan as a whole (unblocks R1 and the phase authorisations).
+1. Approval of this plan as a whole (unblocks R1 and the phase authorisations). **Given 2026-11-10** (revision 17
+   approved as the primary roadmap; revision 18). It is not an implementation authorisation (item 6).
 2. Q55 (how a D25 pending settlement is eventually resolved; non-blocking).
 3. The R7.0 design (§19.4) with approval items A1–A6.
 4. The G1 design (§19.5) with approval items G-A1–G-A6.
