@@ -3,6 +3,7 @@ require "rails_helper"
 RSpec.describe Inventory::Imports::StockCountImporter do
   let(:business)       { create(:business) }
   let(:warehouse)      { business.warehouses.create!(name: "Main") }
+  let(:actor)          { create(:user, :super_admin, business: business) }
   let(:seed_product)   {
     business.products.create!(name: "Seed", sku: "SEED-001",
                               initial_cost_price: 1, average_cost_price: 1)
@@ -19,7 +20,7 @@ RSpec.describe Inventory::Imports::StockCountImporter do
   end
 
   def importer(csv_data)
-    described_class.new(count, csv_data)
+    described_class.new(count, csv_data, actor: actor)
   end
 
   describe "archived product exclusion" do

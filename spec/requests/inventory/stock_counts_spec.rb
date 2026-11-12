@@ -92,8 +92,8 @@ RSpec.describe "Inventory::StockCounts", type: :request do
       expect(response).to redirect_to(inventory_stock_count_path(count))
       expect(count.reload).to be_approved
       expect(product.reload.current_stock).to eq(17)
-      expect(count.stock_adjustment).to be_present
-      expect(count.stock_adjustment.reason).to eq("stock_count")
+      expect(count.active_stock_adjustment).to be_present
+      expect(count.active_stock_adjustment.reason).to eq("stock_count")
     end
 
     it "lets an approver send a completed count back (reopen)" do
@@ -166,7 +166,7 @@ RSpec.describe "Inventory::StockCounts", type: :request do
       expect(product.reload.current_stock).to eq(17)      # counted product corrected
       expect(other.reload.current_stock).to eq(9)         # uncounted product untouched
       # no adjustment line for the uncounted product
-      expect(count.stock_adjustment.items.map(&:product)).to eq([ product ])
+      expect(count.active_stock_adjustment.items.map(&:product)).to eq([ product ])
     end
   end
 
@@ -207,7 +207,7 @@ RSpec.describe "Inventory::StockCounts", type: :request do
       patch complete_inventory_stock_count_path(count)
       sign_in approver
       patch approve_inventory_stock_count_path(count)
-      adj = count.reload.stock_adjustment
+      adj = count.reload.active_stock_adjustment
       expect(adj).to be_present
 
       # Adjustment → source count
@@ -220,6 +220,184 @@ RSpec.describe "Inventory::StockCounts", type: :request do
       expect(response.body).to include(adj.adjustment_number)
       expect(response.body).to include(inventory_stock_adjustment_path(adj))
       expect(response.body).to include(I18n.t("inventory.stock_counts.impact.title"))
+    end
+  end
+
+  describe "lifecycle repair (D1–D9) over HTTP" do
+    def complete_as(count, user)
+      sign_in user
+      patch complete_inventory_stock_count_path(count)
+      count.reload
+    end
+
+    def approve_as(count, user)
+      sign_in user
+      patch approve_inventory_stock_count_path(count)
+      count.reload
+    end
+
+    def approved_count
+      count = start_session(as: counter)
+      set_count(count, 17, as: counter)          # −3
+      complete_as(count, counter)
+      approve_as(count, approver)
+    end
+
+    it "explains on the page that completing does not change inventory" do
+      count = start_session(as: counter)
+      set_count(count, 17, as: counter)
+      complete_as(count, counter)
+      expect(product.reload.current_stock).to eq(20)
+
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.statuses.completed"))
+      expect(response.body).to include(I18n.t("inventory.stock_counts.guidance.awaiting_approval"))
+      expect(response.body).to include(I18n.t("inventory.stock_counts.guidance.self_approval_blocked"))
+    end
+
+    it "lets the owner approve their own count, with the exception shown and audited" do
+      count = start_session(as: owner)
+      set_count(count, 17, as: owner)
+      complete_as(count, owner)
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.owner_self_approval_badge"))
+
+      approve_as(count, owner)
+      expect(count).to be_approved
+      expect(product.reload.current_stock).to eq(17)
+      expect(AuditLog.for_auditable(count).find_by(action: "approve").metadata["owner_self_approval"]).to be(true)
+    end
+
+    it "reopens an approved count with a reason, reversing its adjustment" do
+      count = approved_count
+      adjustment = count.active_stock_adjustment
+
+      sign_in approver
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(ERB::Util.html_escape(I18n.t("inventory.stock_counts.reopen_approved_action")))
+      patch reopen_inventory_stock_count_path(count), params: { reason: "Shelf B missed" }
+
+      expect(response).to redirect_to(inventory_stock_count_path(count))
+      expect(count.reload).to be_in_progress
+      expect(adjustment.reload).to be_voided
+      expect(product.reload.current_stock).to eq(20)
+    end
+
+    it "refuses to reopen an approved count without a reason" do
+      count = approved_count
+      sign_in approver
+      patch reopen_inventory_stock_count_path(count), params: { reason: "" }
+      expect(flash[:alert]).to eq(I18n.t("inventory.stock_counts.errors.reopen_reason_required"))
+      expect(count.reload).to be_approved
+    end
+
+    it "forbids a counter from reopening an approved count" do
+      count = approved_count
+      sign_in counter
+      patch reopen_inventory_stock_count_path(count), params: { reason: "x" }
+      expect(response).to redirect_to(root_path)
+      expect(count.reload).to be_approved
+    end
+
+    it "deletes an unposted count with a reason and confirmation, audited" do
+      count = start_session(as: counter)
+      sign_in counter
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.delete_confirm"))
+
+      delete inventory_stock_count_path(count), params: { reason: "Wrong warehouse" }
+      expect(response).to redirect_to(inventory_stock_counts_path)
+      expect(StockCount.exists?(count.id)).to be(false)
+      expect(AuditLog.where(auditable_type: "StockCount", auditable_id: count.id, action: "delete")).to exist
+    end
+
+    it "never answers a refused delete with a 500" do
+      count = start_session(as: counter)
+      set_count(count, 17, as: counter)
+      complete_as(count, counter)
+
+      sign_in counter
+      delete inventory_stock_count_path(count), params: { reason: "x" }   # completed: policy refuses
+      expect(response).to redirect_to(root_path)
+      expect(StockCount.exists?(count.id)).to be(true)
+
+      in_progress = start_session(as: counter)
+      delete inventory_stock_count_path(in_progress), params: { reason: "" }   # allowed, but no reason
+      expect(response).to redirect_to(inventory_stock_count_path(in_progress))
+      expect(flash[:alert]).to eq(I18n.t("inventory.stock_counts.errors.removal_reason_required"))
+    end
+
+    it "cancels (never deletes) a reopened count that posted stock" do
+      count = approved_count
+      sign_in approver
+      patch reopen_inventory_stock_count_path(count), params: { reason: "recount" }
+
+      sign_in counter
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.cancel_action"))
+      expect(response.body).not_to include(I18n.t("inventory.stock_counts.delete_action"))
+
+      patch cancel_inventory_stock_count_path(count), params: { reason: "Superseded" }
+      expect(count.reload).to be_cancelled
+      expect(count.stock_adjustments.count).to eq(1)
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.statuses.cancelled"))
+      expect(response.body).to include(I18n.t("inventory.stock_counts.history.adjustments_title"))
+    end
+
+    it "blocks voiding a count's adjustment from the adjustment page" do
+      count = approved_count
+      adjustment = count.active_stock_adjustment
+      sign_in owner
+      patch void_inventory_stock_adjustment_path(adjustment), params: { void_reason: "x" }
+      expect(response).to redirect_to(root_path)
+      expect(adjustment.reload).not_to be_voided
+    end
+
+    it "shows a legacy quantity blank on the counting screen and keeps it when left blank" do
+      count = start_session(as: counter)
+      item  = count.items.first
+      item.update!(counted_quantity: 8)                     # pre-upgrade style: no source, no time
+      count.update_column(:status, "in_progress")
+
+      sign_in counter
+      get edit_inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.sources.legacy_hint", quantity: 8))
+      input = Nokogiri::HTML(response.body).at_css("input[name='stock_count[items_attributes][0][counted_quantity]']")
+      expect(input["value"]).to be_nil
+
+      patch inventory_stock_count_path(count), params: {
+        stock_count: { items_attributes: { "0" => { id: item.id, product_id: product.id, counted_quantity: "" } } }
+      }
+      expect(item.reload).to have_attributes(counted_quantity: 8, quantity_source: nil)
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(I18n.t("inventory.stock_counts.sources.legacy"))
+    end
+
+    it "shows the legacy-quantity banner on an editable count but not on a historical approved one" do
+      count = start_session(as: counter)
+      count.items.first.update!(counted_quantity: 8)        # pre-upgrade style
+      count.update_column(:status, "in_progress")
+      banner = I18n.t("inventory.stock_counts.guidance.legacy_editable", count: 1)
+
+      sign_in counter
+      get inventory_stock_count_path(count)
+      expect(response.body).to include(ERB::Util.html_escape(banner))
+
+      count.update_columns(status: "approved", approved_at: 1.day.ago)
+      get inventory_stock_count_path(count)
+      expect(response.body).not_to include(ERB::Util.html_escape(banner))
+      expect(response.body).to include(I18n.t("inventory.stock_counts.sources.legacy"))   # row label stays
+    end
+
+    it "ignores a system quantity posted by the client" do
+      count = start_session(as: counter)
+      item  = count.items.first
+      sign_in counter
+      patch inventory_stock_count_path(count), params: {
+        stock_count: { items_attributes: { "0" => { id: item.id, product_id: product.id, counted_quantity: 17, system_quantity: 999 } } }
+      }
+      expect(item.reload).to have_attributes(system_quantity: 20, difference: -3, quantity_source: "physical")
     end
   end
 end

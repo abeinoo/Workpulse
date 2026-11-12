@@ -14,7 +14,7 @@ RSpec.describe Inventory::AdjustmentPoster, type: :model do
   end
 
   it "auto-numbers adjustments per business" do
-    result = adjust(reason: "stock_count", lines: [ { quantity_difference: 5 } ])
+    result = adjust(reason: "manual_correction", lines: [ { quantity_difference: 5 } ])
     expect(result.adjustment.adjustment_number).to match(/\AADJ-\d{6}\z/)
   end
 
@@ -41,8 +41,8 @@ RSpec.describe Inventory::AdjustmentPoster, type: :model do
       expect(mv.quantity).to eq(5)
     end
 
-    it "increases stock for a positive count correction without changing the average" do
-      adjust(reason: "stock_count", lines: [ { quantity_difference: 3 } ])
+    it "increases stock for a positive manual correction without changing the average" do
+      adjust(reason: "manual_correction", lines: [ { quantity_difference: 3 } ])
       expect(product.reload.current_stock).to eq(103)
       expect(product.average_cost_price).to eq(10)
     end
@@ -58,7 +58,7 @@ RSpec.describe Inventory::AdjustmentPoster, type: :model do
     end
 
     it "rejects a zero quantity difference" do
-      result = adjust(reason: "stock_count", lines: [ { quantity_difference: 0 } ])
+      result = adjust(reason: "manual_correction", lines: [ { quantity_difference: 0 } ])
       expect(result.ok?).to be(false)
     end
   end
@@ -66,5 +66,47 @@ RSpec.describe Inventory::AdjustmentPoster, type: :model do
   it "appears in the product's movement history" do
     adjust(reason: "opening_balance", lines: [ { quantity_difference: 10, unit_cost: 5 } ])
     expect(product.inventory_movements.where(reason: "opening_balance").count).to eq(1)
+  end
+
+  describe "audit and locking" do
+    let(:user) { create(:user, :owner, business: business) }
+
+    it "audits the posting with its lines" do
+      a = business.stock_adjustments.build(warehouse: warehouse, adjusted_on: Date.current, reason: "opening_balance", created_by: user)
+      a.items.build(product: product, quantity_difference: 4, unit_cost: 2)
+      described_class.new(a).call
+      entry = AuditLog.for_auditable(a).sole
+      expect([ entry.action, entry.actor ]).to eq([ "post", user ])
+      expect(entry.metadata["lines"]).to eq([ { "product_id" => product.id, "quantity_difference" => "4.0" } ])
+    end
+
+    it "locks the products before reading the on-hand, inside the posting transaction" do
+      adjust(reason: "opening_balance", lines: [ { quantity_difference: 5, unit_cost: 1 } ])
+      order = []
+      allow(Inventory::StockAvailability).to receive(:lock_products!).and_wrap_original do |original, ids|
+        order << [ :lock, ActiveRecord::Base.connection.transaction_open? ]
+        original.call(ids)
+      end
+      allow_any_instance_of(Product).to receive(:stock_in).and_wrap_original do |original, *args|
+        order << :read
+        original.call(*args)
+      end
+      adjust(reason: "damaged", lines: [ { quantity_difference: -1 } ])
+      expect(order.first).to eq([ :lock, true ])
+      expect(order).to include(:read)
+    end
+  end
+
+  describe "voiding (DocumentVoider)" do
+    let(:user) { create(:user, :owner, business: business) }
+
+    it "audits a manual adjustment void when asked to" do
+      result = adjust(reason: "opening_balance", lines: [ { quantity_difference: 5, unit_cost: 1 } ])
+      Inventory::DocumentVoider.new(result.adjustment, user: user, reason: "typo", audit: true).call
+      entry = AuditLog.for_auditable(result.adjustment).find_by!(action: "void")
+      expect(entry.metadata).to include("reason" => "typo")
+      expect(entry.metadata["reversal"]).to eq([ { "product_id" => product.id, "warehouse_id" => warehouse.id,
+                                                   "direction" => "out", "quantity" => "5.0" } ])
+    end
   end
 end

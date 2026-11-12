@@ -34,10 +34,20 @@ RSpec.describe "Stock count show — query count and figures", type: :request do
       when 1 then 7
       when 2 then 13
       end
-      count.items.build(product: p, system_quantity: 10, counted_quantity: counted)
+      # A physically counted row against a baseline of 10 (uncounted rows stay blank).
+      count.items.build(product: p, system_quantity: 10, counted_quantity: counted,
+                        quantity_source: (counted && "physical"), counted_at: (counted && Time.current),
+                        baseline_at: (counted && Time.current))
     end
     count.save!
     count
+  end
+
+  # Gives each product the 10 units its count's baseline assumes.
+  def receive_ten_of_each(products)
+    receipt = business.goods_receipts.build(warehouse: warehouse, received_on: Date.current)
+    products.each { |p| receipt.items.build(product: p, quantity: 10, unit_cost: 1) }
+    Inventory::GoodsReceiptPoster.new(receipt).call
   end
 
   def queries_for(path)
@@ -70,7 +80,8 @@ RSpec.describe "Stock count show — query count and figures", type: :request do
     expect(stats).to include(ActiveSupport::NumberHelper.number_to_currency(fresh.adjustment_value, unit: ""))
     expect(fresh.adjustment_value).not_to be_zero
 
-    rows = page.css("table tbody tr").map { |tr| tr.css("td").map { |td| td.text.squish } }
+    worksheet = page.css("table").find { |table| table.text.include?(I18n.t("inventory.stock_counts.quantity_source")) }
+    rows = worksheet.css("tbody tr").map { |tr| tr.css("td").first(5).map { |td| td.text.squish } }
     expected = fresh.items.map do |item|
       diff = item.difference.to_d
       [ "#{item.product.name} (#{item.product.sku})", item.product.barcode.presence || "—", item.system_quantity.to_i.to_s,
@@ -81,13 +92,15 @@ RSpec.describe "Stock count show — query count and figures", type: :request do
   end
 
   it "shows the approved count's inventory impact from its adjustment" do
-    count = stock_count(add_products(6))
+    products = add_products(6)
+    receive_ten_of_each(products)
+    count = stock_count(products)
     approver = create(:user, business: business).tap do |u|
       role = business.permission_roles.create!(name: "Approver", permissions: %w[view_inventory post_stock_counts])
       u.update_column(:permission_role_id, role.id)
     end
-    Inventory::StockCountApprover.new(count, user: approver).call
-    adjustment = count.reload.stock_adjustment
+    expect(Inventory::StockCountApprover.new(stock_count_id: count.id, actor: approver).call.ok?).to be(true)
+    adjustment = count.reload.active_stock_adjustment
 
     get inventory_stock_count_path(count)
 

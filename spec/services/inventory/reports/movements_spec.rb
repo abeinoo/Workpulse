@@ -82,12 +82,9 @@ RSpec.describe Inventory::Reports::Movements, type: :model do
     it "an approved stock count posts its variance and lands the balance on the counted quantity" do
       receive(qty: 10, on: Date.current)
       counter = create(:user, :super_admin, business: business)
-      count = business.stock_counts.build(warehouse: main, counted_on: Date.current, created_by: counter)
-      count.items.build(product: product, counted_quantity: 7)
-      count.save!
-      count.start_counting!(counter)
-      count.mark_completed!(counter)
-      expect(Inventory::StockCountApprover.new(count, user: user).call.ok?).to be(true)
+      count = record_stock_count!(business: business, warehouse: main, counter: counter,
+                                  lines: [ [ product, 7 ] ], complete: true)
+      expect(approve_stock_count(count, user).ok?).to be(true)
 
       row = report.first
       expect([ row.reason, row.signed_quantity, row.balance_after ]).to eq([ "adjustment", -3, 7 ])
