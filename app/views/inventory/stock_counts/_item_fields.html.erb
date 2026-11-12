@@ -35,6 +35,25 @@
           value: inventory_quantity(entered),
           inputmode: "numeric", pattern: "[0-9]*", placeholder: "—",
           data: { quantity_field: true, action: "input->count-sheet#recalc keydown.enter->count-sheet#focusScanner" } %>
+    <%# Live status of this row's quantity: what it is now, and — once the person
+        types in it or confirms it — that saving will record a new physical
+        count (count-sheet#markEntered). %>
+    <% status_key, status_class = if legacy then [ "legacy", "badge-warning" ]
+                                  elsif system then [ "system", "badge-neutral" ]
+                                  elsif item.physical? then [ "physical", "badge-success" ]
+                                  end %>
+    <div class="flex items-center" style="gap: var(--space-2); margin-top: var(--space-1); flex-wrap: wrap;">
+      <span class="badge <%= status_class %>" data-entry-status
+            data-entered-label="<%= t("inventory.stock_counts.sources.entered_status") %>"
+            <%= "hidden" unless status_key %>>
+        <%= t("inventory.stock_counts.sources.#{status_key}") if status_key %>
+      </span>
+      <% if legacy || system %>
+        <%# Confirms the shown quantity as physically counted, without retyping it. %>
+        <button type="button" class="btn btn-ghost btn-sm" data-confirm-row
+                data-action="count-sheet#confirmRow"><%= t("inventory.stock_counts.sources.confirm_action") %></button>
+      <% end %>
+    </div>
     <% if legacy %>
       <div class="form-hint" style="font-size: var(--text-xs);">
         <%= t("inventory.stock_counts.sources.legacy_hint", quantity: inventory_quantity(item.counted_quantity)) %>

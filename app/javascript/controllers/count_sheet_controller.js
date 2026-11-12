@@ -32,10 +32,21 @@ export default class extends Controller {
     const input = event.target
     // Typing in a row is an explicit entry: the server records it as a fresh
     // physical count, even if the value equals the previous one.
-    const flag = input.closest("[data-line-row]")?.querySelector("[data-entered-flag]")
-    if (flag) flag.value = "1"
+    this.#markEntered(input.closest("[data-line-row]"))
     this.#applyDifference(input)
     this.#applyFilter(input.closest("[data-line-row]"))
+    this.#refreshProgress()
+  }
+
+  // "Confirm count" on an unverified / system row: the shown quantity was
+  // physically counted — recorded on save exactly as if it had been typed.
+  confirmRow(event) {
+    const row = event.currentTarget.closest("[data-line-row]")
+    const input = row?.querySelector("[data-quantity-field]")
+    if (!input) return
+    if (input.value.trim() === "") { input.focus(); return }
+    this.#markEntered(row)
+    this.#applyDifference(input)
     this.#refreshProgress()
   }
 
@@ -67,6 +78,20 @@ export default class extends Controller {
   }
 
   // ── internals ──────────────────────────────────────────────────────────
+  #markEntered(row) {
+    if (!row) return
+    const flag = row.querySelector("[data-entered-flag]")
+    if (flag) flag.value = "1"
+    const status = row.querySelector("[data-entry-status]")
+    if (status) {
+      status.hidden = false
+      status.textContent = status.dataset.enteredLabel
+      status.classList.remove("badge-warning", "badge-neutral")
+      status.classList.add("badge-success")
+    }
+    row.querySelector("[data-confirm-row]")?.setAttribute("hidden", "")
+  }
+
   // Scrolling over a focused quantity field scrolls the page instead of
   // stepping the value.
   #blockWheel(event) {

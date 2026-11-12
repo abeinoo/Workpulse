@@ -5334,6 +5334,8 @@ en:
         system: "System quantity (not recounted)"
         legacy: "Unverified (no count time)"
         previous_unverified: "Previous unverified quantity: %{quantity}"
+        entered_status: "New physical count — recorded when saved"
+        confirm_action: "Confirm count"
         legacy_hint: "Entered before per-product count times (unverified). Saving it unchanged keeps it unverified; change it to record a recount."
         system_hint: "Previous unverified quantity: %{previous} · Accepted system quantity: %{quantity} (not physically counted). Saving unchanged keeps it; type a quantity to record a physical recount."
       history:
