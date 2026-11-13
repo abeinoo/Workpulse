@@ -36,6 +36,10 @@ class UserPolicy < ApplicationPolicy
   def reset_password? = controls_account?
   def transfer_ownership? = user.owner? && record != user
   def toggle_active?  = controls_account? && !own_record?
+  # Changing an employee's attendance requirement (R3.2, attendance plan §6.1):
+  # manage_employees within the management scope, never on one's own record —
+  # the owner included.
+  def change_attendance_requirement? = can?(:manage_employees) && !own_record? && in_management_scope?
   # Issuing an account-claim invitation link (OA-S6).
   def invite?         = controls_account? && record.persisted? &&
                         record.active? && record.encrypted_password.blank?

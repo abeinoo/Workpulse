@@ -1,4 +1,24 @@
 en:
+  attendance_requirements:
+    statuses:
+      required: "Required"
+      not_required: "Not required"
+      not_reviewed: "Not reviewed"
+    errors:
+      invalid_source: "This change cannot be recorded."
+      not_authorized: "You are not allowed to change this employee's attendance requirement."
+      rollout_inactive: "Attendance requirement changes are not enabled for this business yet."
+      invalid_status: "Choose Required or Not required."
+      effective_date_required: "An effective date is required."
+      already_recorded: "This employee already has an attendance requirement history."
+      unchanged: "The attendance requirement on that date is already %{status}."
+      assignments_active: "End or cancel the employee's shift assignments on or after the effective date before making attendance not required."
+      reason_required: "A reason is required for a backdated change."
+      payroll_protected: "The change reaches the %{period} payroll period, which is %{stage}. Backdated changes into a period under review or later are not allowed."
+      invalid: "The change could not be saved."
+    stages:
+      in_review: "under review"
+      finalized: "finalized"
   activerecord:
     models:
       employee_attendance_requirement: "Attendance requirement"

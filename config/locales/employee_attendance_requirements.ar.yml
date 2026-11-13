@@ -1,4 +1,24 @@
 ar:
+  attendance_requirements:
+    statuses:
+      required: "مطلوب"
+      not_required: "غير مطلوب"
+      not_reviewed: "لم تتم المراجعة"
+    errors:
+      invalid_source: "لا يمكن تسجيل هذا التغيير."
+      not_authorized: "غير مسموح لك بتغيير متطلب الحضور لهذا الموظف."
+      rollout_inactive: "تغييرات متطلب الحضور غير مفعّلة لهذه المنشأة بعد."
+      invalid_status: "اختر مطلوب أو غير مطلوب."
+      effective_date_required: "تاريخ السريان مطلوب."
+      already_recorded: "لهذا الموظف سجل متطلب حضور بالفعل."
+      unchanged: "متطلب الحضور في ذلك التاريخ هو بالفعل %{status}."
+      assignments_active: "أنهِ أو ألغِ تعيينات الورديات للموظف في تاريخ السريان أو بعده قبل جعل الحضور غير مطلوب."
+      reason_required: "السبب مطلوب للتغيير بأثر رجعي."
+      payroll_protected: "يمتد التغيير إلى فترة رواتب %{period} وهي %{stage}. لا يُسمح بالتغيير بأثر رجعي داخل فترة قيد المراجعة أو ما بعدها."
+      invalid: "تعذّر حفظ التغيير."
+    stages:
+      in_review: "قيد المراجعة"
+      finalized: "معتمدة"
   activerecord:
     models:
       employee_attendance_requirement: "متطلب الحضور"
