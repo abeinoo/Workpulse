@@ -176,6 +176,81 @@ RSpec.describe Employee::AttendanceRequirementChanger do
     end
   end
 
+  # What G6 relies on: the creation paths call the changer inside their own
+  # transaction (employee save / data-request approval), so the first row and
+  # the employee are written together or not at all.
+  describe "inside a caller's transaction" do
+    it "rolls the history row and its audit entry back with the caller" do
+      ActiveRecord::Base.transaction(requires_new: true) do
+        expect(change(status: "required", from: today, source: :creation)).to be_ok
+        raise ActiveRecord::Rollback
+      end
+      expect(EmployeeAttendanceRequirement.count).to eq(0)
+      expect(AuditLog.where(action: "attendance_requirement_changed")).to be_empty
+    end
+
+    it "returns a refusal without writing anything, leaving the caller's transaction usable" do
+      ActiveRecord::Base.transaction(requires_new: true) do
+        expect(change(status: "not_reviewed", from: today, source: :creation).error).to eq(:invalid_status)
+        expect(User.exists?(employee.id)).to be(true) # the caller can still query, then decide to roll back
+      end
+      expect(EmployeeAttendanceRequirement.count).to eq(0)
+    end
+  end
+
+  describe "failing closed" do
+    before { first_row! && enable_rollout! }
+
+    it "raises (never accepts) when the payroll-date check has no registered handler" do
+      registered = Employee::PayrollDateProtection.instance_variable_get(:@handler)
+      Employee::PayrollDateProtection.instance_variable_set(:@handler, nil)
+      expect { change(status: "not_required", from: today - 3, reason: "x") }
+        .to raise_error(Employee::PayrollDateProtection::NotRegistered)
+      expect(EmployeeAttendanceRequirement.count).to eq(1)
+    ensure
+      Employee::PayrollDateProtection.instance_variable_set(:@handler, registered)
+    end
+
+    it "raises (never accepts) when the payroll-date check fails, e.g. a deadlock" do
+      allow(Payroll::RequirementDateProtection).to receive(:lock_protected_range).and_raise(ActiveRecord::Deadlocked)
+      expect { change(status: "not_required", from: today - 3, reason: "x") }.to raise_error(ActiveRecord::Deadlocked)
+      expect(EmployeeAttendanceRequirement.count).to eq(1)
+      expect(AuditLog.where(action: "attendance_requirement_changed").count).to eq(1)
+    end
+  end
+
+  it "follows the §19.14 lock order for a backdated change: employee lock → payroll-status lock (shared) → period rows → insert" do
+    first_row!
+    enable_rollout!
+    create(:payroll_period, business: business, period_year: 2026, period_month: 11, status: :draft)
+    sql = []
+    callback = ->(*, payload) { sql << payload[:sql] }
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      expect(change(status: "not_required", from: today - 3, reason: "x")).to be_ok
+    end
+
+    positions = [
+      sql.index { |s| s.include?("pg_advisory_xact_lock(#{Employee::AttendanceRequirements::LOCK_NAMESPACE}, #{employee.id})") },
+      sql.index { |s| s.include?("pg_advisory_xact_lock_shared(#{Payroll::StatusLock::NAMESPACE}, #{business.id})") },
+      sql.index { |s| s.include?("FROM \"payroll_periods\"") && s.include?("FOR SHARE") },
+      sql.index { |s| s.start_with?("INSERT INTO \"employee_attendance_requirements\"") }
+    ]
+    expect(positions).to all(be_an(Integer))
+    expect(positions).to eq(positions.sort)
+    expect(sql.grep(/pg_advisory_xact_lock\(#{Payroll::StatusLock::NAMESPACE},/)).to be_empty # never the exclusive mode
+  end
+
+  it "takes no payroll lock for a future-dated change" do
+    first_row!
+    enable_rollout!
+    sql = []
+    callback = ->(*, payload) { sql << payload[:sql] }
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      expect(change(status: "not_required", from: today + 3)).to be_ok
+    end
+    expect(sql.join("\n")).not_to match(/pg_advisory_xact_lock_shared|FOR SHARE/)
+  end
+
   it "takes the employee lock before writing (first lock of the transaction)" do
     expect(Employee::AttendanceRequirements).to receive(:lock_employee!).with(user_id: employee.id).ordered.and_call_original
     expect(EmployeeAttendanceRequirement).to receive(:create!).ordered.and_call_original
