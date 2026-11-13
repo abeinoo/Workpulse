@@ -20,19 +20,22 @@ module Payroll
 
     module_function
 
+    SHARED_SQL    = "SELECT pg_advisory_xact_lock_shared(?, ?)".freeze
+    EXCLUSIVE_SQL = "SELECT pg_advisory_xact_lock(?, ?)".freeze
+
     def shared!(business_id:)
-      acquire("pg_advisory_xact_lock_shared", business_id)
+      acquire(SHARED_SQL, business_id)
     end
 
     def exclusive!(business_id:)
-      acquire("pg_advisory_xact_lock", business_id)
+      acquire(EXCLUSIVE_SQL, business_id)
     end
 
-    def acquire(function, business_id)
+    def acquire(sql, business_id)
       connection = PayrollPeriod.connection
-      raise OutsideTransaction, "#{function} needs an open transaction" unless connection.transaction_open?
+      raise OutsideTransaction, "the payroll-status lock needs an open transaction" unless connection.transaction_open?
 
-      connection.execute("SELECT #{function}(#{NAMESPACE}, #{Integer(business_id)})")
+      connection.execute(PayrollPeriod.sanitize_sql_array([ sql, NAMESPACE, Integer(business_id) ]))
     end
     private_class_method :acquire
   end
