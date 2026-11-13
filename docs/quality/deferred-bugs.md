@@ -66,6 +66,7 @@ here only so its stable ID and history are kept.
 | BUG-043 | Till custody flows resolve the cashier's branch with the UTC calendar date (`Date.current`), not the business day | Finance & Sales (till custody / daily reconciliations) | Medium (only near the business-day rollover AND with a shift-assignment change at that boundary) | Suspected (code; same mechanism Confirmed for `OpeningFloatsController` by `opening_floats_spec.rb`) | Deferred | Next Finance & Sales till-custody fix |
 | BUG-044 | Biometric device create, edit, branch reassignment, token regeneration and delete write no audit entry | Attendance & Payroll (device administration) | Low–Medium (configuration, not money; every punch log records its own branch, so attribution stays traceable) | Confirmed (code reading, 2026-11-03) | Deferred | Before devices are managed by more than the owner, or the next device-administration change |
 | BUG-045 | Draft Regenerate drops entry notes, API-added cash incentives and adjustment line-item review state | Attendance & Payroll (payroll regeneration) | Medium (an API cash incentive silently leaves net pay; draft periods only; the pre-regenerate snapshot shows the change) | Confirmed (reproduction 2026-11-04, rolled-back test transaction) | Deferred | Next payroll-regeneration change, or before the API incentive endpoint is used on draft periods |
+| BUG-047 | JSON API declares routes whose actions or controller do not exist (`/api/v1/shifts/new`, `/api/v1/shift_assignments/new` and their `edit`; every `/api/v1/users` route except nested salary profiles) | Workforce / Organization & Access (API routing) | Low (no data effect; a client gets not-found) | Confirmed (code reading + route inventory, 2026-11-13) | Open | Next API change, or before the API is opened to new clients |
 
 ---
 
@@ -1531,3 +1532,18 @@ here only so its stable ID and history are kept.
   `recalculate_totals!`.
 * **Review milestone:** the next payroll-regeneration change, or before the API incentive endpoint is used on draft
   periods.
+
+## BUG-047 — JSON API declares routes whose actions or controller do not exist
+
+* **Source:** UI/UX and workflow scenario inventory, route baseline (`script/quality/route_inventory.rb`),
+  2026-11-13. **Discovered:** 2026-11-13. **Status:** Open.
+* **Domain / files:** `config/routes.rb` (`namespace :api / :v1` — `resources :users`, `resources :shifts`,
+  `resources :shift_assignments` without `only:`); `app/controllers/api/v1/shifts_controller.rb` and
+  `shift_assignments_controller.rb` define no `new` / `edit`; there is no `Api::V1::UsersController` (only the nested
+  salary-profile controller exists).
+* **Observed:** the routes are listed by `bin/rails routes`; a request to them raises `ActionNotFound` /
+  uninitialized-controller and is answered as not found. Already noted for `/api/v1/users` in the R3.2 manifest.
+* **Expected:** the API declares only the actions it serves (`only:`), so the route list is the real contract.
+* **Impact:** none on data; misleading for API clients and for the route-based inventory.
+* **Recommended fix:** add `only:` to the three resources (keeping the nested salary-profile routes), with a
+  routing spec that every API route resolves to a defined action.
