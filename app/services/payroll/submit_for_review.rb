@@ -5,7 +5,18 @@ module Payroll
   # central slot (no branch, no reviewer yet) when the period has floating
   # employees — they belong to no branch, so no branch manager reviews them;
   # see PayrollPeriodBranchReview.central_reviewer?.
+  #
+  # Concurrency (R3.2 G4; attendance plan revision 19, OD-12, §19.14): the
+  # decision is taken under the business's payroll-status lock (exclusive) and
+  # the period's row lock, on the reloaded row — never on the object the caller
+  # passed in. A backdated attendance-requirement change holds the same lock in
+  # shared mode while it checks the period (Payroll::RequirementDateProtection),
+  # so a period never becomes protected while such a change is in flight, and a
+  # stale or duplicate submission is refused instead of being written twice.
+  # Lock order: payroll-status lock → period row → review slots.
   class SubmitForReview
+    REFUSAL = "Period must be draft (initial submission) or under_review with changes requested (resubmission)".freeze
+
     Result = Struct.new(:success, :period, :error, keyword_init: true) do
       def success? = success
     end
@@ -20,13 +31,19 @@ module Payroll
     end
 
     def call
-      if @period.draft?
-        submit_initial!
-      elsif @period.under_review? && @period.payroll_period_branch_reviews.changes_requested.any?
-        resubmit!
-      else
-        return err("Period must be draft (initial submission) or under_review with changes requested (resubmission)")
+      submitted = ActiveRecord::Base.transaction do
+        Payroll::StatusLock.exclusive!(business_id: @period.business_id)
+        @period.lock!
+        if @period.draft?
+          submit_initial!
+        elsif @period.under_review? && @period.payroll_period_branch_reviews.changes_requested.any?
+          resubmit!
+        else
+          next false
+        end
+        true
       end
+      return err(REFUSAL) unless submitted
 
       Result.new(success: true, period: @period)
     rescue StandardError => e
