@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_13_100100) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -894,6 +894,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_100100) do
     t.index ["supplier_id"], name: "index_goods_receipts_on_supplier_id"
     t.index ["voided_by_id"], name: "index_goods_receipts_on_voided_by_id"
     t.index ["warehouse_id"], name: "index_goods_receipts_on_warehouse_id"
+  end
+
+  create_table "holidays", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.date "date", null: false
+    t.string "name", null: false
+    t.string "kind", null: false
+    t.bigint "created_by_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "date"], name: "index_holidays_on_business_id_and_date", unique: true
+    t.index ["created_by_id"], name: "index_holidays_on_created_by_id"
+    t.check_constraint "kind::text = ANY (ARRAY['public'::character varying, 'company'::character varying]::text[])", name: "holidays_kind_known"
   end
 
   create_table "inventory_movements", force: :cascade do |t|
@@ -2751,6 +2764,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_100100) do
   add_foreign_key "goods_receipts", "users", column: "decided_by_id"
   add_foreign_key "goods_receipts", "users", column: "voided_by_id"
   add_foreign_key "goods_receipts", "warehouses"
+  add_foreign_key "holidays", "businesses"
+  add_foreign_key "holidays", "users", column: "created_by_id"
   add_foreign_key "inventory_movements", "branches"
   add_foreign_key "inventory_movements", "businesses"
   add_foreign_key "inventory_movements", "products"

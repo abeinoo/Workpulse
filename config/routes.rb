@@ -72,6 +72,9 @@ Rails.application.routes.draw do
   # Business audit-failure dashboard (R3.1): read-only, monitor_audit_failures.
   resources :audit_failures, only: [ :index, :show ]
 
+  # Holiday Calendar (R6): one business-wide calendar, manage_holidays.
+  resources :holidays, except: [ :show ]
+
   # ── Super Admin ───────────────────────────────────────────────────────────
   namespace :admin do
     root to: "dashboard#index"

@@ -1,0 +1,30 @@
+en:
+  holidays:
+    title: "Holiday Calendar"
+    intro: "Approved public and company holidays for the whole business. A holiday is never counted as an absence. Changing the calendar does not change payroll periods that are already finalized or paid."
+    add: "Add Holiday"
+    new_title: "Add Holiday"
+    edit_title: "Edit Holiday"
+    empty: "No holidays recorded for %{year}."
+    date: "Date"
+    name: "Name"
+    name_placeholder: "e.g. Revolution Day"
+    kind: "Type"
+    kind_hint: "Public holidays are official; company holidays are days the business closes."
+    kinds:
+      public: "Public holiday"
+      company: "Company holiday"
+    delete: "Delete"
+    delete_confirm: "Delete the holiday \"%{name}\"? The deletion is recorded in the audit log."
+    created: "Holiday added."
+    updated: "Holiday updated."
+    deleted: "Holiday deleted."
+    audit_failed: "The change could not be recorded in the audit log, so it was not saved. Please try again."
+  activerecord:
+    models:
+      holiday: "Holiday"
+    attributes:
+      holiday:
+        date: "Date"
+        name: "Name"
+        kind: "Type"
