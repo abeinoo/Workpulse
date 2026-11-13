@@ -1,0 +1,742 @@
+domain,controller,action,verb,path,auth,request_specs,system_specs,examples
+attendance_payroll,adjustments,approve,PATCH,/adjustments/:id/approve,pundit,3,0,spec/requests/adjustments_spec.rb spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,adjustments,bulk_approve,POST,/adjustments/bulk_approve,pundit,3,0,spec/requests/adjustments_spec.rb spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,adjustments,bulk_reject,POST,/adjustments/bulk_reject,pundit,3,0,spec/requests/adjustments_spec.rb spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,adjustments,create,POST,/adjustments,pundit,2,0,spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,adjustments,destroy,DELETE,/adjustments/:id,pundit,2,0,spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,adjustments,edit,GET,/adjustments/:id/edit,pundit,3,0,spec/requests/adjustments_spec.rb spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,adjustments,index,GET,/adjustments,pundit,14,0,spec/requests/adjustments_spec.rb spec/requests/api/v1/payroll_adjustments_spec.rb spec/requests/bulk_adjustments_spec.rb
+attendance_payroll,adjustments,new,GET,/adjustments/new,pundit,3,0,spec/requests/adjustments_spec.rb spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,adjustments,reject,PATCH,/adjustments/:id/reject,pundit,2,0,spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,adjustments,show,GET,/adjustments/:id,pundit,8,0,spec/requests/adjustments_spec.rb spec/requests/inventory/stock_count_traceability_spec.rb spec/requests/inventory/stock_counts_spec.rb
+attendance_payroll,adjustments,update,PATCH,/adjustments/:id,pundit,2,0,spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,adjustments,update,PUT,/adjustments/:id,pundit,2,0,spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,admin/attendance_imports,cancel,DELETE,/admin/attendance_imports/:id/cancel,pundit,1,0,spec/requests/admin/attendance_imports_spec.rb
+attendance_payroll,admin/attendance_imports,confirm,PATCH,/admin/attendance_imports/:id/confirm,pundit,1,0,spec/requests/admin/attendance_imports_spec.rb
+attendance_payroll,admin/attendance_imports,create,POST,/admin/attendance_imports,pundit,1,0,spec/requests/admin/attendance_imports_spec.rb
+attendance_payroll,admin/attendance_imports,failed_rows,GET,/admin/attendance_imports/:id/failed_rows,pundit,1,0,spec/requests/admin/attendance_imports_spec.rb
+attendance_payroll,admin/attendance_imports,new,GET,/admin/attendance_imports/new,pundit,1,0,spec/requests/admin/attendance_imports_spec.rb
+attendance_payroll,admin/attendance_imports,show,GET,/admin/attendance_imports/:id,pundit,1,0,spec/requests/admin/attendance_imports_spec.rb
+attendance_payroll,admin/attendance_imports,template,GET,/admin/attendance_imports/template,pundit,1,0,spec/requests/admin/attendance_imports_spec.rb
+attendance_payroll,admin/attendance_records,index,GET,/admin/attendance_records,pundit,2,0,spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,admin/attendance_records,show,GET,/admin/attendance_records/:id,pundit,2,0,spec/requests/attendance_records_floating_spec.rb spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,admin/attendance_records,update,PATCH,/admin/attendance_records/:id,pundit,1,0,spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,admin/attendance_records,update,PUT,/admin/attendance_records/:id,pundit,1,0,spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,admin/biometric_devices,create,POST,/admin/biometric_devices,pundit,1,0,spec/requests/security/biometric_devices_authorization_spec.rb
+attendance_payroll,admin/biometric_devices,destroy,DELETE,/admin/biometric_devices/:id,pundit,1,0,spec/requests/security/biometric_devices_authorization_spec.rb
+attendance_payroll,admin/biometric_devices,edit,GET,/admin/biometric_devices/:id/edit,pundit,2,0,spec/requests/admin/biometric_device_branch_spec.rb spec/requests/security/biometric_devices_authorization_spec.rb
+attendance_payroll,admin/biometric_devices,index,GET,/admin/biometric_devices,pundit,3,0,spec/requests/admin/biometric_device_branch_spec.rb spec/requests/security/biometric_devices_authorization_spec.rb spec/requests/sidebar_active_state_spec.rb
+attendance_payroll,admin/biometric_devices,new,GET,/admin/biometric_devices/new,pundit,1,0,spec/requests/security/biometric_devices_authorization_spec.rb
+attendance_payroll,admin/biometric_devices,regenerate_token,PATCH,/admin/biometric_devices/:id/regenerate_token,pundit,1,0,spec/requests/security/biometric_devices_authorization_spec.rb
+attendance_payroll,admin/biometric_devices,show,GET,/admin/biometric_devices/:id,pundit,2,0,spec/requests/admin/biometric_device_branch_spec.rb spec/requests/security/biometric_devices_authorization_spec.rb
+attendance_payroll,admin/biometric_devices,update,PATCH,/admin/biometric_devices/:id,pundit,1,0,spec/requests/security/biometric_devices_authorization_spec.rb
+attendance_payroll,admin/biometric_devices,update,PUT,/admin/biometric_devices/:id,pundit,1,0,spec/requests/security/biometric_devices_authorization_spec.rb
+attendance_payroll,admin/biometric_punch_logs,index,GET,/admin/biometric_punch_logs,pundit,4,0,spec/requests/admin/biometric_punch_logs_spec.rb spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/security/biometric_punch_logs_authorization_spec.rb
+attendance_payroll,admin/biometric_punch_logs,show,GET,/admin/biometric_punch_logs/:id,pundit,3,0,spec/requests/admin/biometric_punch_logs_spec.rb spec/requests/api/v1/punch_timestamp_window_spec.rb spec/requests/security/biometric_punch_logs_authorization_spec.rb
+attendance_payroll,admin/employee_obligations,cancel,PATCH,/admin/employee_obligations/:id/cancel,pundit,3,0,spec/requests/payroll_obligation_lifecycle_spec.rb spec/requests/security/employee_obligations_authorization_spec.rb spec/requests/security/employee_obligations_business_scope_spec.rb
+attendance_payroll,admin/employee_obligations,create,POST,/admin/employee_obligations,pundit,1,0,spec/requests/security/employee_obligations_business_scope_spec.rb
+attendance_payroll,admin/employee_obligations,edit,GET,/admin/employee_obligations/:id/edit,pundit,3,0,spec/requests/admin/employee_obligations_spec.rb spec/requests/security/employee_obligations_authorization_spec.rb spec/requests/security/employee_obligations_business_scope_spec.rb
+attendance_payroll,admin/employee_obligations,index,GET,/admin/employee_obligations,pundit,4,1,spec/requests/admin/employee_obligations_spec.rb spec/requests/security/employee_obligations_authorization_spec.rb spec/requests/security/employee_obligations_business_scope_spec.rb
+attendance_payroll,admin/employee_obligations,new,GET,/admin/employee_obligations/new,pundit,3,0,spec/requests/admin/employee_obligations_spec.rb spec/requests/security/employee_obligations_authorization_spec.rb spec/requests/security/employee_obligations_business_scope_spec.rb
+attendance_payroll,admin/employee_obligations,pause,PATCH,/admin/employee_obligations/:id/pause,pundit,3,0,spec/requests/payroll_obligation_lifecycle_spec.rb spec/requests/security/employee_obligations_authorization_spec.rb spec/requests/security/employee_obligations_business_scope_spec.rb
+attendance_payroll,admin/employee_obligations,postpone,PATCH,/admin/employee_obligations/:id/postpone,pundit,3,0,spec/requests/admin/employee_obligations_spec.rb spec/requests/security/employee_obligations_authorization_spec.rb spec/requests/security/employee_obligations_business_scope_spec.rb
+attendance_payroll,admin/employee_obligations,resume,PATCH,/admin/employee_obligations/:id/resume,pundit,3,0,spec/requests/payroll_obligation_lifecycle_spec.rb spec/requests/security/employee_obligations_authorization_spec.rb spec/requests/security/employee_obligations_business_scope_spec.rb
+attendance_payroll,admin/employee_obligations,show,GET,/admin/employee_obligations/:id,pundit,5,0,spec/requests/admin/employee_obligations_spec.rb spec/requests/payroll_obligation_lifecycle_spec.rb spec/requests/payroll_obligation_reassignment_spec.rb
+attendance_payroll,admin/employee_obligations,update,PATCH,/admin/employee_obligations/:id,pundit,1,0,spec/requests/security/employee_obligations_business_scope_spec.rb
+attendance_payroll,admin/employee_obligations,update,PUT,/admin/employee_obligations/:id,pundit,1,0,spec/requests/security/employee_obligations_business_scope_spec.rb
+attendance_payroll,admin/penalty_rules,create,POST,/admin/shifts/:shift_id/penalty_rules,pundit,1,0,spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+attendance_payroll,admin/penalty_rules,destroy,DELETE,/admin/shifts/:shift_id/penalty_rules/:id,pundit,1,0,spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+attendance_payroll,admin/penalty_rules,edit,GET,/admin/shifts/:shift_id/penalty_rules/:id/edit,pundit,1,0,spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+attendance_payroll,admin/penalty_rules,new,GET,/admin/shifts/:shift_id/penalty_rules/new,pundit,1,0,spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+attendance_payroll,admin/penalty_rules,update,PATCH,/admin/shifts/:shift_id/penalty_rules/:id,pundit,1,0,spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+attendance_payroll,admin/penalty_rules,update,PUT,/admin/shifts/:shift_id/penalty_rules/:id,pundit,1,0,spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+attendance_payroll,admin/salary_payment_holds,create,POST,/admin/users/:user_id/salary_payment_holds,pundit,1,0,spec/requests/salary_payment_holds_spec.rb
+attendance_payroll,admin/salary_payment_holds,release,PATCH,/admin/salary_payment_holds/:id/release,pundit,1,0,spec/requests/salary_payment_holds_spec.rb
+attendance_payroll,admin/salary_profiles,create,POST,/admin/users/:user_id/salary_profiles,pundit,1,0,spec/requests/security/salary_profile_access_spec.rb
+attendance_payroll,admin/salary_profiles,edit,GET,/admin/users/:user_id/salary_profiles/:id/edit,pundit,3,0,spec/requests/security/salary_history_access_spec.rb spec/requests/security/salary_profile_access_spec.rb spec/requests/security/salary_profile_edit_with_scheduled_spec.rb
+attendance_payroll,admin/salary_profiles,new,GET,/admin/users/:user_id/salary_profiles/new,pundit,2,0,spec/requests/security/salary_profile_access_spec.rb spec/requests/security/salary_profile_edit_with_scheduled_spec.rb
+attendance_payroll,admin/salary_profiles,update,PATCH,/admin/users/:user_id/salary_profiles/:id,pundit,3,0,spec/requests/security/salary_history_access_spec.rb spec/requests/security/salary_profile_access_spec.rb spec/requests/security/salary_profile_edit_with_scheduled_spec.rb
+attendance_payroll,admin/salary_profiles,update,PUT,/admin/users/:user_id/salary_profiles/:id,pundit,1,0,spec/requests/security/salary_profile_access_spec.rb
+attendance_payroll,api/v1/advances,index,GET,/api/v1/advances,pundit,3,0,spec/requests/api/v1/characterization/self_service_spec.rb spec/requests/api/v1/standard_contract/advances_spec.rb spec/requests/security/advance_view_scope_spec.rb
+attendance_payroll,api/v1/advances,show,GET,/api/v1/advances/:id,pundit,3,0,spec/requests/api/v1/characterization/self_service_spec.rb spec/requests/api/v1/standard_contract/advances_spec.rb spec/requests/security/advance_view_scope_spec.rb
+attendance_payroll,api/v1/attendance,check_in,POST,/api/v1/attendance/check_in,custom,4,0,spec/requests/api/v1/attendance_spec.rb spec/requests/api/v1/characterization/self_service_spec.rb spec/requests/api/v1/standard_contract/request_logging_spec.rb
+attendance_payroll,api/v1/attendance,check_out,POST,/api/v1/attendance/check_out,custom,3,0,spec/requests/api/v1/attendance_spec.rb spec/requests/api/v1/characterization/self_service_spec.rb spec/requests/api/v1/standard_contract/request_logging_spec.rb
+attendance_payroll,api/v1/attendance,today,GET,/api/v1/attendance/today,custom,4,0,spec/requests/api/v1/attendance_spec.rb spec/requests/api/v1/characterization/authentication_spec.rb spec/requests/api/v1/characterization/self_service_spec.rb
+attendance_payroll,api/v1/attendance_records,index,GET,/api/v1/attendance_records,pundit,2,0,spec/requests/api/v1/characterization/management_spec.rb spec/requests/api/v1/standard_contract/request_logging_spec.rb
+attendance_payroll,api/v1/attendance_records,show,GET,/api/v1/attendance_records/:id,pundit,2,0,spec/requests/api/v1/characterization/management_spec.rb spec/requests/api/v1/standard_contract/request_logging_spec.rb
+attendance_payroll,api/v1/attendance_records,update,PATCH,/api/v1/attendance_records/:id,pundit,2,0,spec/requests/api/v1/characterization/management_spec.rb spec/requests/api/v1/standard_contract/request_logging_spec.rb
+attendance_payroll,api/v1/attendance_records,update,PUT,/api/v1/attendance_records/:id,pundit,2,0,spec/requests/api/v1/characterization/management_spec.rb spec/requests/api/v1/standard_contract/request_logging_spec.rb
+attendance_payroll,api/v1/payroll_adjustments,create,POST,/api/v1/payroll_periods/:payroll_period_id/payroll_adjustments,pundit,8,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_adjustments,destroy,DELETE,/api/v1/payroll_periods/:payroll_period_id/payroll_adjustments/:id,pundit,8,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_adjustments,index,GET,/api/v1/payroll_periods/:payroll_period_id/payroll_adjustments,pundit,9,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_adjustments_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb
+attendance_payroll,api/v1/payroll_entries,index,GET,/api/v1/payroll_periods/:payroll_period_id/payroll_entries,pundit,8,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_entries,show,GET,/api/v1/payroll_periods/:payroll_period_id/payroll_entries/:id,pundit,8,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_entries,update,PATCH,/api/v1/payroll_periods/:payroll_period_id/payroll_entries/:id,pundit,8,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_entries,update,PUT,/api/v1/payroll_periods/:payroll_period_id/payroll_entries/:id,pundit,8,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_line_items,approve,PATCH,/api/v1/payroll_line_items/:id/approve,pundit,2,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb
+attendance_payroll,api/v1/payroll_line_items,reject,PATCH,/api/v1/payroll_line_items/:id/reject,pundit,2,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb
+attendance_payroll,api/v1/payroll_periods,approve_all_pending,PATCH,/api/v1/payroll_periods/:id/approve_all_pending,pundit,9,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_periods_approve_all_pending_spec.rb
+attendance_payroll,api/v1/payroll_periods,complete_branch_review,PATCH,/api/v1/payroll_periods/:id/complete_branch_review,pundit,8,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_periods,create,POST,/api/v1/payroll_periods,pundit,8,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_periods,destroy,DELETE,/api/v1/payroll_periods/:id,pundit,8,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_periods,finalize,PATCH,/api/v1/payroll_periods/:id/finalize,pundit,9,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_periods,index,GET,/api/v1/payroll_periods,pundit,8,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_periods,mark_paid,PATCH,/api/v1/payroll_periods/:id/mark_paid,pundit,9,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_periods,regenerate,PATCH,/api/v1/payroll_periods/:id/regenerate,pundit,8,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_periods,reopen,PATCH,/api/v1/payroll_periods/:id/reopen,pundit,8,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/payroll_periods,show,GET,/api/v1/payroll_periods/:id,pundit,10,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_periods_approve_all_pending_spec.rb
+attendance_payroll,api/v1/payroll_periods,submit_for_review,PATCH,/api/v1/payroll_periods/:id/submit_for_review,pundit,8,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_line_item_scope_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb
+attendance_payroll,api/v1/penalty_rules,create,POST,/api/v1/shifts/:shift_id/penalty_rules,pundit,1,0,spec/requests/api/v1/characterization/management_spec.rb
+attendance_payroll,api/v1/penalty_rules,destroy,DELETE,/api/v1/shifts/:shift_id/penalty_rules/:id,pundit,1,0,spec/requests/api/v1/characterization/management_spec.rb
+attendance_payroll,api/v1/penalty_rules,index,GET,/api/v1/shifts/:shift_id/penalty_rules,pundit,1,0,spec/requests/api/v1/characterization/management_spec.rb
+attendance_payroll,api/v1/penalty_rules,update,PATCH,/api/v1/shifts/:shift_id/penalty_rules/:id,pundit,1,0,spec/requests/api/v1/characterization/management_spec.rb
+attendance_payroll,api/v1/penalty_rules,update,PUT,/api/v1/shifts/:shift_id/penalty_rules/:id,pundit,1,0,spec/requests/api/v1/characterization/management_spec.rb
+attendance_payroll,api/v1/punches,create,POST,/api/v1/attendance/punch,custom,5,0,spec/requests/api/v1/characterization/biometric_punch_spec.rb spec/requests/api/v1/cross_branch_punch_spec.rb spec/requests/api/v1/floating_punch_spec.rb
+attendance_payroll,api/v1/reports/attendance,summary,GET,/api/v1/reports/attendance,custom,2,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/security/cross_business_authorization_spec.rb
+attendance_payroll,api/v1/reports/payroll,export,GET,/api/v1/reports/payroll/export,pundit,4,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb spec/requests/permission_matrix_verification_spec.rb
+attendance_payroll,api/v1/reports/payroll,summary,GET,/api/v1/reports/payroll/summary,pundit,4,0,spec/requests/api/v1/characterization/payroll_spec.rb spec/requests/api/v1/payroll_visibility_spec.rb spec/requests/permission_matrix_verification_spec.rb
+attendance_payroll,api/v1/salary_profiles,create,POST,/api/v1/users/:user_id/salary_profiles,pundit,5,0,spec/requests/api/v1/characterization/management_spec.rb spec/requests/security/effective_salary_spec.rb spec/requests/security/salary_history_access_spec.rb
+attendance_payroll,api/v1/salary_profiles,index,GET,/api/v1/users/:user_id/salary_profiles,pundit,5,0,spec/requests/api/v1/characterization/management_spec.rb spec/requests/security/effective_salary_spec.rb spec/requests/security/salary_history_access_spec.rb
+attendance_payroll,api/v1/salary_profiles,show,GET,/api/v1/users/:user_id/salary_profiles/:id,pundit,5,0,spec/requests/api/v1/characterization/management_spec.rb spec/requests/security/effective_salary_spec.rb spec/requests/security/salary_history_access_spec.rb
+attendance_payroll,api/v1/salary_profiles,update,PATCH,/api/v1/users/:user_id/salary_profiles/:id,pundit,5,0,spec/requests/api/v1/characterization/management_spec.rb spec/requests/security/effective_salary_spec.rb spec/requests/security/salary_history_access_spec.rb
+attendance_payroll,api/v1/salary_profiles,update,PUT,/api/v1/users/:user_id/salary_profiles/:id,pundit,5,0,spec/requests/api/v1/characterization/management_spec.rb spec/requests/security/effective_salary_spec.rb spec/requests/security/salary_history_access_spec.rb
+attendance_payroll,attendance,check_in,POST,/attendance/check_in,custom,1,0,spec/requests/api/v1/standard_contract/request_logging_spec.rb
+attendance_payroll,attendance,check_out,POST,/attendance/check_out,custom,2,0,spec/requests/api/v1/standard_contract/request_logging_spec.rb spec/requests/dashboard_floating_attendance_spec.rb
+attendance_payroll,attendance_records,bulk,GET,/attendance_records/bulk,pundit,2,0,spec/requests/attendance_records_spec.rb spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,attendance_records,bulk_create,POST,/attendance_records/bulk,pundit,2,0,spec/requests/attendance_records_spec.rb spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,attendance_records,confirm_import,POST,/attendance_records/import/confirm,pundit,2,0,spec/requests/attendance_records_spec.rb spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,attendance_records,create,POST,/attendance_records,pundit,1,0,spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,attendance_records,destroy,DELETE,/attendance_records/:id,pundit,1,0,spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,attendance_records,edit,GET,/attendance_records/:id/edit,pundit,2,0,spec/requests/attendance_records_floating_spec.rb spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,attendance_records,import,GET,/attendance_records/import,pundit,2,0,spec/requests/attendance_records_spec.rb spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,attendance_records,import_template,GET,/attendance_records/import/template,pundit,2,0,spec/requests/attendance_records_spec.rb spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,attendance_records,index,GET,/attendance_records,pundit,6,0,spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/attendance_records_floating_spec.rb spec/requests/attendance_records_spec.rb
+attendance_payroll,attendance_records,new,GET,/attendance_records/new,pundit,2,0,spec/requests/attendance_records_spec.rb spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,attendance_records,preview_import,POST,/attendance_records/import/preview,pundit,2,0,spec/requests/attendance_records_spec.rb spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,attendance_records,show,GET,/attendance_records/:id,pundit,4,0,spec/requests/attendance_records_floating_spec.rb spec/requests/attendance_records_spec.rb spec/requests/employee_request_attendance_window_spec.rb
+attendance_payroll,attendance_records,update,PATCH,/attendance_records/:id,pundit,1,0,spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,attendance_records,update,PUT,/attendance_records/:id,pundit,1,0,spec/requests/security/admin_attendance_records_authorization_spec.rb
+attendance_payroll,bulk_adjustments,confirm_import,POST,/bulk_adjustments/import/confirm,pundit,0,0,""
+attendance_payroll,bulk_adjustments,create,POST,/bulk_adjustments/new,pundit,0,0,""
+attendance_payroll,bulk_adjustments,import,GET,/bulk_adjustments/import,pundit,0,0,""
+attendance_payroll,bulk_adjustments,new,GET,/bulk_adjustments/new,pundit,1,0,spec/requests/bulk_adjustments_spec.rb
+attendance_payroll,bulk_adjustments,preview_import,POST,/bulk_adjustments/import/preview,pundit,0,0,""
+attendance_payroll,bulk_adjustments,template,GET,/bulk_adjustments/import/template,pundit,0,0,""
+attendance_payroll,payroll_adjustments,approve,PATCH,/payroll_periods/:payroll_period_id/payroll_adjustments/:id/approve,pundit,2,0,spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_adjustments,create,POST,/payroll_periods/:payroll_period_id/payroll_entries/:payroll_entry_id/payroll_adjustments,pundit,2,0,spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_adjustments,destroy,DELETE,/payroll_periods/:payroll_period_id/payroll_adjustments/:id,pundit,2,0,spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_adjustments,new,GET,/payroll_periods/:payroll_period_id/payroll_entries/:payroll_entry_id/payroll_adjustments/new,pundit,2,0,spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_adjustments,reject,PATCH,/payroll_periods/:payroll_period_id/payroll_adjustments/:id/reject,pundit,2,0,spec/requests/payroll_adjustment_review_guards_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_dashboard,index,GET,/payroll_dashboard,pundit,3,0,spec/requests/permission_matrix_verification_spec.rb spec/requests/security/payroll_analytics_scope_spec.rb spec/requests/security/payroll_entry_view_audit_spec.rb
+attendance_payroll,payroll_entries,mark_reviewed,PATCH,/payroll_periods/:payroll_period_id/payroll_entries/:id/mark_reviewed,pundit,2,0,spec/requests/payroll_needs_review_spec.rb spec/requests/payroll_period_recalculation_spec.rb
+attendance_payroll,payroll_entries,override_overtime,PATCH,/payroll_periods/:payroll_period_id/payroll_entries/:id/override_overtime,pundit,1,0,spec/requests/payroll_overtime_override_visibility_spec.rb
+attendance_payroll,payroll_entries,pay_released_salary,PATCH,/payroll_periods/:payroll_period_id/payroll_entries/:id/pay_released_salary,pundit,1,0,spec/requests/salary_payment_holds_spec.rb
+attendance_payroll,payroll_entries,show,GET,/payroll_periods/:payroll_period_id/payroll_entries/:id,pundit,8,0,spec/requests/payroll_addition_cancellation_spec.rb spec/requests/payroll_deduction_waiver_spec.rb spec/requests/payroll_needs_review_spec.rb
+attendance_payroll,payroll_line_items,approve,PATCH,/payroll_periods/:payroll_period_id/payroll_entries/:payroll_entry_id/payroll_line_items/:id/approve,pundit,1,0,spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_line_items,cancel_addition,PATCH,/payroll_periods/:payroll_period_id/payroll_entries/:payroll_entry_id/payroll_line_items/:id/cancel_addition,pundit,2,0,spec/requests/payroll_addition_cancellation_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_line_items,reject,PATCH,/payroll_periods/:payroll_period_id/payroll_entries/:payroll_entry_id/payroll_line_items/:id/reject,pundit,1,0,spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_line_items,restore_deduction,PATCH,/payroll_periods/:payroll_period_id/payroll_entries/:payroll_entry_id/payroll_line_items/:id/restore_deduction,pundit,2,0,spec/requests/payroll_deduction_waiver_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_line_items,waive_deduction,PATCH,/payroll_periods/:payroll_period_id/payroll_entries/:payroll_entry_id/payroll_line_items/:id/waive_deduction,pundit,2,0,spec/requests/payroll_deduction_waiver_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_periods,adjust_overtime,PATCH,/payroll_periods/:id/adjust_overtime,pundit,2,0,spec/requests/payroll_overtime_override_visibility_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_periods,approve_all_pending,PATCH,/payroll_periods/:id/approve_all_pending,pundit,2,0,spec/requests/payroll_review_approval_paths_spec.rb spec/requests/permission_matrix_verification_spec.rb
+attendance_payroll,payroll_periods,complete_branch_review,PATCH,/payroll_periods/:id/complete_branch_review,pundit,3,0,spec/requests/payroll_central_review_spec.rb spec/requests/payroll_review_approval_paths_spec.rb spec/requests/permission_matrix_verification_spec.rb
+attendance_payroll,payroll_periods,create,POST,/payroll_periods,pundit,1,0,spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_periods,destroy,DELETE,/payroll_periods/:id,pundit,1,0,spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_periods,export_bank_transfer,GET,/payroll_periods/:id/export_bank_transfer,pundit,4,0,spec/requests/payroll_bank_transfer_export_spec.rb spec/requests/payroll_review_approval_paths_spec.rb spec/requests/salary_payment_holds_spec.rb
+attendance_payroll,payroll_periods,finalize,PATCH,/payroll_periods/:id/finalize,pundit,4,0,spec/requests/payroll_finalize_pending_adjustments_spec.rb spec/requests/payroll_period_recalculation_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_periods,index,GET,/payroll_periods,pundit,6,0,spec/requests/adjustments_spec.rb spec/requests/payroll_review_approval_paths_spec.rb spec/requests/permission_matrix_verification_spec.rb
+attendance_payroll,payroll_periods,mark_all_reviewed,PATCH,/payroll_periods/:id/mark_all_reviewed,pundit,3,0,spec/requests/payroll_needs_review_spec.rb spec/requests/payroll_period_recalculation_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_periods,mark_paid,PATCH,/payroll_periods/:id/mark_paid,pundit,4,0,spec/requests/payroll_finalize_pending_adjustments_spec.rb spec/requests/payroll_review_approval_paths_spec.rb spec/requests/permission_matrix_verification_spec.rb
+attendance_payroll,payroll_periods,new,GET,/payroll_periods/new,pundit,2,0,spec/requests/payroll_review_approval_paths_spec.rb spec/requests/permission_matrix_verification_spec.rb
+attendance_payroll,payroll_periods,recalculate,PATCH,/payroll_periods/:id/recalculate,pundit,2,0,spec/requests/payroll_period_recalculation_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_periods,recalculate_overtime,PATCH,/payroll_periods/:id/recalculate_overtime,pundit,2,0,spec/requests/payroll_overtime_recalculation_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_periods,recalculate_overtime_preview,GET,/payroll_periods/:id/recalculate_overtime_preview,pundit,2,0,spec/requests/payroll_overtime_recalculation_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_periods,recalculate_preview,GET,/payroll_periods/:id/recalculate_preview,pundit,2,0,spec/requests/payroll_period_recalculation_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_periods,regenerate,PATCH,/payroll_periods/:id/regenerate,pundit,3,0,spec/requests/payroll_period_recalculation_spec.rb spec/requests/payroll_review_approval_paths_spec.rb spec/requests/permission_matrix_verification_spec.rb
+attendance_payroll,payroll_periods,reopen,PATCH,/payroll_periods/:id/reopen,pundit,2,0,spec/requests/payroll_review_approval_paths_spec.rb spec/requests/permission_matrix_verification_spec.rb
+attendance_payroll,payroll_periods,request_changes,PATCH,/payroll_periods/:id/request_changes,pundit,2,0,spec/requests/payroll_central_review_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_periods,resubmit_for_review,PATCH,/payroll_periods/:id/resubmit_for_review,pundit,1,0,spec/requests/payroll_review_approval_paths_spec.rb
+attendance_payroll,payroll_periods,show,GET,/payroll_periods/:id,pundit,15,0,spec/requests/adjustments_spec.rb spec/requests/admin/dashboard_spec.rb spec/requests/api/v1/payroll_periods_approve_all_pending_spec.rb
+attendance_payroll,payroll_periods,submit_for_review,PATCH,/payroll_periods/:id/submit_for_review,pundit,2,0,spec/requests/payroll_review_approval_paths_spec.rb spec/requests/permission_matrix_verification_spec.rb
+attendance_payroll,payroll_periods,waive_deductions,PATCH,/payroll_periods/:id/waive_deductions,pundit,2,0,spec/requests/payroll_deduction_waiver_spec.rb spec/requests/payroll_review_approval_paths_spec.rb
+finance_sales,deposit_responsibility_transfers,accept,PATCH,/deposit_responsibility_transfers/:id/accept,pundit,1,0,spec/requests/finance/daily_reconciliations_deposit_responsibility_transfer_spec.rb
+finance_sales,deposit_responsibility_transfers,cancel,PATCH,/deposit_responsibility_transfers/:id/cancel,pundit,0,0,""
+finance_sales,deposit_responsibility_transfers,create,POST,/deposit_responsibility_transfers,pundit,1,0,spec/requests/finance/daily_reconciliations_deposit_responsibility_transfer_spec.rb
+finance_sales,deposit_responsibility_transfers,reject,PATCH,/deposit_responsibility_transfers/:id/reject,pundit,1,0,spec/requests/finance/daily_reconciliations_deposit_responsibility_transfer_spec.rb
+finance_sales,deposit_responsibility_transfers,reject_form,GET,/deposit_responsibility_transfers/:id/reject_form,pundit,1,0,spec/requests/finance/daily_reconciliations_deposit_responsibility_transfer_spec.rb
+finance_sales,deposit_responsibility_transfers,show,GET,/deposit_responsibility_transfers/:id,pundit,2,0,spec/requests/finance/daily_reconciliations_deposit_responsibility_transfer_spec.rb spec/requests/finance/deposit_responsibility_transfer_show_remaining_spec.rb
+finance_sales,finance/balance_requests,approve,PATCH,/finance/balance_requests/:id/approve,pundit,0,0,""
+finance_sales,finance/balance_requests,cancel,PATCH,/finance/balance_requests/:id/cancel,pundit,0,0,""
+finance_sales,finance/balance_requests,create,POST,/finance/balance_requests,pundit,0,0,""
+finance_sales,finance/balance_requests,destroy,DELETE,/finance/balance_requests/:id,pundit,0,0,""
+finance_sales,finance/balance_requests,edit,GET,/finance/balance_requests/:id/edit,pundit,0,0,""
+finance_sales,finance/balance_requests,index,GET,/finance/balance_requests,pundit,1,0,spec/requests/finance_laundry_workspace_navigation_spec.rb
+finance_sales,finance/balance_requests,mark_paid,PATCH,/finance/balance_requests/:id/mark_paid,pundit,0,0,""
+finance_sales,finance/balance_requests,new,GET,/finance/balance_requests/new,pundit,0,0,""
+finance_sales,finance/balance_requests,reject,PATCH,/finance/balance_requests/:id/reject,pundit,0,0,""
+finance_sales,finance/balance_requests,show,GET,/finance/balance_requests/:id,pundit,0,0,""
+finance_sales,finance/balance_requests,submit,PATCH,/finance/balance_requests/:id/submit,pundit,0,0,""
+finance_sales,finance/balance_requests,update,PATCH,/finance/balance_requests/:id,pundit,0,0,""
+finance_sales,finance/balance_requests,update,PUT,/finance/balance_requests/:id,pundit,0,0,""
+finance_sales,finance/bank_disputes,close,PATCH,/finance/bank_disputes/:id/close,pundit,4,0,spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb spec/requests/finance/bank_disputes_spec.rb
+finance_sales,finance/bank_disputes,confirm_deposit,PATCH,/finance/bank_disputes/:id/confirm_deposit,pundit,5,0,spec/requests/finance/atm_dispute_reduces_remaining_deposit_spec.rb spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb
+finance_sales,finance/bank_disputes,confirm_successful,PATCH,/finance/bank_disputes/:id/confirm_successful,pundit,4,0,spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb spec/requests/finance/bank_disputes_spec.rb
+finance_sales,finance/bank_disputes,create,POST,/finance/bank_disputes,pundit,5,0,spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb spec/requests/finance/bank_disputes_spec.rb
+finance_sales,finance/bank_disputes,new,GET,/finance/bank_disputes/new,pundit,1,0,spec/requests/finance/daily_reconciliations_review_gated_actions_spec.rb
+finance_sales,finance/bank_disputes,refund,PATCH,/finance/bank_disputes/:id/refund,pundit,4,0,spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb spec/requests/finance/bank_disputes_spec.rb
+finance_sales,finance/bank_disputes,reject,PATCH,/finance/bank_disputes/:id/reject,pundit,4,0,spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb spec/requests/finance/bank_disputes_spec.rb
+finance_sales,finance/bank_disputes,show,GET,/finance/bank_disputes/:id,pundit,6,0,spec/requests/finance/atm_dispute_reduces_remaining_deposit_spec.rb spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb
+finance_sales,finance/bank_disputes,start_investigation,PATCH,/finance/bank_disputes/:id/start_investigation,pundit,4,0,spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb spec/requests/finance/bank_disputes_spec.rb
+finance_sales,finance/bank_disputes,submit_to_bank,PATCH,/finance/bank_disputes/:id/submit_to_bank,pundit,4,0,spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb spec/requests/finance/bank_disputes_spec.rb
+finance_sales,finance/bank_disputes,update_case,PATCH,/finance/bank_disputes/:id/update_case,pundit,4,0,spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb spec/requests/finance/bank_disputes_spec.rb
+finance_sales,finance/bank_statement_transactions,ignore,PATCH,/finance/bank_statement_transactions/:id/ignore,pundit,2,0,spec/requests/finance/bank_statement_transaction_deleted_statement_spec.rb spec/requests/finance/deposit_verifications_bulk_ignore_spec.rb
+finance_sales,finance/bank_statement_transactions,manual_match_modal,GET,/finance/bank_statement_transactions/:id/manual_match_modal,pundit,4,0,spec/requests/finance/bank_match_void_lifecycle_counters_spec.rb spec/requests/finance/bank_statement_transaction_deleted_statement_spec.rb spec/requests/finance/bank_statement_transaction_manual_match_modal_spec.rb
+finance_sales,finance/bank_statement_transactions,match,PATCH,/finance/bank_statement_transactions/:id/match,pundit,2,0,spec/requests/finance/bank_statement_transaction_deleted_statement_spec.rb spec/requests/finance/till_deposits_multi_match_spec.rb
+finance_sales,finance/bank_statement_transactions,show,GET,/finance/bank_statement_transactions/:id,pundit,9,0,spec/requests/finance/bank_match_void_lifecycle_counters_spec.rb spec/requests/finance/bank_statement_deletion_spec.rb spec/requests/finance/bank_statement_transaction_deleted_statement_spec.rb
+finance_sales,finance/bank_statement_transactions,unignore,PATCH,/finance/bank_statement_transactions/:id/unignore,pundit,1,0,spec/requests/finance/deposit_verifications_bulk_ignore_spec.rb
+finance_sales,finance/bank_statement_transactions,unmatch,PATCH,/finance/bank_statement_transactions/:id/unmatch,pundit,2,0,spec/requests/finance/bank_statement_transaction_deleted_statement_spec.rb spec/requests/finance/till_deposits_multi_match_spec.rb
+finance_sales,finance/bank_statements,confirm_import,POST,/finance/bank_statements/:id/confirm_import,pundit,1,0,spec/requests/finance/bank_statements_column_mapping_spec.rb
+finance_sales,finance/bank_statements,create,POST,/finance/bank_statements,pundit,0,0,""
+finance_sales,finance/bank_statements,destroy,DELETE,/finance/bank_statements/:id,pundit,0,0,""
+finance_sales,finance/bank_statements,edit,GET,/finance/bank_statements/:id/edit,pundit,0,0,""
+finance_sales,finance/bank_statements,edit_column_mapping,GET,/finance/bank_statements/:id/edit_column_mapping,pundit,2,0,spec/requests/finance/bank_statements_column_mapping_spec.rb spec/requests/finance/bank_statements_pos_import_order_spec.rb
+finance_sales,finance/bank_statements,index,GET,/finance/bank_statements,pundit,6,0,spec/requests/finance/bank_match_void_lifecycle_counters_spec.rb spec/requests/finance/bank_statement_deletion_spec.rb spec/requests/finance/bank_statement_transaction_deleted_statement_spec.rb
+finance_sales,finance/bank_statements,new,GET,/finance/bank_statements/new,pundit,2,0,spec/requests/finance_laundry_workspace_navigation_spec.rb spec/requests/security/bank_statement_branch_scope_spec.rb
+finance_sales,finance/bank_statements,preview_import,GET,/finance/bank_statements/:id/preview_import,pundit,1,0,spec/requests/finance/bank_statements_column_mapping_spec.rb
+finance_sales,finance/bank_statements,rematch,POST,/finance/bank_statements/:id/rematch,pundit,0,0,""
+finance_sales,finance/bank_statements,sample_csv,GET,/finance/bank_statements/sample_csv,pundit,0,0,""
+finance_sales,finance/bank_statements,show,GET,/finance/bank_statements/:id,pundit,9,0,spec/requests/finance/bank_match_void_lifecycle_counters_spec.rb spec/requests/finance/bank_statement_deletion_spec.rb spec/requests/finance/bank_statement_transaction_deleted_statement_spec.rb
+finance_sales,finance/bank_statements,update,PATCH,/finance/bank_statements/:id,pundit,0,0,""
+finance_sales,finance/bank_statements,update,PUT,/finance/bank_statements/:id,pundit,0,0,""
+finance_sales,finance/bank_statements,update_column_mapping,PATCH,/finance/bank_statements/:id/update_column_mapping,pundit,1,0,spec/requests/finance/bank_statements_column_mapping_spec.rb
+finance_sales,finance/custody_accounts,create,POST,/finance/custody_accounts,pundit,1,0,spec/requests/finance/custody_account_transaction_history_spec.rb
+finance_sales,finance/custody_accounts,destroy,DELETE,/finance/custody_accounts/:id,pundit,1,0,spec/requests/finance/custody_account_transaction_history_spec.rb
+finance_sales,finance/custody_accounts,edit,GET,/finance/custody_accounts/:id/edit,pundit,1,0,spec/requests/finance/custody_account_transaction_history_spec.rb
+finance_sales,finance/custody_accounts,index,GET,/finance/custody_accounts,pundit,5,1,spec/requests/business_day_boundary_spec.rb spec/requests/finance/custody_account_transaction_history_spec.rb spec/requests/finance/dashboard_spec.rb
+finance_sales,finance/custody_accounts,new,GET,/finance/custody_accounts/new,pundit,1,0,spec/requests/finance/custody_account_transaction_history_spec.rb
+finance_sales,finance/custody_accounts,show,GET,/finance/custody_accounts/:id,pundit,2,1,spec/requests/finance/custody_account_transaction_history_spec.rb spec/requests/finance/settlement_linked_custody_void_spec.rb spec/system/inventory/goods_receipt_settlement_responsive_spec.rb
+finance_sales,finance/custody_accounts,update,PATCH,/finance/custody_accounts/:id,pundit,1,0,spec/requests/finance/custody_account_transaction_history_spec.rb
+finance_sales,finance/custody_accounts,update,PUT,/finance/custody_accounts/:id,pundit,1,0,spec/requests/finance/custody_account_transaction_history_spec.rb
+finance_sales,finance/custody_transactions,create,POST,/finance/custody_accounts/:custody_account_id/custody_transactions,pundit,0,0,""
+finance_sales,finance/custody_transactions,void,PATCH,/finance/custody_accounts/:custody_account_id/custody_transactions/:id/void,pundit,1,0,spec/requests/finance/settlement_linked_custody_void_spec.rb
+finance_sales,finance/daily_reconciliations,assign_depositor,PATCH,/finance/daily_reconciliations/:id/assign_depositor,pundit,2,0,spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb
+finance_sales,finance/daily_reconciliations,bulk_receive_opening_float,POST,/finance/daily_reconciliations/bulk_receive_opening_float,pundit,1,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb
+finance_sales,finance/daily_reconciliations,bulk_settle,POST,/finance/daily_reconciliations/bulk_settle,pundit,1,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb
+finance_sales,finance/daily_reconciliations,correct_opening_float,GET,/finance/daily_reconciliations/:id/correct_opening_float,pundit,1,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb
+finance_sales,finance/daily_reconciliations,create,POST,/finance/daily_reconciliations,pundit,1,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb
+finance_sales,finance/daily_reconciliations,edit_day_close_amounts,GET,/finance/daily_reconciliations/:id/edit_day_close_amounts,pundit,2,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb spec/requests/finance/daily_reconciliations_day_close_amounts_spec.rb
+finance_sales,finance/daily_reconciliations,edit_opening_float,GET,/finance/daily_reconciliations/:id/edit_opening_float,pundit,1,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb
+finance_sales,finance/daily_reconciliations,edit_session_totals,GET,/finance/daily_reconciliations/:id/edit_session_totals,pundit,1,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb
+finance_sales,finance/daily_reconciliations,export,GET,/finance/daily_reconciliations/export,pundit,3,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb spec/requests/finance/daily_reconciliations_index_history_window_spec.rb spec/requests/finance/daily_reconciliations_workspace_spec.rb
+finance_sales,finance/daily_reconciliations,index,GET,/finance/daily_reconciliations,pundit,24,0,spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/bank_disputes_spec.rb spec/requests/finance/daily_reconciliations_bank_status_filter_spec.rb
+finance_sales,finance/daily_reconciliations,new,GET,/finance/daily_reconciliations/new,pundit,4,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb spec/requests/finance/daily_reconciliations_create_spec.rb spec/requests/finance/daily_reconciliations_historical_shift_assignment_spec.rb
+finance_sales,finance/daily_reconciliations,receive_opening_float,POST,/finance/daily_reconciliations/:id/receive_opening_float,pundit,1,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb
+finance_sales,finance/daily_reconciliations,show,GET,/finance/daily_reconciliations/:id,pundit,41,1,spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb spec/requests/finance/bank_disputes_spec.rb
+finance_sales,finance/daily_reconciliations,transfer_deposit_responsibility,GET,/finance/daily_reconciliations/:id/transfer_deposit_responsibility,pundit,2,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb spec/requests/finance/daily_reconciliations_deposit_responsibility_transfer_spec.rb
+finance_sales,finance/daily_reconciliations,update_day_close_amounts,PATCH,/finance/daily_reconciliations/:id/update_day_close_amounts,pundit,2,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb spec/requests/finance/daily_reconciliations_day_close_amounts_spec.rb
+finance_sales,finance/daily_reconciliations,update_opening_float_amounts,PATCH,/finance/daily_reconciliations/:id/update_opening_float_amounts,pundit,1,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb
+finance_sales,finance/daily_reconciliations,update_opening_float_correction,PATCH,/finance/daily_reconciliations/:id/update_opening_float_correction,pundit,1,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb
+finance_sales,finance/daily_reconciliations,update_session_totals,PATCH,/finance/daily_reconciliations/:id/update_session_totals,pundit,1,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb
+finance_sales,finance/daily_reconciliations,verify,PATCH,/finance/daily_reconciliations/:id/verify,pundit,2,0,spec/requests/finance/daily_reconciliations_cash_dispute_reconciliation_spec.rb spec/requests/finance/daily_reconciliations_partial_deposit_spec.rb
+finance_sales,finance/deposit_verifications,bulk_ignore,POST,/finance/deposit_verifications/bulk_ignore,pundit,1,0,spec/requests/finance/deposit_verifications_bulk_ignore_spec.rb
+finance_sales,finance/deposit_verifications,index,GET,/finance/deposit_verifications,pundit,7,1,spec/requests/finance/bank_statement_deletion_spec.rb spec/requests/finance/daily_reconciliation_bank_summary_spec.rb spec/requests/finance/deposit_verifications_bulk_ignore_spec.rb
+finance_sales,finance/expense_categories,create,POST,/finance/expense_categories,pundit,0,0,""
+finance_sales,finance/expense_categories,destroy,DELETE,/finance/expense_categories/:id,pundit,0,0,""
+finance_sales,finance/expense_categories,edit,GET,/finance/expense_categories/:id/edit,pundit,0,0,""
+finance_sales,finance/expense_categories,index,GET,/finance/expense_categories,pundit,1,1,spec/requests/finance_laundry_workspace_navigation_spec.rb spec/system/finance/expenses_index_responsive_spec.rb
+finance_sales,finance/expense_categories,new,GET,/finance/expense_categories/new,pundit,0,0,""
+finance_sales,finance/expense_categories,update,PATCH,/finance/expense_categories/:id,pundit,0,0,""
+finance_sales,finance/expense_categories,update,PUT,/finance/expense_categories/:id,pundit,0,0,""
+finance_sales,finance/expense_payments,create,POST,/finance/expenses/:expense_id/payments,pundit,3,0,spec/requests/finance/expense_lifecycle_payment_spec.rb spec/requests/finance/expense_payment_type_spec.rb spec/requests/finance/expense_payments_spec.rb
+finance_sales,finance/expense_payments,new,GET,/finance/expenses/:expense_id/payments/new,pundit,1,1,spec/requests/finance/expense_payments_spec.rb spec/system/finance/expense_register_payment_spec.rb
+finance_sales,finance/expense_tags,create,POST,/finance/expense_tags,pundit,0,0,""
+finance_sales,finance/expense_tags,destroy,DELETE,/finance/expense_tags/:id,pundit,0,0,""
+finance_sales,finance/expense_tags,edit,GET,/finance/expense_tags/:id/edit,pundit,0,0,""
+finance_sales,finance/expense_tags,index,GET,/finance/expense_tags,pundit,1,1,spec/requests/finance_laundry_workspace_navigation_spec.rb spec/system/finance/expenses_index_responsive_spec.rb
+finance_sales,finance/expense_tags,new,GET,/finance/expense_tags/new,pundit,0,0,""
+finance_sales,finance/expense_tags,update,PATCH,/finance/expense_tags/:id,pundit,1,0,spec/requests/security/expense_tags_business_scope_spec.rb
+finance_sales,finance/expense_tags,update,PUT,/finance/expense_tags/:id,pundit,0,0,""
+finance_sales,finance/expense_types,create,POST,/finance/expense_types,pundit,0,0,""
+finance_sales,finance/expense_types,destroy,DELETE,/finance/expense_types/:id,pundit,0,0,""
+finance_sales,finance/expense_types,edit,GET,/finance/expense_types/:id/edit,pundit,0,0,""
+finance_sales,finance/expense_types,index,GET,/finance/expense_types,pundit,1,1,spec/requests/finance_laundry_workspace_navigation_spec.rb spec/system/finance/expenses_index_responsive_spec.rb
+finance_sales,finance/expense_types,new,GET,/finance/expense_types/new,pundit,0,0,""
+finance_sales,finance/expense_types,options,GET,/finance/expense_types/options,pundit,0,0,""
+finance_sales,finance/expense_types,update,PATCH,/finance/expense_types/:id,pundit,0,0,""
+finance_sales,finance/expense_types,update,PUT,/finance/expense_types/:id,pundit,0,0,""
+finance_sales,finance/expenses,approve,PATCH,/finance/expenses/:id/approve,pundit,3,0,spec/requests/finance/expense_lifecycle_payment_spec.rb spec/requests/finance/expense_payment_type_spec.rb spec/requests/finance/expenses_approve_reject_spec.rb
+finance_sales,finance/expenses,cancel,PATCH,/finance/expenses/:id/cancel,pundit,2,0,spec/requests/finance/expense_payment_type_spec.rb spec/requests/finance/expenses_cancel_spec.rb
+finance_sales,finance/expenses,create,POST,/finance/expenses,pundit,0,0,""
+finance_sales,finance/expenses,destroy,DELETE,/finance/expenses/:id,pundit,0,0,""
+finance_sales,finance/expenses,edit,GET,/finance/expenses/:id/edit,pundit,0,0,""
+finance_sales,finance/expenses,index,GET,/finance/expenses,pundit,11,2,spec/requests/finance/dashboard_spec.rb spec/requests/finance/expense_lifecycle_payment_spec.rb spec/requests/finance/expense_payment_type_spec.rb
+finance_sales,finance/expenses,new,GET,/finance/expenses/new,pundit,2,5,spec/requests/finance/expense_payment_type_spec.rb spec/requests/finance_laundry_workspace_navigation_spec.rb spec/system/finance/expense_amount_distribution_spec.rb
+finance_sales,finance/expenses,reject,PATCH,/finance/expenses/:id/reject,pundit,1,0,spec/requests/finance/expenses_approve_reject_spec.rb
+finance_sales,finance/expenses,show,GET,/finance/expenses/:id,pundit,10,6,spec/requests/finance/expense_lifecycle_payment_spec.rb spec/requests/finance/expense_payment_type_spec.rb spec/requests/finance/expense_payments_spec.rb
+finance_sales,finance/expenses,submit,PATCH,/finance/expenses/:id/submit,pundit,2,0,spec/requests/finance/expense_lifecycle_payment_spec.rb spec/requests/finance/expense_payment_type_spec.rb
+finance_sales,finance/expenses,update,PATCH,/finance/expenses/:id,pundit,0,0,""
+finance_sales,finance/expenses,update,PUT,/finance/expenses/:id,pundit,0,0,""
+finance_sales,finance/payment_methods,create,POST,/finance/payment_methods,pundit,0,0,""
+finance_sales,finance/payment_methods,destroy,DELETE,/finance/payment_methods/:id,pundit,0,0,""
+finance_sales,finance/payment_methods,edit,GET,/finance/payment_methods/:id/edit,pundit,0,0,""
+finance_sales,finance/payment_methods,index,GET,/finance/payment_methods,pundit,2,0,spec/requests/finance/payment_methods_pos_verification_flag_spec.rb spec/requests/finance_laundry_workspace_navigation_spec.rb
+finance_sales,finance/payment_methods,move_down,PATCH,/finance/payment_methods/:id/move_down,pundit,0,0,""
+finance_sales,finance/payment_methods,move_up,PATCH,/finance/payment_methods/:id/move_up,pundit,0,0,""
+finance_sales,finance/payment_methods,new,GET,/finance/payment_methods/new,pundit,1,0,spec/requests/finance/payment_methods_pos_verification_flag_spec.rb
+finance_sales,finance/payment_methods,update,PATCH,/finance/payment_methods/:id,pundit,1,0,spec/requests/finance/payment_methods_pos_verification_flag_spec.rb
+finance_sales,finance/payment_methods,update,PUT,/finance/payment_methods/:id,pundit,0,0,""
+finance_sales,finance/pos_imports,confirm_import,POST,/finance/pos_imports/:id/confirm_import,pundit,1,0,spec/requests/finance/pos_imports_spec.rb
+finance_sales,finance/pos_imports,create,POST,/finance/pos_imports,pundit,0,0,""
+finance_sales,finance/pos_imports,destroy,DELETE,/finance/pos_imports/:id,pundit,0,0,""
+finance_sales,finance/pos_imports,ignore_row,POST,/finance/pos_imports/:id/ignore_row,pundit,1,0,spec/requests/finance/pos_imports_spec.rb
+finance_sales,finance/pos_imports,index,GET,/finance/pos_imports,pundit,3,0,spec/requests/finance/daily_reconciliations_pos_verification_step_spec.rb spec/requests/finance/pos_imports_spec.rb spec/requests/finance_laundry_workspace_navigation_spec.rb
+finance_sales,finance/pos_imports,new,GET,/finance/pos_imports/new,pundit,1,0,spec/requests/finance/pos_imports_spec.rb
+finance_sales,finance/pos_imports,preview_import,GET,/finance/pos_imports/:id/preview_import,pundit,1,0,spec/requests/finance/pos_imports_spec.rb
+finance_sales,finance/pos_imports,show,GET,/finance/pos_imports/:id,pundit,1,0,spec/requests/finance/pos_imports_spec.rb
+finance_sales,finance/recurring_expenses,create,POST,/finance/recurring_expenses,pundit,0,0,""
+finance_sales,finance/recurring_expenses,destroy,DELETE,/finance/recurring_expenses/:id,pundit,0,0,""
+finance_sales,finance/recurring_expenses,edit,GET,/finance/recurring_expenses/:id/edit,pundit,1,1,spec/requests/finance/recurring_expenses_notes_spec.rb spec/system/recurring_expenses_notes_spec.rb
+finance_sales,finance/recurring_expenses,generate,POST,/finance/recurring_expenses/:id/generate,pundit,1,1,spec/requests/finance/recurring_expenses_notes_spec.rb spec/system/recurring_expenses_notes_spec.rb
+finance_sales,finance/recurring_expenses,index,GET,/finance/recurring_expenses,pundit,2,1,spec/requests/finance/recurring_expenses_notes_spec.rb spec/requests/finance_laundry_workspace_navigation_spec.rb spec/system/recurring_expenses_notes_spec.rb
+finance_sales,finance/recurring_expenses,new,GET,/finance/recurring_expenses/new,pundit,1,0,spec/requests/finance/recurring_expenses_notes_spec.rb
+finance_sales,finance/recurring_expenses,show,GET,/finance/recurring_expenses/:id,pundit,1,1,spec/requests/finance/recurring_expenses_notes_spec.rb spec/system/recurring_expenses_notes_spec.rb
+finance_sales,finance/recurring_expenses,update,PATCH,/finance/recurring_expenses/:id,pundit,0,0,""
+finance_sales,finance/recurring_expenses,update,PUT,/finance/recurring_expenses/:id,pundit,0,0,""
+finance_sales,finance/remaining_deposit_balances,reassign,PATCH,/finance/remaining_deposit_balances/:id/reassign,pundit,0,0,""
+finance_sales,finance/remaining_deposit_balances,settle,PATCH,/finance/remaining_deposit_balances/:id/settle,pundit,2,0,spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb spec/requests/finance/remaining_deposit_balance_payment_method_spec.rb
+finance_sales,finance/remaining_deposit_balances,show,GET,/finance/remaining_deposit_balances/:id,pundit,3,0,spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb spec/requests/finance/daily_reconciliations_index_settle_remaining_spec.rb spec/requests/finance/remaining_deposit_balance_payment_method_spec.rb
+finance_sales,finance/remaining_deposit_balances,write_off,PATCH,/finance/remaining_deposit_balances/:id/write_off,pundit,0,0,""
+finance_sales,finance/reports,approvals,GET,/finance/reports/approvals,pundit,0,0,""
+finance_sales,finance/reports,branch_profitability,GET,/finance/reports/branch_profitability,pundit,2,0,spec/requests/finance/reports_branch_profitability_spec.rb spec/requests/security/finance_payroll_cost_visibility_spec.rb
+finance_sales,finance/reports,custody_balances,GET,/finance/reports/custody_balances,pundit,0,0,""
+finance_sales,finance/reports,custody_transactions,GET,/finance/reports/custody_transactions,pundit,0,0,""
+finance_sales,finance/reports,expense_details,GET,/finance/reports/expense_details,pundit,3,0,spec/requests/finance/reports_expense_details_spec.rb spec/requests/security/finance_payroll_cost_visibility_spec.rb spec/requests/security/payroll_entry_view_audit_spec.rb
+finance_sales,finance/reports,expense_trend,GET,/finance/reports/expense_trend,pundit,1,0,spec/requests/finance/reports_expense_breakdowns_spec.rb
+finance_sales,finance/reports,expenses_by_branch,GET,/finance/reports/expenses_by_branch,pundit,2,0,spec/requests/finance/reports_expense_breakdowns_spec.rb spec/requests/finance/reports_expense_filters_spec.rb
+finance_sales,finance/reports,expenses_by_category,GET,/finance/reports/expenses_by_category,pundit,2,1,spec/requests/finance/reports_expense_breakdowns_spec.rb spec/requests/finance/reports_expense_filters_spec.rb spec/system/finance_expense_report_filters_spec.rb
+finance_sales,finance/reports,expenses_by_type,GET,/finance/reports/expenses_by_type,pundit,2,1,spec/requests/finance/reports_expense_breakdowns_spec.rb spec/requests/finance/reports_expense_filters_spec.rb spec/system/finance_expense_report_filters_spec.rb
+finance_sales,finance/reports,index,GET,/finance/reports,pundit,3,0,spec/requests/finance/dashboard_spec.rb spec/requests/finance_laundry_workspace_navigation_spec.rb spec/requests/sidebar_active_state_spec.rb
+finance_sales,finance/reports,negative_balances,GET,/finance/reports/negative_balances,pundit,0,0,""
+finance_sales,finance/reports,recurring,GET,/finance/reports/recurring,pundit,0,0,""
+finance_sales,finance/reports,shared_allocation,GET,/finance/reports/shared_allocation,pundit,0,0,""
+finance_sales,finance/sales_imports,confirm_import,POST,/finance/sales_imports/:id/confirm_import,pundit,0,0,""
+finance_sales,finance/sales_imports,create,POST,/finance/sales_imports,pundit,0,0,""
+finance_sales,finance/sales_imports,destroy,DELETE,/finance/sales_imports/:id,pundit,0,0,""
+finance_sales,finance/sales_imports,edit_column_mapping,GET,/finance/sales_imports/:id/edit_column_mapping,pundit,1,0,spec/requests/finance/sales_imports_column_mapping_spec.rb
+finance_sales,finance/sales_imports,index,GET,/finance/sales_imports,pundit,3,0,spec/requests/finance/daily_reconciliations_sales_verification_spec.rb spec/requests/finance/sales_imports_index_and_show_spec.rb spec/requests/finance_laundry_workspace_navigation_spec.rb
+finance_sales,finance/sales_imports,new,GET,/finance/sales_imports/new,pundit,1,0,spec/requests/finance/daily_reconciliations_sales_verification_spec.rb
+finance_sales,finance/sales_imports,preview_import,GET,/finance/sales_imports/:id/preview_import,pundit,0,0,""
+finance_sales,finance/sales_imports,show,GET,/finance/sales_imports/:id,pundit,3,0,spec/requests/finance/daily_reconciliations_sales_verification_spec.rb spec/requests/finance/sales_imports_column_mapping_spec.rb spec/requests/finance/sales_imports_index_and_show_spec.rb
+finance_sales,finance/sales_imports,update_column_mapping,PATCH,/finance/sales_imports/:id/update_column_mapping,pundit,0,0,""
+finance_sales,opening_floats,create,POST,/opening_floats,pundit,1,0,spec/requests/opening_floats_spec.rb
+finance_sales,opening_floats,new,GET,/opening_floats/new,pundit,1,0,spec/requests/opening_floats_spec.rb
+finance_sales,till_deposits,create,POST,/till_deposits,pundit,3,0,spec/requests/finance/atm_dispute_reduces_remaining_deposit_spec.rb spec/requests/finance/daily_reconciliations_review_gated_actions_spec.rb spec/requests/finance/till_deposit_correction_workflow_spec.rb
+finance_sales,till_deposits,ignore,PATCH,/till_deposits/:id/ignore,pundit,1,0,spec/requests/finance/deposit_verifications_ignore_spec.rb
+finance_sales,till_deposits,ignore_modal,GET,/till_deposits/:id/ignore_modal,pundit,1,0,spec/requests/finance/deposit_verifications_ignore_spec.rb
+finance_sales,till_deposits,manual_match,PATCH,/till_deposits/:id/manual_match,pundit,4,0,spec/requests/finance/bank_match_void_lifecycle_counters_spec.rb spec/requests/finance/daily_reconciliation_manual_match_button_spec.rb spec/requests/finance/deposit_verifications_ignore_spec.rb
+finance_sales,till_deposits,manual_match_modal,GET,/till_deposits/:id/manual_match_modal,pundit,3,0,spec/requests/finance/daily_reconciliation_manual_match_button_spec.rb spec/requests/finance/deposit_verifications_view_action_spec.rb spec/requests/finance/till_deposits_multi_match_spec.rb
+finance_sales,till_deposits,new,GET,/till_deposits/new,pundit,5,0,spec/requests/finance/atm_dispute_reduces_remaining_deposit_spec.rb spec/requests/finance/daily_reconciliations_deposit_responsibility_transfer_spec.rb spec/requests/finance/daily_reconciliations_index_settle_remaining_spec.rb
+finance_sales,till_deposits,show,GET,/till_deposits/:id,pundit,12,0,spec/requests/finance/atm_dispute_reduces_remaining_deposit_spec.rb spec/requests/finance/bank_disputes_spec.rb spec/requests/finance/bank_match_void_lifecycle_counters_spec.rb
+finance_sales,till_deposits,unignore,PATCH,/till_deposits/:id/unignore,pundit,1,0,spec/requests/finance/deposit_verifications_ignore_spec.rb
+finance_sales,till_deposits,void,PATCH,/till_deposits/:id/void,pundit,3,0,spec/requests/finance/bank_match_void_lifecycle_counters_spec.rb spec/requests/finance/daily_reconciliations_void_deposit_status_spec.rb spec/requests/finance/till_deposit_correction_workflow_spec.rb
+finance_sales,till_handovers,accept,PATCH,/till_handovers/:id/accept,pundit,1,0,spec/requests/till_handovers_historical_shift_assignment_spec.rb
+finance_sales,till_handovers,cancel,PATCH,/till_handovers/:id/cancel,pundit,2,0,spec/requests/finance/daily_reconciliations_handover_cancel_reject_spec.rb spec/requests/till_handovers_historical_shift_assignment_spec.rb
+finance_sales,till_handovers,create,POST,/till_handovers,pundit,3,0,spec/requests/till_handovers_admin_branch_authorization_spec.rb spec/requests/till_handovers_historical_shift_assignment_spec.rb spec/requests/till_refunds_spec.rb
+finance_sales,till_handovers,create_adjustment,POST,/till_handovers/:id/create_adjustment,pundit,1,0,spec/requests/till_handovers_historical_shift_assignment_spec.rb
+finance_sales,till_handovers,my_shift,GET,/my_shift,pundit,3,0,spec/requests/finance/daily_reconciliations_deposit_responsibility_transfer_spec.rb spec/requests/finance/temporary_branch_coverage_spec.rb spec/requests/till_handovers_historical_shift_assignment_spec.rb
+finance_sales,till_handovers,new,GET,/till_handovers/new,pundit,4,0,spec/requests/finance/temporary_coverage_full_overlap_scenario_spec.rb spec/requests/till_handovers_admin_branch_authorization_spec.rb spec/requests/till_handovers_historical_shift_assignment_spec.rb
+finance_sales,till_handovers,new_adjustment,GET,/till_handovers/:id/new_adjustment,pundit,1,0,spec/requests/till_handovers_historical_shift_assignment_spec.rb
+finance_sales,till_handovers,reject,PATCH,/till_handovers/:id/reject,pundit,2,0,spec/requests/finance/daily_reconciliations_handover_cancel_reject_spec.rb spec/requests/till_handovers_historical_shift_assignment_spec.rb
+finance_sales,till_handovers,reverse,PATCH,/till_handovers/:id/reverse,pundit,1,0,spec/requests/till_handovers_historical_shift_assignment_spec.rb
+finance_sales,till_handovers,reverse_form,GET,/till_handovers/:id/reverse_form,pundit,1,0,spec/requests/till_handovers_historical_shift_assignment_spec.rb
+finance_sales,till_handovers,show,GET,/till_handovers/:id,pundit,5,0,spec/requests/finance/daily_reconciliations_handover_cancel_reject_spec.rb spec/requests/finance/temporary_coverage_full_overlap_scenario_spec.rb spec/requests/till_handovers_admin_branch_authorization_spec.rb
+finance_sales,till_refunds,create,POST,/till_refunds,pundit,1,0,spec/requests/till_refunds_spec.rb
+finance_sales,till_refunds,new,GET,/till_refunds/new,pundit,0,0,""
+infrastructure,audit_failures,index,GET,/audit_failures,pundit,2,0,spec/requests/audit_failures_spec.rb spec/requests/sidebar_active_state_spec.rb
+infrastructure,audit_failures,show,GET,/audit_failures/:id,pundit,1,0,spec/requests/audit_failures_spec.rb
+inventory_purchasing,inventory/barcode_labels,index,GET,/inventory/barcode_labels,pundit,1,0,spec/requests/inventory/barcode_labels_spec.rb
+inventory_purchasing,inventory/barcode_labels,show,GET,/inventory/barcode_labels/:id,pundit,1,0,spec/requests/inventory/barcode_labels_spec.rb
+inventory_purchasing,inventory/barcode_lookups,show,GET,/inventory/barcode_lookup,pundit,1,0,spec/requests/inventory/barcode_lookup_spec.rb
+inventory_purchasing,inventory/brands,create,POST,/inventory/brands,pundit,0,0,""
+inventory_purchasing,inventory/brands,destroy,DELETE,/inventory/brands/:id,pundit,0,0,""
+inventory_purchasing,inventory/brands,edit,GET,/inventory/brands/:id/edit,pundit,0,0,""
+inventory_purchasing,inventory/brands,index,GET,/inventory/brands,pundit,2,0,spec/requests/inventory/inventory_spec.rb spec/requests/inventory/workspace_navigation_spec.rb
+inventory_purchasing,inventory/brands,new,GET,/inventory/brands/new,pundit,0,0,""
+inventory_purchasing,inventory/brands,update,PATCH,/inventory/brands/:id,pundit,0,0,""
+inventory_purchasing,inventory/brands,update,PUT,/inventory/brands/:id,pundit,0,0,""
+inventory_purchasing,inventory/dashboard,index,GET,/inventory,pundit,12,0,spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/finance_laundry_workspace_navigation_spec.rb spec/requests/inventory/inventory_spec.rb
+inventory_purchasing,inventory/goods_receipt_settlements,create,POST,/inventory/goods_receipts/:goods_receipt_id/settlements,pundit,3,0,spec/requests/inventory/goods_receipt_immediate_payment_spec.rb spec/requests/inventory/goods_receipt_settlement_own_custody_spec.rb spec/requests/inventory/goods_receipt_settlements_spec.rb
+inventory_purchasing,inventory/goods_receipt_settlements,new,GET,/inventory/goods_receipts/:goods_receipt_id/settlements/new,pundit,3,3,spec/requests/inventory/goods_receipt_immediate_payment_spec.rb spec/requests/inventory/goods_receipt_settlement_own_custody_spec.rb spec/requests/inventory/goods_receipt_settlements_spec.rb
+inventory_purchasing,inventory/goods_receipt_settlements,reverse,PATCH,/inventory/goods_receipts/:goods_receipt_id/settlements/:id/reverse,pundit,1,0,spec/requests/inventory/goods_receipt_settlements_spec.rb
+inventory_purchasing,inventory/goods_receipts,approve,POST,/inventory/goods_receipts/:id/approve,pundit,9,2,spec/requests/inventory/goods_receipt_employee_custody_spec.rb spec/requests/inventory/goods_receipt_immediate_payment_spec.rb spec/requests/inventory/goods_receipt_show_page_spec.rb
+inventory_purchasing,inventory/goods_receipts,cancel,PATCH,/inventory/goods_receipts/:id/cancel,pundit,2,0,spec/requests/inventory/goods_receipt_cancel_spec.rb spec/requests/inventory/goods_receipt_status_consistency_spec.rb
+inventory_purchasing,inventory/goods_receipts,confirm,POST,/inventory/goods_receipts/:id/confirm,pundit,7,1,spec/requests/inventory/goods_receipt_employee_custody_spec.rb spec/requests/inventory/goods_receipt_immediate_payment_spec.rb spec/requests/inventory/goods_receipt_show_page_spec.rb
+inventory_purchasing,inventory/goods_receipts,create,POST,/inventory/goods_receipts,pundit,0,0,""
+inventory_purchasing,inventory/goods_receipts,edit,GET,/inventory/goods_receipts/:id/edit,pundit,0,0,""
+inventory_purchasing,inventory/goods_receipts,index,GET,/inventory/goods_receipts,pundit,18,2,spec/requests/inventory/goods_receipt_employee_custody_spec.rb spec/requests/inventory/goods_receipt_extra_products_spec.rb spec/requests/inventory/goods_receipt_funding_source_spec.rb
+inventory_purchasing,inventory/goods_receipts,new,GET,/inventory/goods_receipts/new,pundit,10,3,spec/requests/inventory/default_supplier_spec.rb spec/requests/inventory/goods_receipt_employee_custody_spec.rb spec/requests/inventory/goods_receipt_extra_products_spec.rb
+inventory_purchasing,inventory/goods_receipts,reject,POST,/inventory/goods_receipts/:id/reject,pundit,3,2,spec/requests/inventory/goods_receipt_status_consistency_spec.rb spec/requests/inventory/goods_receipts_index_actions_spec.rb spec/requests/inventory/purchase_request_goods_receipt_actions_spec.rb
+inventory_purchasing,inventory/goods_receipts,show,GET,/inventory/goods_receipts/:id,pundit,27,9,spec/requests/finance/settlement_linked_custody_void_spec.rb spec/requests/inventory/default_supplier_spec.rb spec/requests/inventory/goods_receipt_cancel_spec.rb
+inventory_purchasing,inventory/goods_receipts,submit,POST,/inventory/goods_receipts/:id/submit,pundit,5,0,spec/requests/inventory/goods_receipt_employee_custody_spec.rb spec/requests/inventory/goods_receipt_immediate_payment_spec.rb spec/requests/inventory/goods_receipt_show_page_spec.rb
+inventory_purchasing,inventory/goods_receipts,update,PATCH,/inventory/goods_receipts/:id,pundit,0,0,""
+inventory_purchasing,inventory/goods_receipts,update,PUT,/inventory/goods_receipts/:id,pundit,0,0,""
+inventory_purchasing,inventory/goods_receipts,void,PATCH,/inventory/goods_receipts/:id/void,pundit,4,0,spec/requests/inventory/goods_receipt_cancel_spec.rb spec/requests/inventory/goods_receipt_immediate_payment_spec.rb spec/requests/inventory/goods_receipt_show_page_spec.rb
+inventory_purchasing,inventory/product_categories,create,POST,/inventory/product_categories,pundit,0,0,""
+inventory_purchasing,inventory/product_categories,destroy,DELETE,/inventory/product_categories/:id,pundit,0,0,""
+inventory_purchasing,inventory/product_categories,edit,GET,/inventory/product_categories/:id/edit,pundit,0,0,""
+inventory_purchasing,inventory/product_categories,index,GET,/inventory/product_categories,pundit,3,0,spec/requests/inventory/inventory_spec.rb spec/requests/inventory/ux_fixes_spec.rb spec/requests/inventory/workspace_navigation_spec.rb
+inventory_purchasing,inventory/product_categories,new,GET,/inventory/product_categories/new,pundit,0,0,""
+inventory_purchasing,inventory/product_categories,update,PATCH,/inventory/product_categories/:id,pundit,0,0,""
+inventory_purchasing,inventory/product_categories,update,PUT,/inventory/product_categories/:id,pundit,0,0,""
+inventory_purchasing,inventory/products,archive,PATCH,/inventory/products/:id/archive,pundit,1,0,spec/requests/inventory/products_search_spec.rb
+inventory_purchasing,inventory/products,archive_family,PATCH,/inventory/products/:id/archive_family,pundit,1,0,spec/requests/inventory/products_search_spec.rb
+inventory_purchasing,inventory/products,children,GET,/inventory/products/:id/children,pundit,1,0,spec/requests/inventory/products_search_spec.rb
+inventory_purchasing,inventory/products,create,POST,/inventory/products,pundit,1,0,spec/requests/inventory/products_search_spec.rb
+inventory_purchasing,inventory/products,destroy,DELETE,/inventory/products/:id,pundit,1,0,spec/requests/inventory/products_search_spec.rb
+inventory_purchasing,inventory/products,edit,GET,/inventory/products/:id/edit,pundit,2,0,spec/requests/inventory/products_search_spec.rb spec/requests/inventory/ux_fixes_spec.rb
+inventory_purchasing,inventory/products,generate_barcode,POST,/inventory/products/:id/generate_barcode,pundit,2,0,spec/requests/inventory/products_barcode_spec.rb spec/requests/inventory/products_search_spec.rb
+inventory_purchasing,inventory/products,import,GET,/inventory/products/import,pundit,1,0,spec/requests/inventory/products_search_spec.rb
+inventory_purchasing,inventory/products,import_template,GET,/inventory/products/import_template,pundit,2,0,spec/requests/inventory/products_search_spec.rb spec/requests/inventory/ux_fixes_spec.rb
+inventory_purchasing,inventory/products,index,GET,/inventory/products,pundit,13,0,spec/requests/inventory/default_supplier_spec.rb spec/requests/inventory/inventory_spec.rb spec/requests/inventory/products_barcode_spec.rb
+inventory_purchasing,inventory/products,new,GET,/inventory/products/new,pundit,3,0,spec/requests/inventory/inventory_spec.rb spec/requests/inventory/products_search_spec.rb spec/requests/inventory/ux_fixes_spec.rb
+inventory_purchasing,inventory/products,next_barcode_code,GET,/inventory/products/next_barcode_code,pundit,2,0,spec/requests/inventory/products_barcode_spec.rb spec/requests/inventory/products_search_spec.rb
+inventory_purchasing,inventory/products,restore,PATCH,/inventory/products/:id/restore,pundit,1,0,spec/requests/inventory/products_search_spec.rb
+inventory_purchasing,inventory/products,run_import,POST,/inventory/products/import,pundit,1,0,spec/requests/inventory/products_search_spec.rb
+inventory_purchasing,inventory/products,show,GET,/inventory/products/:id,pundit,10,1,spec/requests/inventory/inventory_spec.rb spec/requests/inventory/product_recent_documents_spec.rb spec/requests/inventory/products_barcode_spec.rb
+inventory_purchasing,inventory/products,update,PATCH,/inventory/products/:id,pundit,1,0,spec/requests/inventory/products_search_spec.rb
+inventory_purchasing,inventory/products,update,PUT,/inventory/products/:id,pundit,1,0,spec/requests/inventory/products_search_spec.rb
+inventory_purchasing,inventory/purchase_request_advances,cancel,POST,/inventory/purchase_requests/:purchase_request_id/advances/:id/cancel,pundit,1,0,spec/requests/inventory/purchase_request_advances_spec.rb
+inventory_purchasing,inventory/purchase_request_advances,confirm,POST,/inventory/purchase_requests/:purchase_request_id/advances/:id/confirm,pundit,1,0,spec/requests/inventory/purchase_request_advances_spec.rb
+inventory_purchasing,inventory/purchase_request_advances,create,POST,/inventory/purchase_requests/:purchase_request_id/advances,pundit,1,0,spec/requests/inventory/purchase_request_advances_spec.rb
+inventory_purchasing,inventory/purchase_request_advances,new,GET,/inventory/purchase_requests/:purchase_request_id/advances/new,pundit,1,1,spec/requests/inventory/purchase_request_advances_spec.rb spec/system/inventory/purchase_request_advances_spec.rb
+inventory_purchasing,inventory/purchase_request_advances,reverse,POST,/inventory/purchase_requests/:purchase_request_id/advances/:id/reverse,pundit,1,0,spec/requests/inventory/purchase_request_advances_spec.rb
+inventory_purchasing,inventory/purchase_requests,approve,POST,/inventory/purchase_requests/:id/approve,pundit,3,1,spec/requests/inventory/purchase_requests_edit_spec.rb spec/requests/inventory/purchase_requests_list_ui_spec.rb spec/requests/inventory/purchase_requests_next_action_spec.rb
+inventory_purchasing,inventory/purchase_requests,bulk_approve,POST,/inventory/purchase_requests/bulk_approve,pundit,2,1,spec/requests/inventory/purchase_requests_bulk_approve_spec.rb spec/requests/inventory/purchase_requests_list_ui_spec.rb spec/system/inventory/purchase_request_bulk_approve_spec.rb
+inventory_purchasing,inventory/purchase_requests,cancel,POST,/inventory/purchase_requests/:id/cancel,pundit,1,1,spec/requests/inventory/purchase_requests_list_ui_spec.rb spec/system/inventory/purchase_request_bulk_approve_spec.rb
+inventory_purchasing,inventory/purchase_requests,close_remaining,POST,/inventory/purchase_requests/:id/close_remaining,pundit,2,1,spec/requests/inventory/purchase_request_close_remaining_spec.rb spec/requests/inventory/purchase_requests_list_ui_spec.rb spec/system/inventory/purchase_request_bulk_approve_spec.rb
+inventory_purchasing,inventory/purchase_requests,create,POST,/inventory/purchase_requests,pundit,1,1,spec/requests/inventory/purchase_requests_list_ui_spec.rb spec/system/inventory/purchase_request_bulk_approve_spec.rb
+inventory_purchasing,inventory/purchase_requests,destroy,DELETE,/inventory/purchase_requests/:id,pundit,1,1,spec/requests/inventory/purchase_requests_list_ui_spec.rb spec/system/inventory/purchase_request_bulk_approve_spec.rb
+inventory_purchasing,inventory/purchase_requests,edit,GET,/inventory/purchase_requests/:id/edit,pundit,2,1,spec/requests/inventory/purchase_requests_edit_spec.rb spec/requests/inventory/purchase_requests_list_ui_spec.rb spec/system/inventory/purchase_request_bulk_approve_spec.rb
+inventory_purchasing,inventory/purchase_requests,index,GET,/inventory/purchase_requests,pundit,11,2,spec/requests/inventory/overview_dashboard_spec.rb spec/requests/inventory/purchase_request_close_remaining_spec.rb spec/requests/inventory/purchase_request_goods_receipt_spec.rb
+inventory_purchasing,inventory/purchase_requests,new,GET,/inventory/purchase_requests/new,pundit,2,3,spec/requests/inventory/purchase_requests_list_ui_spec.rb spec/requests/inventory/purchase_requests_new_form_spec.rb spec/system/inventory/purchase_request_bulk_approve_spec.rb
+inventory_purchasing,inventory/purchase_requests,reject,POST,/inventory/purchase_requests/:id/reject,pundit,2,1,spec/requests/inventory/purchase_requests_list_ui_spec.rb spec/requests/inventory/purchase_requests_next_action_spec.rb spec/system/inventory/purchase_request_bulk_approve_spec.rb
+inventory_purchasing,inventory/purchase_requests,show,GET,/inventory/purchase_requests/:id,pundit,9,6,spec/requests/inventory/purchase_request_advances_spec.rb spec/requests/inventory/purchase_request_close_remaining_spec.rb spec/requests/inventory/purchase_request_goods_receipt_actions_spec.rb
+inventory_purchasing,inventory/purchase_requests,submit,POST,/inventory/purchase_requests/:id/submit,pundit,3,1,spec/requests/inventory/purchase_requests_edit_spec.rb spec/requests/inventory/purchase_requests_list_ui_spec.rb spec/requests/inventory/purchase_requests_next_action_spec.rb
+inventory_purchasing,inventory/purchase_requests,update,PATCH,/inventory/purchase_requests/:id,pundit,1,1,spec/requests/inventory/purchase_requests_list_ui_spec.rb spec/system/inventory/purchase_request_bulk_approve_spec.rb
+inventory_purchasing,inventory/purchase_requests,update,PUT,/inventory/purchase_requests/:id,pundit,1,1,spec/requests/inventory/purchase_requests_list_ui_spec.rb spec/system/inventory/purchase_request_bulk_approve_spec.rb
+inventory_purchasing,inventory/reports,adjustments,GET,/inventory/reports/adjustments,custom,1,0,spec/requests/inventory/reports_spec.rb
+inventory_purchasing,inventory/reports,branch_comparison,GET,/inventory/reports/branch_comparison,custom,1,0,spec/requests/inventory/reports_spec.rb
+inventory_purchasing,inventory/reports,consumption,GET,/inventory/reports/consumption,custom,2,0,spec/requests/inventory/consumption_filters_spec.rb spec/requests/inventory/reports_spec.rb
+inventory_purchasing,inventory/reports,current_stock,GET,/inventory/reports/current_stock,custom,3,0,spec/requests/inventory/overview_dashboard_spec.rb spec/requests/inventory/reports_spec.rb spec/requests/inventory/workspace_navigation_spec.rb
+inventory_purchasing,inventory/reports,export_branch_comparison,GET,/inventory/reports/branch_comparison/export,custom,1,0,spec/requests/inventory/reports_spec.rb
+inventory_purchasing,inventory/reports,export_movements,GET,/inventory/reports/movements/export,custom,2,0,spec/requests/inventory/reports_spec.rb spec/requests/inventory/stock_count_traceability_spec.rb
+inventory_purchasing,inventory/reports,index,GET,/inventory/reports,custom,3,0,spec/requests/inventory/reports_spec.rb spec/requests/inventory/workspace_navigation_spec.rb spec/requests/sidebar_active_state_spec.rb
+inventory_purchasing,inventory/reports,low_stock,GET,/inventory/reports/low_stock,custom,3,1,spec/requests/inventory/overview_dashboard_spec.rb spec/requests/inventory/reports_spec.rb spec/requests/inventory/warehouse_supplies_spec.rb
+inventory_purchasing,inventory/reports,movements,GET,/inventory/reports/movements,custom,5,0,spec/requests/inventory/overview_dashboard_spec.rb spec/requests/inventory/product_recent_documents_spec.rb spec/requests/inventory/reports_spec.rb
+inventory_purchasing,inventory/reports,no_movement,GET,/inventory/reports/no_movement,custom,1,0,spec/requests/inventory/reports_spec.rb
+inventory_purchasing,inventory/reports,purchases,GET,/inventory/reports/purchases,custom,1,0,spec/requests/inventory/reports_spec.rb
+inventory_purchasing,inventory/reports,supplier_purchases,GET,/inventory/reports/supplier_purchases,custom,1,0,spec/requests/inventory/reports_spec.rb
+inventory_purchasing,inventory/reports,transfers,GET,/inventory/reports/transfers,custom,1,0,spec/requests/inventory/reports_spec.rb
+inventory_purchasing,inventory/settings,show,GET,/inventory/settings,none,2,0,spec/requests/inventory/warehouse_supplies_spec.rb spec/requests/inventory/workspace_navigation_spec.rb
+inventory_purchasing,inventory/stock_adjustments,create,POST,/inventory/stock_adjustments,pundit,0,0,""
+inventory_purchasing,inventory/stock_adjustments,index,GET,/inventory/stock_adjustments,pundit,4,0,spec/requests/inventory/voids_and_adjustments_spec.rb spec/requests/inventory/workspace_navigation_spec.rb spec/requests/security/inventory_cross_business_references_spec.rb
+inventory_purchasing,inventory/stock_adjustments,new,GET,/inventory/stock_adjustments/new,pundit,2,0,spec/requests/inventory/stock_count_traceability_spec.rb spec/requests/inventory/voids_and_adjustments_spec.rb
+inventory_purchasing,inventory/stock_adjustments,show,GET,/inventory/stock_adjustments/:id,pundit,3,0,spec/requests/inventory/stock_count_traceability_spec.rb spec/requests/inventory/stock_counts_spec.rb spec/requests/inventory/voids_and_adjustments_spec.rb
+inventory_purchasing,inventory/stock_adjustments,void,PATCH,/inventory/stock_adjustments/:id/void,pundit,1,0,spec/requests/inventory/stock_counts_spec.rb
+inventory_purchasing,inventory/stock_counts,approve,PATCH,/inventory/stock_counts/:id/approve,pundit,1,1,spec/requests/inventory/stock_counts_spec.rb spec/system/inventory/stock_count_confirm_quantity_spec.rb
+inventory_purchasing,inventory/stock_counts,cancel,PATCH,/inventory/stock_counts/:id/cancel,pundit,1,1,spec/requests/inventory/stock_counts_spec.rb spec/system/inventory/stock_count_confirm_quantity_spec.rb
+inventory_purchasing,inventory/stock_counts,complete,PATCH,/inventory/stock_counts/:id/complete,pundit,1,1,spec/requests/inventory/stock_counts_spec.rb spec/system/inventory/stock_count_confirm_quantity_spec.rb
+inventory_purchasing,inventory/stock_counts,create,POST,/inventory/stock_counts,pundit,0,1,spec/system/inventory/stock_count_confirm_quantity_spec.rb
+inventory_purchasing,inventory/stock_counts,destroy,DELETE,/inventory/stock_counts/:id,pundit,0,1,spec/system/inventory/stock_count_confirm_quantity_spec.rb
+inventory_purchasing,inventory/stock_counts,edit,GET,/inventory/stock_counts/:id/edit,pundit,1,2,spec/requests/inventory/stock_counts_spec.rb spec/system/inventory/stock_count_confirm_quantity_spec.rb spec/system/inventory/stock_count_resume_spec.rb
+inventory_purchasing,inventory/stock_counts,export,GET,/inventory/stock_counts/:id/export,pundit,1,1,spec/requests/inventory/stock_counts_spec.rb spec/system/inventory/stock_count_confirm_quantity_spec.rb
+inventory_purchasing,inventory/stock_counts,import,GET,/inventory/stock_counts/:id/import,pundit,0,1,spec/system/inventory/stock_count_confirm_quantity_spec.rb
+inventory_purchasing,inventory/stock_counts,index,GET,/inventory/stock_counts,pundit,5,1,spec/requests/inventory/overview_dashboard_spec.rb spec/requests/inventory/stock_counts_spec.rb spec/requests/inventory/workspace_navigation_spec.rb
+inventory_purchasing,inventory/stock_counts,new,GET,/inventory/stock_counts/new,pundit,1,1,spec/requests/inventory/stock_counts_spec.rb spec/system/inventory/stock_count_confirm_quantity_spec.rb
+inventory_purchasing,inventory/stock_counts,reopen,PATCH,/inventory/stock_counts/:id/reopen,pundit,1,1,spec/requests/inventory/stock_counts_spec.rb spec/system/inventory/stock_count_confirm_quantity_spec.rb
+inventory_purchasing,inventory/stock_counts,run_import,PATCH,/inventory/stock_counts/:id/import,pundit,0,1,spec/system/inventory/stock_count_confirm_quantity_spec.rb
+inventory_purchasing,inventory/stock_counts,show,GET,/inventory/stock_counts/:id,pundit,3,2,spec/requests/inventory/stock_count_traceability_spec.rb spec/requests/inventory/stock_counts_spec.rb spec/requests/security/inventory_cross_business_references_spec.rb
+inventory_purchasing,inventory/stock_counts,update,PATCH,/inventory/stock_counts/:id,pundit,0,1,spec/system/inventory/stock_count_confirm_quantity_spec.rb
+inventory_purchasing,inventory/stock_counts,update,PUT,/inventory/stock_counts/:id,pundit,0,1,spec/system/inventory/stock_count_confirm_quantity_spec.rb
+inventory_purchasing,inventory/stock_issue_import_batches,complete,PATCH,/inventory/stock_issue_import_batches/:id/complete,pundit,1,0,spec/requests/inventory/stock_issue_import_batches_spec.rb
+inventory_purchasing,inventory/stock_issue_import_batches,show,GET,/inventory/stock_issue_import_batches/:id,pundit,3,0,spec/requests/inventory/stock_issue_import_batches_spec.rb spec/requests/inventory/stock_issue_import_formats_spec.rb spec/requests/inventory/stock_issue_import_mapping_spec.rb
+inventory_purchasing,inventory/stock_issue_import_rows,resolve,PATCH,/inventory/stock_issue_import_batches/:stock_issue_import_batch_id/rows/:id/resolve,pundit,1,0,spec/requests/inventory/stock_issue_import_batches_spec.rb
+inventory_purchasing,inventory/stock_issue_import_rows,skip,PATCH,/inventory/stock_issue_import_batches/:stock_issue_import_batch_id/rows/:id/skip,pundit,1,0,spec/requests/inventory/stock_issue_import_batches_spec.rb
+inventory_purchasing,inventory/stock_issues,approve,POST,/inventory/stock_issues/:id/approve,pundit,5,0,spec/requests/inventory/inventory_spec.rb spec/requests/inventory/stock_issue_approval_gate_spec.rb spec/requests/inventory/stock_issue_availability_spec.rb
+inventory_purchasing,inventory/stock_issues,cancel,PATCH,/inventory/stock_issues/:id/cancel,pundit,1,0,spec/requests/inventory/stock_issues_workflow_spec.rb
+inventory_purchasing,inventory/stock_issues,confirm,POST,/inventory/stock_issues/:id/confirm,pundit,5,0,spec/requests/inventory/inventory_spec.rb spec/requests/inventory/stock_issue_approval_gate_spec.rb spec/requests/inventory/stock_issue_availability_spec.rb
+inventory_purchasing,inventory/stock_issues,create,POST,/inventory/stock_issues,pundit,0,0,""
+inventory_purchasing,inventory/stock_issues,destroy,DELETE,/inventory/stock_issues/:id,pundit,0,0,""
+inventory_purchasing,inventory/stock_issues,edit,GET,/inventory/stock_issues/:id/edit,pundit,3,0,spec/requests/inventory/stock_issue_edit_performance_spec.rb spec/requests/inventory/stock_issue_edit_request_spec.rb spec/requests/inventory/stock_issues_workflow_spec.rb
+inventory_purchasing,inventory/stock_issues,import,GET,/inventory/stock_issues/import,pundit,6,1,spec/requests/inactive_branch_operations_spec.rb spec/requests/inventory/stock_issue_approval_gate_spec.rb spec/requests/inventory/stock_issue_import_batches_spec.rb
+inventory_purchasing,inventory/stock_issues,import_template,GET,/inventory/stock_issues/import_template,pundit,2,0,spec/requests/inventory/stock_issue_import_formats_spec.rb spec/requests/inventory/ux_fixes_spec.rb
+inventory_purchasing,inventory/stock_issues,index,GET,/inventory/stock_issues,pundit,15,1,spec/requests/inactive_branch_operations_spec.rb spec/requests/inventory/inventory_spec.rb spec/requests/inventory/overview_dashboard_spec.rb
+inventory_purchasing,inventory/stock_issues,new,GET,/inventory/stock_issues/new,pundit,4,0,spec/requests/inventory/inventory_spec.rb spec/requests/inventory/overview_dashboard_spec.rb spec/requests/inventory/stock_issues_index_spec.rb
+inventory_purchasing,inventory/stock_issues,preview_import,POST,/inventory/stock_issues/import/preview,pundit,3,0,spec/requests/inactive_branch_operations_spec.rb spec/requests/inventory/stock_issue_import_formats_spec.rb spec/requests/inventory/stock_issue_import_mapping_spec.rb
+inventory_purchasing,inventory/stock_issues,reject,POST,/inventory/stock_issues/:id/reject,pundit,1,0,spec/requests/inventory/stock_issues_workflow_spec.rb
+inventory_purchasing,inventory/stock_issues,run_import,POST,/inventory/stock_issues/import,pundit,5,0,spec/requests/inactive_branch_operations_spec.rb spec/requests/inventory/stock_issue_approval_gate_spec.rb spec/requests/inventory/stock_issue_import_batches_spec.rb
+inventory_purchasing,inventory/stock_issues,show,GET,/inventory/stock_issues/:id,pundit,15,1,spec/requests/inventory/inventory_spec.rb spec/requests/inventory/overview_dashboard_spec.rb spec/requests/inventory/product_recent_documents_spec.rb
+inventory_purchasing,inventory/stock_issues,submit,POST,/inventory/stock_issues/:id/submit,pundit,3,0,spec/requests/inventory/inventory_spec.rb spec/requests/inventory/stock_issue_edit_request_spec.rb spec/requests/inventory/stock_issues_workflow_spec.rb
+inventory_purchasing,inventory/stock_issues,update,PATCH,/inventory/stock_issues/:id,pundit,0,0,""
+inventory_purchasing,inventory/stock_issues,update,PUT,/inventory/stock_issues/:id,pundit,0,0,""
+inventory_purchasing,inventory/stock_issues,void,PATCH,/inventory/stock_issues/:id/void,pundit,0,0,""
+inventory_purchasing,inventory/stock_transfers,create,POST,/inventory/stock_transfers,pundit,0,0,""
+inventory_purchasing,inventory/stock_transfers,index,GET,/inventory/stock_transfers,pundit,5,0,spec/requests/inventory/stock_transfers_spec.rb spec/requests/inventory/warehouse_access_spec.rb spec/requests/inventory/workspace_navigation_spec.rb
+inventory_purchasing,inventory/stock_transfers,new,GET,/inventory/stock_transfers/new,pundit,1,0,spec/requests/inventory/stock_transfers_spec.rb
+inventory_purchasing,inventory/stock_transfers,show,GET,/inventory/stock_transfers/:id,pundit,1,0,spec/requests/inventory/stock_transfers_spec.rb
+inventory_purchasing,inventory/stock_transfers,void,PATCH,/inventory/stock_transfers/:id/void,pundit,0,0,""
+inventory_purchasing,inventory/suppliers,create,POST,/inventory/suppliers,pundit,0,0,""
+inventory_purchasing,inventory/suppliers,destroy,DELETE,/inventory/suppliers/:id,pundit,0,0,""
+inventory_purchasing,inventory/suppliers,edit,GET,/inventory/suppliers/:id/edit,pundit,0,0,""
+inventory_purchasing,inventory/suppliers,index,GET,/inventory/suppliers,pundit,3,0,spec/requests/inventory/inventory_spec.rb spec/requests/inventory/workspace_navigation_spec.rb spec/requests/sidebar_active_state_spec.rb
+inventory_purchasing,inventory/suppliers,new,GET,/inventory/suppliers/new,pundit,0,0,""
+inventory_purchasing,inventory/suppliers,show,GET,/inventory/suppliers/:id,pundit,1,0,spec/requests/security/supplier_receipt_summary_scope_spec.rb
+inventory_purchasing,inventory/suppliers,update,PATCH,/inventory/suppliers/:id,pundit,0,0,""
+inventory_purchasing,inventory/suppliers,update,PUT,/inventory/suppliers/:id,pundit,0,0,""
+inventory_purchasing,inventory/warehouse_supplies,index,GET,/inventory/warehouse_supplies,pundit,1,0,spec/requests/inventory/warehouse_supplies_spec.rb
+inventory_purchasing,inventory/warehouse_supplies,update,PATCH,/inventory/warehouse_supplies/:id,pundit,1,0,spec/requests/inventory/warehouse_supplies_spec.rb
+inventory_purchasing,inventory/warehouse_supplies,update,PUT,/inventory/warehouse_supplies/:id,pundit,0,0,""
+inventory_purchasing,inventory/warehouses,create,POST,/inventory/warehouses,pundit,0,0,""
+inventory_purchasing,inventory/warehouses,destroy,DELETE,/inventory/warehouses/:id,pundit,0,0,""
+inventory_purchasing,inventory/warehouses,edit,GET,/inventory/warehouses/:id/edit,pundit,0,0,""
+inventory_purchasing,inventory/warehouses,index,GET,/inventory/warehouses,pundit,4,0,spec/requests/inventory/inventory_spec.rb spec/requests/inventory/warehouse_access_spec.rb spec/requests/inventory/workspace_navigation_spec.rb
+inventory_purchasing,inventory/warehouses,new,GET,/inventory/warehouses/new,pundit,0,0,""
+inventory_purchasing,inventory/warehouses,show,GET,/inventory/warehouses/:id,pundit,1,0,spec/requests/inventory/warehouse_access_spec.rb
+inventory_purchasing,inventory/warehouses,update,PATCH,/inventory/warehouses/:id,pundit,0,0,""
+inventory_purchasing,inventory/warehouses,update,PUT,/inventory/warehouses/:id,pundit,0,0,""
+inventory_purchasing,laundry/dashboard,index,GET,/laundry,pundit,7,0,spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/finance_laundry_workspace_navigation_spec.rb spec/requests/laundry/cost_reports_authorization_spec.rb
+inventory_purchasing,laundry/laundry_batch_consumptions,create,POST,/laundry/laundry_batches/:laundry_batch_id/consumptions,pundit,1,0,spec/requests/laundry/towel_transfers_and_batches_spec.rb
+inventory_purchasing,laundry/laundry_batches,complete,PATCH,/laundry/laundry_batches/:id/complete,pundit,1,0,spec/requests/laundry/towel_transfers_and_batches_spec.rb
+inventory_purchasing,laundry/laundry_batches,create,POST,/laundry/laundry_batches,pundit,0,0,""
+inventory_purchasing,laundry/laundry_batches,index,GET,/laundry/laundry_batches,pundit,5,0,spec/requests/finance_laundry_workspace_navigation_spec.rb spec/requests/inactive_branch_operations_spec.rb spec/requests/laundry/laundry_batch_business_scope_spec.rb
+inventory_purchasing,laundry/laundry_batches,new,GET,/laundry/laundry_batches/new,pundit,1,0,spec/requests/laundry/pages_render_spec.rb
+inventory_purchasing,laundry/laundry_batches,reverse,PATCH,/laundry/laundry_batches/:id/reverse,pundit,0,0,""
+inventory_purchasing,laundry/laundry_batches,show,GET,/laundry/laundry_batches/:id,pundit,2,0,spec/requests/laundry/pages_render_spec.rb spec/requests/laundry/towel_transfers_and_batches_spec.rb
+inventory_purchasing,laundry/laundry_batches,start,PATCH,/laundry/laundry_batches/:id/start,pundit,1,0,spec/requests/laundry/towel_transfers_and_batches_spec.rb
+inventory_purchasing,laundry/reports/branch_consumption,index,GET,/laundry/reports/branch_consumption,custom,5,0,spec/requests/finance_laundry_workspace_navigation_spec.rb spec/requests/laundry/branch_consumption_scope_spec.rb spec/requests/laundry/cost_reports_authorization_spec.rb
+inventory_purchasing,laundry/standard_cost_rates,create,POST,/laundry/towel_types/:towel_type_id/standard_cost_rates,pundit,1,0,spec/requests/laundry/standard_cost_rates_spec.rb
+inventory_purchasing,laundry/standard_cost_rates,new,GET,/laundry/towel_types/:towel_type_id/standard_cost_rates/new,pundit,4,0,spec/requests/finance_laundry_workspace_navigation_spec.rb spec/requests/laundry/cost_reports_authorization_spec.rb spec/requests/laundry/pages_render_spec.rb
+inventory_purchasing,laundry/towel_adjustments,create,POST,/laundry/towel_adjustments,pundit,0,0,""
+inventory_purchasing,laundry/towel_adjustments,index,GET,/laundry/towel_adjustments,pundit,5,0,spec/requests/finance_laundry_workspace_navigation_spec.rb spec/requests/inactive_branch_operations_spec.rb spec/requests/laundry/pages_render_spec.rb
+inventory_purchasing,laundry/towel_adjustments,new,GET,/laundry/towel_adjustments/new,pundit,2,0,spec/requests/laundry/pages_render_spec.rb spec/requests/laundry/permission_separation_spec.rb
+inventory_purchasing,laundry/towel_balances,index,GET,/laundry/balances,none,5,0,spec/requests/finance_laundry_workspace_navigation_spec.rb spec/requests/laundry/pages_render_spec.rb spec/requests/laundry/permission_separation_spec.rb
+inventory_purchasing,laundry/towel_transfers,cancel,PATCH,/laundry/towel_transfers/:id/cancel,pundit,1,0,spec/requests/laundry/towel_transfer_visibility_and_lifecycle_spec.rb
+inventory_purchasing,laundry/towel_transfers,create,POST,/laundry/towel_transfers,pundit,0,0,""
+inventory_purchasing,laundry/towel_transfers,index,GET,/laundry/towel_transfers,pundit,6,0,spec/requests/finance_laundry_workspace_navigation_spec.rb spec/requests/inactive_branch_operations_spec.rb spec/requests/laundry/pages_render_spec.rb
+inventory_purchasing,laundry/towel_transfers,mark_dispatched,PATCH,/laundry/towel_transfers/:id/mark_dispatched,pundit,3,0,spec/requests/laundry/permission_separation_spec.rb spec/requests/laundry/towel_transfer_visibility_and_lifecycle_spec.rb spec/requests/laundry/towel_transfers_and_batches_spec.rb
+inventory_purchasing,laundry/towel_transfers,new,GET,/laundry/towel_transfers/new,pundit,4,0,spec/requests/laundry/pages_render_spec.rb spec/requests/laundry/permission_scope_spec.rb spec/requests/laundry/permission_separation_spec.rb
+inventory_purchasing,laundry/towel_transfers,receive,PATCH,/laundry/towel_transfers/:id/receive,pundit,3,0,spec/requests/laundry/permission_separation_spec.rb spec/requests/laundry/towel_transfer_visibility_and_lifecycle_spec.rb spec/requests/laundry/towel_transfers_and_batches_spec.rb
+inventory_purchasing,laundry/towel_transfers,show,GET,/laundry/towel_transfers/:id,pundit,6,0,spec/requests/inactive_branch_operations_spec.rb spec/requests/laundry/pages_render_spec.rb spec/requests/laundry/permission_scope_spec.rb
+inventory_purchasing,laundry/towel_types,create,POST,/laundry/towel_types,pundit,0,0,""
+inventory_purchasing,laundry/towel_types,destroy,DELETE,/laundry/towel_types/:id,pundit,0,0,""
+inventory_purchasing,laundry/towel_types,edit,GET,/laundry/towel_types/:id/edit,pundit,0,0,""
+inventory_purchasing,laundry/towel_types,index,GET,/laundry/towel_types,pundit,5,0,spec/requests/finance_laundry_workspace_navigation_spec.rb spec/requests/laundry/cost_reports_authorization_spec.rb spec/requests/laundry/pages_render_spec.rb
+inventory_purchasing,laundry/towel_types,new,GET,/laundry/towel_types/new,pundit,1,0,spec/requests/laundry/pages_render_spec.rb
+inventory_purchasing,laundry/towel_types,update,PATCH,/laundry/towel_types/:id,pundit,1,0,spec/requests/laundry/pages_render_spec.rb
+inventory_purchasing,laundry/towel_types,update,PUT,/laundry/towel_types/:id,pundit,0,0,""
+organization_access,admin/branches,create,POST,/admin/branches,pundit,0,0,""
+organization_access,admin/branches,deactivate,PATCH,/admin/branches/:id/deactivate,pundit,1,0,spec/requests/admin/branch_lifecycle_spec.rb
+organization_access,admin/branches,destroy,DELETE,/admin/branches/:id,pundit,0,0,""
+organization_access,admin/branches,edit,GET,/admin/branches/:id/edit,pundit,1,0,spec/requests/admin/branches_spec.rb
+organization_access,admin/branches,index,GET,/admin/branches,pundit,4,0,spec/requests/admin/branch_lifecycle_spec.rb spec/requests/admin/branches_spec.rb spec/requests/permission_matrix_verification_spec.rb
+organization_access,admin/branches,new,GET,/admin/branches/new,pundit,1,0,spec/requests/admin/branches_spec.rb
+organization_access,admin/branches,reactivate,PATCH,/admin/branches/:id/reactivate,pundit,1,0,spec/requests/admin/branch_lifecycle_spec.rb
+organization_access,admin/branches,show,GET,/admin/branches/:id,pundit,4,0,spec/requests/admin/branch_lifecycle_spec.rb spec/requests/admin/branches_spec.rb spec/requests/security/organization_access_security_spec.rb
+organization_access,admin/branches,update,PATCH,/admin/branches/:id,pundit,0,0,""
+organization_access,admin/branches,update,PUT,/admin/branches/:id,pundit,0,0,""
+organization_access,admin/permission_roles,assign_user,POST,/admin/permission_roles/:id/assign_user,pundit,3,0,spec/requests/admin/role_assignment_entry_points_spec.rb spec/requests/security/organization_access_security_spec.rb spec/requests/security/organization_access_view_and_role_scope_spec.rb
+organization_access,admin/permission_roles,create,POST,/admin/permission_roles,pundit,0,0,""
+organization_access,admin/permission_roles,destroy,DELETE,/admin/permission_roles/:id,pundit,0,0,""
+organization_access,admin/permission_roles,edit,GET,/admin/permission_roles/:id/edit,pundit,1,0,spec/requests/admin/permission_roles_localization_spec.rb
+organization_access,admin/permission_roles,index,GET,/admin/permission_roles,pundit,4,0,spec/requests/permission_matrix_verification_spec.rb spec/requests/security/organization_access_security_spec.rb spec/requests/security/organization_access_view_and_role_scope_spec.rb
+organization_access,admin/permission_roles,new,GET,/admin/permission_roles/new,pundit,1,0,spec/requests/admin/permission_roles_localization_spec.rb
+organization_access,admin/permission_roles,remove_user,DELETE,/admin/permission_roles/:id/remove_user,pundit,1,0,spec/requests/security/organization_access_security_spec.rb
+organization_access,admin/permission_roles,show,GET,/admin/permission_roles/:id,pundit,4,0,spec/requests/admin/permission_roles_localization_spec.rb spec/requests/admin/role_assignment_entry_points_spec.rb spec/requests/security/organization_access_security_spec.rb
+organization_access,admin/permission_roles,update,PATCH,/admin/permission_roles/:id,pundit,0,0,""
+organization_access,admin/permission_roles,update,PUT,/admin/permission_roles/:id,pundit,0,0,""
+organization_access,admin/settings,show,GET,/admin/settings,custom,4,0,spec/requests/admin/settings_spec.rb spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/permission_matrix_verification_spec.rb
+organization_access,admin/settings,update,PATCH,/admin/settings,custom,0,0,""
+organization_access,admin/settings,update,PUT,/admin/settings,custom,0,0,""
+organization_access,admin/user_passwords,edit,GET,/admin/users/:user_id/password/edit,pundit,0,0,""
+organization_access,admin/user_passwords,update,PATCH,/admin/users/:user_id/password,pundit,2,0,spec/requests/security/organization_access_scope_hierarchy_spec.rb spec/requests/security/organization_access_security_spec.rb
+organization_access,admin/user_passwords,update,PUT,/admin/users/:user_id/password,pundit,0,0,""
+organization_access,api/v1/sessions,create,POST,/api/v1/auth/login,custom,5,0,spec/requests/api/v1/characterization/authentication_spec.rb spec/requests/api/v1/sessions_spec.rb spec/requests/api/v1/standard_contract/rate_limiting_spec.rb
+organization_access,api/v1/sessions,destroy,DELETE,/api/v1/auth/logout,custom,3,0,spec/requests/api/v1/characterization/authentication_spec.rb spec/requests/api/v1/sessions_spec.rb spec/requests/api/v1/standard_contract/rate_limiting_spec.rb
+organization_access,locale,update,PATCH,/locale,custom,1,0,spec/requests/attendance_records_spec.rb
+organization_access,preferences,update,PATCH,/preferences/locale,custom,1,0,spec/requests/preferences_spec.rb
+organization_access,profile/passwords,edit,GET,/profile/password/edit,custom,0,0,""
+organization_access,profile/passwords,update,PATCH,/profile/password,custom,0,0,""
+organization_access,profile/passwords,update,PUT,/profile/password,custom,0,0,""
+organization_access,users/registrations,cancel,GET,/users/cancel,none,0,0,""
+organization_access,users/registrations,create,POST,/users,none,1,0,spec/requests/api/v1/characterization/authentication_spec.rb
+organization_access,users/registrations,destroy,DELETE,/users,none,1,0,spec/requests/api/v1/characterization/authentication_spec.rb
+organization_access,users/registrations,edit,GET,/users/edit,none,0,0,""
+organization_access,users/registrations,new,GET,/users/sign_up,none,2,0,spec/requests/security/organization_access_security_spec.rb spec/requests/users/registrations_spec.rb
+organization_access,users/registrations,update,PATCH,/users,none,3,0,spec/requests/api/v1/characterization/authentication_spec.rb spec/requests/security/organization_access_security_spec.rb spec/requests/users/registrations_spec.rb
+organization_access,users/registrations,update,PUT,/users,none,1,0,spec/requests/api/v1/characterization/authentication_spec.rb
+organization_access,users/sessions,create,POST,/users/sign_in,none,11,0,spec/requests/admin/attendance_imports_spec.rb spec/requests/admin/shift_templates_spec.rb spec/requests/admin/users_spec.rb
+organization_access,users/sessions,destroy,DELETE,/users/sign_out,none,0,0,""
+organization_access,users/sessions,new,GET,/users/sign_in,none,10,0,spec/requests/admin/attendance_imports_spec.rb spec/requests/admin/shift_templates_spec.rb spec/requests/admin/users_spec.rb
+reporting,admin/dashboard,index,GET,/admin,pundit,1,0,spec/requests/admin/dashboard_spec.rb
+reporting,dashboard,index,GET,/,pundit,144,2,spec/requests/adjustments_spec.rb spec/requests/admin/attendance_imports_spec.rb spec/requests/admin/branch_lifecycle_spec.rb
+reporting,finance/dashboard,export_pdf,GET,/finance/dashboard/export_pdf,pundit,2,0,spec/requests/finance/dashboard_spec.rb spec/requests/security/finance_payroll_cost_visibility_spec.rb
+reporting,finance/dashboard,index,GET,/finance,pundit,13,0,spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/finance/bank_dispute_depositor_mismatch_spec.rb spec/requests/finance/bank_dispute_registered_as_deposit_spec.rb
+reporting,laundry/reports/cost_summary,index,GET,/laundry/reports/cost_summary,pundit,5,0,spec/requests/finance_laundry_workspace_navigation_spec.rb spec/requests/laundry/cost_reports_authorization_spec.rb spec/requests/laundry/cost_summary_visibility_spec.rb
+reporting,operations_dashboard,index,GET,/operations_dashboard,pundit,3,0,spec/requests/permission_matrix_verification_spec.rb spec/requests/security/payroll_analytics_scope_spec.rb spec/requests/sidebar_active_state_spec.rb
+workforce,admin/departments,create,POST,/admin/departments,pundit,0,0,""
+workforce,admin/departments,destroy,DELETE,/admin/departments/:id,pundit,0,0,""
+workforce,admin/departments,edit,GET,/admin/departments/:id/edit,pundit,0,0,""
+workforce,admin/departments,index,GET,/admin/departments,pundit,1,0,spec/requests/sidebar_active_state_spec.rb
+workforce,admin/departments,new,GET,/admin/departments/new,pundit,0,0,""
+workforce,admin/departments,update,PATCH,/admin/departments/:id,pundit,0,0,""
+workforce,admin/departments,update,PUT,/admin/departments/:id,pundit,0,0,""
+workforce,admin/employee_insurance_profiles,edit,GET,/admin/users/:user_id/employee_insurance_profile/edit,pundit,3,0,spec/requests/admin/employee_insurance_profiles_spec.rb spec/requests/security/employee_insurance_profile_deletion_spec.rb spec/requests/security/employee_insurance_profile_scope_spec.rb
+workforce,admin/employee_insurance_profiles,update,PATCH,/admin/users/:user_id/employee_insurance_profile,pundit,3,0,spec/requests/admin/employee_insurance_profiles_spec.rb spec/requests/security/employee_insurance_profile_deletion_spec.rb spec/requests/security/employee_insurance_profile_scope_spec.rb
+workforce,admin/employee_insurance_profiles,update,PUT,/admin/users/:user_id/employee_insurance_profile,pundit,1,0,spec/requests/security/employee_insurance_profile_deletion_spec.rb
+workforce,admin/evaluation_templates,create,POST,/admin/evaluation_templates,pundit,0,0,""
+workforce,admin/evaluation_templates,destroy,DELETE,/admin/evaluation_templates/:id,pundit,0,0,""
+workforce,admin/evaluation_templates,edit,GET,/admin/evaluation_templates/:id/edit,pundit,0,0,""
+workforce,admin/evaluation_templates,index,GET,/admin/evaluation_templates,pundit,3,0,spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/security/performance_cross_business_spec.rb spec/requests/sidebar_active_state_spec.rb
+workforce,admin/evaluation_templates,new,GET,/admin/evaluation_templates/new,pundit,1,0,spec/requests/attendance_performance_workspace_navigation_spec.rb
+workforce,admin/evaluation_templates,show,GET,/admin/evaluation_templates/:id,pundit,2,0,spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/security/performance_cross_business_spec.rb
+workforce,admin/evaluation_templates,update,PATCH,/admin/evaluation_templates/:id,pundit,0,0,""
+workforce,admin/evaluation_templates,update,PUT,/admin/evaluation_templates/:id,pundit,0,0,""
+workforce,admin/job_titles,create,POST,/admin/job_titles,pundit,0,0,""
+workforce,admin/job_titles,edit,GET,/admin/job_titles/:id/edit,pundit,1,0,spec/requests/admin/job_titles_spec.rb
+workforce,admin/job_titles,index,GET,/admin/job_titles,pundit,2,0,spec/requests/admin/job_titles_spec.rb spec/requests/sidebar_active_state_spec.rb
+workforce,admin/job_titles,new,GET,/admin/job_titles/new,pundit,0,0,""
+workforce,admin/job_titles,update,PATCH,/admin/job_titles/:id,pundit,1,0,spec/requests/admin/job_titles_spec.rb
+workforce,admin/job_titles,update,PUT,/admin/job_titles/:id,pundit,0,0,""
+workforce,admin/shift_rule_profiles,create,POST,/admin/shift_rule_profiles,pundit,0,0,""
+workforce,admin/shift_rule_profiles,destroy,DELETE,/admin/shift_rule_profiles/:id,pundit,0,0,""
+workforce,admin/shift_rule_profiles,edit,GET,/admin/shift_rule_profiles/:id/edit,pundit,0,0,""
+workforce,admin/shift_rule_profiles,index,GET,/admin/shift_rule_profiles,pundit,3,0,spec/requests/admin/shift_rule_profiles_spec.rb spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/sidebar_active_state_spec.rb
+workforce,admin/shift_rule_profiles,new,GET,/admin/shift_rule_profiles/new,pundit,0,0,""
+workforce,admin/shift_rule_profiles,show,GET,/admin/shift_rule_profiles/:id,pundit,1,0,spec/requests/admin/shift_rule_profiles_spec.rb
+workforce,admin/shift_rule_profiles,update,PATCH,/admin/shift_rule_profiles/:id,pundit,0,0,""
+workforce,admin/shift_rule_profiles,update,PUT,/admin/shift_rule_profiles/:id,pundit,0,0,""
+workforce,admin/shift_templates,apply,GET,/admin/shift_templates/:id/apply,pundit,1,0,spec/requests/admin/shift_templates_spec.rb
+workforce,admin/shift_templates,apply_confirm,POST,/admin/shift_templates/:id/apply_confirm,pundit,1,0,spec/requests/admin/shift_templates_spec.rb
+workforce,admin/shift_templates,archive,PATCH,/admin/shift_templates/:id/archive,pundit,1,0,spec/requests/admin/shift_templates_spec.rb
+workforce,admin/shift_templates,create,POST,/admin/shift_templates,pundit,0,0,""
+workforce,admin/shift_templates,destroy,DELETE,/admin/shift_templates/:id,pundit,0,0,""
+workforce,admin/shift_templates,edit,GET,/admin/shift_templates/:id/edit,pundit,0,0,""
+workforce,admin/shift_templates,index,GET,/admin/shift_templates,pundit,3,0,spec/requests/admin/shift_templates_spec.rb spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/security/shift_template_business_scope_spec.rb
+workforce,admin/shift_templates,new,GET,/admin/shift_templates/new,pundit,0,0,""
+workforce,admin/shift_templates,preview_apply,POST,/admin/shift_templates/:id/preview_apply,pundit,1,0,spec/requests/admin/shift_templates_spec.rb
+workforce,admin/shift_templates,show,GET,/admin/shift_templates/:id,pundit,2,0,spec/requests/admin/shift_templates_spec.rb spec/requests/security/shift_template_business_scope_spec.rb
+workforce,admin/shift_templates,unarchive,PATCH,/admin/shift_templates/:id/unarchive,pundit,1,0,spec/requests/admin/shift_templates_spec.rb
+workforce,admin/shift_templates,update,PATCH,/admin/shift_templates/:id,pundit,0,0,""
+workforce,admin/shift_templates,update,PUT,/admin/shift_templates/:id,pundit,0,0,""
+workforce,admin/shifts,create,POST,/admin/shifts,pundit,2,0,spec/requests/admin/shift_penalty_rule_routing_spec.rb spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+workforce,admin/shifts,destroy,DELETE,/admin/shifts/:id,pundit,2,0,spec/requests/admin/shift_penalty_rule_routing_spec.rb spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+workforce,admin/shifts,edit,GET,/admin/shifts/:id/edit,pundit,3,0,spec/requests/admin/shift_penalty_rule_form_markup_spec.rb spec/requests/admin/shift_penalty_rule_routing_spec.rb spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+workforce,admin/shifts,index,GET,/admin/shifts,pundit,4,0,spec/requests/admin/shift_penalty_rule_routing_spec.rb spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+workforce,admin/shifts,new,GET,/admin/shifts/new,pundit,3,0,spec/requests/admin/shift_penalty_rule_routing_spec.rb spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+workforce,admin/shifts,show,GET,/admin/shifts/:id,pundit,4,0,spec/requests/admin/shift_penalty_rule_form_markup_spec.rb spec/requests/admin/shift_penalty_rule_routing_spec.rb spec/requests/attendance_performance_workspace_navigation_spec.rb
+workforce,admin/shifts,update,PATCH,/admin/shifts/:id,pundit,2,0,spec/requests/admin/shift_penalty_rule_routing_spec.rb spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+workforce,admin/shifts,update,PUT,/admin/shifts/:id,pundit,2,0,spec/requests/admin/shift_penalty_rule_routing_spec.rb spec/requests/security/admin_shifts_and_penalty_rules_authorization_spec.rb
+workforce,admin/users,create,POST,/admin/users,pundit,1,0,spec/requests/admin/user_deletion_spec.rb
+workforce,admin/users,destroy,DELETE,/admin/users/:id,pundit,1,0,spec/requests/admin/user_deletion_spec.rb
+workforce,admin/users,edit,GET,/admin/users/:id/edit,pundit,2,0,spec/requests/admin/user_deletion_spec.rb spec/requests/security/organization_access_security_spec.rb
+workforce,admin/users,index,GET,/admin/users,pundit,8,0,spec/requests/admin/dashboard_spec.rb spec/requests/admin/user_deletion_spec.rb spec/requests/admin/users_spec.rb
+workforce,admin/users,new,GET,/admin/users/new,pundit,4,0,spec/requests/admin/user_deletion_spec.rb spec/requests/employee_data_requests_spec.rb spec/requests/employee_sidebar_and_creation_spec.rb
+workforce,admin/users,show,GET,/admin/users/:id,pundit,19,0,spec/requests/admin/dashboard_spec.rb spec/requests/admin/role_assignment_entry_points_spec.rb spec/requests/admin/user_deletion_spec.rb
+workforce,admin/users,toggle_active,PATCH,/admin/users/:id/toggle_active,pundit,4,0,spec/requests/admin/user_deletion_spec.rb spec/requests/admin/users_spec.rb spec/requests/security/organization_access_scope_hierarchy_spec.rb
+workforce,admin/users,transfer_ownership,PATCH,/admin/users/:id/transfer_ownership,pundit,2,0,spec/requests/admin/user_deletion_spec.rb spec/requests/security/organization_access_security_spec.rb
+workforce,admin/users,update,PATCH,/admin/users/:id,pundit,1,0,spec/requests/admin/user_deletion_spec.rb
+workforce,admin/users,update,PUT,/admin/users/:id,pundit,1,0,spec/requests/admin/user_deletion_spec.rb
+workforce,api/v1/employee_requests,approve,PATCH,/api/v1/employee_requests/:id/approve,pundit,7,0,spec/requests/api/v1/characterization/authentication_spec.rb spec/requests/api/v1/characterization/self_service_spec.rb spec/requests/api/v1/employee_request_scope_spec.rb
+workforce,api/v1/employee_requests,cancel,PATCH,/api/v1/employee_requests/:id/cancel,pundit,8,0,spec/requests/api/v1/characterization/authentication_spec.rb spec/requests/api/v1/characterization/self_service_spec.rb spec/requests/api/v1/employee_request_scope_spec.rb
+workforce,api/v1/employee_requests,create,POST,/api/v1/employee_requests,pundit,6,0,spec/requests/api/v1/characterization/authentication_spec.rb spec/requests/api/v1/characterization/self_service_spec.rb spec/requests/api/v1/employee_request_scope_spec.rb
+workforce,api/v1/employee_requests,index,GET,/api/v1/employee_requests,pundit,7,0,spec/requests/api/v1/characterization/authentication_spec.rb spec/requests/api/v1/characterization/self_service_spec.rb spec/requests/api/v1/employee_request_scope_spec.rb
+workforce,api/v1/employee_requests,pay,PATCH,/api/v1/employee_requests/:id/pay,pundit,6,0,spec/requests/api/v1/characterization/authentication_spec.rb spec/requests/api/v1/characterization/self_service_spec.rb spec/requests/api/v1/employee_request_scope_spec.rb
+workforce,api/v1/employee_requests,reject,PATCH,/api/v1/employee_requests/:id/reject,pundit,7,0,spec/requests/api/v1/characterization/authentication_spec.rb spec/requests/api/v1/characterization/self_service_spec.rb spec/requests/api/v1/employee_request_scope_spec.rb
+workforce,api/v1/employee_requests,show,GET,/api/v1/employee_requests/:id,pundit,8,0,spec/requests/api/v1/characterization/authentication_spec.rb spec/requests/api/v1/characterization/self_service_spec.rb spec/requests/api/v1/employee_request_scope_spec.rb
+workforce,api/v1/shift_assignments,create,POST,/api/v1/shift_assignments,pundit,3,0,spec/requests/admin/branch_lifecycle_spec.rb spec/requests/api/v1/characterization/management_spec.rb spec/requests/api/v1/security/cross_business_authorization_spec.rb
+workforce,api/v1/shift_assignments,destroy,DELETE,/api/v1/shift_assignments/:id,pundit,3,0,spec/requests/admin/branch_lifecycle_spec.rb spec/requests/api/v1/characterization/management_spec.rb spec/requests/api/v1/security/cross_business_authorization_spec.rb
+workforce,api/v1/shift_assignments,edit,GET,/api/v1/shift_assignments/:id/edit,pundit,3,0,spec/requests/admin/branch_lifecycle_spec.rb spec/requests/api/v1/characterization/management_spec.rb spec/requests/api/v1/security/cross_business_authorization_spec.rb
+workforce,api/v1/shift_assignments,index,GET,/api/v1/shift_assignments,pundit,3,0,spec/requests/admin/branch_lifecycle_spec.rb spec/requests/api/v1/characterization/management_spec.rb spec/requests/api/v1/security/cross_business_authorization_spec.rb
+workforce,api/v1/shift_assignments,new,GET,/api/v1/shift_assignments/new,pundit,0,0,""
+workforce,api/v1/shift_assignments,show,GET,/api/v1/shift_assignments/:id,pundit,3,0,spec/requests/admin/branch_lifecycle_spec.rb spec/requests/api/v1/characterization/management_spec.rb spec/requests/api/v1/security/cross_business_authorization_spec.rb
+workforce,api/v1/shift_assignments,update,PATCH,/api/v1/shift_assignments/:id,pundit,3,0,spec/requests/admin/branch_lifecycle_spec.rb spec/requests/api/v1/characterization/management_spec.rb spec/requests/api/v1/security/cross_business_authorization_spec.rb
+workforce,api/v1/shift_assignments,update,PUT,/api/v1/shift_assignments/:id,pundit,3,0,spec/requests/admin/branch_lifecycle_spec.rb spec/requests/api/v1/characterization/management_spec.rb spec/requests/api/v1/security/cross_business_authorization_spec.rb
+workforce,api/v1/shifts,create,POST,/api/v1/shifts,pundit,1,0,spec/requests/api/v1/characterization/management_spec.rb
+workforce,api/v1/shifts,destroy,DELETE,/api/v1/shifts/:id,pundit,1,0,spec/requests/api/v1/characterization/management_spec.rb
+workforce,api/v1/shifts,edit,GET,/api/v1/shifts/:id/edit,pundit,1,0,spec/requests/api/v1/characterization/management_spec.rb
+workforce,api/v1/shifts,index,GET,/api/v1/shifts,pundit,1,0,spec/requests/api/v1/characterization/management_spec.rb
+workforce,api/v1/shifts,new,GET,/api/v1/shifts/new,pundit,0,0,""
+workforce,api/v1/shifts,show,GET,/api/v1/shifts/:id,pundit,1,0,spec/requests/api/v1/characterization/management_spec.rb
+workforce,api/v1/shifts,update,PATCH,/api/v1/shifts/:id,pundit,1,0,spec/requests/api/v1/characterization/management_spec.rb
+workforce,api/v1/shifts,update,PUT,/api/v1/shifts/:id,pundit,1,0,spec/requests/api/v1/characterization/management_spec.rb
+workforce,birthday_celebrations,create,POST,/birthday_celebration,custom,1,0,spec/requests/dashboard_birthdays_spec.rb
+workforce,employee_data_requests,approve,PATCH,/employee_data_requests/:id/approve,pundit,1,0,spec/requests/employee_data_requests_spec.rb
+workforce,employee_data_requests,correct,PATCH,/employee_data_requests/:id/correct,pundit,1,0,spec/requests/employee_data_requests_spec.rb
+workforce,employee_data_requests,create,POST,/employee_data_requests,pundit,0,0,""
+workforce,employee_data_requests,document,GET,/employee_data_requests/:id/documents/:side,pundit,1,0,spec/requests/employee_data_requests_spec.rb
+workforce,employee_data_requests,edit,GET,/employee_data_requests/:id/edit,pundit,1,0,spec/requests/employee_data_requests_spec.rb
+workforce,employee_data_requests,index,GET,/employee_data_requests,pundit,3,1,spec/requests/employee_data_requests_spec.rb spec/requests/employee_sidebar_and_creation_spec.rb spec/requests/sidebar_active_state_spec.rb
+workforce,employee_data_requests,new,GET,/employee_data_requests/new,pundit,1,1,spec/requests/employee_data_requests_spec.rb spec/system/employee_data_request_spec.rb
+workforce,employee_data_requests,reject,PATCH,/employee_data_requests/:id/reject,pundit,1,0,spec/requests/employee_data_requests_spec.rb
+workforce,employee_data_requests,request_changes,PATCH,/employee_data_requests/:id/request_changes,pundit,1,0,spec/requests/employee_data_requests_spec.rb
+workforce,employee_data_requests,show,GET,/employee_data_requests/:id,pundit,1,1,spec/requests/employee_data_requests_spec.rb spec/system/employee_data_request_spec.rb
+workforce,employee_data_requests,update,PATCH,/employee_data_requests/:id,pundit,0,0,""
+workforce,employee_data_requests,update,PUT,/employee_data_requests/:id,pundit,0,0,""
+workforce,employee_requests,approve,PATCH,/employee_requests/:id/approve,pundit,13,0,spec/requests/employee_request_attendance_window_spec.rb spec/requests/employee_request_branch_manager_punch_correction_spec.rb spec/requests/employee_request_check_out_order_spec.rb
+workforce,employee_requests,bulk_pay,PATCH,/employee_requests/bulk_pay,pundit,2,0,spec/requests/employee_request_punch_facts_routing_spec.rb spec/requests/employee_requests_spec.rb
+workforce,employee_requests,cancel,PATCH,/employee_requests/:id/cancel,pundit,4,0,spec/requests/employee_request_punch_facts_routing_spec.rb spec/requests/employee_requests_spec.rb spec/requests/security/employee_request_approve_scope_spec.rb
+workforce,employee_requests,create,POST,/employee_requests,pundit,2,0,spec/requests/employee_request_punch_facts_routing_spec.rb spec/requests/employee_requests_spec.rb
+workforce,employee_requests,index,GET,/employee_requests,pundit,8,1,spec/requests/employee_request_attendance_window_spec.rb spec/requests/employee_request_check_out_order_spec.rb spec/requests/employee_request_punch_facts_routing_spec.rb
+workforce,employee_requests,new,GET,/employee_requests/new,pundit,4,1,spec/requests/employee_request_check_out_order_spec.rb spec/requests/employee_request_punch_facts_routing_spec.rb spec/requests/employee_requests_spec.rb
+workforce,employee_requests,pay,PATCH,/employee_requests/:id/pay,pundit,2,0,spec/requests/employee_request_punch_facts_routing_spec.rb spec/requests/employee_requests_spec.rb
+workforce,employee_requests,reject,PATCH,/employee_requests/:id/reject,pundit,5,1,spec/requests/employee_request_branch_manager_punch_correction_spec.rb spec/requests/employee_request_punch_facts_routing_spec.rb spec/requests/employee_requests_spec.rb
+workforce,employee_requests,show,GET,/employee_requests/:id,pundit,14,3,spec/requests/employee_request_attendance_window_spec.rb spec/requests/employee_request_branch_manager_punch_correction_spec.rb spec/requests/employee_request_check_out_order_spec.rb
+workforce,holidays,create,POST,/holidays,pundit,0,0,""
+workforce,holidays,destroy,DELETE,/holidays/:id,pundit,0,0,""
+workforce,holidays,edit,GET,/holidays/:id/edit,pundit,1,0,spec/requests/holidays_spec.rb
+workforce,holidays,index,GET,/holidays,pundit,2,0,spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/holidays_spec.rb
+workforce,holidays,new,GET,/holidays/new,pundit,0,0,""
+workforce,holidays,update,PATCH,/holidays/:id,pundit,1,0,spec/requests/holidays_spec.rb
+workforce,holidays,update,PUT,/holidays/:id,pundit,0,0,""
+workforce,performance/dashboard,index,GET,/performance,pundit,2,0,spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/sidebar_active_state_spec.rb
+workforce,performance/observations,create,POST,/performance/observations,pundit,0,0,""
+workforce,performance/observations,criteria_options,GET,/performance/observations/criteria_options,pundit,0,0,""
+workforce,performance/observations,destroy,DELETE,/performance/observations/:id,pundit,0,0,""
+workforce,performance/observations,edit,GET,/performance/observations/:id/edit,pundit,0,0,""
+workforce,performance/observations,index,GET,/performance/observations,pundit,3,0,spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/security/performance_cross_business_spec.rb spec/requests/sidebar_active_state_spec.rb
+workforce,performance/observations,new,GET,/performance/observations/new,pundit,1,0,spec/requests/attendance_performance_workspace_navigation_spec.rb
+workforce,performance/observations,show,GET,/performance/observations/:id,pundit,1,0,spec/requests/attendance_performance_workspace_navigation_spec.rb
+workforce,performance/observations,update,PATCH,/performance/observations/:id,pundit,0,0,""
+workforce,performance/observations,update,PUT,/performance/observations/:id,pundit,0,0,""
+workforce,performance/reports,index,GET,/performance/reports,pundit,2,0,spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/sidebar_active_state_spec.rb
+workforce,performance/reports,trend,GET,/performance/reports/trend,pundit,1,0,spec/requests/attendance_performance_workspace_navigation_spec.rb
+workforce,performance/reviews,create,POST,/performance/reviews,pundit,0,0,""
+workforce,performance/reviews,destroy,DELETE,/performance/reviews/:id,pundit,0,0,""
+workforce,performance/reviews,edit,GET,/performance/reviews/:id/edit,pundit,0,0,""
+workforce,performance/reviews,employee_summary,GET,/performance/reviews/employee_summary,pundit,1,0,spec/requests/performance/reviews_analytics_spec.rb
+workforce,performance/reviews,employee_summary_export_pdf,GET,/performance/reviews/employee_summary/export_pdf,pundit,1,0,spec/requests/performance/reviews_analytics_spec.rb
+workforce,performance/reviews,employee_summary_export_xlsx,GET,/performance/reviews/employee_summary/export_xlsx,pundit,1,0,spec/requests/performance/reviews_analytics_spec.rb
+workforce,performance/reviews,export_pdf,GET,/performance/reviews/export_pdf,pundit,1,0,spec/requests/performance/reviews_analytics_spec.rb
+workforce,performance/reviews,export_xlsx,GET,/performance/reviews/export_xlsx,pundit,1,0,spec/requests/performance/reviews_analytics_spec.rb
+workforce,performance/reviews,finalize,PATCH,/performance/reviews/:id/finalize,pundit,0,0,""
+workforce,performance/reviews,index,GET,/performance/reviews,pundit,6,0,spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/performance/review_invalid_period_spec.rb spec/requests/performance/reviews_analytics_spec.rb
+workforce,performance/reviews,new,GET,/performance/reviews/new,pundit,0,0,""
+workforce,performance/reviews,show,GET,/performance/reviews/:id,pundit,2,0,spec/requests/performance/review_invalid_period_spec.rb spec/requests/security/performance_cross_business_spec.rb
+workforce,performance/reviews,submit,PATCH,/performance/reviews/:id/submit,pundit,0,0,""
+workforce,performance/reviews,update,PATCH,/performance/reviews/:id,pundit,0,0,""
+workforce,performance/reviews,update,PUT,/performance/reviews/:id,pundit,0,0,""
+workforce,shift_assignments,bulk_assign,POST,/shift_assignments/bulk_assign,pundit,1,0,spec/requests/security/shift_assignment_resource_business_scope_spec.rb
+workforce,shift_assignments,bulk_assign_preview,GET,/shift_assignments/bulk_assign_preview,pundit,1,0,spec/requests/security/shift_assignment_resource_business_scope_spec.rb
+workforce,shift_assignments,bulk_delete,DELETE,/shift_assignments/bulk_delete,pundit,1,0,spec/requests/shift_assignments_spec.rb
+workforce,shift_assignments,bulk_end,PATCH,/shift_assignments/bulk_end,pundit,1,0,spec/requests/shift_assignments_spec.rb
+workforce,shift_assignments,confirm_delete,GET,/shift_assignments/:id/confirm_delete,pundit,1,0,spec/requests/shift_assignments_spec.rb
+workforce,shift_assignments,confirm_end,GET,/shift_assignments/:id/confirm_end,pundit,0,0,""
+workforce,shift_assignments,create,POST,/shift_assignments,pundit,0,0,""
+workforce,shift_assignments,destroy,DELETE,/shift_assignments/:id,pundit,0,0,""
+workforce,shift_assignments,edit,GET,/shift_assignments/:id/edit,pundit,0,0,""
+workforce,shift_assignments,end,PATCH,/shift_assignments/:id/end,pundit,1,0,spec/requests/shift_assignments_spec.rb
+workforce,shift_assignments,index,GET,/shift_assignments,pundit,8,0,spec/requests/admin/branch_lifecycle_spec.rb spec/requests/attendance_performance_workspace_navigation_spec.rb spec/requests/finance/temporary_coverage_full_overlap_scenario_spec.rb
+workforce,shift_assignments,new,GET,/shift_assignments/new,pundit,2,1,spec/requests/shift_assignments_floating_spec.rb spec/requests/shift_assignments_spec.rb spec/system/shift_assignment_coverage_branch_spec.rb
+workforce,shift_assignments,update,PATCH,/shift_assignments/:id,pundit,3,1,spec/requests/admin/branch_lifecycle_spec.rb spec/requests/shift_assignments_floating_spec.rb spec/requests/shift_assignments_spec.rb
+workforce,shift_assignments,update,PUT,/shift_assignments/:id,pundit,0,0,""
+workforce,shifts,show,GET,/shifts/:id,pundit,6,0,spec/requests/admin/shift_penalty_rule_form_markup_spec.rb spec/requests/admin/shift_penalty_rule_routing_spec.rb spec/requests/attendance_performance_workspace_navigation_spec.rb
