@@ -1,0 +1,28 @@
+<%= form_with model: holiday, class: "form-card" do |f| %>
+  <%= render "shared/error_messages", object: holiday %>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <%= f.label :date, t("holidays.date"), class: "form-label" %>
+      <%= f.date_field :date, class: "form-control #{'is-error' if holiday.errors[:date].any?}", required: true %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :kind, t("holidays.kind"), class: "form-label" %>
+      <%= f.select :kind, Holiday::KINDS.map { |kind| [ t("holidays.kinds.#{kind}"), kind ] }, {},
+            class: "form-control #{'is-error' if holiday.errors[:kind].any?}" %>
+      <p class="form-hint"><%= t("holidays.kind_hint") %></p>
+    </div>
+
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <%= f.label :name, t("holidays.name"), class: "form-label" %>
+      <%= f.text_field :name, class: "form-control #{'is-error' if holiday.errors[:name].any?}", required: true,
+            maxlength: 120, placeholder: t("holidays.name_placeholder") %>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <%= f.submit t("common.save"), class: "btn btn-primary" %>
+    <%= link_to t("common.cancel"), holidays_path, class: "btn btn-ghost" %>
+  </div>
+<% end %>

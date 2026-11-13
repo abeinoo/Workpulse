@@ -1,0 +1,51 @@
+<% content_for :title, t("holidays.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("holidays.title") %></h1>
+    <%= link_to t("holidays.add"), new_holiday_path, class: "btn btn-primary btn-sm" %>
+  </div>
+
+  <p class="form-hint"><%= t("holidays.intro") %></p>
+
+  <div class="page-header">
+    <%= link_to "‹ #{@year - 1}", holidays_path(year: @year - 1), class: "btn btn-ghost btn-sm" %>
+    <strong><%= @year %></strong>
+    <%= link_to "#{@year + 1} ›", holidays_path(year: @year + 1), class: "btn btn-ghost btn-sm" %>
+  </div>
+
+  <% if @holidays.empty? %>
+    <div class="empty-state"><p class="empty-state__title"><%= t("holidays.empty", year: @year) %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead>
+          <tr>
+            <th><%= t("holidays.date") %></th>
+            <th><%= t("holidays.name") %></th>
+            <th><%= t("holidays.kind") %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @holidays.each do |holiday| %>
+            <tr>
+              <td><%= l(holiday.date, format: :long) %></td>
+              <td><%= holiday.name %></td>
+              <td>
+                <span class="badge <%= holiday.public_holiday? ? 'badge-accent' : 'badge-neutral' %>">
+                  <%= t("holidays.kinds.#{holiday.kind}") %>
+                </span>
+              </td>
+              <td class="td-actions">
+                <%= link_to t("common.edit"), edit_holiday_path(holiday), class: "link-muted" %>
+                <%= button_to t("holidays.delete"), holiday_path(holiday), method: :delete, class: "link-muted",
+                      form: { data: { turbo_confirm: t("holidays.delete_confirm", name: holiday.name) } } %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

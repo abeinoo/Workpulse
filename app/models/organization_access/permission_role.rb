@@ -34,7 +34,7 @@ class PermissionRole < ApplicationRecord
                                pay_advances],
     adjustments:           %w[view_adjustments manage_adjustments approve_adjustments edit_approved_adjustments],
     requests:              %w[view_requests approve_requests],
-    shifts:                %w[view_shifts manage_shifts assign_shifts],
+    shifts:                %w[view_shifts manage_shifts assign_shifts manage_holidays],
     reports:               %w[view_dashboard view_reports export_reports],
     inventory:             %w[view_inventory manage_inventory view_inventory_reports
                                manage_suppliers manage_products manage_stock_receipts
@@ -232,7 +232,7 @@ class PermissionRole < ApplicationRecord
       %w[finalize_payroll pay_payroll delete_payroll reopen_payroll
          approve_payroll_items create_payroll regenerate_payroll submit_payroll_review
          view_draft_payroll view_payroll_audit_log
-         approve_adjustments edit_approved_adjustments manage_devices manage_shifts
+         approve_adjustments edit_approved_adjustments manage_devices manage_shifts manage_holidays
          manage_evaluation_templates view_performance_reports] +
     # Which submitters' requests a reviewer sees (requests carry no branch; the
     # submitter is the scoping key). Review/decision actions reuse this scope.

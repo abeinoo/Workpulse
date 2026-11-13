@@ -293,6 +293,7 @@ module WorkspaceHelper
         [ :shift_assignments, t("nav.shift_assignments"),   shift_assignments_path,          :scheduling, true,  current_user.can?(:assign_shifts) ],
         [ :shift_types,       t("nav.shift_types"),         admin_shifts_path,               :scheduling, true,  current_user.can?(:manage_shifts) ],
         [ :scheduling_rules,  t("nav.shift_rule_profiles"), admin_shift_rule_profiles_path,  :scheduling, false, current_user.can?(:manage_shifts) ],
+        [ :holidays,          t("nav.holidays"),            holidays_path,                   :scheduling, false, current_user.can?(:manage_holidays) ],
         [ :punch_logs,        t("nav.punch_logs"),          admin_biometric_punch_logs_path, :devices,    false, current_user.can?(:manage_devices) ]
       ]
     }

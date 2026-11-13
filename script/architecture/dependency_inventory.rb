@@ -138,11 +138,11 @@ module ArchitectureTools
       [ %r{\Aapp/models/workforce/}, WF ],
       [ %r{\Aapp/services/(employee_data_requests|employee|shifts|scheduling|requests|performance|workforce)/}, WF ],
       [ %r{\Aapp/services/(branch_membership\.rb|dashboard/birthdays\.rb)\z}, WF ],
-      [ %r{\Aapp/controllers/(shifts|shift_assignments|employee_requests|employee_data_requests|birthday_celebrations)_controller\.rb\z}, WF ],
+      [ %r{\Aapp/controllers/(shifts|shift_assignments|employee_requests|employee_data_requests|birthday_celebrations|holidays)_controller\.rb\z}, WF ],
       [ %r{\Aapp/controllers/performance/}, WF ],
       [ %r{\Aapp/controllers/admin/(users|employee_insurance_profiles|departments|job_titles|evaluation_templates|shifts|shift_templates|shift_rule_profiles)_controller\.rb\z}, WF ],
       [ %r{\Aapp/controllers/api/v1/(shifts|shift_assignments|employee_requests)_controller\.rb\z}, WF ],
-      [ %r{\Aapp/views/(shifts|shift_assignments|employee_requests|employee_data_requests|performance)/}, WF ],
+      [ %r{\Aapp/views/(shifts|shift_assignments|employee_requests|employee_data_requests|performance|holidays)/}, WF ],
       [ %r{\Aapp/views/admin/(users|employee_insurance_profiles|departments|job_titles|evaluation_templates|shifts|shift_templates|shift_rule_profiles)/}, WF ],
       [ %r{\Aapp/helpers/(employee_data_requests|shift_assignment|shift_template)_helper\.rb\z}, WF ],
 
@@ -171,7 +171,7 @@ module ArchitectureTools
       OA => %w[Business Branch User UserAuditLog PermissionRole],
       WF => %w[EmployeeDataRequest EmployeeDataRequestEvent EmployeeDataRequestRevision EmployeeInsuranceProfile Department
                JobTitle Shift ShiftAssignment ShiftTemplate ShiftTemplateEntry ShiftRuleProfile EmployeeRequest
-               EvaluationTemplate EvaluationCriterion PerformanceReview PerformanceReviewScore PerformanceObservation],
+               EvaluationTemplate EvaluationCriterion PerformanceReview PerformanceReviewScore PerformanceObservation Holiday],
       AP => %w[AttendanceRecord AttendanceAdjustment AttendanceImportLog BiometricDevice BiometricPunchLog PenaltyRule
                SalaryProfile PayrollPeriod PayrollEntry PayrollLineItem PayrollAdjustment PayrollAdjustmentEdit
                PayrollAuditLog PayrollSnapshot PayrollPeriodBranchReview Advance EmployeeObligation ObligationDeduction
