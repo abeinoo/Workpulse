@@ -23,7 +23,7 @@ RSpec.describe "Attendance & Performance workspace navigation", type: :request d
   def sidebar_active   = doc.css(".sidebar a.sidebar__nav-item.is-active").map { |a| a["href"] }
 
   ATTENDANCE_PRIMARY = %i[attendance_records_path shift_assignments_path admin_shifts_path].freeze
-  ATTENDANCE_MORE    = %i[admin_shift_rule_profiles_path admin_biometric_punch_logs_path].freeze
+  ATTENDANCE_MORE    = %i[admin_shift_rule_profiles_path holidays_path admin_biometric_punch_logs_path].freeze
   PERFORMANCE_PRIMARY = %i[performance_root_path performance_observations_path performance_reviews_path].freeze
   PERFORMANCE_MORE    = %i[performance_reports_path admin_evaluation_templates_path].freeze
 

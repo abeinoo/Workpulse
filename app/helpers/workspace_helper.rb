@@ -26,7 +26,7 @@ module WorkspaceHelper
     attendance_records admin/attendance_records admin/attendance_imports
     shift_assignments admin/shift_templates
     admin/shifts admin/penalty_rules shifts
-    admin/shift_rule_profiles
+    admin/shift_rule_profiles holidays
     admin/biometric_punch_logs
   ].freeze
   # Evaluation templates keep their admin URL but belong to Performance.
@@ -74,6 +74,7 @@ module WorkspaceHelper
     scheduling_rules: '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>',
     attendance_logs: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
     punch_logs:   '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+    holidays:     '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M12 13l1 2 2 .3-1.5 1.4.4 2.1-1.9-1-1.9 1 .4-2.1L9 15.3l2-.3z"/>',
     observations: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
     reviews:      '<path d="M11.48 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L11.48 17l-5.2 2.73.99-5.8L3.06 9.62l5.82-.85z"/>',
     evaluation_templates: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/>',
@@ -306,6 +307,7 @@ module WorkspaceHelper
     when "shift_assignments", "admin/shift_templates"        then :shift_assignments
     when "admin/shifts", "admin/penalty_rules", "shifts"     then :shift_types
     when "admin/shift_rule_profiles"                         then :scheduling_rules
+    when "holidays"                                          then :holidays
     when "admin/biometric_punch_logs"                        then :punch_logs
     end
   end
