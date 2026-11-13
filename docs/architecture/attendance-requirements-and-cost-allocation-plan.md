@@ -182,12 +182,22 @@ authorisation in the order of §19.10, and production work, migrations and deplo
 was then authorised separately and merged (PR #121). Q55, the R7.0 design (A1–A6), the G1 design (G-A1–G-A6) and
 D20 (1) stay open. No phase scope, dependency or owner decision is changed.
 
+**Revision 19 (2026-11-13):** records the owner's decisions for the R3.2 implementation manifest (revision 3) as
+**OD-1–OD-15** (§2 W) and the corrected D4 locking protocol (§19.14). Two earlier proposals are replaced: R3.2 builds
+**no** `users.requires_attendance` cache column and **no** daily roll-forward job — the requirement in force is
+derived on read from the history (OD-4); and `employee_attendance_requirements` has **no** unique
+(`user_id`, `effective_from`) index — rows on the same date are ordered by (`effective_from`, `id`) and the latest
+wins (OD-15, T3). A3 and L4 allowed a cache but did not require one, so no approved rule changes. Also recorded: the
+R3.2 G0 characterization tests are merged (PR #125, `dcfbe70`). R3.2 code references were re-read at `dcfbe70`. No
+other phase scope, dependency or owner decision is changed; G1 and every later gate still need their own
+authorisation.
+
 **Labels**
 
 | Label | Meaning |
 |---|---|
 | **[C]** | Confirmed current behaviour, from the code at the baseline (read, not executed) |
-| **[A]** | Owner-approved business rule (decision IDs A1–A12, B, C, D, E, F, G, H, I, J, K, L1–L35, the revision 8 owner decisions D1–D8 in §2 M, the revision 9 owner decisions D9–D14 in §2 N, the revision 10 owner decision D15 in §2 O, the revision 11 owner decision D16 in §2 P, the revision 12 owner decisions D17–D18 in §2 Q, the revision 13 owner decisions D19–D20 in §2 R, the revision 14 owner decision D21 in §2 S, the revision 15 owner decisions D22–D23 in §2 T, and the revision 16 owner decisions D24–D27 in §2 U, and the revision 17 owner decisions D28–D34 in §2 V) |
+| **[A]** | Owner-approved business rule (decision IDs A1–A12, B, C, D, E, F, G, H, I, J, K, L1–L35, the revision 8 owner decisions D1–D8 in §2 M, the revision 9 owner decisions D9–D14 in §2 N, the revision 10 owner decision D15 in §2 O, the revision 11 owner decision D16 in §2 P, the revision 12 owner decisions D17–D18 in §2 Q, the revision 13 owner decisions D19–D20 in §2 R, the revision 14 owner decision D21 in §2 S, the revision 15 owner decisions D22–D23 in §2 T, and the revision 16 owner decisions D24–D27 in §2 U, and the revision 17 owner decisions D28–D34 in §2 V, and the revision 19 R3.2 owner decisions OD-1–OD-15 in §2 W) |
 | **[P]** | Proposed implementation detail — consistent with the approved rules, still reviewable |
 | **[Q]** | Unresolved question — needs an owner answer before the phase that depends on it |
 | **[T]** | Technical decision recommended by the architecture review (§18): consistent with the approved rules and the module boundaries; no owner decision needed; engineering may still revise it in review |
@@ -438,7 +448,7 @@ decision of that plan stands. Architecture rules come from `docs/architecture/mo
 |---|---|
 | **A1** | Replace `requires_shift_assignment` with `requires_attendance` gradually. Three separate concepts: (1) must the employee record attendance; (2) does the employee have a `ShiftAssignment` on a date; (3) how attendance, lateness, absence and deductions are calculated. |
 | **A2** | Employees not yet reviewed by HR keep legacy behaviour temporarily: they stay eligible for assignments under legacy rules, are never silently classified `requires_attendance = false`, appear on an HR "not reviewed" report, and a defined review deadline precedes mandatory enforcement. *(Exception-list employees: L25; deadline: D1 (1), §2 M.)* |
-| **A3** | `employee_attendance_requirements` is the authoritative, effective-dated history. `users.requires_attendance` may remain temporarily as a cache, updated only by one Workforce-owned service in the same transaction as the history row; never independently editable. |
+| **A3** | `employee_attendance_requirements` is the authoritative, effective-dated history. `users.requires_attendance` may remain temporarily as a cache, updated only by one Workforce-owned service in the same transaction as the history row; never independently editable. *(R3.2 builds no cache: the value in force is derived on read, OD-4, §2 W.)* |
 | **A4** | An employee explicitly not requiring attendance receives no `ShiftAssignment` through any path — individual UI, bulk, API, templates, temporary coverage, floating, editing an existing assignment — enforced server-side at the Workforce boundary. "Not reviewed" employees keep legacy eligibility during the transition. |
 | **A5** | Changing required → not required: history kept and never reinterpreted; the change has an effective date; future assignments must be ended or cancelled before the change is accepted; audit of old/new value, effective date, actor and reason; HR with `manage_employees` changes it directly (no approval step); backdating allowed only when it touches no locked, finalized, approved or paid payroll period, and needs a reason. *(Refined by D4: backdating is refused once an affected payroll period is Under Review or later; before that, these controls apply.)* |
 | **A6** | Absence uses the employee's scheduled working weekdays, the assignment's active date window and the payroll date range. `working_days_per_month` is never a substitute for the employee's schedule. |
@@ -526,7 +536,7 @@ revision 6. Where a later decision refines an earlier one, the later one is note
 | **L1** | **Ownership (former Q2).** Attendance & Payroll owns the business invariant "every daily-paid employee requires attendance" (A9). Workforce owns the attendance-requirement history and **defines** the read/validation contract; AP **implements** it. AP may read Workforce's requirement history (the allowed AP → WF direction). Workforce never references AP concepts and never depends on Payroll. No circular dependency. |
 | **L2** | **Both directions, whole timeline, reject only.** (1) A daily salary profile cannot be created or changed while the employee is not required to attend on any date it would be in force. (2) An attendance requirement cannot change to not required if that conflicts with any daily-paid date. Both sides validate the complete effective-dated timeline, future-dated salary profiles and requirement rows included. The existing admin correction of `salary_type` and `effective_from` on a salary profile stays, and must pass the same validation. A conflict is never resolved automatically (no change to salary type or requirement): the operation is rejected with the reason. |
 | **L3** | **Concurrency.** One per-employee PostgreSQL advisory transaction lock, owned by Workforce. Both AP and WF acquire it for the employee before validating or changing either side of the invariant, inside the transaction, held until commit or rollback, with the same lock order in both services. It stops two simultaneous changes from each passing validation alone. Payroll recalculation stays after commit, as today, unless a later approved design changes it. Not a `users` row lock. |
-| **L4** | **History and backfill.** Every new employee receives an `employee_attendance_requirements` row at creation, effective from the employee's employment start date. Existing employees are backfilled; every daily-paid employee is backfilled as required. An existing employee without a history row never silently becomes not required: they stay Not Reviewed (A2) until HR reviews them. *(Refined by L10 — explicit HR selection at creation; L11 — every existing employee gets a row, Not Reviewed being an explicit value; L12 — effective-date precedence.)* The effective-dated history is the source of truth; `users.requires_attendance`, if kept as a cache, is written only by the Workforce service in the same transaction as the history change, is never independently editable, and is never the source for invariant checks. `requires_attendance` is never added to `UserPolicy::EMPLOYMENT_ATTRIBUTES`. |
+| **L4** | **History and backfill.** Every new employee receives an `employee_attendance_requirements` row at creation, effective from the employee's employment start date. Existing employees are backfilled; every daily-paid employee is backfilled as required. An existing employee without a history row never silently becomes not required: they stay Not Reviewed (A2) until HR reviews them. *(Refined by L10 — explicit HR selection at creation; L11 — every existing employee gets a row, Not Reviewed being an explicit value; L12 — effective-date precedence.)* The effective-dated history is the source of truth; `users.requires_attendance`, if kept as a cache, is written only by the Workforce service in the same transaction as the history change, is never independently editable, and is never the source for invariant checks. `requires_attendance` is never added to `UserPolicy::EMPLOYMENT_ATTRIBUTES`. *(No cache is kept: OD-4. First row at creation: no reason, no D4, OD-7; creation fields behind the R3.2 switch until R3.3, OD-2.)* |
 | **L5** | **History-wide validation, locked payroll untouched.** The invariant applies across the complete effective-dated history. A historical conflict inside a locked, finalized or paid payroll period never automatically reopens, recalculates or modifies that period; it is handled by a separate, audited corrective process *(detailed by L17 — Historical Violations)*. The invariant asks whether the employee was **required to attend** on each daily-paid date — not whether a punch exists on every calendar day; approved leave, scheduled rest days and approved holidays are handled by the attendance and payroll rules. |
 | **L6** | **Daily-paid leave.** Daily-paid employees receive unpaid leave only. An approved unpaid leave day is not an absence, does not count as a paid workday for daily payroll, and receives no additional absence deduction. Daily-paid employees remain subject to attendance requirements on their scheduled working days; taking leave changes neither `requires_attendance` nor `salary_type`. Attendance classification, leave approval and paid/unpaid entitlement, and payroll treatment stay three separate concepts. *(Monthly-paid leave: L16. Leave ownership: L15. Configurable leave types do not change this rule: L33; confirmed by D8 (a).)* |
 | **L7** | **Daily → Monthly conversion.** A separate salary operation: a new effective-dated monthly salary profile; historical daily profiles are preserved. Conversion does not set `requires_attendance = false`; the requirement is unchanged until HR makes a separate, valid, effective-dated change — which is still rejected if it conflicts with any daily-paid date. No automatic conversion workflow. |
@@ -704,6 +714,30 @@ reporter; the error report of that fallback carries identifiers, keys and error 
 change `log_audit`, `log_audit!` or the global audit-failure reporting, and does not authorise showing the payload to
 dashboard users. Operational controls (log rotation, access, retention, error-reporter review):
 `docs/durable_audit_operations.md` §4; the approved retention policy is D34.
+
+### W — Revision 19 R3.2 implementation decisions OD-1–OD-15 (approved 2026-11-13)
+
+These decisions were approved with the R3.2 implementation manifest (revisions 1–3) and are now **[A]**. Like
+D1–D34, they are separate from the module-boundaries owner decisions D1–D4. They settle how R3.2 implements A3, A5,
+D4, L3, L4, L10, L18 and L31; no earlier rule is reversed. The locking protocol is in §19.14.
+
+| ID | Rule |
+|---|---|
+| **OD-1** | **Payroll-date contract.** Workforce defines the contract that answers "does a protected payroll period overlap these dates?" and Attendance & Payroll implements it (the L1 pattern: WF-defined, AP-implemented, registered by an initializer). Workforce never names a payroll constant or table. |
+| **OD-2** | **Creation behind a switch.** The creation fields (mandatory requirement selection, mandatory start date) and the first history row are built in R3.2 behind a per-business switch that stays **off** in R3.2. While it is off, both creation paths behave exactly as today. The switch is turned on in R3.3. |
+| **OD-3** | **Employee lock.** One PostgreSQL transaction-scoped advisory lock per employee (L3). Never a `users` row lock. |
+| **OD-4** | **No cache.** The requirement in force is **derived on read** from `employee_attendance_requirements`, with "today" from `BusinessDay.current(context: business)`. R3.2 adds no `users.requires_attendance` column and no cache or roll-forward job. *(A3 and L4 allowed a cache; they did not require one.)* |
+| **OD-5** | **HR change screen.** The HR screen for changing the requirement is built in R3.2 but stays disabled (behind the switch) until R3.3. |
+| **OD-6** | **Start-date correction live.** The Employment Start Date correction (L31) is available in R3.2: `manage_employees` within scope, mandatory reason, old and new dates audited with `log_audit!` (fail-closed); `hire_date` is no longer editable through the employee edit form for existing employees. |
+| **OD-7** | **First row.** The first history row (creation) needs no reason and does not run the D4 check. Reason and D4 apply to later changes of an existing timeline. |
+| **OD-8** | **Data-request approval.** The approver selects the requirement when approving an employee data request; the first history row is written in the approval transaction. |
+| **OD-9** | **Employment end date.** R3.2 adds the nullable `users.employment_ended_on` column only. No writer and no link to deactivation (R6b). |
+| **OD-10** | **D4 scope.** D4 checks every overlapping payroll period of the employee's business, whether or not the employee has a payroll entry in it. |
+| **OD-11** | **Independence.** Changes for the same employee are serialised by the employee lock; different employees proceed independently. |
+| **OD-12** | **Business-wide payroll-status lock.** Backdated requirement changes take a per-business payroll-status advisory lock in shared mode; `Payroll::SubmitForReview` takes it in exclusive mode. This closes the gap for months that have no payroll period row yet. Protocol: §19.14. |
+| **OD-13** | **Correction during protected payroll.** A start-date correction whose dates overlap a payroll period that is Under Review or later is **allowed**, with a clear warning that payroll recalculation may be affected. Reason and old/new audit are required. Payroll is never recalculated or changed as a side effect. |
+| **OD-14** | **No self-correction.** Nobody, including the owner, may correct their own Employment Start Date; another authorised user with `manage_employees` must do it. |
+| **OD-15** | **Technical choices approved.** T1: the D4 locking protocol of §19.14, including the business-wide lock. T2: database-level append-only protection for the history (a trigger refusing UPDATE and DELETE; TRUNCATE allowed). T3: no unique (`user_id`, `effective_from`) index; rows on the same date are ordered by (`effective_from`, `id`) and the latest wins. T4: contract and service names are provisional and may change when justified. |
 
 ---
 
@@ -904,7 +938,7 @@ last state branch-assigned → that branch; last state floating → the floating
 |---|---|---|---|
 | X1 | §12 Release 1: `AssignmentEligibility#shift_based` keeps only the owner exclusion, "no replacement checkbox" | A4 | Eligibility and the model validation use the effective-dated requirement |
 | X2 | §7 / P12 rows "Daily exempt — scheduled dates" and "Daily exempt — undefined dates" | A9, L2 | Both rows removed; daily-paid employees always require attendance. The other "exempt daily" mentions of that plan (§7 parity sentence, §11 missing-schedule ordering, §13 test matrix) fall with them |
-| X3 | §1.2 / §6: `users.requires_attendance` as the nullable record of truth, "no backfill" | A3 | History table is the source of truth; the column is a cache |
+| X3 | §1.2 / §6: `users.requires_attendance` as the nullable record of truth, "no backfill" | A3 | History table is the source of truth; no column is kept (OD-4) |
 | X4 | §1.2 "Mixed-schedule month — hybrid: undefined dates use the legacy rule"; §7 row "Monthly required — undefined dates (legacy)" | A6, A7 | Undefined dates: no deduction + warning; no 26-day fallback |
 | X5 | Phase 13: unallocated salary/insurance for employees without assignments | B, C | Withdrawn: central → rule; required without assignment → finalization blocked |
 | X6 | Decision 6b (implemented): Unallocated insurance expense and Unallocated salary line for floating employees | J, H | New periods: fixed-percentage rule; existing rows kept, labelled historical |
@@ -1077,29 +1111,34 @@ revision 16, and only rows marked **Open** still need an owner answer)
             (effective-dated rows in employee_attendance_requirements, append-only;
              HR never sets NOT REVIEWED — it is written only by the backfill)
 
-Change service (the one WF writer of history rows and the cache; one transaction):
-  1. authorise: manage_employees within the employee's management scope (UserPolicy#update? scope)
-  2. acquire the per-employee advisory transaction lock (L3, §6.6) — first lock of the transaction
+Change service (the one WF writer of history rows; one transaction; no cache, OD-4):
+  1. authorise: manage_employees within the employee's management scope, not on the actor's
+     own record (UserPolicy); HR changes refused while the R3.2 switch is off (OD-5)
+  2. acquire the per-employee advisory transaction lock (L3, OD-3) — first lock of the transaction
   3. validate:
      • to "not required": no assignment active on or after effective_from (open-ended ones must end
        before it; future ones ended or cancelled)                                  (A5)
-     • effective_from < today (business day) → reason required, and no payroll period Under Review or later
-       (under_review, branch_review_completed, finalized, paid)
-       touches [effective_from, today)                                             (A5, D4)
+     • first row (creation): no reason, no D4 check                                 (OD-7)
+     • later change with effective_from < today (business day) → reason required, and no payroll
+       period of the business that is Under Review or later (under_review, branch_review_completed,
+       finalized, paid) touches [effective_from, today), whether or not the employee has an entry
+       in it — checked through the WF-defined, AP-implemented contract under the locks of §19.14
+                                                                    (A5, D4, OD-1, OD-10, OD-12)
      • to "required" for a floating or central transition: nothing extra
   4. append history row (value, effective_from, actor, reason)
   5. invariant check over the whole resulting timeline through the WF-defined contract,
-     implemented by AP: any daily-paid date now not required → reject (L1, L2, §6.6)
-  6. update users.requires_attendance cache to the value in force today (or leave for a
-     roll-forward when effective_from is in the future — see 6.2)                  (A3, L4)
-  7. log_audit(old, new, effective_from, reason)
-  on any rejection: roll back (no history row, no cache change), then record the rejected
-  attempt in a separate transaction (L8, L14, §6.6) and return a failed Result with the reason
+     implemented by AP: any daily-paid date now not required → reject (L1, L2, §6.6) — R3.4
+  6. log_audit(old, new, effective_from, reason)
+  on any rejection: roll back (no history row), then record the rejected attempt in a separate
+  transaction (L8, L14, §6.6 — R3.4) and return a failed Result with the reason
 
 Employee creation (admin form, data-request approval): the user row and the first history row
 are written in ONE transaction through the same service; a missing selection or start date
-rejects the creation (L10, L18). The new employee has no salary profile yet, so the invariant
-is enforced when the salary profile is created (direction 1, L2).
+rejects the creation (L10, L18). On data-request approval the approver makes the selection and
+the row is written in the approval transaction (OD-8). Built in R3.2 behind a per-business
+switch that stays off until R3.3; while it is off, creation behaves as before (OD-2). The new
+employee has no salary profile yet, so the invariant is enforced when the salary profile is
+created (direction 1, L2).
 ```
 
 ### 6.2 Effective dates and future changes
@@ -1111,9 +1150,10 @@ is enforced when the salary profile is created (direction 1, L2).
 * A future-dated change is accepted only when no assignment is active on or after its date (A5). From then on, the
   `ShiftAssignment` validation (6.3) refuses any assignment overlapping dates where the requirement is "not
   required".
-* **[P]** The cache reflects "today": a future-dated row updates the cache when it takes effect, through a small
-  daily Workforce job (registered in `config/recurring.yml`) or by deriving on read; the history row is always the
-  truth (A3).
+* **[A]** The value in force is **derived on read** from the history (OD-4): the latest row with
+  `effective_from ≤ d`, rows on the same date ordered by (`effective_from`, `id`), the latest winning (OD-15, T3);
+  "today" is `BusinessDay.current(context: business)`. A future-dated row takes effect on its date with no job and
+  nothing to roll forward. There is no `users.requires_attendance` cache and no daily job.
 
 ### 6.3 Assignment enforcement (Workforce, every path)
 
@@ -1240,7 +1280,7 @@ Payroll::Reopener → FinalizationEffects.period_reopened(...) → Finance voids
 
 | Piece | Owner | Shape |
 |---|---|---|
-| Requirement read API, e.g. `Employee::AttendanceRequirements` | WF | `timeline(user_id:)` / `not_required_ranges(user_id:, from:, through:)` over the history rows (never the cache); read-only |
+| Requirement read API, e.g. `Employee::AttendanceRequirements` | WF | `timeline(user_id:)` / `not_required_ranges(user_id:, from:, through:)` over the history rows (there is no cache, OD-4); read-only |
 | Lock helper, e.g. `Employee::AttendanceRequirements.lock_employee!(user_id:)` | WF | `pg_advisory_xact_lock(<namespace>, user_id)`; must be called inside a transaction |
 | Check contract, e.g. `Employee::AttendanceRequirementChecks` | WF defines | one operation in Workforce terms — e.g. `first_conflict(user_id:, not_required_ranges:)` → nil or `Conflict(date:, reason_key:)`: "the first date on which a downstream rule needs this employee to require attendance". It names no AP concept; `reason_key` is an i18n key owned by the implementer (as `ProfilePanels` returns an AP-owned partial path) |
 | Contract implementation, e.g. `Payroll::DailyPaidAttendanceCheck` | AP implements | answers from `SalaryProfile` periods in force (daily); registered in its own initializer (`config/initializers/…`, `to_prepare`) |
@@ -1255,8 +1295,8 @@ Direction 2 — requirement change (WF change service, §6.1)
     validate A5 rules; append history row
     ranges = not-required ranges of the WHOLE resulting timeline
     conflict = AttendanceRequirementChecks.first_conflict(user, ranges)   ── AP implements
-    conflict → ROLLBACK (no row, no cache change) → record rejected attempt → failed Result
-    else cache + log_audit → COMMIT
+    conflict → ROLLBACK (no row) → record rejected attempt → failed Result
+    else log_audit → COMMIT                    (no cache to write, OD-4)
   payroll recalculation, if any: after commit
 
 Direction 1 — salary profile create or correct (Salary::ProfileUpdater / ProfileCorrector)
@@ -1406,6 +1446,9 @@ Leave request (WF)
 Service date (WF): the HR-approved Employment Start Date (users.hire_date, [P]); changed only by a
   WF correction service — permission, mandatory reason, audit {old, new, actor, timestamp}; removed
   from the mass-assigned EMPLOYMENT_ATTRIBUTES (§3.6); never changed by a branch or job change (L31)
+  R3.2 (live, OD-6): log_audit! (fail-closed); nobody corrects their own date, owner included (OD-14);
+  allowed when it overlaps a payroll period Under Review or later, with a warning that payroll
+  recalculation may be affected — payroll is never recalculated or changed by it (OD-13)
 ```
 
 Every transition, ledger entry, leave-type activation and setting change is audited (`log_audit`); the request
@@ -1500,7 +1543,7 @@ internal areas of Workforce and Attendance & Payroll respectively — no new dom
 
 | Concern | Owner | Mechanism |
 |---|---|---|
-| `employee_attendance_requirements`, change service, `users.requires_attendance` cache (WF-stewarded column, §3.2) | WF | — |
+| `employee_attendance_requirements`, change service, read API (value in force derived on read; no `users.requires_attendance` cache, OD-4) | WF | — |
 | `ShiftAssignment` validation, `working_weekdays`, eligibility, templates, coverage, API assigner | WF | — |
 | Holiday Calendar (one business-wide calendar, D3) | WF **[T]** (§18.1 Q4) | AP reads it (allowed AP → WF) |
 | Scheduled days, absence, lateness, attendance-data blockers | AP | reads WF (allowed) |
@@ -1556,9 +1599,9 @@ approved database phase (migration-pattern §8).
 
 | Table / column | Owner | Shape |
 |---|---|---|
-| `employee_attendance_requirements` | WF | `business_id`, `user_id`, `status` string NOT NULL — `required` / `not_required` / `not_reviewed` (check constraint; `not_reviewed` written only by the backfill, L11), `effective_from` date NOT NULL, `changed_by_id` NOT NULL, `source` (`creation` / `backfill` / `hr_change`), `effective_date_basis` for backfill rows (`hire_date` / earliest record, L12), `reason` text (required when backdated — service rule), `created_at`; unique (`user_id`, `effective_from`); append-only (no update path). First row at employee creation with HR's explicit selection, effective from the HR-selected employment start date (L10, L18). *(Revision 2's `required` boolean is replaced by `status`, because L11 makes Not Reviewed an explicit recorded value.)* |
+| `employee_attendance_requirements` | WF | `business_id`, `user_id`, `status` string NOT NULL — `required` / `not_required` / `not_reviewed` (check constraint; `not_reviewed` written only by the backfill, L11), `effective_from` date NOT NULL, `changed_by_id` NOT NULL, `source` (`creation` / `backfill` / `hr_change`), `effective_date_basis` for backfill rows (`hire_date` / earliest record, L12), `reason` text (required when backdated — service rule), `created_at`; index (`user_id`, `effective_from`, `id`), **no** unique (`user_id`, `effective_from`) — same-date rows ordered by (`effective_from`, `id`), the latest wins (OD-15, T3); append-only (no update path in code, and a database trigger refusing UPDATE and DELETE, OD-15 T2). First row at employee creation with HR's explicit selection, effective from the HR-selected employment start date (L10, L18). *(Revision 2's `required` boolean is replaced by `status`, because L11 makes Not Reviewed an explicit recorded value.)* |
 | HR exception list (L12 (3)) | WF | **[P]** derived, not stored: existing employees with no history row after the backfill; or a small WF table if HR needs notes per employee; visible, legacy behaviour, no invented dates (L25) |
-| `users.requires_attendance` | WF (cache) | boolean nullable, no default; NULL = not reviewed (or no row); written only by the change service in the history row's transaction; never in `UserPolicy::EMPLOYMENT_ATTRIBUTES`; never read by the invariant checks (L4) |
+| `users.requires_attendance` | — | **Not built** (OD-4, revision 19): the value in force is derived on read from `employee_attendance_requirements`. *(Earlier proposal: a nullable cache written only by the change service; A3 and L4 allowed but did not require it.)* `requires_attendance` is never a permitted employee-form attribute (L4) |
 | Invariant lock | WF | no table: a `pg_advisory_xact_lock` namespace constant owned by the WF helper (L3) |
 | Rejected-attempt audit | existing audit log | no new table proposed for the entry (shape in §6.6, L8, L14); failed writes go to the durable operational record below (L20) |
 | Durable audit record (L20) | infrastructure (audit, shared with `AuditLoggable`; ownership mapping needed, Appendix) | **[P]** e.g. `pending_audit_events`: `business_id` NOT NULL, full entry payload (jsonb), `attempts`, `consecutive_failures`, `last_error`, `last_attempt_at`, `next_attempt_at`, `escalated_at`, `resolved_at`, `audit_log_id`, `created_at`; one row per failed audit event = its notification (L34); never deleted, before or after resolution; retried by a Solid Queue job; the source for pending audit recovery (L29). Revision 17: also `attempted_at`, the original attempt time used as the delivered entry's `created_at` (D29); the columns as built are in §19.13. Hardening: also `entry_key` (unique idempotency key) and `dispatch_claimed_until` (sweeper claim), plus the append-only `durable_audit_receipts` (`entry_key` unique, `audit_log_id` unique) written with every AuditLog of the durable path (T-R31-11, T-R31-13) |
@@ -1588,7 +1631,7 @@ approved database phase (migration-pattern §8).
 | `expenses.unallocated` + `expenses_unallocated_payroll_only` | FS | **kept** for history (H); no new writes after the switch |
 | `users.requires_shift_assignment` | WF | kept, then `ignored_columns`, then dropped in a separate final release |
 
-**Transition sequence (A1, A2, L4, L10–L12, L17):** (1) add the history table and the cache (all NULL = not
+**Transition sequence (A1, A2, L4, L10–L12, L17):** (1) add the history table (no cache, OD-4; no row = not
 reviewed); (1a) **backfill every existing employee** (L11): daily-paid → `required`, everyone else → `not_reviewed`
 (monthly never implies not required), written through the service's code path under the invariant lock with source
 `backfill`; effective date by L12 precedence — valid `hire_date`, else the earliest reliable employment or salary
@@ -1804,7 +1847,7 @@ in its own release. The old flag keeps its single effect (the Assign Shift picke
 | R0 | Read-only production queries (authorised operator): employees by `requires_shift_assignment`; employees with payroll entries and no assignment in the last 3 periods; current assignments (all kinds); floating assignments; unallocated and unattributed expenses; recurring templates with incomplete allocation; for the L11/L12 backfill: employees by salary type, employees without `hire_date`, `hire_date` later than their earliest salary / assignment / attendance record, and employees with no reliable date (expected HR exception list) | — | — |
 | R1 | Documentation: `CLAUDE.md` business rules; `module-boundaries.md` §3.3 and §14.1 A; module-boundaries §12.1 for the L1 contract; floating plan supersession (done as a note, see the Appendix) | — | owner review of this plan |
 | R2 | `MoneySplitter` extraction — behaviour-preserving | FS | — |
-| R3 | Attendance requirement history (`status`: required / not required / not reviewed), change service, cache, three-state UI, not-reviewed report, audit; mandatory explicit selection and first row at employee creation (admin and data-request approval) (L10); all-employee backfill with L12 date precedence and the HR exception list (L11, L12); the daily-paid invariant in both directions — WF read API, invariant lock helper, WF-defined check contract + AP implementation and initializer, checks in `Salary::ProfileUpdater` / `ProfileCorrector`, Not Reviewed rule (L13) (L1–L3); rejected-attempt audit in a separate transaction, durable record, background retry and administrator alert (L8, L14, L20); the administration notifications dashboard and its integration with the `notifications` table for audit-failure alerts (L29); escalation, one-notification-per-event, Resolved state, attempt log, tenant-scoped Business-level dashboard and System-Administrator Retry Now with per-event locking (L34); mandatory HR-selected employment start date (L18) and its audited correction service (L31); backfill evidence rule (L19); exception-list behaviour (L25) | WF + AP (+ audit infrastructure) | R1; D4 (backdating) and D1 (platform roles) decided — split and readiness in §18.4 |
+| R3 | Attendance requirement history (`status`: required / not required / not reviewed), change service, value in force derived on read (no cache, OD-4), three-state UI, not-reviewed report, audit; mandatory explicit selection and first row at employee creation (admin and data-request approval) (L10); all-employee backfill with L12 date precedence and the HR exception list (L11, L12); the daily-paid invariant in both directions — WF read API, invariant lock helper, WF-defined check contract + AP implementation and initializer, checks in `Salary::ProfileUpdater` / `ProfileCorrector`, Not Reviewed rule (L13) (L1–L3); rejected-attempt audit in a separate transaction, durable record, background retry and administrator alert (L8, L14, L20); the administration notifications dashboard and its integration with the `notifications` table for audit-failure alerts (L29); escalation, one-notification-per-event, Resolved state, attempt log, tenant-scoped Business-level dashboard and System-Administrator Retry Now with per-event locking (L34); mandatory HR-selected employment start date (L18) and its audited correction service (L31); backfill evidence rule (L19); exception-list behaviour (L25) | WF + AP (+ audit infrastructure) | R1; D4 (backdating) and D1 (platform roles) decided — split and readiness in §18.4 |
 | R3b | Historical Violations: AP records, read-only detection after the backfill and then periodically, HR/Payroll review report, HR fact review and Payroll financial review, closing by audited corrective action with reason, never deleted (L17, L24); the two new permissions `manage_historical_payroll_corrections` and `approve_historical_payroll_corrections` and the separate execute / approve steps (L30); correction requests, Finance Approver designations and their management permission, approval under lock, Super Admin fallback, opt-in same-person exception, rejection with reason, linked resubmission (L35); post-lock leave and leave-cancellation review items (L21, L27, L33) once R6b exists | AP + OA (report read-only) | R3 (Super Admin = owner: D1; presets Q43 **[T]**; no resubmission maximum: D8 (c)) |
 | R4 | `working_weekdays` on assignments (mandatory for new), `Shifts::ScheduleChanger` (end + successor), templates (P10), missing-schedule report | WF | R1; cross-branch overlap validation per D5 (a); its deployment starts the D9 count |
 | R5 | Assignment enforcement in the model for every path; callers' error surfaces; eligibility switched to the requirement | WF | R3, R4; not-reviewed cut-off = D1 (1), counted from the R3.3 deployment (D10) |
@@ -1856,7 +1899,7 @@ days from R7 where the floating plan says so.
 | R0 | Owner has reviewed the counts; follow-up data clean-up (if any) is planned |
 | R1 | The four documents state the same rules; no contradiction remains |
 | R2 | All existing allocation and insurance specs pass unchanged; one rounding implementation |
-| R3 | Requirement history is append-only; cache equals the value in force and is never read by the checks; refusals per §6.1, including every backdated change touching a period Under Review or later (D4); not-reviewed report lists exactly the employees whose value in force is not reviewed or who have no row; the HR exception list lists exactly the employees without a reliable date; audit entries carry old/new/date/actor/reason; no employee can be created without an explicit selection and a first row; every existing employee has a row or is on the exception list; every daily-paid employee with a reliable date is required after the backfill and no monthly employee is not required by inference; a Not Reviewed employee cannot receive a daily profile; the invariant holds in both directions over the whole timeline through every salary and requirement path (§6.6); concurrent opposite changes cannot both commit; a rejection leaves no row and writes a rejected-attempt audit entry in a separate transaction; a failed audit write produces an alert and is recovered by the retry path, never lost silently; after 3 consecutive failures the event is escalated with one notification updated in place, marked Resolved and kept on success; Business-level users see only their business's events and cannot retry; Retry Now is System-Administrator-only and never runs concurrently with another attempt (L29, L34); the Employment Start Date changes only through the audited correction service (L31); no WF code names an AP constant; `requires_attendance` is not a permitted employee-form attribute |
+| R3 | Requirement history is append-only (code and database trigger, OD-15 T2); the value in force is derived from the history on the business day (no cache, OD-4); refusals per §6.1, including every backdated change touching a period of the business Under Review or later under every interleaving with Submit for Review, months without a period row included (D4, OD-10, OD-12, §19.14); changes for the same employee serialised, different employees independent (OD-11); start-date correction: reason, old/new audit, warning when a protected period overlaps, no payroll side effect, never on one's own record (OD-6, OD-13, OD-14); not-reviewed report lists exactly the employees whose value in force is not reviewed or who have no row; the HR exception list lists exactly the employees without a reliable date; audit entries carry old/new/date/actor/reason; no employee can be created without an explicit selection and a first row; every existing employee has a row or is on the exception list; every daily-paid employee with a reliable date is required after the backfill and no monthly employee is not required by inference; a Not Reviewed employee cannot receive a daily profile; the invariant holds in both directions over the whole timeline through every salary and requirement path (§6.6); concurrent opposite changes cannot both commit; a rejection leaves no row and writes a rejected-attempt audit entry in a separate transaction; a failed audit write produces an alert and is recovered by the retry path, never lost silently; after 3 consecutive failures the event is escalated with one notification updated in place, marked Resolved and kept on success; Business-level users see only their business's events and cannot retry; Retry Now is System-Administrator-only and never runs concurrently with another attempt (L29, L34); the Employment Start Date changes only through the audited correction service (L31); no WF code names an AP constant; `requires_attendance` is not a permitted employee-form attribute |
 | R3b | Every conflict found by detection is recorded once as a Historical Violation and listed on the HR/Payroll report; no payroll period, entry or amount changes; status changes audited; HR review needs `manage_employees`, Payroll review `view_payroll`; a correction is executed only with `manage_historical_payroll_corrections` and approved only with `approve_historical_payroll_corrections` (L30); a correction is approved at most once under concurrency; executor ≠ approver unless opted in; Super Admin approves only with an empty pool and a reason; removing approvers never loses or rewrites a pending correction; rejection needs a reason and causes no financial effect; resubmissions are linked new records (L35) |
 | R4 | No new assignment without weekdays through any path (L9 (3)); no new regular assignment overlapping the same employee's regular assignment at another branch through any path, existing overlaps untouched (D5 (a)); legacy assignments without weekdays stay valid; schedule change on a period overlapping a locked payroll creates a successor, never an in-place edit |
 | R5 | A not-required employee cannot be assigned through any of the seven paths (UI, bulk, API, templates, coverage, floating, edit); not-reviewed keeps legacy eligibility until the end of the second complete Payroll Period after R3.3 is deployed (D1 (1), D10), after which new assignments are refused until reviewed |
@@ -1874,8 +1917,8 @@ days from R7 where the floating plan says so.
 | # | Tests |
 |---|---|
 | R2 | Splitter property specs (exact sums, deterministic remainder, many branches); existing allocation/insurance specs untouched |
-| R3 | Service specs: effective dating, future-dated change with/without future assignments, backdating refused into periods Under Review or later and allowed with a reason before (D4), reason required, cache consistency, audit; creation (admin create, data-request approval): rejected without an explicit selection or a start date, first row from the HR-selected start date (L10, L18); backfill: every employee gets a row, daily-paid → required, others → `not_reviewed`, effective-date precedence (valid `hire_date` → earliest reliable record → exception list, no invented date), `hire_date` ignored when it conflicts with reliable records, missing or conflicting evidence → exception list, backfill rows audited (L11, L12, L19); request specs for the three-state form; policy specs for scope; `requires_attendance` absent from `UserPolicy#permitted_attributes` |
-| R3 invariant, direction 2 | requirement → not required rejected when a daily profile is in force now, in the future, or only in the past part of the range; allowed for monthly staff and outside daily periods; rejection rolls back row and cache; contract proven with a **planted provider** whose answers differ from real data |
+| R3 | Service specs: effective dating, future-dated change with/without future assignments, backdating refused into periods Under Review or later and allowed with a reason before (D4), reason required, derive-on-read and same-date ordering (OD-4, OD-15 T3), two-connection concurrency specs for both race directions with Submit for Review and for a month with no period row (§19.14), audit; creation (admin create, data-request approval): rejected without an explicit selection or a start date, first row from the HR-selected start date (L10, L18); backfill: every employee gets a row, daily-paid → required, others → `not_reviewed`, effective-date precedence (valid `hire_date` → earliest reliable record → exception list, no invented date), `hire_date` ignored when it conflicts with reliable records, missing or conflicting evidence → exception list, backfill rows audited (L11, L12, L19); request specs for the three-state form; policy specs for scope; `requires_attendance` absent from `UserPolicy#permitted_attributes` |
+| R3 invariant, direction 2 | requirement → not required rejected when a daily profile is in force now, in the future, or only in the past part of the range; allowed for monthly staff and outside daily periods; rejection rolls back the row; contract proven with a **planted provider** whose answers differ from real data |
 | R3 invariant, direction 1 | `ProfileUpdater` (admin and API): daily profile rejected for a not-required date now / later / only in the future; future-dated daily vs future not-required row; Not Reviewed and no-row (exception list) employees rejected, then accepted after HR sets required (L13, L25); `ProfileCorrector` (admin): in-place monthly → daily rejected; moved `effective_from` that lengthens a preceding daily period rejected; amount-only correction (admin and API) unaffected; nothing written on rejection; Daily → Monthly conversion leaves the requirement unchanged (L7) |
 | R3 concurrency | non-transactional context, two threads: requirement change vs daily profile for the same employee → exactly one commits; different employees do not block each other |
 | R3 audit | rejected attempts (both directions, admin and API) write one entry with the L8 fields in a separate transaction after the rollback; a forced audit-write failure is reported (alert) and kept in the durable record, retried by the background job until the Audit Log entry exists exactly once, and alerts administrators after continued failures escalation exactly at the third consecutive failure; one notification per event updated in place; Resolved and kept on delivery; attempt log rows for automatic and manual attempts; concurrent Retry Now / job attempt → one runs; Retry Now refused for Business-level users; cross-business request specs for every dashboard query (L29, L34); service-date correction requires reason and writes old / new audit (L31); the rejection is still returned with nothing persisted (L14, L20); successful changes audited as before |
@@ -2107,11 +2150,11 @@ acceptance.
 | | |
 |---|---|
 | Evidence | Nothing exists (§3.6); the only reader of the old flag is `Shifts::AssignmentEligibility`; `ShiftAssignment.current` uses `Date.current` (`app/models/shift_assignment.rb:65`) — the same mechanism as BUG-043 (`docs/quality/deferred-bugs.md`) |
-| Problem | "Today" for the cache, backdating checks and assignment validation must be the **business day**; future-dated rows must take effect without drift |
-| Design **[T]** | Every requirement date check uses `BusinessDay.current(context: business)`. The cache is written in the history row's transaction for rows effective on or before the business day, plus an idempotent daily roll-forward job per business. The checks never read the cache (L4). History is append-only: no update path in the service and a model guard that refuses updates. `ShiftAssignment.current`'s server date is **not** fixed inside this work; it is noted against BUG-043's mechanism for the register's owner to decide (deferred-bug policy) |
-| Domains | WF (history, cache, job); AP reads via the WF read API |
+| Problem | "Today" for the value in force, backdating checks and assignment validation must be the **business day**; future-dated rows must take effect without drift |
+| Design **[T]** | Every requirement date check uses `BusinessDay.current(context: business)`. The value in force is derived on read from the history (no cache and no roll-forward job, OD-4, revision 19), so a future-dated row takes effect on its date without drift. *(Revision 7 proposed a cache written in the history row's transaction plus an idempotent daily roll-forward job; superseded by OD-4.)* History is append-only: no update path in the service and a model guard that refuses updates. `ShiftAssignment.current`'s server date is **not** fixed inside this work; it is noted against BUG-043's mechanism for the register's owner to decide (deferred-bug policy) |
+| Domains | WF (history, read API); AP reads via the WF read API |
 | Dependencies / risks | D4 decided: the predicate is `under_review` or later; the backfill (R3.3) needs R0's counts |
-| Tests / acceptance | Business-day rollover specs; the roll-forward job is idempotent; the model refuses updates; a cache-versus-history consistency spec |
+| Tests / acceptance | Business-day rollover specs; future-dated rows take effect on their date; the model and a database trigger refuse updates and deletes (OD-15 T2); same-date rows ordered by (`effective_from`, `id`) (OD-15 T3) |
 
 **G10 — Audit failure recovery and retry concurrency**
 
@@ -2137,7 +2180,7 @@ acceptance.
 | T5 | New permissions and the `hr` / `finance_manager` presets (G5, Q43) | Presets touch only new roles |
 | T6 | One WF leave ledger writer, a leave lock, idempotent business-day jobs (G6) | Exactness and auditability (L26, L31) |
 | T7 | Infrastructure mapping in the same commit as each new table (G7) | The dependency gate requires it |
-| T8 | Business-day dates, append-only history, roll-forward job (G9) | CLAUDE.md business-day rule |
+| T8 | Business-day dates, append-only history, value in force derived on read — no roll-forward job (G9; OD-4) | CLAUDE.md business-day rule |
 | T9 | Sweeper, row-locked exactly-once delivery, no reliance on atomic enqueue (G10) | Production uses a separate queue connection |
 | T10 | Q5 end-date column; Q6–Q8, Q13, Q14 and Q45 technical parts as listed in §18.1 | Already consistent with approved rules |
 
@@ -2155,7 +2198,7 @@ plan should be committed to a docs branch off `main` first — that is the owner
 | R1 documentation | **Ready** after the owner approves this plan | owner approval | `CLAUDE.md` rules only for behaviour being implemented |
 | R2 `MoneySplitter` | **Ready** | — | Behaviour-preserving; independent |
 | R3.1 durable audit record, sweeper, attempt log, business dashboard (L20, L29, L34 business side, G2, G10) | **Ready** | — | Build first: R3.4's rejected attempts depend on it |
-| R3.2 requirement history, change service, cache, creation with mandatory selection and start date, service-date correction (L4, L10, L18, L31) | **Ready** | — | Backdating refused once an affected period is Under Review or later (D4) |
+| R3.2 requirement history, change service, derive-on-read (no cache, OD-4), creation with mandatory selection and start date behind the switch (OD-2), service-date correction (L4, L10, L18, L31) | **Ready** | — | Backdating refused once an affected period is Under Review or later (D4) |
 | R3.3 backfill and HR exception list (L11, L12, L19, L25) | **Blocked** | R0 counts reviewed; R3.2 | — |
 | R3.4 daily-paid invariant, both directions (L1–L3, L13) | **Ready after R3.1 and R3.2** | — | — |
 | R3.5 platform operator, system-wide dashboard, Retry Now (G1) | **Ready after R3.1** | approval of the G1 identity design as an architecture change (module-boundaries §18) | D1 decided: System Administrator = the platform operations team, kept separate from owner permissions; additive |
@@ -2503,7 +2546,7 @@ D12, §6–§17, §18 and the Appendix.
 
 | # | Finding | Handling |
 |---|---|---|
-| K48 | **D17 names `requires_attendance = false`,** the cache column; A3 and L4 make the effective-dated `employee_attendance_requirements` history the source of truth and forbid using the cache for checks | **[T]** Read as "the requirement in force on the leave date is not required" in the history; the cache is never read for this check. This reading keeps the business meaning and changes no rule |
+| K48 | **D17 names `requires_attendance = false`,** the cache column; A3 and L4 make the effective-dated `employee_attendance_requirements` history the source of truth and forbid using the cache for checks | **[T]** Read as "the requirement in force on the leave date is not required" in the history; the cache is never read for this check. No cache column is built (OD-4), so the history is the only source. This reading keeps the business meaning and changes no rule |
 | K49 | **Not Reviewed and HR-exception-list employees** (A2, L4, L25) are never classified "not required" | Consistent: they never use D16 (D17); unpaid leave without a reliable schedule is Flagged for Review (L32). No classification changes |
 | K50 | **D18 vs the configurable termination settlement** (L26, L31, D6: "forfeited" writes a recorded forfeiture entry). D18 forbids forfeiture for these leavers | Not decided silently: **Q50 (a)**. Until decided, held in both cases (reversible). *(Decided as D19, revision 13.)* |
 | K51 | **D18's "until a reliable payout calculation … is available"**: no such calculation is approved | **Q50 (b)**, non-blocking; the hold needs no calculation. *(Decided as D20, revision 13: the calculation's formal approval is a release condition.)* |
@@ -2733,7 +2776,7 @@ P          = the Payroll Period = its calendar month [period_start, period_end];
 W          = the employment window inside P: [max(period_start, employment start),
              min(period_end, employment_ended_on)]                                        (Q5 [T])
 req(d)     = the attendance requirement in force on date d, read from the effective-dated
-             history, never the users cache                                              (A3, L4, K48)
+             history (no users cache exists, OD-4)                                      (A3, L4, K48)
 p(d)       = the salary profile in force on d (Salary::ProfileTimeline segment)
 A(S, p)    = the salary BasicSalaryCalculator attributes to the date set S at profile p, exact
              (calendar rule: base(p) × |S| ÷ N; a starter: the starter working-days share)  (OT3)
@@ -3084,7 +3127,7 @@ mapped in module-boundaries §10–§11 and §16 in the same commit (G7). Phase 
 
 | Domain | Owns (new in this plan) | Reads | Contracts |
 |---|---|---|---|
-| Workforce | `employee_attendance_requirements` and the cache; assignment `working_weekdays`, `ScheduleChanger`; Holiday Calendar; leave types, policy (incl. the `Pay Out` / `Forfeit` setting), routing, requests, batches, ledger; held termination settlement cases with both D21 / K52 snapshots; `employment_ended_on`; requirement and leave jobs | OA (branches, accounts) | defines: requirement read API and validation contract (L1), invariant lock helper, approved-leave read API, `Leave::SettlementRelease` |
+| Workforce | `employee_attendance_requirements` (no cache, OD-4); assignment `working_weekdays`, `ScheduleChanger`; Holiday Calendar; leave types, policy (incl. the `Pay Out` / `Forfeit` setting), routing, requests, batches, ledger; held termination settlement cases with both D21 / K52 snapshots; `employment_ended_on`; requirement and leave jobs | OA (branches, accounts) | defines: requirement read API and validation contract (L1), invariant lock helper, approved-leave read API, `Leave::SettlementRelease` |
 | Attendance & Payroll | `Payroll::ScheduledDays`, rates (§19.3), absence and leave effects, Parity Report, Historical Violations and corrections, finalization holds, hold reviews, late finalizations, payout approval and payment records | WF read APIs; salary profiles (own) | implements the L1 contract; defines `Payroll::FinalizationEffects` (extended once in R10) |
 | Finance & Sales | Cost Allocation Rules and versions, snapshots, expense validation, `expenses.source_payroll_entry_id` and supplementary expenses | payload data only | implements `FinalizationEffects` |
 | Organization & Access | new permissions (G5), presets, Finance Approver designations, `platform_operators`, recovery codes, `platform_operator_events` | — | `OrganizationAccess::Accounts` (D1 module-boundaries) |
@@ -3183,7 +3226,7 @@ mapping of every new table in the same commit; no commit or merge without the ow
 | R1 | `CLAUDE.md` and module-boundaries updates for implemented behaviour | owner approval of this plan | docs | none | none | — | — | review | revert docs | merged docs PR |
 | R2 | `MoneySplitter` extraction | — | FS | none | refactor | — | unchanged | behaviour-preserving specs | revert | parity specs green |
 | R3.1 | durable audit record, sweeper, attempt log, business dashboard | — | Infra; OA | `pending_audit_events`, attempts | delivery service, sweeper job (`recurring.yml`), dashboard | `monitor_audit_failures` | attempt log | G10 tests | supervisor restart; disable sweeper | exactly-once proven under concurrency |
-| R3.2 | requirement history, change service, cache, creation selection, service-date correction | — | WF | `employee_attendance_requirements`, `employment_ended_on` (Q5) | WF services, roll-forward job, UI | `manage_employees` | every change | §14 R3 rows | additive; feature off until R3.3 | history append-only, business-day specs |
+| R3.2 | requirement history, change service, derive-on-read (no cache, OD-4), creation selection behind the switch (OD-2), service-date correction (live, OD-6), D4 protection and the Submit for Review lock (OD-1, OD-12, §19.14); gates G0–G9, G0 merged (PR #125) | — | WF + AP (contract implementation, Submit for Review lock) | `employee_attendance_requirements`, `employment_ended_on` (Q5, OD-9) | WF services, WF-defined / AP-implemented payroll-date contract, UI; no job | `manage_employees` | every change | §14 R3 rows | additive; feature off until R3.3 | history append-only, business-day specs |
 | R3.3 | backfill and HR exception list | R0, R3.2 | WF | data only | backfill task, reports | `manage_employees` | each row | §14 | dry run first; re-runnable | counts match R0; starts the D1 count |
 | R3.4 | daily-paid invariant both directions | R3.1, R3.2 | AP + WF | none | contract, lock helper | existing | rejected attempts (L8, L14) | §14, §15 | additive | both directions rejected, audit durable |
 | R3.5 | Platform Operator (§19.5) | R3.1, **G1 approval** | OA; Infra | §19.5.1 tables | `/platform` | operator-only | `platform_operator_events` | §19.5.8 | separate host; revoke all | security review, Brakeman |
@@ -3251,6 +3294,64 @@ the following, with D33 and the D28 clarification (§2 V). Schema dependencies: 
 | T-R31-14 | **Database guards.** Triggers: receipts and attempt rows are append-only (no UPDATE / DELETE); a pending event is never deleted, its identity, payload and attempt time never change, a resolved event never changes, `attempts` never decreases and `escalated_at` is set once. Composite foreign keys: an attempt row is in its event's business; a resolved event names its own receipt. `TRUNCATE` (test cleanup) is not blocked | Finding L5: `update_all`, `update_columns` and `delete_all` bypass the model protections |
 | T-R31-15 | **Sanitized reporting.** Every R3.1 error report hands `Rails.error` a `SanitizedError` carrying only the original class name, with a context of ids, counters, keys and PostgreSQL schema identifiers; log lines carry the same. The full payload reaches the application log only in the D28 fallback. The global `report_audit_failure` is unchanged | Finding L7: a PostgreSQL message can quote row values ("Failing row contains …"); D28 clarification |
 
+
+### 19.14 R3.2 implementation decisions and the D4 locking protocol (revision 19)
+
+The owner decisions are OD-1–OD-15 (§2 W). This section records how R3.2 applies them; the gate plan (G0–G9) and
+its tests are in the R3.2 implementation manifest (revision 3). G0 — characterization tests of admin creation,
+data-request approval and `Payroll::SubmitForReview` — is merged (PR #125, `dcfbe70`); every later gate needs its
+own authorisation.
+
+**Why a status filter is not enough [C]/[T].** `Payroll::SubmitForReview#submit_initial!` moves a period from Draft
+to Under Review without locking the period row and checks `draft?` on the object it is given (pinned by
+`spec/services/payroll/submit_for_review_spec.rb`, "stale period object"). Locking only periods whose status is
+already protected misses a Draft period that a concurrent submission is about to commit as Under Review (READ
+COMMITTED evaluates the filter on the old row version). Row locks also cannot cover a month that has no period row
+yet. Draft → Under Review is written only by `submit_initial!`; `Payroll::Reopener` never returns a period to Draft,
+and every other status change moves between protected statuses.
+
+**Protocol (T1, approved as OD-15).**
+
+```
+HR backdated change:   employee advisory lock (WF, OD-3)
+                     → payroll-status lock, SHARED   (per business, owned by AP, OD-12)
+                     → every overlapping payroll period row of the business, FOR SHARE, ORDER BY id,
+                       with NO status filter; status evaluated only after the locks are held
+                     → INSERT history row → log_audit → COMMIT
+SubmitForReview:       payroll-status lock, EXCLUSIVE → period row FOR UPDATE (lock!, reloads)
+                     → re-check the status after the lock → review slots → status → PayrollAuditLog
+Start-date correction: employee advisory lock → UPDATE hire_date → log_audit! (no payroll locks; the
+                       warning of OD-13 is a read-only lookup through the same contract)
+Other payroll services: unchanged (request → period → entry)
+```
+
+* **HR first:** Submit waits for the business-wide lock; HR reads Draft and commits; Submit then proceeds.
+* **Submit first:** HR waits; after Submit commits, HR reads Under Review and the change is refused (D4).
+* **Month without a period row:** generating the period does not wait, but submitting it waits for the
+  business-wide lock until HR commits, so HR's row always precedes the month becoming protected.
+* **Rollback** of either side releases every transaction-scoped lock; the other side proceeds on the unchanged state.
+* **Different employees** share the shared-mode lock and the `FOR SHARE` row locks, so they never wait for each other
+  (OD-11).
+* **Deadlocks:** payroll services never take the employee lock; HR and Submit both take the business-wide lock before
+  any period row; services that lock periods without it never wait for it; HR locks rows in `id` order, as
+  `Payroll::AdjustmentEditor`. A deadlock or lock error still fails closed (the change is refused).
+* **Fail closed:** an unregistered or incomplete contract handler, an unknown answer or a handler error refuses the
+  change; nothing is accepted without the check.
+* Only backdated changes take the business-wide lock; the first row (OD-7), future- and today-dated changes and the
+  start-date correction do not.
+* A test inventories every writer of a period's status, so a future Draft → protected writer that skips the
+  business-wide lock fails CI.
+
+**Required tests.** Two-connection concurrency specs (own connections and transactions, waits observed in
+`pg_stat_activity`, never mocked locks) for: HR first; Submit first; a negative control with a status-filtered
+provider that must be caught; a month with no period row; rollback of either side and lock release; several
+overlapping periods; a protected period without an entry for the employee; another business's periods; different
+employees concurrently; the same employee twice; two concurrent submissions of one Draft period.
+
+**Compatibility.** The Submit for Review lock (gate G4) changes live behaviour in one respect: a stale or duplicate
+submission is refused instead of writing a second `submitted_for_review` audit entry. It ships as its own `fix:`
+commit and must not be reverted while the change service (G5) is live.
+
 ---
 
 ## Appendix — documentation updates required elsewhere
@@ -3258,7 +3359,7 @@ the following, with D33 and the D28 clarification (§2 V). Schema dependencies: 
 | Document | Update | When |
 |---|---|---|
 | `CLAUDE.md` → Business Rules | Add "Attendance requirements" (A1–A11 summary), "Daily-paid attendance invariant" (L1–L9, L13, L14 summary: AP-owned rule, WF contract and lock, reject-only, Not Reviewed rule, rejected attempts audited after rollback with alert and retry), "Requirement history" (L10–L12, L18, L19, L25: mandatory selection and start date at creation, all-employee backfill, evidence rules, HR exception list), "Leave" (L6, L15, L16, L21–L23, L26–L28, L31–L33), "Historical Violations" and corrections (L17, L24, L30, L35), durable rejected-attempt audit and its alerts (L20, L29, L34), "Cost allocation" (B–J summary), the owner decisions D1–D8 (§2 M), D9–D14 (§2 N), D15 (§2 O), D16 (§2 P), D17–D18 (§2 Q), D19–D20 (§2 R), D21 (§2 S), D22–D23 (§2 T) and D24–D27 (§2 U), and the gate list of §10; reference this plan | With R1, after owner approval of this plan — not before, since `CLAUDE.md` describes binding rules for implemented code |
-| `docs/architecture/module-boundaries.md` §3.3 | Scheduling eligibility follows `employee_attendance_requirements` (replaces the `requires_shift_assignment` paragraph); §3.2 table: add `requires_attendance` (WF, cache) | With R5 (when the behaviour changes) |
+| `docs/architecture/module-boundaries.md` §3.3 | Scheduling eligibility follows `employee_attendance_requirements` (replaces the `requires_shift_assignment` paragraph); §3.2 table: no `requires_attendance` column is added (OD-4); `employment_ended_on` (WF) is mapped in the commit of its R3.2 migration | With R5 (when the behaviour changes) |
 | `docs/architecture/module-boundaries.md` §14.1 A | New `period_finalized` payload (per-employee costs), `allocation_blockers`, snapshot ownership; floating note updated (no unallocated part for new periods) | With R10 |
 | `docs/architecture/module-boundaries.md` §12.1 | The approved (L1) WF-defined, AP-implemented invariant check contract, the WF requirement read API and the WF invariant lock helper used by AP | With R3 |
 | `docs/architecture/module-boundaries.md` §10–§11 | Ownership of the new tables: `employee_attendance_requirements` (WF), Historical Violation records and post-lock leave review items (AP, R3b), leave, leave-policy, leave-type, leave-batch, leave-balance ledger and approval-routing tables (WF, R6b), the unpaid-leave denominator setting (AP, R7), historical correction requests (AP, R3b), Finance Approver designations and the same-person setting (OA, R3b); AP's read of approved leave and settlement entries (allowed AP → WF) | With R3, R3b, R6b and R7 respectively |
