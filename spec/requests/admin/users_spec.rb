@@ -169,6 +169,81 @@ RSpec.describe "Admin::Users", type: :request do
     end
   end
 
+  # Characterization (R3.2 G0): how admin employee creation behaves today,
+  # before any attendance-requirement work. These pin current behaviour only.
+  describe "POST /admin/users — current creation behaviour (characterization)" do
+    let(:base_params) do
+      { first_name: "Fatima", last_name: "Al-Rashid", email: "fatima.c@example.com" }
+    end
+
+    def created_user = User.find_by!(email: "fatima.c@example.com")
+
+    context "signed in as the owner" do
+      before { sign_in super_admin }
+
+      it "creates the employee without a hire date (hire_date is optional)" do
+        expect { post admin_users_path, params: { user: base_params } }.to change(User, :count).by(1)
+        expect(response).to redirect_to(admin_users_path)
+        expect(created_user.hire_date).to be_nil
+      end
+
+      it "stores the hire date and the shift flag exactly as submitted" do
+        post admin_users_path,
+             params: { user: base_params.merge(hire_date: "2026-03-15", requires_shift_assignment: "0") }
+        expect(created_user).to have_attributes(hire_date: Date.new(2026, 3, 15), requires_shift_assignment: false)
+      end
+
+      it "defaults requires_shift_assignment to true when the form does not send it" do
+        post admin_users_path, params: { user: base_params }
+        expect(created_user.requires_shift_assignment).to be true
+      end
+
+      it "creates no shift assignment, salary profile or audit log entry" do
+        expect { post admin_users_path, params: { user: base_params } }
+          .to change(ShiftAssignment, :count).by(0)
+          .and change(SalaryProfile, :count).by(0)
+          .and change(AuditLog, :count).by(0)
+      end
+
+      it "drops an unpermitted requires_attendance parameter and still creates the employee" do
+        expect { post admin_users_path, params: { user: base_params.merge(requires_attendance: "1") } }
+          .to change(User, :count).by(1)
+        expect(created_user).not_to respond_to(:requires_attendance)
+      end
+
+      it "creates nothing when the employee is invalid" do
+        expect { post admin_users_path, params: { user: base_params.merge(first_name: "") } }
+          .not_to change(User, :count)
+        expect(response).to have_http_status(:unprocessable_entity)
+      end
+    end
+
+    context "signed in as a non-owner with manage_employees" do
+      let(:hr_role) do
+        create(:permission_role, business: business, permissions: %w[view_employees manage_employees],
+                                 permission_scopes: { "view_employees" => "business", "manage_employees" => "business" })
+      end
+      let(:hr_user) { create(:user, business: business, permission_role: hr_role) }
+
+      before { sign_in hr_user }
+
+      it "creates the employee and may set the hire date" do
+        expect { post admin_users_path, params: { user: base_params.merge(hire_date: "2026-04-01") } }
+          .to change(User, :count).by(1)
+        expect(created_user).to have_attributes(business_id: business.id, hire_date: Date.new(2026, 4, 1))
+      end
+    end
+
+    context "signed in as an employee without manage_employees" do
+      before { sign_in employee }
+
+      it "is redirected and creates nothing" do
+        expect { post admin_users_path, params: { user: base_params } }.not_to change(User, :count)
+        expect(response).to redirect_to(root_path)
+      end
+    end
+  end
+
   describe "PATCH /admin/users/:id" do
     before { sign_in super_admin }
 
@@ -188,6 +263,16 @@ RSpec.describe "Admin::Users", type: :request do
     it "saves whether the employee works shifts" do
       patch admin_user_path(target_user), params: { user: { requires_shift_assignment: "0" } }
       expect(target_user.reload.requires_shift_assignment).to be false
+    end
+
+    # Characterization (R3.2 G0): the hire date of an existing employee is
+    # edited in place through the edit form today — no reason, no audit entry.
+    it "overwrites the hire date in place without a reason or an audit log entry" do
+      target_user.update!(hire_date: Date.new(2025, 1, 1))
+      expect { patch admin_user_path(target_user), params: { user: { hire_date: "2025-02-01" } } }
+        .not_to change(AuditLog, :count)
+      expect(response).to redirect_to(admin_users_path)
+      expect(target_user.reload.hire_date).to eq(Date.new(2025, 2, 1))
     end
   end
 
