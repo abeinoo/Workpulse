@@ -16,6 +16,7 @@ module Employee
     # OD-3): pg_advisory_xact_lock(LOCK_NAMESPACE, user_id). Not a users row
     # lock. Distinct from every other namespace in app/ ("EA").
     LOCK_NAMESPACE = 0x4541
+    LOCK_SQL = "SELECT pg_advisory_xact_lock(?, ?)".freeze
 
     class LockOutsideTransaction < StandardError; end
 
@@ -62,7 +63,7 @@ module Employee
       connection = EmployeeAttendanceRequirement.connection
       raise LockOutsideTransaction, "lock_employee! needs an open transaction" unless connection.transaction_open?
 
-      connection.execute("SELECT pg_advisory_xact_lock(#{LOCK_NAMESPACE}, #{Integer(user_id)})")
+      connection.execute(EmployeeAttendanceRequirement.sanitize_sql_array([ LOCK_SQL, LOCK_NAMESPACE, Integer(user_id) ]))
     end
   end
 end
