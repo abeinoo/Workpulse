@@ -1,0 +1,20 @@
+ar:
+  activerecord:
+    models:
+      employee_attendance_requirement: "متطلب الحضور"
+    attributes:
+      employee_attendance_requirement:
+        status: "متطلب الحضور"
+        effective_from: "ساري من"
+        source: "المصدر"
+        effective_date_basis: "أساس تاريخ السريان"
+        reason: "السبب"
+        changed_by: "تم التغيير بواسطة"
+    errors:
+      models:
+        employee_attendance_requirement:
+          attributes:
+            status:
+              not_reviewed_backfill_only: "حالة \"لم تتم المراجعة\" تُسجَّل فقط عبر التعبئة الأولية للمراجعة"
+            effective_date_basis:
+              backfill_only: "يُسجَّل فقط في صفوف التعبئة الأولية"
