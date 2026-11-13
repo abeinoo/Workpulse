@@ -229,6 +229,48 @@ RSpec.describe EmployeeDataRequests::Reviewer, "corrections" do
       expect(request.reload.employee).to be_nil
     end
 
+    # Characterization (R3.2 G0): approval behaviour today, before any
+    # attendance-requirement work. These pin current behaviour only.
+    it "accepts a hire date in the past with no date restriction" do
+      result = described_class.approve(request_id: request.id, actor: reviewer, corrections: { hire_date: "2020-01-15" })
+      expect(result).to be_ok
+      expect(request.reload.employee.hire_date).to eq(Date.new(2020, 1, 15))
+    end
+
+    it "leaves the shift flag at its column default (true)" do
+      described_class.approve(request_id: request.id, actor: reviewer)
+      expect(request.reload.employee.requires_shift_assignment).to be true
+    end
+
+    it "ignores correction keys that are not request data fields (e.g. requires_attendance)" do
+      result = described_class.approve(request_id: request.id, actor: reviewer,
+                                       corrections: { requires_attendance: "required" })
+      expect(result).to be_ok
+      expect(request.reload.revisions.count).to eq(1)
+      expect(request.events.map(&:action)).to eq(%w[submitted approved])
+    end
+
+    it "stores the optional approval note on the approved event" do
+      described_class.approve(request_id: request.id, actor: reviewer, note: "تمت المراجعة")
+      expect(request.reload.events.last).to have_attributes(action: "approved", note: "تمت المراجعة", actor: reviewer)
+    end
+
+    it "rolls the whole approval back when saving the employee fails" do
+      request && reviewer
+      allow_any_instance_of(User).to receive(:save!).and_raise(ActiveRecord::RecordInvalid.new(User.new))
+
+      result = nil
+      expect { result = described_class.approve(request_id: request.id, actor: reviewer, corrections: { job_title: "ريسبشن" }) }
+        .not_to change(User, :count)
+      expect(result).not_to be_ok
+      expect(result.error).to be_present
+      expect(request.reload).to be_pending_review
+      expect(request.revisions.count).to eq(1)
+      expect(request.events.map(&:action)).to eq(%w[submitted])
+      expect(AuditLog.where(auditable: request,
+                            action: %w[employee_data_request.corrected employee_data_request.approved])).to be_empty
+    end
+
     it "is all-or-nothing: a refused approval also discards the corrections" do
       create(:user, business: create(:business), phone_number: "01111111111")
       result = described_class.approve(request_id: request.id, actor: reviewer,
