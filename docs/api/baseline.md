@@ -125,7 +125,9 @@ answers 404 and is no longer in `openapi.yaml`.
 pinned the pre-`d950781` behaviour) is replaced by
 `spec/requests/api/v1/payroll_line_item_scope_spec.rb`, which keeps its scope
 checks on the remaining `approve` action and pins the retirement. The rows above
-are kept as the historical baseline. D2–D8 remain open.
+are kept as the historical baseline. D2 is resolved (BUG-047, 2026-11-13): `config/routes.rb` declares only
+implemented API actions, guarded by `spec/routing/api_routes_resolve_spec.rb` and `spec/docs/openapi_spec.rb`.
+D3–D8 remain open.
 
 ## 5. Pre-existing failing specs (not caused by this phase)
 
