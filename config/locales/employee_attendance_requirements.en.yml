@@ -1,0 +1,20 @@
+en:
+  activerecord:
+    models:
+      employee_attendance_requirement: "Attendance requirement"
+    attributes:
+      employee_attendance_requirement:
+        status: "Attendance requirement"
+        effective_from: "Effective from"
+        source: "Source"
+        effective_date_basis: "Effective date basis"
+        reason: "Reason"
+        changed_by: "Changed by"
+    errors:
+      models:
+        employee_attendance_requirement:
+          attributes:
+            status:
+              not_reviewed_backfill_only: "\"Not reviewed\" is recorded only by the initial review backfill"
+            effective_date_basis:
+              backfill_only: "is recorded only on backfill rows"
