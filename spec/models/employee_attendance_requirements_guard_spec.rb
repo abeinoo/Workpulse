@@ -64,6 +64,12 @@ RSpec.describe "Employee attendance requirement database guards" do
     expect(User.exists?(employee.id)).to be(true)
   end
 
+  it "keeps the guard function and trigger in db/schema.rb, so a schema load recreates them" do
+    schema = Rails.root.join("db/schema.rb").read
+    expect(schema).to include("FUNCTION public.employee_attendance_requirements_append_only()")
+    expect(schema).to include("CREATE TRIGGER employee_attendance_requirements_append_only")
+  end
+
   describe "migration rollback guards" do
     it "refuses to drop the history table while it has rows" do
       expect { ActiveRecord::Migration.suppress_messages { CreateEmployeeAttendanceRequirements.new.down } }
