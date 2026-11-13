@@ -10,15 +10,15 @@ Rails.application.routes.draw do
       post   "auth/login",  to: "sessions#create"
       delete "auth/logout", to: "sessions#destroy"
 
-      resources :businesses, only: [ :show, :update ]
-      resources :branches
-      resources :users do
+      # Only actions the API serves are routed (BUG-047; spec/routing/api_routes_resolve_spec.rb).
+      # There is no users, businesses or branches API — only the nested salary profiles.
+      resources :users, only: [] do
         resources :salary_profiles, only: [ :index, :show, :create, :update ]
       end
-      resources :shifts do
+      resources :shifts, except: [ :new, :edit ] do
         resources :penalty_rules, only: [ :index, :create, :update, :destroy ]
       end
-      resources :shift_assignments
+      resources :shift_assignments, except: [ :new, :edit ]
 
       post "attendance/check_in",  to: "attendance#check_in"
       post "attendance/check_out", to: "attendance#check_out"
@@ -31,7 +31,6 @@ Rails.application.routes.draw do
         member do
           patch :approve
           patch :reject
-          patch :pay
           patch :cancel
         end
       end

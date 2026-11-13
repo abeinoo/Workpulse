@@ -215,9 +215,9 @@ RSpec.describe "API v1 characterization — management endpoints", type: :reques
   end
 
   describe "routes declared without controllers" do
-    # KNOWN DEFECT (docs/api/baseline.md → D2): routes.rb declares these
-    # resources but no controllers exist. Locked here so they are not mistaken
-    # for working endpoints.
+    # Formerly KNOWN DEFECT D2 (docs/api/baseline.md): routes.rb declared these
+    # resources without controllers. Resolved by BUG-047 (the routes are gone);
+    # kept so they are never mistaken for working endpoints.
     %w[/api/v1/businesses/1 /api/v1/branches /api/v1/users].each do |path|
       it "GET #{path} is not a working endpoint" do
         sign_in owner
