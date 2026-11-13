@@ -142,4 +142,28 @@ RSpec.describe UserPolicy, type: :model do
       end
     end
   end
+
+  # R3.2 G5: changing an attendance requirement — manage_employees within the
+  # management scope, never on one's own record (the owner included).
+  describe "#change_attendance_requirement?" do
+    let(:hr_role) do
+      create(:permission_role, business: business, permissions: %w[view_employees manage_employees],
+                               permission_scopes: { "view_employees" => "business", "manage_employees" => "business" })
+    end
+    let(:hr) { create(:user, business: business, permission_role: hr_role) }
+
+    it "allows manage_employees holders on employees in scope, and the owner on others" do
+      expect(described_class.new(hr, employee).change_attendance_requirement?).to be(true)
+      expect(described_class.new(super_admin, employee).change_attendance_requirement?).to be(true)
+    end
+
+    it "refuses one's own record, the owner included" do
+      expect(described_class.new(hr, hr).change_attendance_requirement?).to be(false)
+      expect(described_class.new(super_admin, super_admin).change_attendance_requirement?).to be(false)
+    end
+
+    it "refuses users without manage_employees" do
+      expect(described_class.new(other_user, employee).change_attendance_requirement?).to be(false)
+    end
+  end
 end

@@ -31,7 +31,11 @@ module ArchitectureSpecs
     COMPOSITION_ROOT = "config/initializers/employee_payroll_date_protection.rb".freeze
 
     WORKFORCE_FILES = {
-      "app/services/employee/payroll_date_protection.rb" => "the Workforce contract (G3)"
+      "app/services/employee/payroll_date_protection.rb"        => "the Workforce contract (G3)",
+      "app/models/workforce/employee_attendance_requirement.rb" => "the history model (G1)",
+      "app/services/employee/attendance_requirements.rb"        => "the read API and employee lock (G2)",
+      "app/services/employee/attendance_requirement_changer.rb" => "the single writer (G5)",
+      "app/services/workforce/attendance_requirement_rollout.rb" => "the rollout switch reader (G5)"
     }.freeze
 
     FORBIDDEN_IN_WORKFORCE = /
