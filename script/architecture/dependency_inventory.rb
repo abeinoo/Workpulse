@@ -171,7 +171,8 @@ module ArchitectureTools
       OA => %w[Business Branch User UserAuditLog PermissionRole],
       WF => %w[EmployeeDataRequest EmployeeDataRequestEvent EmployeeDataRequestRevision EmployeeInsuranceProfile Department
                JobTitle Shift ShiftAssignment ShiftTemplate ShiftTemplateEntry ShiftRuleProfile EmployeeRequest
-               EvaluationTemplate EvaluationCriterion PerformanceReview PerformanceReviewScore PerformanceObservation Holiday],
+               EvaluationTemplate EvaluationCriterion PerformanceReview PerformanceReviewScore PerformanceObservation
+               EmployeeAttendanceRequirement Holiday],
       AP => %w[AttendanceRecord AttendanceAdjustment AttendanceImportLog BiometricDevice BiometricPunchLog PenaltyRule
                SalaryProfile PayrollPeriod PayrollEntry PayrollLineItem PayrollAdjustment PayrollAdjustmentEdit
                PayrollAuditLog PayrollSnapshot PayrollPeriodBranchReview Advance EmployeeObligation ObligationDeduction

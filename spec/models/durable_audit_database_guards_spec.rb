@@ -139,6 +139,7 @@ RSpec.describe "Durable audit database guards" do
     end
     expect(ActiveRecord::Base.connection.select_values("SELECT tgname FROM pg_trigger WHERE NOT tgisinternal"))
       .to contain_exactly("durable_audit_receipts_append_only", "pending_audit_event_attempts_append_only",
-                          "pending_audit_events_guard")
+                          "pending_audit_events_guard",
+                          "employee_attendance_requirements_append_only") # R3.2 G1 (OD-15 T2)
   end
 end

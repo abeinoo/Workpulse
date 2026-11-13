@@ -500,6 +500,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
     t.index ["entry_key"], name: "index_durable_audit_receipts_on_entry_key", unique: true
   end
 
+  create_table "employee_attendance_requirements", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "user_id", null: false
+    t.string "status", null: false
+    t.date "effective_from", null: false
+    t.string "source", null: false
+    t.string "effective_date_basis"
+    t.text "reason"
+    t.bigint "changed_by_id", null: false
+    t.datetime "created_at", null: false
+    t.index ["business_id"], name: "index_employee_attendance_requirements_on_business_id"
+    t.index ["changed_by_id"], name: "index_employee_attendance_requirements_on_changed_by_id"
+    t.index ["user_id", "effective_from", "id"], name: "index_employee_attendance_requirements_on_user_timeline"
+    t.check_constraint "source::text = 'backfill'::text OR effective_date_basis IS NULL", name: "employee_attendance_requirements_basis_backfill_only"
+    t.check_constraint "source::text = ANY (ARRAY['creation'::character varying, 'hr_change'::character varying, 'backfill'::character varying]::text[])", name: "employee_attendance_requirements_source"
+    t.check_constraint "status::text <> 'not_reviewed'::text OR source::text = 'backfill'::text", name: "employee_attendance_requirements_not_reviewed_backfill_only"
+    t.check_constraint "status::text = ANY (ARRAY['required'::character varying, 'not_required'::character varying, 'not_reviewed'::character varying]::text[])", name: "employee_attendance_requirements_status"
+  end
+
   create_table "employee_data_request_events", force: :cascade do |t|
     t.bigint "employee_data_request_id", null: false
     t.bigint "actor_id", null: false
@@ -2559,6 +2578,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
     t.date "date_of_birth"
     t.text "address"
     t.boolean "requires_shift_assignment", default: true, null: false
+    t.date "employment_ended_on"
     t.index "business_id, lower((employee_code)::text)", name: "index_users_on_business_id_and_lower_employee_code", unique: true, where: "((employee_code IS NOT NULL) AND ((employee_code)::text <> ''::text))"
     t.index ["business_id", "department"], name: "index_users_on_business_id_and_department"
     t.index ["business_id"], name: "index_users_on_business_id"
@@ -2680,6 +2700,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
   add_foreign_key "deposit_responsibility_transfers", "users", column: "rejected_by_id"
   add_foreign_key "deposit_responsibility_transfers", "users", column: "to_user_id"
   add_foreign_key "durable_audit_receipts", "audit_logs"
+  add_foreign_key "employee_attendance_requirements", "businesses"
+  add_foreign_key "employee_attendance_requirements", "users", column: "changed_by_id"
+  add_foreign_key "employee_attendance_requirements", "users", on_delete: :restrict
   add_foreign_key "employee_data_request_events", "employee_data_request_revisions", column: "revision_id"
   add_foreign_key "employee_data_request_events", "employee_data_requests"
   add_foreign_key "employee_data_request_events", "users", column: "actor_id"
@@ -3024,6 +3047,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
     $function$
   SQL
   execute <<~'SQL'
+    CREATE OR REPLACE FUNCTION public.employee_attendance_requirements_append_only()
+     RETURNS trigger
+     LANGUAGE plpgsql
+    AS $function$
+    BEGIN
+      RAISE EXCEPTION 'employee_attendance_requirements is append-only' USING ERRCODE = 'restrict_violation';
+    END;
+    $function$
+  SQL
+  execute <<~'SQL'
     CREATE OR REPLACE FUNCTION public.pending_audit_events_guard()
      RETURNS trigger
      LANGUAGE plpgsql
@@ -3054,6 +3087,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
   SQL
   execute <<~'SQL'
     CREATE TRIGGER durable_audit_receipts_append_only BEFORE DELETE OR UPDATE ON public.durable_audit_receipts FOR EACH ROW EXECUTE FUNCTION audit_append_only_guard();
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER employee_attendance_requirements_append_only BEFORE DELETE OR UPDATE ON public.employee_attendance_requirements FOR EACH ROW EXECUTE FUNCTION employee_attendance_requirements_append_only();
   SQL
   execute <<~'SQL'
     CREATE TRIGGER pending_audit_event_attempts_append_only BEFORE DELETE OR UPDATE ON public.pending_audit_event_attempts FOR EACH ROW EXECUTE FUNCTION audit_append_only_guard();

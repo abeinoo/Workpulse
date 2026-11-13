@@ -1,9 +1,9 @@
 require "rails_helper"
 
-# Characterization (R3.2 G0): Payroll::SubmitForReview as it behaves today,
-# before the R3.2 payroll-status lock (gate G4). These pin current behaviour
-# only; the examples marked "current behaviour" are the ones G4 is planned to
-# change.
+# Characterization (R3.2 G0): Payroll::SubmitForReview, pinned before the R3.2
+# payroll-status lock. Gate G4 (OD-12, §19.14) changed one behaviour on
+# purpose: a stale or duplicate submission is now refused (see "stale period
+# object"). Its two-connection behaviour is in submit_for_review_concurrency_spec.rb.
 RSpec.describe Payroll::SubmitForReview do
   let(:business) { create(:business) }
   let(:shift)    { create(:shift, :hour_based, business: business) }
@@ -110,19 +110,19 @@ RSpec.describe Payroll::SubmitForReview do
     end
   end
 
-  # Current behaviour, planned to change in G4: the service decides on the
-  # status of the object it is given, without reloading or locking the row.
-  # A stale in-memory draft whose row is already under_review is submitted
-  # again (a second submitted_for_review entry is written).
-  describe "stale period object (current behaviour)" do
-    it "submits a stale draft object even though the row is already under_review" do
+  # Changed by G4 (approved behaviour change, OD-12): the service decides on the
+  # reloaded, locked row, never on the object it is given. A stale in-memory
+  # draft whose row is already under_review is refused; nothing is written twice.
+  describe "stale period object" do
+    it "refuses a stale draft object once the row is already under_review" do
       stale = PayrollPeriod.find(period.id)
       expect(submit(PayrollPeriod.find(period.id))).to be_success
 
       expect(stale).to be_draft
       result = nil
-      expect { result = submit(stale) }.to change(PayrollAuditLog.submitted_for_review, :count).by(1)
-      expect(result).to be_success
+      expect { result = submit(stale) }.not_to change(PayrollAuditLog, :count)
+      expect(result).not_to be_success
+      expect(result.error).to eq(described_class::REFUSAL)
       expect(period.reload).to be_under_review
       expect(period.payroll_period_branch_reviews.count).to eq(1)
     end
