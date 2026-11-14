@@ -54,9 +54,14 @@ RSpec.describe "Numeric inputs (RTL, browser)", type: :system do
     def cost  = first("input[name$='[unit_cost]']")
     def total = first("[data-line-total]")
 
+    # The line's product is chosen in its searchable picker (product-combobox),
+    # as a user does: type, then pick the result.
     def open_form
       visit new_inventory_goods_receipt_path
-      first("select[name$='[product_id]']").find("option", text: /شامبو/).select_option
+      picker = first("input[role='combobox']")
+      picker.click
+      picker.fill_in(with: "شامبو")
+      find("[role='option']", text: /شامبو/).click
     end
 
     it "desktop: integer, decimal, large, replace, delete, tab, focus — readable and stable" do

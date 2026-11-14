@@ -81,7 +81,12 @@ RSpec.describe "Stock count show — query count and figures", type: :request do
     expect(fresh.adjustment_value).not_to be_zero
 
     worksheet = page.css("table").find { |table| table.text.include?(I18n.t("inventory.stock_counts.quantity_source")) }
-    rows = worksheet.css("tbody tr").map { |tr| tr.css("td").first(5).map { |td| td.text.squish } }
+    rows = worksheet.css("tbody tr").map do |tr|
+      cells = tr.css("td").first(5)
+      # The product cell is the product identity (thumbnail, name, SKU — ProductThumbnailHelper).
+      product = "#{cells.first.at_css('.pident__name').text.squish} (#{cells.first.at_css('.pident__sku').text.squish})"
+      [ product, *cells.drop(1).map { |td| td.text.squish } ]
+    end
     expected = fresh.items.map do |item|
       diff = item.difference.to_d
       [ "#{item.product.name} (#{item.product.sku})", item.product.barcode.presence || "—", item.system_quantity.to_i.to_s,
