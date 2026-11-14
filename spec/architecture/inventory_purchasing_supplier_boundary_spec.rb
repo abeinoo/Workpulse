@@ -52,10 +52,13 @@ module ArchitectureSpecs
     INVENTORY_PURCHASING_FILES = {
       "app/models/inventory_purchasing/supplier.rb" => "the model itself (folder collapsed: top-level constant, M7)",
       "app/models/product.rb"          => "IP: default supplier (same-business validated, SEC-P6-2)",
-      "app/models/purchase_request.rb" => "IP: purchase requests own supplier selection",
+      "app/models/purchase_request.rb" => "IP: purchase requests own supplier selection (legacy request-level supplier)",
+      "app/models/purchase_request_item.rb" => "IP: each request line names its own supplier (same-business validated)",
+      "app/models/goods_receipt_item.rb" => "IP: a request line is received only with its own supplier",
       "app/models/goods_receipt.rb"    => "IP: receipts reference the supplier (same-business validated, SEC-P6-1)",
       "app/policies/supplier_policy.rb" => "IP: supplier authorization",
-      "app/helpers/inventory_helper.rb" => "IP: product options carry the default supplier for receipt prefill"
+      "app/helpers/inventory_helper.rb" => "IP: product options carry the default supplier for receipt prefill",
+      "app/helpers/product_thumbnail_helper.rb" => "IP: a product picker's selected option carries the default supplier (receipt / PR prefill)"
     }.freeze
 
     # Classified exceptions outside the domain, each limited to its exact line.

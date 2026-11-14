@@ -189,7 +189,7 @@
           <tbody>
             <% @availability_lines.each do |line| %>
               <tr data-product-id="<%= line.product.id %>">
-                <td data-label="<%= t('inventory.stock_issues.product') %>"><%= line.product.name %></td>
+                <td data-label="<%= t('inventory.stock_issues.product') %>"><%= product_identity(line.product) %></td>
                 <td data-label="<%= t('inventory.stock_issues.availability.on_hand') %>" style="text-align: end;"><%= stock_quantity(line.on_hand) %></td>
                 <td data-label="<%= t('inventory.stock_issues.availability.reserved') %>" style="text-align: end;"><%= stock_quantity(line.reserved) %></td>
                 <td data-label="<%= t('inventory.stock_issues.availability.available') %>" style="text-align: end; font-weight: 600;"><%= stock_quantity(line.available) %></td>
@@ -221,7 +221,7 @@
       <tbody>
         <% @items.each do |item| %>
           <tr>
-            <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %></td>
+            <td><%= product_identity(item.product, link: inventory_product_path(item.product)) %></td>
             <td class="td-secondary"><%= item.product.sku %></td>
             <td style="text-align: end;"><%= item.quantity.to_i %></td>
             <% if item.cost_unavailable? %>

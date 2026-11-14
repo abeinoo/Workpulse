@@ -42,6 +42,9 @@ module Inventory
         own = requests.select { |r| PurchaseRequestApproval.self_approval?(r, @actor) }
         raise BatchError, message(:bulk_self_approval, numbers: numbers(own)) if own.any?
 
+        edited = requests.select { |r| PurchaseRequestApproval.review_editor?(r, @actor) }
+        raise BatchError, message(:bulk_review_editor, numbers: numbers(edited)) if edited.any?
+
         requests.each do |request|
           result = PurchaseRequestApproval.new(purchase_request_id: request.id, actor: @actor)
                                           .approve!(metadata: { bulk_approval: true, batch_size: requests.size })

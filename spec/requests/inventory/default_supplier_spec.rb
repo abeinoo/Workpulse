@@ -30,11 +30,13 @@ RSpec.describe "Product default supplier", type: :request do
     expect(history).to contain_exactly([ supplier, 100 ], [ other, 120 ])
   end
 
-  it "exposes the default supplier id on receipt product options for auto-fill" do
-    business.products.create!(name: "Dye", sku: "DY-2", initial_cost_price: 1, default_supplier: supplier)
+  it "exposes the default supplier id to the receipt's product picker for auto-fill" do
+    dye = business.products.create!(name: "Dye", sku: "DY-2", initial_cost_price: 1, default_supplier: supplier)
     business.warehouses.create!(name: "Main")
     get new_inventory_goods_receipt_path
-    expect(response.body).to include("data-default-supplier-id=\"#{supplier.id}\"")
-    expect(response.body).to include("receipt-supplier")
+    expect(response.body).to include("change-&gt;receipt-supplier#productChanged").or include("change->receipt-supplier#productChanged")
+
+    get inventory_product_search_path(q: "DY-2")
+    expect(response.parsed_body.find { |p| p["id"] == dye.id }["default_supplier_id"]).to eq(supplier.id)
   end
 end

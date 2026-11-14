@@ -90,7 +90,7 @@ class Inventory::ProductsController < Inventory::BaseController
 
   def show
     @product = policy_scope(Product)
-                 .includes(:child_products, :product_barcodes)
+                 .includes(:child_products, :product_barcodes, image_attachment: :blob)
                  .find(params[:id])
     authorize @product
     wh_ids      = accessible_warehouse_ids
@@ -398,6 +398,7 @@ class Inventory::ProductsController < Inventory::BaseController
       current_user.business, params[:return_to_import_row_id], product_id: @product.id
     ).call
     @row = result.row
+    preload_product_images([ @row.product ]) # the re-rendered row's thumbnail
     @batch = @row.batch
     render :resolve_from_modal
   end

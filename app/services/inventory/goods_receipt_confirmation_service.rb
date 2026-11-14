@@ -45,6 +45,12 @@ module Inventory
       Result.new(ok: true, receipt: @receipt)
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, receipt: @receipt, error: e.record.errors.full_messages.to_sentence)
+    rescue ActiveRecord::Deadlocked, ActiveRecord::LockWaitTimeout
+      # PostgreSQL aborted this confirmation to break a lock cycle with another
+      # one. Its whole transaction rolled back: the receipt is still a draft, no
+      # stock was posted, and confirmation moves no money (that happened at
+      # approval) — so confirming again by hand is safe. Never retried here.
+      Result.new(ok: false, receipt: @receipt, error: I18n.t("inventory.goods_receipts.errors.confirmation_busy"))
     end
 
     private

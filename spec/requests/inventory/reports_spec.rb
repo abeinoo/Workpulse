@@ -193,7 +193,7 @@ RSpec.describe "Inventory::Reports", type: :request do
       sign_in owner
       get inventory_branch_comparison_report_path
       expect(response.body).to include(I18n.t("inventory.reports.branch_comparison.pick_product"))
-      expect(response.body).to include('data-controller="searchable-select"')
+      expect(response.body).to include('data-controller="product-combobox"', 'data-product-combobox-kind-value="tracked"')
     end
 
     it "renders branches, the shared-warehouse marker, reconciliation and the chart" do

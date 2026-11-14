@@ -30,7 +30,12 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
     @purchase_requests = filtered
                         .limit(PER_PAGE)
                         .offset((@page - 1) * PER_PAGE)
-                        .includes(:supplier, :created_by, items: { goods_receipt_items: :goods_receipt })
+                        .includes(:supplier, :created_by, :responsible_employee,
+                                  items: [ :supplier, { goods_receipt_items: :goods_receipt } ])
+    # Requests whose last review-time item edit is this user's: not approvable by them.
+    @review_editor_ids = Inventory::PurchaseRequestApproval.review_editor_ids(
+      @purchase_requests.select(&:pending_approval?), current_user
+    )
 
     @filter_suppliers = current_user.business.suppliers.ordered
     @filter_creators  = current_user.business.users.order(:first_name, :last_name)
@@ -47,23 +52,30 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
     # Highlights the batch just created by #create (see the redirect below) —
     # not a separate concept from the regular listing, just which rows to
     # call out at the top of the same page.
-    @just_created = policy_scope(PurchaseRequest).where(id: created_ids).includes(:supplier, :items) if created_ids.any?
+    @just_created = policy_scope(PurchaseRequest).where(id: created_ids).includes(:supplier, items: :supplier) if created_ids.any?
   end
 
   def show
     @purchase_request = policy_scope(PurchaseRequest)
-                        .includes(:supplier, :created_by, :submitted_by, :approved_by, :rejected_by, :cancelled_by,
-                                  items: [ :product, { goods_receipt_items: :goods_receipt } ],
+                        .includes(:supplier, :warehouse, :responsible_employee, :created_by, :submitted_by, :approved_by,
+                                  :rejected_by, :cancelled_by,
+                                  items: [ { product: { image_attachment: :blob } }, :supplier, { goods_receipt_items: :goods_receipt } ],
                                   goods_receipts: :items)
                         .find(params[:id])
     authorize @purchase_request
     load_advances
+    load_responsible_options if policy(@purchase_request).assign_responsible_employee?
+    # The item editor (before approval): the product catalog and suppliers.
+    load_options if policy(@purchase_request).edit_items?
+    @review_editor = @purchase_request.pending_approval? &&
+                     Inventory::PurchaseRequestApproval.review_editor?(@purchase_request, current_user)
   end
 
   # The general "إنشاء طلب شراء" form — any transactable product, low stock or
   # not. Low Stock is offered inside the form only as a convenience source of
-  # lines (see _low_stock_picker), never as a precondition. Notes belong to the
-  # request; every line needs an explicit, accessible destination warehouse.
+  # lines (see _low_stock_picker), never as a precondition. Notes and the
+  # destination warehouse (explicit, active, accessible) belong to the request;
+  # each line carries its own optional supplier.
   def new
     authorize PurchaseRequest
     @purchase_request = PurchaseRequest.new
@@ -73,8 +85,8 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
   end
 
   # Two entry points share this action and the same service:
-  #   - purchase_request[...] — the general form above (one supplier, one request)
-  #   - items[]               — the Low Stock Alerts review modal (one request per supplier)
+  #   - purchase_request[...] — the general form above (one warehouse, one request)
+  #   - items[]               — the Low Stock Alerts review modal (one request per warehouse)
   def create
     authorize PurchaseRequest
     params.key?(:purchase_request) ? create_from_form : create_from_low_stock_selection
@@ -152,6 +164,17 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
     redirect_with_result(result, ok_message: t("inventory.purchase_requests.remaining_closed"))
   end
 
+  # "تعيين الموظف المسؤول" on an approved / receivable request — every rule is
+  # re-checked under lock by the service.
+  def assign_responsible_employee
+    @purchase_request = find_request
+    authorize @purchase_request, :assign_responsible_employee?
+    result = Inventory::PurchaseRequestResponsibleAssigner.new(
+      @purchase_request.id, actor: current_user, responsible_employee_id: params[:responsible_employee_id]
+    ).call
+    redirect_with_result(result, ok_message: t("inventory.purchase_requests.responsible_employee_assigned"))
+  end
+
   # "اعتماد الطلبات المحددة" — all-or-nothing; every state/self-approval
   # check is re-done server-side under lock by the service. Redirects back to
   # the same filtered/paginated list so the counters and rows refresh.
@@ -191,6 +214,7 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
       current_user.business,
       actor:            current_user,
       items:            purchase_request_items_params,
+      responsible_employee_id: params[:responsible_employee_id],
       source:           PurchaseRequest::SOURCE_LOW_STOCK_ALERT,
       idempotency_key:  params[:idempotency_key]
     ).call
@@ -210,9 +234,10 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
     result = Inventory::PurchaseRequestCreator.new(
       current_user.business,
       actor:            current_user,
-      items:            lines.map { |line| line.merge(supplier_id: attrs[:supplier_id]) },
+      items:            lines.map { |line| line.merge(warehouse_id: attrs[:warehouse_id]) },
+      responsible_employee_id: attrs[:responsible_employee_id],
       notes:            attrs[:notes],
-      require_warehouse: true,
+      require_active_warehouse: true,
       idempotency_key:  params[:idempotency_key]
     ).call
 
@@ -220,7 +245,8 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
       redirect_to inventory_purchase_requests_path(created_ids: result.purchase_requests.map(&:id).join(",")),
                   notice: t("inventory.purchase_requests.created", count: result.purchase_requests.size)
     else
-      @purchase_request = PurchaseRequest.new(supplier_id: attrs[:supplier_id], notes: attrs[:notes])
+      @purchase_request = PurchaseRequest.new(warehouse_id: attrs[:warehouse_id], notes: attrs[:notes],
+                                              responsible_employee_id: attrs[:responsible_employee_id])
       lines.each { |line| @purchase_request.items.build(line) }
       @purchase_request.items.build if @purchase_request.items.empty?
       @purchase_request.errors.add(:base, result.error)
@@ -234,7 +260,7 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
   # nested attributes (PurchaseRequest reject_if).
   def form_lines(attrs)
     attrs.fetch(:items_attributes, {}).to_h.values
-         .map { |line| line.symbolize_keys.slice(:product_id, :quantity, :unit_price, :source_warehouse_id) }
+         .map { |line| line.symbolize_keys.slice(:product_id, :quantity, :unit_price, :supplier_id) }
          .reject { |line| line[:product_id].blank? }
   end
 
@@ -271,37 +297,38 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
     return [] unless params[:items].is_a?(Array)
 
     params[:items].map do |item|
-      item.permit(:product_id, :quantity, :unit_price, :supplier_id, :source_warehouse_id, :notes).to_h
+      item.permit(:product_id, :quantity, :unit_price, :supplier_id, :warehouse_id, :notes).to_h
     end
   end
 
   def purchase_request_form_params
     params.require(:purchase_request).permit(
-      :supplier_id, :notes,
-      items_attributes: [ :product_id, :quantity, :unit_price, :source_warehouse_id ]
+      :warehouse_id, :responsible_employee_id, :notes,
+      items_attributes: [ :product_id, :quantity, :unit_price, :supplier_id ]
     )
   end
 
   def purchase_request_update_params
     params.require(:purchase_request).permit(
-      :supplier_id, :notes,
-      items_attributes: [ :id, :product_id, :quantity, :unit_price, :source_warehouse_id, :notes, :_destroy ]
+      :warehouse_id, :responsible_employee_id, :notes,
+      items_attributes: [ :id, :product_id, :quantity, :unit_price, :supplier_id, :notes, :_destroy ]
     )
   end
 
   def load_options
     @suppliers  = current_user.business.suppliers.ordered
-    @products   = current_user.business.products.transactable.ordered.to_a
-    # One query for every option's barcode — each line row lists the whole catalog.
-    @product_barcodes = Product.barcode_lookup(@products.map(&:id))
+    # Line pickers search the catalogue on demand; only each line's product is rendered.
+    preload_line_products(@purchase_request&.items)
     @warehouses = accessible_warehouses
+    load_responsible_options
   end
 
   # "الدفعات المقدمة": every advance (all statuses, for the audit trail) plus
   # the ledger-derived totals — computed here, never in the view.
   def load_advances
     @advances = @purchase_request.advances.includes(:created_by, :confirmed_by, :cancelled_by, :reversed_by,
-                                                    custody_account: :user)
+                                                    custody_account: :user, recipient_custody_account: :user,
+                                                    funding_transaction: :transfer_counterparty)
                                  .order(:created_at, :id).to_a
     applied = FinancialSettlement.advance_applications
                                  .where(funding_source_type: "PurchaseRequestAdvance", funding_source_id: @advances.map(&:id))
@@ -311,7 +338,9 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
       total:     @purchase_request.total_amount,
       advances:  @purchase_request.advances_total,
       remaining: @purchase_request.amount_remaining_after_advances,
-      count:     @advances.count(&:confirmed?),
+      # Legacy supplier payments only — funding paid no supplier.
+      count:     @advances.count { |advance| advance.confirmed? && advance.legacy? },
+      funded:    @purchase_request.confirmed_funding_total,
       unapplied: @purchase_request.advances_total - applied.values.sum
     }
     @new_advance = PurchaseRequestAdvance.new(business: @purchase_request.business, purchase_request: @purchase_request)
@@ -322,5 +351,6 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
   def load_new_form_options
     load_options
     @low_stock_rows = Inventory::Reports::LowStock.new(current_user.business, warehouse_ids: accessible_warehouse_ids).rows
+    preload_product_images(@low_stock_rows.map(&:product))
   end
 end

@@ -219,9 +219,15 @@ module InventoryHelper
     key ? PURCHASE_REQUEST_RECEIVING_BADGES.fetch(key, "badge-neutral") : "badge-neutral"
   end
 
-  # A Purchase Request's supplier, or "بدون مورد" when none is set.
+  # A Purchase Request's supplier: the legacy request-level one, else its
+  # lines' — the name when they share one, "عدة موردين" when they differ, and
+  # "بدون مورد" when none is set. Preload items: :supplier for lists.
   def purchase_request_supplier_name(pr)
-    pr.supplier&.name || t("inventory.purchase_requests.no_supplier")
+    suppliers = pr.suppliers_on_items
+    return t("inventory.purchase_requests.no_supplier") if suppliers.empty?
+    return suppliers.first.name if suppliers.one?
+
+    t("inventory.purchase_requests.multiple_suppliers")
   end
 
   # The approval decision alone, for the "الحالة" badge: the status column also

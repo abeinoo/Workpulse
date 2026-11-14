@@ -10,6 +10,17 @@ class PurchaseRequestPolicy < ApplicationPolicy
   def update? = create? &&
                 (!record.is_a?(PurchaseRequest) || record.draft?)
 
+  # The PR page's item editor (add / edit / delete lines) before approval: a
+  # draft by whoever may edit it (#update?), a request pending approval by its
+  # reviewers only. Never after approval. Re-checked race-safely (state) by
+  # Inventory::PurchaseRequestUpdater.
+  def edit_items?
+    return create? || reviewer? unless record.is_a?(PurchaseRequest)
+    return update? if record.draft?
+
+    record.pending_approval? && reviewer?
+  end
+
   def submit_for_approval? = create? &&
                               (!record.is_a?(PurchaseRequest) || record.draft?)
 
@@ -33,12 +44,24 @@ class PurchaseRequestPolicy < ApplicationPolicy
   def close_remaining? = (can?(:manage_inventory) || can?(:approve_purchase_requests)) &&
                         (!record.is_a?(PurchaseRequest) || record.partially_received?)
 
+  # "تعيين الموظف المسؤول" on an approved / receivable request (a draft changes
+  # it through the edit form). Same tier as approval. Whether advances still
+  # lock it is re-checked under lock by Inventory::PurchaseRequestResponsibleAssigner.
+  def assign_responsible_employee? = (can?(:manage_inventory) || can?(:approve_purchase_requests)) &&
+                                     (!record.is_a?(PurchaseRequest) || record.receivable?)
+
   # Gates the "إنشاء إذن استلام" action/route — reuses the SAME permission as
   # actually creating a GoodsReceipt (create_goods_receipts), per the existing
   # GoodsReceipt authorization model; this is a GoodsReceipt-creation action,
   # not a purchase-request one.
   def create_goods_receipt? = (can?(:manage_inventory) || can?(:create_goods_receipts)) &&
                               (!record.is_a?(PurchaseRequest) || record.receivable?)
+
+  private
+
+  def reviewer? = can?(:manage_inventory) || can?(:approve_purchase_requests)
+
+  public
 
   class Scope < ApplicationPolicy::Scope
     def resolve

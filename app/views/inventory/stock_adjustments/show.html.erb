@@ -55,7 +55,7 @@
         <% @items.each do |item| %>
           <% count_item = @count_items_by_product[item.product_id] %>
           <tr>
-            <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %></td>
+            <td><%= product_identity(item.product, link: inventory_product_path(item.product)) %></td>
             <td class="td-secondary"><%= item.product.barcode.presence || "—" %></td>
             <td class="td-secondary"><%= item.product.sku %></td>
             <% if @source_count %>

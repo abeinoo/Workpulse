@@ -1,105 +1,171 @@
-<% product_options = inventory_product_options_html(@products, barcodes: @product_barcodes) %>
 <%
   cur_info   = Business::CURRENCIES[current_user.business.currency] || Business::CURRENCIES["SAR"]
   cur_prefix = I18n.locale.to_s == "ar" ? "" : "#{cur_info[:symbol_en]} "
   cur_suffix = I18n.locale.to_s == "ar" ? " #{cur_info[:symbol]}" : ""
+
+  # The request this receipt is from: the controller's policy-scoped record for
+  # a new receipt (never the submitted id's association, which is not
+  # business-scoped), or a saved receipt's own (edit — validated same-business).
+  linked_pr             = defined?(@purchase_request) && @purchase_request ? @purchase_request : (goods_receipt.purchase_request if goods_receipt.persisted?)
+  from_purchase_request = defined?(@purchase_request) && @purchase_request.present?
+  # The supplier is fixed when the request is a legacy one-supplier request, or
+  # when this receipt carries request lines that name a supplier (a line may
+  # only be received from its own supplier — GoodsReceiptItem).
+  legacy_supplier_lock = linked_pr.present? && linked_pr.legacy_supplier?
+  line_supplier_lock   = linked_pr.present? && !legacy_supplier_lock &&
+                         goods_receipt.items.any? { |item| item.purchase_request_item&.supplier_id.present? }
+  supplier_options     = Array(@receipt_supplier_options)
+  current_group        = goods_receipt.supplier_id && line_supplier_lock ? goods_receipt.supplier_id.to_s : Inventory::GoodsReceiptsController::RECEIPT_NO_SUPPLIER
+  request_line_count   = goods_receipt.items.count(&:purchase_request_item)
+  columns              = linked_pr ? 8 : 5
 %>
-<%= form_with model: [:inventory, goods_receipt], class: "form-card",
+<%= form_with model: [:inventory, goods_receipt], class: "gr-form",
               data: { controller: "line-items receipt-supplier funding-source line-total",
-                      action: "input->line-total#recalculate",
+                      action: "input->line-total#recalculate click->line-total#recalculate",
                       "line-total-currency-prefix-value": cur_prefix,
                       "line-total-currency-suffix-value": cur_suffix } do |f| %>
   <%= render "shared/error_messages", object: goods_receipt %>
 
-  <% from_purchase_request = defined?(@purchase_request) && @purchase_request.present? %>
-  <% if from_purchase_request %>
-    <div class="alert alert-info" style="margin-bottom: var(--space-4);">
-      <%= t("inventory.goods_receipts.from_purchase_request") %>:
-      <%= link_to @purchase_request.request_number, inventory_purchase_request_path(@purchase_request), class: "link", target: "_blank", rel: "noopener" %>
-      — <%= purchase_request_supplier_name(@purchase_request) %>
-    </div>
+  <% if linked_pr %>
     <%= f.hidden_field :purchase_request_id %>
-    <% if @purchase_request.advances_total.positive? %>
-      <%= render "inventory/goods_receipts/purchase_request_advances_summary", purchase_request: @purchase_request %>
+    <%# 1. The Purchase Request being received. %>
+    <section class="gr-card" data-testid="gr-request-summary" aria-labelledby="gr-request-title">
+      <h2 class="section-title" id="gr-request-title"><%= t("inventory.goods_receipts.form.request_section") %></h2>
+      <dl class="gr-summary">
+        <div class="gr-summary__item">
+          <dt><%= t("inventory.goods_receipts.from_purchase_request") %></dt>
+          <dd><%= link_to linked_pr.request_number, inventory_purchase_request_path(linked_pr), class: "link", target: "_blank", rel: "noopener" %></dd>
+        </div>
+        <div class="gr-summary__item">
+          <dt><%= t("inventory.goods_receipts.warehouse") %></dt>
+          <dd><%= linked_pr.warehouse&.name || "—" %></dd>
+        </div>
+        <div class="gr-summary__item">
+          <dt><%= t("inventory.goods_receipts.form.responsible_employee") %></dt>
+          <dd><bdi><%= linked_pr.responsible_employee&.full_name || "—" %></bdi></dd>
+        </div>
+        <div class="gr-summary__item">
+          <dt><%= t("inventory.goods_receipts.form.lines_in_receipt") %></dt>
+          <dd data-testid="gr-request-line-count"><%= request_line_count %></dd>
+        </div>
+      </dl>
+      <% if linked_pr.advances_total.positive? %>
+        <%= render "inventory/goods_receipts/purchase_request_advances_summary", purchase_request: linked_pr %>
+      <% end %>
+    </section>
+
+    <%# 2. Which supplier this receipt is for — only that supplier's lines are listed below. %>
+    <% unless legacy_supplier_lock %>
+      <section class="gr-card gr-supplier" data-testid="gr-selected-supplier" aria-labelledby="gr-supplier-title">
+        <h2 class="section-title" id="gr-supplier-title"><%= t("inventory.goods_receipts.form.supplier_section") %></h2>
+        <p class="gr-supplier__current">
+          <strong data-testid="gr-selected-supplier-name">
+            <%= line_supplier_lock ? (goods_receipt.supplier&.name || "—") : t("inventory.goods_receipts.no_supplier_lines") %>
+          </strong>
+        </p>
+        <p class="form-hint" style="margin: 0;">
+          <%= t(line_supplier_lock ? "inventory.goods_receipts.form.supplier_lines_hint" : "inventory.goods_receipts.form.no_supplier_lines_hint") %>
+        </p>
+        <% if from_purchase_request && supplier_options.size > 1 %>
+          <nav class="gr-supplier__switch" aria-label="<%= t('inventory.goods_receipts.switch_supplier') %>">
+            <span class="td-secondary"><%= t("inventory.goods_receipts.switch_supplier") %>:</span>
+            <% supplier_options.each do |label, value| %>
+              <% if value == current_group %>
+                <span class="btn btn-sm btn-secondary is-current" aria-current="true"><%= label %></span>
+              <% else %>
+                <%= link_to label, new_inventory_goods_receipt_path(purchase_request_id: linked_pr.id, supplier_id: value),
+                            class: "btn btn-sm btn-ghost", data: { testid: "gr-switch-supplier" } %>
+              <% end %>
+            <% end %>
+          </nav>
+        <% end %>
+      </section>
     <% end %>
   <% end %>
 
-  <h2 class="section-title"><%= t("inventory.goods_receipts.section_header") %></h2>
-  <div class="form-grid">
-    <div class="form-group">
-      <%= f.label :warehouse_id, t("inventory.goods_receipts.warehouse"), class: "form-label" %>
-      <%= f.select :warehouse_id,
-            options_from_collection_for_select(@warehouses, :id, :name, goods_receipt.warehouse_id),
-            { include_blank: "— #{t('inventory.goods_receipts.select_warehouse')}" },
-            class: "form-control #{'is-error' if goods_receipt.errors[:warehouse].any?}" %>
-      <% if from_purchase_request && goods_receipt.warehouse_id.blank? %>
-        <p class="form-hint"><%= t("inventory.goods_receipts.select_warehouse") %></p>
-      <% end %>
-    </div>
-    <div class="form-group">
-      <%= f.label :supplier_id, t("inventory.goods_receipts.supplier"), class: "form-label" %>
-      <% if from_purchase_request && @purchase_request.supplier_id.present? %>
-        <%= f.select :supplier_id,
-              options_from_collection_for_select(@suppliers, :id, :name, goods_receipt.supplier_id),
-              {}, class: "form-control", disabled: true %>
-        <%= f.hidden_field :supplier_id %>
-        <p class="form-hint"><%= t("inventory.goods_receipts.supplier_locked_hint") %></p>
-      <% else %>
-        <%= f.select :supplier_id,
-              options_from_collection_for_select(@suppliers, :id, :name, goods_receipt.supplier_id),
-              { include_blank: "— #{t('inventory.goods_receipts.no_supplier')}" },
-              class: "form-control", data: { "receipt-supplier-target": "supplier" } %>
-        <% if from_purchase_request %>
-          <p class="form-hint"><%= t("inventory.goods_receipts.supplier_from_open_request_hint") %></p>
-        <% end %>
-      <% end %>
-    </div>
-    <div class="form-group">
-      <%= f.label :received_on, t("inventory.goods_receipts.date"), class: "form-label" %>
-      <%= f.date_field :received_on, class: "form-control" %>
-    </div>
-    <div class="form-group" style="grid-column: 1 / -1;">
-      <%= f.label :notes, t("inventory.goods_receipts.notes"), class: "form-label" %>
-      <%= f.text_area :notes, rows: 2, class: "form-control" %>
-    </div>
-    <div class="form-group" style="grid-column: 1 / -1;">
-      <%= f.label :invoices, t("inventory.goods_receipts.invoices"), class: "form-label" %>
-      <%= f.file_field :invoices, multiple: true, accept: "image/jpeg,image/png,application/pdf",
-            class: "form-control #{'is-error' if goods_receipt.errors[:invoices].any?}" %>
-      <p class="form-hint"><%= t("inventory.goods_receipts.invoices_hint") %></p>
-    </div>
-  </div>
-
-  <div class="divider"></div>
-
-  <% employee_custody_selected = goods_receipt.funding_source_kind == "employee_custody" %>
-  <h2 class="section-title"><%= t("inventory.goods_receipts.section_funding_source") %></h2>
-  <div class="form-grid">
-    <%# Employee Custody is always the current user's own account (resolved
-        server-side by Inventory::GoodsReceiptDraftService) — never a
-        selectable employee. Without an account it's unavailable, with the reason. %>
-    <% GoodsReceipt::FUNDING_SOURCE_KINDS.each do |kind| %>
-      <% unavailable = kind == "employee_custody" && @custody_account.nil? %>
+  <%# 3. Receipt information. %>
+  <section class="gr-card" aria-labelledby="gr-info-title">
+    <h2 class="section-title" id="gr-info-title"><%= t("inventory.goods_receipts.section_header") %></h2>
+    <div class="gr-fields">
       <div class="form-group">
-        <label class="form-label" style="<%= 'opacity: 0.55; cursor: not-allowed;' if unavailable %>">
-          <%= f.radio_button :funding_source_kind, kind,
-                checked:  goods_receipt.funding_source_kind == kind,
-                disabled: unavailable,
-                required: true,
-                "aria-describedby": ("employee-custody-unavailable" if unavailable),
-                data: { "funding-source-target": "kindRadio", action: "funding-source#toggle" } %>
-          <%= t("inventory.goods_receipts.funding_source_kinds.#{kind}") %>
-        </label>
-        <% if unavailable %>
-          <p id="employee-custody-unavailable" class="form-hint text-warning" style="margin: 0;">
-            <%= t("activerecord.errors.models.goods_receipt.attributes.base.no_custody_account") %>
-          </p>
+        <%= f.label :warehouse_id, t("inventory.goods_receipts.warehouse"), class: "form-label" %>
+        <%= f.select :warehouse_id,
+              options_from_collection_for_select(@warehouses, :id, :name, goods_receipt.warehouse_id),
+              { include_blank: "— #{t('inventory.goods_receipts.select_warehouse')}" },
+              class: "form-control #{'is-error' if goods_receipt.errors[:warehouse].any?}" %>
+        <% if linked_pr && goods_receipt.warehouse_id.blank? %>
+          <p class="form-hint"><%= t("inventory.goods_receipts.select_warehouse") %></p>
         <% end %>
       </div>
-    <% end %>
+      <div class="form-group">
+        <%= f.label :supplier_id, t("inventory.goods_receipts.supplier"), class: "form-label" %>
+        <% if legacy_supplier_lock || line_supplier_lock %>
+          <%= f.select :supplier_id,
+                options_from_collection_for_select(@suppliers, :id, :name, goods_receipt.supplier_id),
+                {}, class: "form-control", disabled: true %>
+          <%= f.hidden_field :supplier_id %>
+          <p class="form-hint"><%= t(legacy_supplier_lock ? "inventory.goods_receipts.supplier_locked_hint" : "inventory.goods_receipts.supplier_line_locked_hint") %></p>
+        <% else %>
+          <%# The receipt for a request's lines without a supplier must record the
+              actual supplier (GoodsReceipt#supplier_recorded_for_unassigned_request_lines). %>
+          <% supplier_required = linked_pr.present? && request_line_count.positive? %>
+          <%= f.select :supplier_id,
+                options_from_collection_for_select(@suppliers, :id, :name, goods_receipt.supplier_id),
+                { include_blank: "— #{t(supplier_required ? 'inventory.goods_receipts.select_supplier' : 'inventory.goods_receipts.no_supplier')}" },
+                class: "form-control #{'is-error' if goods_receipt.errors[:supplier].any?}", required: supplier_required,
+                data: { "receipt-supplier-target": "supplier" } %>
+          <% if linked_pr %>
+            <p class="form-hint"><%= t(supplier_required ? "inventory.goods_receipts.form.actual_supplier_hint" : "inventory.goods_receipts.supplier_from_open_request_hint") %></p>
+          <% end %>
+        <% end %>
+      </div>
+      <div class="form-group">
+        <%= f.label :received_on, t("inventory.goods_receipts.date"), class: "form-label" %>
+        <%= f.date_field :received_on, class: "form-control" %>
+      </div>
+      <div class="form-group gr-fields__wide">
+        <%= f.label :notes, t("inventory.goods_receipts.notes"), class: "form-label" %>
+        <%= f.text_area :notes, rows: 2, class: "form-control" %>
+      </div>
+      <div class="form-group gr-fields__wide">
+        <%= f.label :invoices, t("inventory.goods_receipts.invoices"), class: "form-label" %>
+        <%= f.file_field :invoices, multiple: true, accept: "image/jpeg,image/png,application/pdf",
+              class: "form-control #{'is-error' if goods_receipt.errors[:invoices].any?}" %>
+        <p class="form-hint"><%= t("inventory.goods_receipts.invoices_hint") %></p>
+      </div>
+    </div>
+  </section>
 
+  <%# 4. How the supplier is paid. %>
+  <% employee_custody_selected = goods_receipt.funding_source_kind == "employee_custody" %>
+  <section class="gr-card" aria-labelledby="gr-funding-title">
+    <h2 class="section-title" id="gr-funding-title"><%= t("inventory.goods_receipts.section_funding_source") %></h2>
+    <div class="gr-funding">
+      <%# Employee Custody is always the current user's own account (resolved
+          server-side by Inventory::GoodsReceiptDraftService) — never a
+          selectable employee. Without an account it's unavailable, with the reason. %>
+      <% GoodsReceipt::FUNDING_SOURCE_KINDS.each do |kind| %>
+        <% unavailable = kind == "employee_custody" && @custody_account.nil? %>
+        <div class="form-group">
+          <label class="form-label" style="<%= 'opacity: 0.55; cursor: not-allowed;' if unavailable %>">
+            <%= f.radio_button :funding_source_kind, kind,
+                  checked:  goods_receipt.funding_source_kind == kind,
+                  disabled: unavailable,
+                  required: true,
+                  "aria-describedby": ("employee-custody-unavailable" if unavailable),
+                  data: { "funding-source-target": "kindRadio", action: "funding-source#toggle" } %>
+            <%= t("inventory.goods_receipts.funding_source_kinds.#{kind}") %>
+          </label>
+          <% if unavailable %>
+            <p id="employee-custody-unavailable" class="form-hint text-warning" style="margin: 0;">
+              <%= t("activerecord.errors.models.goods_receipt.attributes.base.no_custody_account") %>
+            </p>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
     <div data-funding-source-target="panel" class="form-group <%= 'hidden' unless employee_custody_selected %>"
-         style="grid-column: 1 / -1;" <%= "hidden" unless employee_custody_selected %>>
+         <%= "hidden" unless employee_custody_selected %>>
       <p class="form-label"><%= t("inventory.goods_receipts.my_balance") %></p>
       <% if @custody_account %>
         <p id="employee-custody-balance" style="font-weight: 600;"><%= format_currency(@custody_balance) %></p>
@@ -107,77 +173,98 @@
         <p class="form-hint"><%= t("activerecord.errors.models.goods_receipt.attributes.base.no_custody_account") %></p>
       <% end %>
     </div>
-  </div>
+  </section>
 
-  <% linked_pr = goods_receipt.purchase_request %>
-  <h2 class="section-title"><%= t("inventory.goods_receipts.section_items") %></h2>
-  <%= render "inventory/shared/barcode_scanner" %>
-  <div class="table-wrap table-wrap--form-cards">
-    <table class="line-items-table">
-      <thead><tr>
-        <th class="line-items-table__product"><%= t("inventory.goods_receipts.product") %></th>
-        <th class="line-items-table__num"><%= t("inventory.goods_receipts.quantity") %></th>
-        <th class="line-items-table__num"><%= t("inventory.goods_receipts.unit_cost") %></th>
-        <th class="line-items-table__total"><%= t("inventory.goods_receipts.total") %></th>
-        <th><span class="sr-only"><%= t("common.delete") %></span></th>
-      </tr></thead>
-      <tbody data-line-items-target="rows">
-        <% if linked_pr %>
-          <%# Created from a Purchase Request: its lines first (suggested, quantities
-              editable), then any extra catalog products bought beyond the request.
-              Extras are added to this receipt only — never to the request. Both
-              sections share one rows container so the barcode scanner sees every
-              line. Explicit child_index keeps the nested-attribute keys unique. %>
-          <tr class="line-items-section">
-            <th colspan="5" scope="colgroup">
-              <%= t("inventory.goods_receipts.request_items_title") %>
-              <span class="line-items-section__ref"><%= linked_pr.request_number %></span>
-            </th>
-          </tr>
-          <% goods_receipt.items.each_with_index do |item, index| %>
-            <% next unless item.purchase_request_item %>
-            <%= f.fields_for :items, item, child_index: index do |item_f| %>
-              <%= render "request_item_fields", f: item_f, barcodes: @product_barcodes %>
+  <%# 5. Products and quantities. %>
+  <section class="gr-card gr-items" aria-labelledby="gr-items-title">
+    <h2 class="section-title" id="gr-items-title"><%= t("inventory.goods_receipts.section_items") %></h2>
+    <%= render "inventory/shared/barcode_scanner" %>
+    <div class="table-wrap table-wrap--form-cards">
+      <table class="line-items-table gr-items__table" data-testid="gr-items-table">
+        <thead><tr>
+          <th class="line-items-table__product"><%= t("inventory.goods_receipts.product") %></th>
+          <% if linked_pr %>
+            <th class="line-items-table__num"><%= t("inventory.goods_receipts.form.ordered") %></th>
+            <th class="line-items-table__num"><%= t("inventory.goods_receipts.form.received_before") %></th>
+            <th class="line-items-table__num"><%= t("inventory.goods_receipts.form.remaining") %></th>
+          <% end %>
+          <th class="line-items-table__num"><%= t(linked_pr ? "inventory.goods_receipts.form.receive_now" : "inventory.goods_receipts.quantity") %></th>
+          <th class="line-items-table__num"><%= t("inventory.goods_receipts.unit_cost") %></th>
+          <th class="line-items-table__total"><%= t("inventory.goods_receipts.total") %></th>
+          <th><span class="sr-only"><%= t("common.delete") %></span></th>
+        </tr></thead>
+        <tbody data-line-items-target="rows">
+          <% if linked_pr %>
+            <%# Created from a Purchase Request: the chosen supplier group's lines
+                first (suggested, quantities editable), then any extra catalog
+                products bought beyond the request. Extras are added to this
+                receipt only — never to the request. Both sections share one rows
+                container so the barcode scanner sees every line. Explicit
+                child_index keeps the nested-attribute keys unique. %>
+            <tr class="line-items-section">
+              <th colspan="<%= columns %>" scope="colgroup">
+                <%= t("inventory.goods_receipts.request_items_title") %>
+                <span class="line-items-section__ref"><%= linked_pr.request_number %></span>
+              </th>
+            </tr>
+            <% if request_line_count.zero? %>
+              <tr class="gr-items__empty" data-testid="gr-no-eligible-lines">
+                <td colspan="<%= columns %>"><%= t("inventory.goods_receipts.form.no_eligible_lines") %></td>
+              </tr>
+            <% end %>
+            <% goods_receipt.items.each_with_index do |item, index| %>
+              <% next unless item.purchase_request_item %>
+              <%= f.fields_for :items, item, child_index: index do |item_f| %>
+                <%= render "request_item_fields", f: item_f, barcodes: @product_barcodes %>
+              <% end %>
+            <% end %>
+            <tr class="line-items-section">
+              <th colspan="<%= columns %>" scope="colgroup">
+                <%= t("inventory.goods_receipts.extra_items_title") %>
+                <span class="line-items-section__hint"><%= t("inventory.goods_receipts.extra_items_hint") %></span>
+              </th>
+            </tr>
+            <% goods_receipt.items.each_with_index do |item, index| %>
+              <% next if item.purchase_request_item %>
+              <%= f.fields_for :items, item, child_index: index do |item_f| %>
+                <%= render "item_fields", f: item_f, extra: true, request_columns: true %>
+              <% end %>
+            <% end %>
+          <% else %>
+            <%= f.fields_for :items do |item_f| %>
+              <%= render "item_fields", f: item_f %>
             <% end %>
           <% end %>
-          <tr class="line-items-section">
-            <th colspan="5" scope="colgroup">
-              <%= t("inventory.goods_receipts.extra_items_title") %>
-              <span class="line-items-section__hint"><%= t("inventory.goods_receipts.extra_items_hint") %></span>
-            </th>
-          </tr>
-          <% goods_receipt.items.each_with_index do |item, index| %>
-            <% next if item.purchase_request_item %>
-            <%= f.fields_for :items, item, child_index: index do |item_f| %>
-              <%= render "item_fields", f: item_f, product_options: product_options, extra: true %>
-            <% end %>
-          <% end %>
-        <% else %>
-          <%= f.fields_for :items do |item_f| %>
-            <%= render "item_fields", f: item_f, product_options: product_options %>
-          <% end %>
-        <% end %>
-      </tbody>
-    </table>
-  </div>
+        </tbody>
+      </table>
+    </div>
 
-  <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if goods_receipt.items.any? %>>
-    <%= t("inventory.goods_receipts.no_items_hint") %>
-  </p>
+    <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if goods_receipt.items.any? %>>
+      <%= t("inventory.goods_receipts.no_items_hint") %>
+    </p>
 
-  <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add" style="margin-top: var(--space-3);">
-    + <%= t(linked_pr ? "inventory.goods_receipts.add_product" : "inventory.goods_receipts.add_item") %>
-  </button>
+    <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add" style="margin-top: var(--space-3);">
+      + <%= t(linked_pr ? "inventory.goods_receipts.add_product" : "inventory.goods_receipts.add_item") %>
+    </button>
 
-  <%# Template for new rows (index replaced by JS) %>
-  <template data-line-items-target="template">
-    <%= f.fields_for :items, GoodsReceiptItem.new, child_index: "NEW_INDEX" do |item_f| %>
-      <%= render "item_fields", f: item_f, product_options: product_options, extra: linked_pr.present? %>
-    <% end %>
-  </template>
+    <%# Template for new rows (index replaced by JS) %>
+    <template data-line-items-target="template">
+      <%= f.fields_for :items, GoodsReceiptItem.new, child_index: "NEW_INDEX" do |item_f| %>
+        <%= render "item_fields", f: item_f, extra: linked_pr.present?, request_columns: linked_pr.present? %>
+      <% end %>
+    </template>
+  </section>
 
-  <div class="form-actions">
-    <%= f.submit t("inventory.goods_receipts.save_draft"), class: "btn btn-primary" %>
-    <%= link_to t("common.cancel"), inventory_goods_receipts_path, class: "btn btn-ghost" %>
+  <%# 6. Total and actions — kept in reach at the bottom of the screen. %>
+  <div class="gr-actions" data-testid="gr-form-actions">
+    <div class="gr-actions__total">
+      <span class="td-secondary"><%= t("inventory.goods_receipts.form.receipt_total") %></span>
+      <strong data-line-total-target="grandTotal" data-testid="gr-grand-total" aria-live="polite">—</strong>
+    </div>
+    <div class="gr-actions__buttons">
+      <%= link_to t("common.cancel"), linked_pr && goods_receipt.new_record? ? inventory_purchase_request_path(linked_pr) : inventory_goods_receipts_path,
+                  class: "btn btn-ghost" %>
+      <%= f.submit t("inventory.goods_receipts.save_draft"), class: "btn btn-primary" %>
+    </div>
   </div>
 <% end %>

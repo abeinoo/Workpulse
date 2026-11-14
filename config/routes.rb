@@ -372,10 +372,12 @@ Rails.application.routes.draw do
         post :reject
         post :cancel
         post :close_remaining
+        post :assign_responsible_employee
       end
+      # The PR page's item editor (before approval) — Inventory::PurchaseRequestUpdater.
+      resources :items, only: [ :create, :update, :destroy ], controller: "purchase_request_items"
       resources :advances, only: [ :new, :create ], controller: "purchase_request_advances" do
         member do
-          post :confirm
           post :cancel
           post :reverse
         end
@@ -449,6 +451,8 @@ Rails.application.routes.draw do
 
     # Shared barcode → product lookup for scanner-enabled document forms.
     get "barcode_lookup", to: "barcode_lookups#show", as: :barcode_lookup
+    # Searchable product pickers (product-combobox): name / SKU / barcode.
+    get "product_search", to: "product_searches#index", as: :product_search
 
     # ── Reports ──────────────────────────────────────────────────────────
     get "reports",                    to: "reports#index",              as: :reports

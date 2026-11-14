@@ -1,4 +1,3 @@
-<% product_options = inventory_product_options_html(@products, barcodes: @product_barcodes) %>
 <%
   cur_info   = Business::CURRENCIES[current_user.business.currency] || Business::CURRENCIES["SAR"]
   cur_prefix = I18n.locale.to_s == "ar" ? "" : "#{cur_info[:symbol_en]} "
@@ -21,17 +20,38 @@
   <h2 class="section-title"><%= t("inventory.purchase_requests.form.section_details") %></h2>
   <div class="form-grid">
     <div class="form-group">
-      <%= f.label :supplier_id, class: "form-label",
-            title: t("inventory.purchase_requests.form.supplier_hint") do %>
-        <%= t("inventory.purchase_requests.form.supplier_label") %>
-        <span class="td-secondary"><%= t("inventory.purchase_requests.form.optional") %></span>
-      <% end %>
-      <%= f.select :supplier_id,
-            options_from_collection_for_select(@suppliers, :id, :name, purchase_request.supplier_id),
-            { include_blank: "— #{t('inventory.purchase_requests.no_supplier')}" },
-            class: "form-control #{'is-error' if purchase_request.errors[:supplier].any?}",
-            data: { purchase_request_form_target: "supplier" } %>
+      <%= f.label :warehouse_id, t("inventory.purchase_requests.form.warehouse_label"), class: "form-label",
+            title: t("inventory.purchase_requests.form.warehouse_hint") %>
+      <%= f.select :warehouse_id,
+            options_from_collection_for_select(@warehouses, :id, :name,
+              purchase_request.warehouse_id || (@warehouses.first.id if @warehouses.size == 1)),
+            { include_blank: "— #{t('inventory.purchase_requests.form.select_warehouse')}" },
+            class: "form-control #{'is-error' if purchase_request.errors[:warehouse].any?}",
+            required: true,
+            data: { purchase_request_form_target: "warehouse" } %>
     </div>
+    <div class="form-group">
+      <%= f.label :responsible_employee_id, t("inventory.purchase_requests.responsible_employee"), class: "form-label" %>
+      <% if @responsible_options.any? %>
+        <%= f.select :responsible_employee_id,
+              options_for_select(@responsible_options.map { |o| [ o.name, o.user_id ] }, purchase_request.responsible_employee_id),
+              { include_blank: "— #{t('inventory.purchase_requests.form.select_responsible_employee')}" },
+              class: "form-control #{'is-error' if purchase_request.errors[:responsible_employee].any?}",
+              "aria-describedby": "responsible-employee-hint" %>
+        <p id="responsible-employee-hint" class="form-hint"><%= t("inventory.purchase_requests.form.responsible_employee_hint") %></p>
+      <% else %>
+        <p class="form-hint text-warning" data-testid="no-responsible-employees"><%= t("inventory.purchase_requests.form.no_responsible_employees") %></p>
+      <% end %>
+    </div>
+    <% if purchase_request.legacy_supplier? %>
+      <%# A request created before suppliers moved to the lines: it stays locked
+          to its one request-level supplier (every receipt must use it). %>
+      <div class="form-group">
+        <span class="form-label"><%= t("inventory.purchase_requests.form.legacy_supplier_label") %></span>
+        <p class="form-control-static"><strong><%= purchase_request.supplier.name %></strong></p>
+        <p class="form-hint"><%= t("inventory.purchase_requests.form.legacy_supplier_hint") %></p>
+      </div>
+    <% end %>
     <div class="form-group" style="grid-column: 1 / -1;">
       <%= f.label :notes, t("inventory.purchase_requests.form.notes_label"), class: "form-label" %>
       <%= f.text_area :notes, rows: 2, class: "form-control" %>
@@ -41,7 +61,7 @@
   <div class="divider"></div>
 
   <h2 class="section-title"><%= t("inventory.purchase_requests.form.section_items") %></h2>
-  <% if creating && @warehouses.empty? %>
+  <% if @warehouses.empty? %>
     <p class="td-secondary" role="alert" style="color: var(--color-danger, #c62828);">
       <%= t("inventory.purchase_requests.form.no_accessible_warehouses") %>
     </p>
@@ -50,7 +70,7 @@
     <table class="line-items-table">
       <thead><tr>
         <th style="width: 30%;"><%= t("inventory.purchase_requests.form.product_label") %></th>
-        <th><%= t("inventory.purchase_requests.form.warehouse_label") %></th>
+        <th><%= t("inventory.purchase_requests.form.supplier_label") %></th>
         <th><%= t("inventory.purchase_requests.form.quantity_label") %></th>
         <th><%= t("inventory.purchase_requests.form.unit_price_label") %></th>
         <th style="text-align: end;"><%= t("inventory.purchase_requests.form.line_total_label") %></th>
@@ -58,7 +78,7 @@
       </tr></thead>
       <tbody data-line-items-target="rows">
         <%= f.fields_for :items do |item_f| %>
-          <%= render "item_fields", f: item_f, product_options: product_options, warehouses: @warehouses, require_warehouse: creating %>
+          <%= render "item_fields", f: item_f, suppliers: @suppliers %>
         <% end %>
       </tbody>
     </table>
@@ -86,7 +106,7 @@
   <%# Template for new rows (index replaced by JS) %>
   <template data-line-items-target="template">
     <%= f.fields_for :items, PurchaseRequestItem.new, child_index: "NEW_INDEX" do |item_f| %>
-      <%= render "item_fields", f: item_f, product_options: product_options, warehouses: @warehouses, require_warehouse: creating %>
+      <%= render "item_fields", f: item_f, suppliers: @suppliers %>
     <% end %>
   </template>
 

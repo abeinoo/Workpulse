@@ -62,7 +62,10 @@ class GoodsReceipt < ApplicationRecord
   validate  :invoices_acceptable
   validate  :funding_source_matches_kind
   validate  :funding_source_type_whitelisted
+  validate  :custody_paid_by_responsible_employee, if: :custody_payer_changed?
   validate  :purchase_request_supplier_matches
+  validate  :purchase_request_lines_one_supplier_group, if: :purchase_request_lines_changed?
+  validate  :supplier_recorded_for_unassigned_request_lines, if: :unassigned_request_lines_receipt_changed?
   validate  :supplier_in_same_business
   validate  :warehouse_in_same_business, if: :will_save_change_to_warehouse_id?
 
@@ -112,6 +115,27 @@ class GoodsReceipt < ApplicationRecord
     funding_source_kind == "employee_custody"
   end
 
+  # A receipt from a Purchase Request may be paid from custody only from the
+  # request's RESPONSIBLE employee's custody — the employee who received its
+  # funding. Custody payment always uses the acting user's own account
+  # (Inventory::GoodsReceiptDraftService, GoodsReceiptSettlementRecorder), so
+  # only the responsible employee can pay from custody; nobody can substitute
+  # their own, and a request with no responsible employee cannot be paid from
+  # custody at all (assign one first — never automatically). A receipt with no
+  # Purchase Request keeps the old rule. Re-checked at approval and for later
+  # payments; other funding sources are unaffected.
+  def responsible_custody_payer_required?
+    employee_custody_funded? && purchase_request.present?
+  end
+
+  # nil when this receipt's custody payer may pay it; otherwise the refusal
+  # key (PurchaseRequest#custody_payment_refusal for the payer's employee).
+  def custody_payment_refusal
+    return nil unless responsible_custody_payer_required?
+
+    purchase_request.custody_payment_refusal(funding_source&.user_id)
+  end
+
   # Company cash / bank account pay the supplier at approval like custody
   # does, but through no modeled account: the settlement row carries the
   # source_kind and a nil funding_source (see FinancialSettlement). Only
@@ -132,6 +156,14 @@ class GoodsReceipt < ApplicationRecord
     end
   end
 
+  # The quantity this receipt takes of each Purchase Request line it references
+  # ({ purchase_request_item_id => total }) — summed, so a line listed twice
+  # is checked as one. Read by the approval and posting quantity guards.
+  def request_line_quantities
+    items.reject(&:marked_for_destruction?).select(&:purchase_request_item_id)
+         .group_by(&:purchase_request_item_id).transform_values { |lines| lines.sum(&:quantity) }
+  end
+
   private
 
   def assign_receipt_number
@@ -140,6 +172,57 @@ class GoodsReceipt < ApplicationRecord
 
   def has_at_least_one_item
     errors.add(:base, :no_items) if items.reject(&:marked_for_destruction?).empty?
+  end
+
+  # A receipt from a Purchase Request receives ONE supplier group of its lines
+  # (PurchaseRequest#receiving_supplier_groups): that supplier's lines, or the
+  # lines without a supplier — never both, never several suppliers'. (Each
+  # line's own supplier must also be the receipt's — GoodsReceiptItem.)
+  def purchase_request_lines_one_supplier_group
+    groups = items.reject(&:marked_for_destruction?).filter_map(&:purchase_request_item).map(&:supplier_id).uniq
+    errors.add(:base, :purchase_request_mixed_supplier_groups) if groups.size > 1
+  end
+
+  # The receipt for a request's lines WITHOUT a supplier records who actually
+  # supplied them: the supplier is required (stored on the receipt only — the
+  # request lines stay unassigned). A legacy one-supplier request is locked to
+  # its supplier anyway; a receipt of a supplier's own lines names it already.
+  def unassigned_request_lines_receipt?
+    return false if purchase_request.nil? || purchase_request.legacy_supplier?
+
+    lines = items.reject(&:marked_for_destruction?).filter_map(&:purchase_request_item)
+    lines.any? && lines.all? { |line| line.supplier_id.nil? }
+  end
+
+  def supplier_recorded_for_unassigned_request_lines
+    errors.add(:supplier, :required_for_unassigned_request_lines) if supplier_id.nil? && unassigned_request_lines_receipt?
+  end
+
+  # A new receipt, or a change of its supplier or request lines — a historical
+  # receipt saved without a supplier is never re-judged.
+  def unassigned_request_lines_receipt_changed?
+    new_record? || will_save_change_to_supplier_id? || purchase_request_lines_changed?
+  end
+
+  # Only when request lines are added, removed or re-pointed, so a historical
+  # receipt is never re-judged by the newer rule.
+  def purchase_request_lines_changed?
+    purchase_request_id.present? &&
+      (new_record? || items.any? { |item| item.new_record? || item.marked_for_destruction? || item.will_save_change_to_purchase_request_item_id? })
+  end
+
+  # Only when the payer or the request changes, so a historical receipt is
+  # never re-judged by the newer rule.
+  def custody_payer_changed?
+    new_record? || will_save_change_to_funding_source_id? || will_save_change_to_funding_source_kind? ||
+      will_save_change_to_purchase_request_id?
+  end
+
+  def custody_paid_by_responsible_employee
+    return if funding_source.nil?
+
+    refusal = custody_payment_refusal
+    errors.add(:base, refusal) if refusal
   end
 
   # funding_source is resolved server-side from the acting user (see

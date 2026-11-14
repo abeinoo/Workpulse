@@ -58,7 +58,7 @@ class Inventory::StockIssuesController < Inventory::BaseController
 
   def show
     @stock_issue = find_issue(includes: [ :submitted_by, :approved_by, :rejected_by, :issued_by, :cancelled_by, :voided_by,
-                                          { items: :product } ])
+                                          { items: { product: { image_attachment: :blob } } } ])
     authorize @stock_issue
     @items           = @stock_issue.items
     # Physical / reserved-by-others / available / requested per product while
@@ -329,10 +329,8 @@ class Inventory::StockIssuesController < Inventory::BaseController
   def load_options
     @warehouses = accessible_warehouses
     @branches   = current_user.business.branches.active.order(:name)
-    @products   = current_user.business.products.transactable.ordered.to_a
-    # One query for every option's barcode — the form renders the full product
-    # list once per line-item row.
-    @product_barcodes = Product.barcode_lookup(@products.map(&:id))
+    # Line pickers search the catalogue on demand; only each line's product is rendered.
+    preload_line_products(@stock_issue&.items)
   end
 
   def issue_params

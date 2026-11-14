@@ -151,7 +151,7 @@ module ArchitectureTools
       [ %r{\Aapp/services/(inventory|laundry)/}, IP ],
       [ %r{\Aapp/controllers/(inventory|laundry)/}, IP ],
       [ %r{\Aapp/views/(inventory|laundry)/}, IP ],
-      [ %r{\Aapp/helpers/(inventory|laundry)_helper\.rb\z}, IP ],
+      [ %r{\Aapp/helpers/(inventory|laundry|product_thumbnail)_helper\.rb\z}, IP ],
 
       # Finance & Sales (§8).
       [ %r{\Aapp/models/finance_sales/}, FS ],

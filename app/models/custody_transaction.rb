@@ -26,15 +26,22 @@ class CustodyTransaction < ApplicationRecord
     max_size:      Attachable::DEFAULT_DOCUMENT_SIZE
 
   # Amount stored SIGNED — balance = SUM(amount) over non-voided rows.
-  # Positive: top_up, upward adjustment / transfer in.
-  # Negative: expense_deduction, downward adjustment / transfer out.
+  # Positive: top_up, upward adjustment / transfer in, purchase_advance_funding.
+  # Negative: expense_deduction, downward adjustment / transfer out,
+  # purchase_advance_funding_reversal.
+  # purchase_advance_funding is company cash / bank money given to a Purchase
+  # Request's responsible employee through a confirmed advance — kept apart
+  # from a manual top_up so the two stay distinguishable.
   TXN_TYPES = %w[top_up expense_deduction transfer adjustment inventory_purchase
-                 inventory_purchase_reversal expense_deduction_reversal].freeze
+                 inventory_purchase_reversal expense_deduction_reversal
+                 purchase_advance_funding purchase_advance_funding_reversal].freeze
   enum :txn_type, { top_up: "top_up", expense_deduction: "expense_deduction",
                     transfer: "transfer", adjustment: "adjustment",
                     inventory_purchase: "inventory_purchase",
                     inventory_purchase_reversal: "inventory_purchase_reversal",
-                    expense_deduction_reversal: "expense_deduction_reversal" }
+                    expense_deduction_reversal: "expense_deduction_reversal",
+                    purchase_advance_funding: "purchase_advance_funding",
+                    purchase_advance_funding_reversal: "purchase_advance_funding_reversal" }
 
   validates :amount, presence: true, numericality: true
   validates :source_type, inclusion: { in: SOURCE_TYPES }, allow_nil: true
@@ -43,6 +50,7 @@ class CustodyTransaction < ApplicationRecord
   validate  :expense_in_same_business
   validate  :mirrors_financial_settlement, on: :create
   validate  :settlement_linked_not_voided_directly, on: :update
+  validate  :advance_funding_not_voided_directly, on: :update
 
   scope :for_business, ->(business)    { where(business: business) }
   scope :for_account,  ->(account_id)  { where(custody_account_id: account_id) if account_id.present? }
@@ -56,6 +64,13 @@ class CustodyTransaction < ApplicationRecord
   # still counts as paid.
   def settlement_linked? = financial_settlement_id.present?
 
+  # A row a Purchase Request advance's FUNDING posted (a transfer leg or a
+  # company funding credit, or their reversals): its #source is the request and
+  # it settles nothing (a legacy advance's rows are settlement_linked?). Undone
+  # only by reversing that advance, which posts the opposite rows — voiding one
+  # would leave the advance confirmed with no money moved.
+  def advance_funding? = source_type == "PurchaseRequest" && !settlement_linked?
+
   private
 
   # Model-level backstop for #settlement_linked?: blocks voiding through ANY
@@ -64,6 +79,13 @@ class CustodyTransaction < ApplicationRecord
     return unless settlement_linked? && will_save_change_to_voided_at? && voided_at.present?
 
     errors.add(:base, :settlement_linked_void)
+  end
+
+  # Model-level backstop for #advance_funding?, like the one above.
+  def advance_funding_not_voided_directly
+    return unless advance_funding? && will_save_change_to_voided_at? && voided_at.present?
+
+    errors.add(:base, :advance_funding_void)
   end
 
   # A settlement-linked movement must be the exact custody side of that
@@ -81,8 +103,10 @@ class CustodyTransaction < ApplicationRecord
     return if amount.blank?
 
     case txn_type
-    when "top_up"
+    when "top_up", "purchase_advance_funding"
       errors.add(:amount, :must_be_positive) unless amount.positive?
+    when "purchase_advance_funding_reversal"
+      errors.add(:amount, :must_be_negative) unless amount.negative?
     when "expense_deduction", "inventory_purchase"
       errors.add(:amount, :must_be_negative) unless amount.negative?
     when "inventory_purchase_reversal", "expense_deduction_reversal"

@@ -12,5 +12,6 @@
     </p>
   <% end %>
 
-  <%= render "inventory/shared/low_stock_purchasing", rows: @rows, suppliers: @suppliers, show_min_level: true %>
+  <%= render "inventory/shared/low_stock_purchasing", rows: @rows, suppliers: @suppliers, warehouses: @warehouses,
+             responsible_options: @responsible_options, show_min_level: true %>
 </div>

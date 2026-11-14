@@ -7,7 +7,7 @@ class Inventory::StockAdjustmentsController < Inventory::BaseController
   def show
     @stock_adjustment = find_adjustment
     authorize @stock_adjustment
-    @items = @stock_adjustment.items.includes(:product)
+    @items = @stock_adjustment.items.includes(product: { image_attachment: :blob })
 
     # For stock-count adjustments, surface the originating count so the page can
     # link back and show the System/Counted/Difference behind each line.
@@ -61,7 +61,8 @@ class Inventory::StockAdjustmentsController < Inventory::BaseController
 
   def load_options
     @warehouses = accessible_warehouses
-    @products   = current_user.business.products.transactable.ordered
+    # Line pickers search the catalogue on demand; only each line's product is rendered.
+    preload_line_products(@stock_adjustment&.items)
   end
 
   def adjustment_params

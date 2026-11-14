@@ -24,6 +24,7 @@ class Inventory::StockIssueImportRowsController < Inventory::BaseController
 
   def render_row_update
     @batch.reload
+    preload_product_images([ @row.product ]) # the re-rendered row's thumbnail
     respond_to do |format|
       format.turbo_stream
       format.html { redirect_to inventory_stock_issue_import_batch_path(@batch) }

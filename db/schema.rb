@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_13_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1592,6 +1592,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
     t.bigint "financial_settlement_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "recipient_custody_account_id"
+    t.bigint "funding_transaction_id"
+    t.bigint "funding_reversal_transaction_id"
     t.index ["business_id", "idempotency_key"], name: "index_pr_advances_on_business_and_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
     t.index ["business_id"], name: "index_purchase_request_advances_on_business_id"
     t.index ["cancelled_by_id"], name: "index_purchase_request_advances_on_cancelled_by_id"
@@ -1599,10 +1602,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
     t.index ["created_by_id"], name: "index_purchase_request_advances_on_created_by_id"
     t.index ["custody_account_id"], name: "index_purchase_request_advances_on_custody_account_id"
     t.index ["financial_settlement_id"], name: "index_purchase_request_advances_on_financial_settlement_id", unique: true
+    t.index ["funding_reversal_transaction_id"], name: "idx_on_funding_reversal_transaction_id_4f4bfae67c", unique: true
+    t.index ["funding_transaction_id"], name: "index_purchase_request_advances_on_funding_transaction_id", unique: true
     t.index ["purchase_request_id", "status"], name: "idx_on_purchase_request_id_status_fd0ad49a4e"
     t.index ["purchase_request_id"], name: "index_purchase_request_advances_on_purchase_request_id"
+    t.index ["recipient_custody_account_id"], name: "idx_on_recipient_custody_account_id_036d512a54"
     t.index ["reversed_by_id"], name: "index_purchase_request_advances_on_reversed_by_id"
     t.check_constraint "amount > 0::numeric", name: "pr_advances_amount_positive"
+    t.check_constraint "recipient_custody_account_id IS NULL OR recipient_custody_account_id <> custody_account_id", name: "pr_advances_recipient_differs_from_source"
   end
 
   create_table "purchase_request_items", force: :cascade do |t|
@@ -1615,9 +1622,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "supplier_id"
     t.index ["product_id"], name: "index_purchase_request_items_on_product_id"
     t.index ["purchase_request_id"], name: "index_purchase_request_items_on_purchase_request_id"
     t.index ["source_warehouse_id"], name: "index_purchase_request_items_on_source_warehouse_id"
+    t.index ["supplier_id"], name: "index_purchase_request_items_on_supplier_id"
   end
 
   create_table "purchase_requests", force: :cascade do |t|
@@ -1644,6 +1653,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
     t.datetime "closed_remaining_at"
     t.bigint "closed_remaining_by_id"
     t.text "close_remaining_reason"
+    t.bigint "warehouse_id"
+    t.bigint "responsible_employee_id"
+    t.index "idempotency_key, COALESCE(warehouse_id, (0)::bigint)", name: "index_purchase_requests_on_idem_key_warehouse_no_supplier", unique: true, where: "((idempotency_key IS NOT NULL) AND (supplier_id IS NULL))"
     t.index ["approved_by_id"], name: "index_purchase_requests_on_approved_by_id"
     t.index ["business_id", "request_number"], name: "index_purchase_requests_on_business_id_and_request_number", unique: true
     t.index ["business_id"], name: "index_purchase_requests_on_business_id"
@@ -1651,10 +1663,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
     t.index ["closed_remaining_by_id"], name: "index_purchase_requests_on_closed_remaining_by_id"
     t.index ["created_by_id"], name: "index_purchase_requests_on_created_by_id"
     t.index ["idempotency_key", "supplier_id"], name: "index_purchase_requests_on_idem_key_and_supplier", unique: true, where: "(idempotency_key IS NOT NULL)"
-    t.index ["idempotency_key"], name: "index_purchase_requests_on_idem_key_without_supplier", unique: true, where: "((idempotency_key IS NOT NULL) AND (supplier_id IS NULL))"
     t.index ["rejected_by_id"], name: "index_purchase_requests_on_rejected_by_id"
+    t.index ["responsible_employee_id"], name: "index_purchase_requests_on_responsible_employee_id"
     t.index ["submitted_by_id"], name: "index_purchase_requests_on_submitted_by_id"
     t.index ["supplier_id"], name: "index_purchase_requests_on_supplier_id"
+    t.index ["warehouse_id"], name: "index_purchase_requests_on_warehouse_id"
   end
 
   create_table "recurring_expense_allocations", force: :cascade do |t|
@@ -2859,6 +2872,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
   add_foreign_key "products", "suppliers", column: "default_supplier_id"
   add_foreign_key "purchase_request_advances", "businesses"
   add_foreign_key "purchase_request_advances", "custody_accounts"
+  add_foreign_key "purchase_request_advances", "custody_accounts", column: "recipient_custody_account_id"
+  add_foreign_key "purchase_request_advances", "custody_transactions", column: "funding_reversal_transaction_id"
+  add_foreign_key "purchase_request_advances", "custody_transactions", column: "funding_transaction_id"
   add_foreign_key "purchase_request_advances", "financial_settlements"
   add_foreign_key "purchase_request_advances", "purchase_requests"
   add_foreign_key "purchase_request_advances", "users", column: "cancelled_by_id"
@@ -2867,6 +2883,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
   add_foreign_key "purchase_request_advances", "users", column: "reversed_by_id"
   add_foreign_key "purchase_request_items", "products"
   add_foreign_key "purchase_request_items", "purchase_requests"
+  add_foreign_key "purchase_request_items", "suppliers"
   add_foreign_key "purchase_request_items", "warehouses", column: "source_warehouse_id"
   add_foreign_key "purchase_requests", "businesses"
   add_foreign_key "purchase_requests", "suppliers"
@@ -2875,7 +2892,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_110000) do
   add_foreign_key "purchase_requests", "users", column: "closed_remaining_by_id"
   add_foreign_key "purchase_requests", "users", column: "created_by_id"
   add_foreign_key "purchase_requests", "users", column: "rejected_by_id"
+  add_foreign_key "purchase_requests", "users", column: "responsible_employee_id"
   add_foreign_key "purchase_requests", "users", column: "submitted_by_id"
+  add_foreign_key "purchase_requests", "warehouses"
   add_foreign_key "recurring_expense_allocations", "branches"
   add_foreign_key "recurring_expense_allocations", "recurring_expenses"
   add_foreign_key "recurring_expenses", "branches"

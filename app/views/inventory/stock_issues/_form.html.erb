@@ -1,4 +1,3 @@
-<% product_options = inventory_product_options_html(@products, barcodes: @product_barcodes) %>
 <%= form_with model: [:inventory, stock_issue], class: "form-card", data: { controller: "line-items" } do |f| %>
   <%= render "shared/error_messages", object: stock_issue %>
   <% if stock_issue.persisted? %>
@@ -47,7 +46,7 @@
       </tr></thead>
       <tbody data-line-items-target="rows">
         <%= f.fields_for :items do |item_f| %>
-          <%= render "item_fields", f: item_f, product_options: product_options %>
+          <%= render "item_fields", f: item_f %>
         <% end %>
       </tbody>
     </table>
@@ -63,7 +62,7 @@
 
   <template data-line-items-target="template">
     <%= f.fields_for :items, StockIssueItem.new, child_index: "NEW_INDEX" do |item_f| %>
-      <%= render "item_fields", f: item_f, product_options: product_options %>
+      <%= render "item_fields", f: item_f %>
     <% end %>
   </template>
 

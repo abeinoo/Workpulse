@@ -1,19 +1,26 @@
 import { Controller } from "@hotwired/stimulus"
 
-// "Add advance payment" form: once an employee custody account is chosen,
-// shows its current balance, the advance amount and the balance after
-// payment. A negative result is shown clearly but NEVER blocks submission —
-// custody is an accounting balance and may go negative. Display only; the
-// server posts the real ledger entry at confirmation.
+// "Add advance payment" form. Every advance funds the Purchase Request's
+// responsible employee's custody: the form always shows their balance after
+// the amount (recipientBalance + amount). For an employee custody transfer,
+// once the source account is chosen it also shows that account's current
+// balance, the amount and its balance after. A negative source balance is shown
+// clearly but NEVER blocks submission — custody is an accounting balance and
+// may go negative. Display only; the server enforces every rule and posts the
+// real ledger entries at confirmation.
 export default class extends Controller {
-  static targets = ["account", "amount", "preview", "current", "advance", "after", "negativeNote"]
-  static values = { currencyPrefix: String, currencySuffix: String }
+  static targets = ["account", "amount", "preview", "current", "advance", "after", "negativeNote", "recipientAfter"]
+  static values = { currencyPrefix: String, currencySuffix: String, recipientBalance: Number }
 
   connect() {
     this.update()
   }
 
   update() {
+    const amount = this.hasAmountTarget ? (parseFloat(this.amountTarget.value) || 0) : 0
+    if (this.hasRecipientAfterTarget) {
+      this.recipientAfterTarget.textContent = this._format(this.recipientBalanceValue + amount)
+    }
     if (!this.hasAccountTarget || !this.hasPreviewTarget) return
 
     const option = this.accountTarget.selectedOptions[0]
@@ -23,7 +30,6 @@ export default class extends Controller {
     }
 
     const balance = parseFloat(option.dataset.balance) || 0
-    const amount  = this.hasAmountTarget ? (parseFloat(this.amountTarget.value) || 0) : 0
     const after   = balance - amount
 
     this.previewTarget.hidden = false

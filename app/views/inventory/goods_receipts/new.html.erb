@@ -1,7 +1,11 @@
 <% content_for :title, t("inventory.goods_receipts.new_title") %>
 
-<div class="form-page form-page--wide">
-  <%= link_to inventory_goods_receipts_path, class: "back-link" do %>
+<div class="form-page form-page--wide form-page--receipt">
+  <%# Opened from a Purchase Request (also after a failed save): back to that
+      request — @purchase_request is the controller's policy-scoped record,
+      never a user-supplied URL. Otherwise the Goods Receipts list. %>
+  <%= link_to (@purchase_request ? inventory_purchase_request_path(@purchase_request) : inventory_goods_receipts_path),
+              class: "back-link", data: { testid: "goods-receipt-back-link" } do %>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
     <%= t("forms.back") %>
   <% end %>

@@ -186,7 +186,8 @@ RSpec.describe "Characterization: goods-receipt payment writes (Batch S M1)", ty
 
     describe "advance application (receipt from a Purchase Request with a confirmed advance)" do
       let(:request) do
-        pr = PurchaseRequest.new(business: business, supplier: supplier, created_by: requester)
+        pr = PurchaseRequest.new(business: business, supplier: supplier, created_by: requester,
+                         responsible_employee: requester) # pays from their custody
         pr.items.build(product: product_a, quantity: 2, unit_price: 100, source_warehouse: warehouse)
         pr.items.build(product: product_b, quantity: 1, unit_price: 50, source_warehouse: warehouse)
         pr.save!
@@ -194,18 +195,10 @@ RSpec.describe "Characterization: goods-receipt payment writes (Batch S M1)", ty
         pr
       end
 
-      # A company-cash advance on the request, recorded and confirmed (S2 scope: setup only).
+      # A confirmed company-cash advance on the request in its historical
+      # (legacy supplier-payment) shape — the only kind a receipt consumes.
       def confirmed_advance(amount)
-        recorded = Inventory::PurchaseRequestAdvanceRecorder.new(
-          purchase_request_id: request.id, actor: create(:user, :super_admin, business: business), idempotency_key: nil,
-          params: { amount: amount, source_kind: "company_cash", paid_on: Date.current, reference: "DEP-1", notes: "deposit" }
-        ).call
-        raise "advance not recorded: #{recorded.error}" unless recorded.ok?
-
-        confirmed = Inventory::PurchaseRequestAdvanceWorkflow.new(advance_id: recorded.advance.id, actor: payer).confirm!
-        raise "advance not confirmed: #{confirmed.error}" unless confirmed.ok?
-
-        recorded.advance.reload
+        legacy_confirmed_advance(request: request, amount: amount, actor: payer, reference: "DEP-1").reload
       end
 
       it "applies the advance first (one application settlement), then debits custody for the remaining amount due" do
@@ -387,16 +380,13 @@ RSpec.describe "Characterization: goods-receipt payment writes (Batch S M1)", ty
     end
 
     it "refuses to reverse an advance application one by one" do
-      request = PurchaseRequest.new(business: business, supplier: supplier, created_by: requester)
+      request = PurchaseRequest.new(business: business, supplier: supplier, created_by: requester,
+                         responsible_employee: requester) # pays from their custody
       request.items.build(product: product_a, quantity: 2, unit_price: 100, source_warehouse: warehouse)
       request.items.build(product: product_b, quantity: 1, unit_price: 50, source_warehouse: warehouse)
       request.save!
       request.update_column(:status, "approved")
-      recorded = Inventory::PurchaseRequestAdvanceRecorder.new(
-        purchase_request_id: request.id, actor: create(:user, :super_admin, business: business), idempotency_key: nil,
-        params: { amount: 100, source_kind: "company_cash", paid_on: Date.current, reference: "DEP-1", notes: "d" }
-      ).call
-      Inventory::PurchaseRequestAdvanceWorkflow.new(advance_id: recorded.advance.id, actor: payer).confirm!
+      legacy_confirmed_advance(request: request, amount: 100, actor: payer, reference: "DEP-1") # historical shape
       with_advance = approved_receipt(kind: "supplier_credit", request: request)
       application = settlements_of(with_advance).sole
 
@@ -531,22 +521,19 @@ RSpec.describe "Characterization: goods-receipt payment writes (Batch S M1)", ty
       end
 
       it "custody row fails after an advance was applied: the application rolls back too" do
-        request = PurchaseRequest.new(business: business, supplier: supplier, created_by: requester)
+        request = PurchaseRequest.new(business: business, supplier: supplier, created_by: requester,
+                         responsible_employee: requester) # pays from their custody
         request.items.build(product: product_a, quantity: 2, unit_price: 100, source_warehouse: warehouse)
         request.items.build(product: product_b, quantity: 1, unit_price: 50, source_warehouse: warehouse)
         request.save!
         request.update_column(:status, "approved")
-        recorded = Inventory::PurchaseRequestAdvanceRecorder.new(
-          purchase_request_id: request.id, actor: create(:user, :super_admin, business: business), idempotency_key: nil,
-          params: { amount: 100, source_kind: "company_cash", paid_on: Date.current, reference: "DEP-1", notes: "d" }
-        ).call
-        Inventory::PurchaseRequestAdvanceWorkflow.new(advance_id: recorded.advance.id, actor: payer).confirm!
+        advance = legacy_confirmed_advance(request: request, amount: 100, actor: payer, reference: "DEP-1") # historical shape
         receipt = pending_receipt(request: request)
 
         fail_custody_rows!
         expect(approve(receipt)).not_to be_ok
         nothing_financial_for(receipt, custody, balances: [ "1000.0" ])
-        expect(recorded.advance.reload.unapplied_amount).to eq(100)
+        expect(advance.reload.unapplied_amount).to eq(100)
       end
 
       it "audit write fails: swallowed — the approval and its payment still commit (AuditLoggable), no audit row" do

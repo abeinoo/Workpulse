@@ -9,7 +9,10 @@ import { Controller } from "@hotwired/stimulus"
 //
 // Usage: data-controller="line-total" data-action="input->line-total#recalculate"
 //        data-line-total-currency-prefix-value / -suffix-value
+// Optional: a data-line-total-target="grandTotal" element shows the sum of the
+// rows (still display only).
 export default class extends Controller {
+  static targets = ["grandTotal"]
   static values = { currencyPrefix: String, currencySuffix: String }
 
   connect() {
@@ -17,14 +20,20 @@ export default class extends Controller {
   }
 
   recalculate() {
+    let sum = 0
+    let any = false
     this.element.querySelectorAll("[data-line-row]").forEach((row) => {
       const cell = row.querySelector("[data-line-total]")
       if (!cell) return
 
       const qty  = parseFloat(row.querySelector("[data-quantity-field]")?.value)
       const cost = parseFloat(row.querySelector("[data-cost-field]")?.value)
-      cell.textContent = Number.isFinite(qty) && Number.isFinite(cost) ? this.#format(qty * cost) : "—"
+      const valid = Number.isFinite(qty) && Number.isFinite(cost)
+      cell.textContent = valid ? this.#format(qty * cost) : "—"
+      // A removed row (line-items hides it) never counts.
+      if (valid && !row.hidden) { sum += qty * cost; any = true }
     })
+    if (this.hasGrandTotalTarget) this.grandTotalTarget.textContent = any ? this.#format(sum) : "—"
   }
 
   #format(value) {

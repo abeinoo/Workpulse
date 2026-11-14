@@ -88,8 +88,15 @@
 
   <% if policy(@purchase_request).approve? %>
     <div class="card" style="padding: var(--space-4); margin-bottom: var(--space-5); display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
-      <%= button_to t("inventory.purchase_requests.actions.approve"), approve_inventory_purchase_request_path(@purchase_request),
-            method: :post, class: "btn btn-primary btn-sm" %>
+      <% if @review_editor %>
+        <%# The last reviewer to change the items may not approve them (PurchaseRequestApproval). %>
+        <p class="td-secondary" style="margin: 0; flex-basis: 100%;" data-testid="review-editor-notice">
+          <%= t("inventory.purchase_requests.errors.review_editor_cannot_approve") %>
+        </p>
+      <% else %>
+        <%= button_to t("inventory.purchase_requests.actions.approve"), approve_inventory_purchase_request_path(@purchase_request),
+              method: :post, class: "btn btn-primary btn-sm" %>
+      <% end %>
       <details style="flex: 1;">
         <summary class="btn btn-ghost btn-sm text-danger" style="cursor: pointer; display: inline-flex;">
           <%= t("inventory.purchase_requests.actions.reject") %>
@@ -131,10 +138,27 @@
     </div>
   <% end %>
 
+  <% if policy(@purchase_request).assign_responsible_employee? %>
+    <%= render "inventory/purchase_requests/assign_responsible_employee", purchase_request: @purchase_request,
+               options: @responsible_options %>
+  <% end %>
+
   <div class="stats-grid" style="margin-bottom: var(--space-6);">
     <div class="stat-card">
       <span class="stat-card__label"><%= t("inventory.purchase_requests.supplier") %></span>
       <span class="stat-card__value"><%= purchase_request_supplier_name(@purchase_request) %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("inventory.purchase_requests.warehouse") %></span>
+      <span class="stat-card__value"><%= @purchase_request.warehouse&.name || "—" %></span>
+    </div>
+    <div class="stat-card" data-testid="pr-responsible-employee">
+      <span class="stat-card__label"><%= t("inventory.purchase_requests.responsible_employee") %></span>
+      <% if @purchase_request.responsible_employee %>
+        <span class="stat-card__value"><bdi><%= @purchase_request.responsible_employee.full_name %></bdi></span>
+      <% else %>
+        <span class="stat-card__value"><span class="badge badge-warning"><%= t("inventory.purchase_requests.responsible_not_assigned") %></span></span>
+      <% end %>
     </div>
     <div class="stat-card">
       <span class="stat-card__label"><%= t("inventory.purchase_requests.created_by") %></span>
@@ -203,9 +227,18 @@
                            summary: @advance_summary, applied_amounts: @advance_applied_amounts %>
   <% end %>
 
-  <section class="card" style="margin-bottom: var(--space-6);">
-    <div class="card__header">
+  <% edit_items = policy(@purchase_request).edit_items? %>
+  <section class="card" style="margin-bottom: var(--space-6);" id="items"
+           <% if edit_items %>data-controller="purchase-request-item-editor"<% end %>>
+    <div class="card__header flex items-center justify-between" style="flex-wrap: wrap; gap: var(--space-3);">
       <h2 class="card__title" style="margin: 0;"><%= t("inventory.purchase_requests.items_count") %></h2>
+      <% if edit_items %>
+        <button type="button" class="btn btn-primary btn-sm" data-testid="add-item"
+                data-action="purchase-request-item-editor#openAdd"
+                data-url="<%= inventory_purchase_request_items_path(@purchase_request) %>">
+          <%= t("inventory.purchase_requests.actions.add_product") %>
+        </button>
+      <% end %>
     </div>
     <div class="table-wrap table-wrap--cards">
       <table>
@@ -213,28 +246,55 @@
           <tr>
             <th><%= t("inventory.products.name") %></th>
             <th><%= t("inventory.products.sku") %></th>
+            <th><%= t("inventory.purchase_requests.supplier") %></th>
             <th style="text-align: end;"><%= t("inventory.purchase_requests.requested") %></th>
             <th style="text-align: end;"><%= t("inventory.purchase_requests.received") %></th>
             <th style="text-align: end;"><%= t("inventory.purchase_requests.remaining") %></th>
             <th style="text-align: end;"><%= t("inventory.purchase_requests.unit_price") %></th>
             <th style="text-align: end;"><%= t("inventory.purchase_requests.line_total") %></th>
+            <% if edit_items %><th class="col-actions"><%= t("inventory.purchase_requests.items_actions") %></th><% end %>
           </tr>
         </thead>
         <tbody>
           <% @purchase_request.items.each do |item| %>
-            <tr>
-              <td><%= link_to item.product.name, inventory_product_path(item.product), class: "link" %></td>
+            <tr id="item-<%= item.id %>">
+              <td><%= product_identity(item.product, link: inventory_product_path(item.product)) %></td>
               <td class="td-secondary"><%= item.product.sku %></td>
+              <td><%= item.supplier&.name || @purchase_request.supplier&.name || t("inventory.purchase_requests.no_supplier") %></td>
               <td style="text-align: end;"><%= item.quantity.to_i %></td>
               <td style="text-align: end;"><%= item.received_quantity.to_i %></td>
               <td style="text-align: end;"><%= item.remaining_quantity.to_i %></td>
               <td style="text-align: end;"><%= format_currency(item.unit_price) %></td>
               <td style="text-align: end;"><%= format_currency(item.total_cost) %></td>
+              <% if edit_items %>
+                <td class="col-actions">
+                  <div class="flex" style="gap: var(--space-2); justify-content: flex-end;">
+                    <button type="button" class="btn btn-ghost btn-sm" data-testid="edit-item"
+                            data-action="purchase-request-item-editor#openEdit"
+                            data-url="<%= inventory_purchase_request_item_path(@purchase_request, item) %>"
+                            data-product-id="<%= item.product_id %>" data-supplier-id="<%= item.supplier_id %>"
+                            data-product-name="<%= item.product.name %>" data-sku="<%= item.product.sku %>"
+                            data-default-supplier-id="<%= item.product.default_supplier_id %>"
+                            data-thumb="<%= product_thumbnail_url(item.product, preloaded_only: true) %>"
+                            data-quantity="<%= item.quantity.to_d.then { |v| v.frac.zero? ? v.to_i : v } %>"
+                            data-unit-price="<%= item.unit_price.to_d.then { |v| v.frac.zero? ? v.to_i : v } %>"
+                            data-line-total="<%= item.total_cost.to_d %>"
+                            aria-label="<%= t("inventory.purchase_requests.actions.edit_item_for", product: item.product.name) %>">
+                      <%= t("inventory.purchase_requests.actions.edit_item") %>
+                    </button>
+                    <%= button_to t("inventory.purchase_requests.actions.delete_item"),
+                          inventory_purchase_request_item_path(@purchase_request, item), method: :delete,
+                          class: "btn btn-ghost btn-sm text-danger", data: { testid: "delete-item" },
+                          form: { data: { turbo_confirm: t("inventory.purchase_requests.item_delete_confirm", product: item.product.name) } } %>
+                  </div>
+                </td>
+              <% end %>
             </tr>
           <% end %>
         </tbody>
       </table>
     </div>
+    <%= render "item_editor", purchase_request: @purchase_request if edit_items %>
   </section>
 
   <%# ── أذونات الاستلام — every Goods Receipt created from this request ──────── %>

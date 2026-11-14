@@ -205,13 +205,19 @@ RSpec.describe "Goods receipt from a Purchase Request — extra products", type:
       # Each request line's product is fixed to that line's product.
       expect(request_rows.map { |r| r.css("select option").map { |o| o["value"].to_i } })
         .to contain_exactly([ shampoo.id ], [ mask.id ])
-      expect(request_rows.map(&:text).join).to include("المطلوب 10 · المستلم 0 · المتبقي 10")
+      # Ordered / received / remaining in their own columns.
+      expect(doc.css("table[data-testid='gr-items-table'] thead th").map { |th| th.text.squish })
+        .to include("المطلوب", "المستلم", "المتبقي", "المستلم الآن")
+      shampoo_row = request_rows.find { |r| r.at_css("select option")["value"].to_i == shampoo.id }
+      expect(%w[ordered received remaining].map { |c| shampoo_row.at_css("[data-testid='gr-line-#{c}']").text.squish })
+        .to eq(%w[10 0 10])
 
       expect(doc.at_css("button[data-action='line-items#add']").text.squish).to eq("+ إضافة منتج")
-      # New rows offer the whole catalog and are marked as outside the request.
+      # New rows search the whole transactable catalog on demand (product-combobox)
+      # and are marked as outside the request.
       template = Nokogiri::HTML(doc.at_css("template[data-line-items-target='template']").inner_html)
-      expect(template.css("select option").map { |o| o["value"] }.compact_blank.map(&:to_i))
-        .to include(shampoo.id, mask.id, cream.id, oil.id)
+      expect(template.at_css("[data-controller='product-combobox']")["data-product-combobox-kind-value"]).to eq("transactable")
+      expect(template.css("select option").map { |o| o["value"] }.compact_blank).to be_empty
       expect(template.text).to include("خارج طلب الشراء")
     end
 

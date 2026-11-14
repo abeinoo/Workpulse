@@ -31,6 +31,13 @@ module Inventory
           raise ActiveRecord::Rollback
         end
 
+        # Each line's product, with the barcodes and image its cost update
+        # validates, in one go — validations still run; lines of the same
+        # product share one record, exactly as the cost update needs (it reads
+        # the average the previous line just wrote).
+        ActiveRecord::Associations::Preloader.new(
+          records: @receipt.items.to_a, associations: { product: [ :product_barcodes, { image_attachment: :blob } ] }
+        ).call
         @receipt.items.each { |item| post_item(item) }
         @receipt.update_column(:status, "confirmed") if @receipt.draft?
         return Result.new(ok: true, receipt: @receipt)
@@ -43,26 +50,32 @@ module Inventory
 
     # Race-safe "don't over-receive" guard — the one place in the app that
     # actually posts stock, so it's the one place this can be enforced
-    # correctly. Locks each referenced PurchaseRequestItem row (SELECT FOR
+    # correctly. Locks every referenced PurchaseRequestItem row (SELECT FOR
     # UPDATE, held until this transaction commits) so two receipts confirmed
     # concurrently for the same Purchase Request line serialize instead of
-    # both reading the same stale "already received" total. A soft,
-    # non-locking version of the same check also runs at draft save time
+    # both reading the same stale "already received" total. The rows are
+    # locked in ascending id order, whatever the receipt's line order, so two
+    # receipts sharing several lines always wait on each other in the same
+    # order and never deadlock. Each line's quantity is compared summed (a
+    # line listed twice counts once). A soft, non-locking version of the same
+    # check also runs at draft save time
     # (GoodsReceiptItem#within_remaining_quantity) purely for early UI
-    # feedback — this is the only check that's actually race-safe.
+    # feedback, and approval refuses paying beyond what can still arrive
+    # (Inventory::GoodsReceiptApproval) — this is the only check that's
+    # actually race-safe for stock.
     def purchase_request_quantities_valid?
-      @receipt.items.all? do |item|
-        pri = item.purchase_request_item
-        next true unless pri
+      wanted = @receipt.request_line_quantities
+      return true if wanted.empty?
 
-        pri.lock!
-        remaining = pri.remaining_quantity
-        if item.quantity > remaining
-          @receipt.errors.add(:base, :exceeds_remaining_quantity,
-                              product: item.product.name, remaining: remaining)
-          next false
-        end
-        true
+      # ORDER BY id under FOR UPDATE: PostgreSQL locks the rows in that order.
+      lines = PurchaseRequestItem.where(id: wanted.keys).order(:id).lock.includes(:product).to_a
+      remaining_by_line = PurchaseRequestItem.remaining_quantities(lines) # one query, read under the locks
+      lines.all? do |line|
+        remaining = remaining_by_line[line.id]
+        next true if wanted[line.id] <= remaining
+
+        @receipt.errors.add(:base, :exceeds_remaining_quantity, product: line.product.name, remaining: remaining)
+        false
       end
     end
 

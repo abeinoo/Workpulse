@@ -109,4 +109,46 @@ RSpec.describe PurchaseRequestItem, type: :model do
       expect(pr.reload).to be_fully_received
     end
   end
+
+  describe "line supplier" do
+    let(:other_supplier) { business.suppliers.create!(name: "Beta") }
+
+    def new_style_request
+      business.purchase_requests.build(warehouse: warehouse).tap do |pr|
+        pr.items.build(product: product, quantity: 1, unit_price: 1)
+      end
+    end
+
+    it "is optional" do
+      expect(new_style_request).to be_valid
+    end
+
+    it "must belong to the request's business, and must exist" do
+      pr = new_style_request
+      pr.items.first.supplier = create(:business).suppliers.create!(name: "Foreign")
+      expect(pr).not_to be_valid
+      expect(pr.items.first.errors.details[:supplier_id]).to include(error: :invalid)
+
+      pr.items.first.supplier_id = Supplier.maximum(:id).to_i + 1
+      expect(pr.items.first).not_to be_valid
+    end
+
+    it "lets lines of one request name different suppliers" do
+      pr = new_style_request
+      pr.items.first.supplier = supplier
+      pr.items.build(product: business.products.create!(name: "Gadget", sku: "G-2", average_cost_price: 1),
+                     quantity: 1, unit_price: 1, supplier: other_supplier)
+      expect(pr).to be_valid
+    end
+
+    it "on a legacy request must be that request's one supplier" do
+      pr = business.purchase_requests.build(supplier: supplier)
+      pr.items.build(product: product, quantity: 1, unit_price: 1, supplier: other_supplier)
+      expect(pr).not_to be_valid
+      expect(pr.items.first.errors.details[:supplier_id]).to include(error: :must_match_purchase_request_supplier)
+
+      pr.items.first.supplier = supplier
+      expect(pr).to be_valid
+    end
+  end
 end

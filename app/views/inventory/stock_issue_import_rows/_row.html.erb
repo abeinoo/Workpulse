@@ -26,11 +26,11 @@
         <%= render "inventory/stock_issue_import_rows/insufficient_stock_fields", row: row %>
       <% end %>
     <% elsif row.resolved? %>
-      <p class="td-secondary"><%= row.product&.name %> (<%= row.product&.sku %>) &times; <%= row.quantity %></p>
+      <p class="td-secondary"><%= product_identity(row.product, size: :xs, sku: true) %> &times; <%= row.quantity %></p>
     <% elsif row.skipped? %>
       <p class="td-secondary"><%= t("inventory.imports.row_skipped_hint") %></p>
     <% elsif row.imported? %>
-      <p class="td-secondary"><%= row.product&.name %> (<%= row.product&.sku %>) &times; <%= row.quantity %></p>
+      <p class="td-secondary"><%= product_identity(row.product, size: :xs, sku: true) %> &times; <%= row.quantity %></p>
     <% end %>
   </div>
 <% end %>

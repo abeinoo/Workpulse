@@ -57,3 +57,13 @@ if ("serviceWorker" in navigator) {
       .catch((err) => console.error("[SW] Registration failed:", err));
   });
 }
+
+// Product thumbnails (ProductThumbnailHelper / searchable product dropdowns):
+// an image that fails to load is replaced by the CSS placeholder — never a
+// broken image. One capture-phase listener (error events don't bubble).
+document.addEventListener("error", (event) => {
+  const img = event.target
+  if (!(img instanceof HTMLImageElement) || !img.classList.contains("pthumb__img")) return
+  img.parentElement?.classList.add("pthumb--empty")
+  img.remove()
+}, true)

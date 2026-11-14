@@ -130,6 +130,7 @@ RSpec.describe "Purchase Request page — goods receipt actions (browser)", type
     account = create(:custody_account, business: business, user: admin, name: "عهدة المشتريات")
     account.custody_transactions.create!(business: business, txn_type: "top_up", amount: 500)
     account.refresh_balance!
+    pr.update_column(:responsible_employee_id, admin.id) # only the responsible employee pays from custody
     r = receipt(5, funding: "employee_custody", account: account)
 
     set_viewport(390)

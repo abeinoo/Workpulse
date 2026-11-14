@@ -52,7 +52,27 @@ class PurchaseRequest < ApplicationRecord
   # vendor. When set, every Goods Receipt against it must use this supplier;
   # when nil, each receipt records its own actual supplier (see
   # GoodsReceipt#purchase_request_supplier_matches).
+  # LEGACY: requests created before the warehouse/supplier refactor named one
+  # request-level supplier. New requests leave it nil and carry the supplier on
+  # each line instead (PurchaseRequestItem#supplier), so one request may buy
+  # from several suppliers. Kept read-only for those historical requests.
   belongs_to :supplier, optional: true
+  # The one destination warehouse every line of the request goes to. Required
+  # for every request created or edited from now on (enforced by
+  # Inventory::PurchaseRequestCreator / PurchaseRequestUpdater, which also
+  # check the actor's warehouse scope); nil only on a legacy request whose
+  # lines named no single warehouse — see #receiving_warehouse_id.
+  belongs_to :warehouse, optional: true
+  # "الموظف المسؤول عن الشراء": accountable for purchasing and receiving, and
+  # the custody every advance on this request funds (PurchaseRequestAdvance).
+  # Optional when the request is created; assigned later through
+  # Inventory::PurchaseRequestResponsibleAssigner (never automatically, never
+  # back-filled). Required before any advance is recorded (and with it funded —
+  # Inventory::PurchaseRequestAdvanceRecorder) and before a receipt from this
+  # request is paid from custody (#custody_payment_refusal). Whoever is assigned must hold
+  # create_purchase_requests and an active custody account and be active,
+  # checked by the services through Inventory::PurchaseRequestAdvanceEffects.
+  belongs_to :responsible_employee, class_name: "User", optional: true
   belongs_to :created_by,           class_name: "User", optional: true
   belongs_to :submitted_by,         class_name: "User", optional: true
   belongs_to :approved_by,          class_name: "User", optional: true
@@ -70,17 +90,25 @@ class PurchaseRequest < ApplicationRecord
 
   validates :request_number, uniqueness: { scope: :business_id, case_sensitive: false }, allow_nil: true
   validate :supplier_in_same_business
+  validate :warehouse_in_same_business, if: :will_save_change_to_warehouse_id?
+  validate :responsible_employee_in_same_business, if: :will_save_change_to_responsible_employee_id?
   validate :has_at_least_one_item
 
   before_create :assign_request_number
 
   scope :for_business, ->(business) { where(business: business) }
   scope :recent,       -> { order(created_at: :desc, id: :desc) }
-  # NO_SUPPLIER_FILTER selects the requests with no supplier set.
+  # NO_SUPPLIER_FILTER selects the requests with no supplier set — neither the
+  # legacy request-level one nor any line's.
   NO_SUPPLIER_FILTER = "none".freeze
+  ITEM_SUPPLIER_SQL = "EXISTS (SELECT 1 FROM purchase_request_items pri_s " \
+                      "WHERE pri_s.purchase_request_id = purchase_requests.id AND %s)".freeze
   scope :for_supplier, ->(supplier_id) {
-    if supplier_id.to_s == NO_SUPPLIER_FILTER then where(supplier_id: nil)
-    elsif supplier_id.present? then where(supplier_id: supplier_id)
+    if supplier_id.to_s == NO_SUPPLIER_FILTER
+      where(supplier_id: nil).where.not(format(ITEM_SUPPLIER_SQL, "pri_s.supplier_id IS NOT NULL"))
+    elsif supplier_id.present?
+      where(supplier_id: supplier_id)
+        .or(where(format(ITEM_SUPPLIER_SQL, "pri_s.supplier_id = :id"), id: supplier_id.to_i))
     end
   }
   scope :for_creator,  ->(user_id)     { where(created_by_id: user_id) if user_id.present? }
@@ -88,7 +116,8 @@ class PurchaseRequest < ApplicationRecord
   scope :on_or_before, ->(date)        { where(created_at: ..date.end_of_day) if date.present? }
   scope :for_status,   ->(status)      { where(status: status) if status.present? && statuses.key?(status) }
 
-  # Number, supplier, or a product's name/SKU on any line.
+  # Number, supplier (the legacy request-level one or any line's), or a
+  # product's name/SKU on any line.
   scope :search, ->(term) {
     return all if term.blank?
 
@@ -96,7 +125,9 @@ class PurchaseRequest < ApplicationRecord
     left_joins(:supplier).where(
       "LOWER(purchase_requests.request_number) LIKE :t OR LOWER(suppliers.name) LIKE :t OR " \
       "EXISTS (SELECT 1 FROM purchase_request_items pri JOIN products p ON p.id = pri.product_id " \
-      "WHERE pri.purchase_request_id = purchase_requests.id AND (LOWER(p.sku) LIKE :t OR LOWER(p.name) LIKE :t))",
+      "LEFT JOIN suppliers s ON s.id = pri.supplier_id " \
+      "WHERE pri.purchase_request_id = purchase_requests.id " \
+      "AND (LOWER(p.sku) LIKE :t OR LOWER(p.name) LIKE :t OR LOWER(s.name) LIKE :t))",
       t: t
     )
   }
@@ -129,12 +160,99 @@ class PurchaseRequest < ApplicationRecord
     items.sum(&:quantity)
   end
 
+  # Sums the loaded receipt lines when the page preloaded them; otherwise one
+  # grouped query for every line (PurchaseRequestItem.received_quantities).
   def total_received_quantity
-    items.sum(&:received_quantity)
+    if items.loaded? && items.all? { |item| item.goods_receipt_items.loaded? }
+      items.sum(&:received_quantity)
+    else
+      PurchaseRequestItem.received_quantities(items.to_a).values.sum
+    end
   end
 
   def receivable?
     RECEIVABLE_STATUSES.include?(status)
+  end
+
+  # Items may change only before approval: approval is what opens receiving and
+  # advances, so nothing financial or received can exist yet. Who may edit in
+  # which state is PurchaseRequestPolicy's; Inventory::PurchaseRequestUpdater
+  # enforces the state under the row lock.
+  ITEMS_EDITABLE_STATUSES = %w[draft pending_approval].freeze
+
+  def items_editable?
+    ITEMS_EDITABLE_STATUSES.include?(status)
+  end
+
+  # ── Warehouse / suppliers ──────────────────────────────────────────────────
+
+  # A legacy request names one supplier for the whole request; every Goods
+  # Receipt against it is locked to that supplier.
+  def legacy_supplier?
+    supplier_id.present?
+  end
+
+  # Distinct suppliers on the request's lines (in line order), or the legacy
+  # request-level supplier. Uses loaded associations when preloaded.
+  def suppliers_on_items
+    return [ supplier ].compact if legacy_supplier?
+
+    items.reject(&:marked_for_destruction?).filter_map(&:supplier).uniq
+  end
+
+  # Who may pay a Goods Receipt from this request out of custody: only its
+  # responsible employee — the one its advances funded — and nobody while it
+  # has none (assign one first, never automatically). nil when `user_id` may;
+  # otherwise the refusal (an error key under goods_receipt's base errors and
+  # the settlement errors). The one rule behind GoodsReceipt's validation,
+  # approval (Inventory::GoodsReceiptApproval) and later custody payments
+  # (Inventory::GoodsReceiptSettlementRecorder).
+  def custody_payment_refusal(user_id)
+    return :custody_payment_requires_responsible if responsible_employee_id.nil?
+    return :custody_payment_responsible_only if user_id.nil? || user_id != responsible_employee_id
+
+    nil
+  end
+
+  # ── Receiving: one Goods Receipt per supplier group ─────────────────────────
+  # A receipt from this request takes the OUTSTANDING lines (remaining
+  # quantity > 0 — PurchaseRequestItem#remaining_quantity, confirmed non-voided
+  # receipts only) of exactly one supplier group: one supplier's lines, or the
+  # lines without a supplier, which are received in their own receipt. A
+  # legacy one-supplier request is a single group. GoodsReceipt /
+  # GoodsReceiptItem enforce the same groups server-side.
+
+  # The groups that still have something to receive, in line order with the
+  # lines without a supplier last: Supplier records, nil for "no supplier".
+  # Empty for a legacy request (its one supplier is fixed). Uses loaded
+  # items / suppliers when preloaded.
+  def receiving_supplier_groups
+    return [] if legacy_supplier?
+
+    groups = outstanding_items.map(&:supplier).uniq
+    groups.compact + (groups.include?(nil) ? [ nil ] : [])
+  end
+
+  # The outstanding lines a receipt for `supplier_id` (nil = the lines without
+  # a supplier) may receive. A legacy request: all of its outstanding lines.
+  def outstanding_items_for_supplier(supplier_id)
+    return outstanding_items if legacy_supplier?
+
+    outstanding_items.select { |item| item.supplier_id == supplier_id }
+  end
+
+  # The warehouse a Goods Receipt from this request is preselected with: the
+  # request's own, or — for a legacy request — the one warehouse all of its
+  # lines named. nil when there is no single answer (never a guess).
+  def receiving_warehouse_id
+    return warehouse_id if warehouse_id.present?
+
+    ids = items.map(&:source_warehouse_id)
+    ids.first if ids.any? && ids.all?(&:present?) && ids.uniq.size == 1
+  end
+
+  def outstanding_items
+    items.reject(&:marked_for_destruction?).select { |item| item.remaining_quantity.positive? }
   end
 
   # ── Advance payments ───────────────────────────────────────────────────────
@@ -163,22 +281,20 @@ class PurchaseRequest < ApplicationRecord
     [ advances_total - applied_advances_total, 0 ].max
   end
 
-  # Money paid on this request's (non-voided) receipts through their own
-  # funding source — i.e. NOT out of an advance.
-  def direct_receipt_payments_total
-    FinancialSettlement.where(settleable_type: "GoodsReceipt", settleable_id: goods_receipts.active.select(:id))
-                       .where.not(source_kind: FinancialSettlement::ADVANCE_APPLICATION_KIND)
-                       .or(FinancialSettlement.where(settleable_type: "GoodsReceipt",
-                                                     settleable_id: goods_receipts.active.select(:id),
-                                                     source_kind: nil))
-                       .sum(:amount)
+  # Confirmed (not reversed) funding of the responsible employee's custody —
+  # money the employee holds for this request, not a supplier payment. Not
+  # capped by the request total (an excess simply stays in that custody), and
+  # never part of advances_total / amount_remaining_after_advances or the
+  # receipt deduction, which count supplier payments only.
+  def confirmed_funding_total
+    advances.confirmed.where.not(recipient_custody_account_id: nil).sum(:amount)
   end
 
-  # Ceiling for a new advance: what is still unpaid on the request after
-  # confirmed advances and direct receipt payments. pending_total lets the
-  # caller also reserve advances that are recorded but not yet confirmed.
-  def advance_capacity(pending_total: 0)
-    [ total_amount - advances_total - direct_receipt_payments_total - pending_total, 0 ].max
+  # The responsible employee may change only while no funding advance is
+  # pending or confirmed (unreversed): those name the current employee's
+  # custody. Cancel or reverse them first.
+  def responsible_employee_locked?
+    advances.where(status: %w[pending confirmed]).where.not(recipient_custody_account_id: nil).exists?
   end
 
   # Amount closed off without being received — only meaningful once
@@ -244,5 +360,19 @@ class PurchaseRequest < ApplicationRecord
     return if supplier.nil? || business_id.nil?
 
     errors.add(:supplier, :invalid) if supplier.business_id != business_id
+  end
+
+  def responsible_employee_in_same_business
+    return errors.add(:responsible_employee, :invalid) if responsible_employee_id.present? && responsible_employee.nil?
+    return if responsible_employee.nil? || business_id.nil?
+
+    errors.add(:responsible_employee, :invalid) if responsible_employee.business_id != business_id
+  end
+
+  def warehouse_in_same_business
+    return errors.add(:warehouse, :invalid) if warehouse_id.present? && warehouse.nil?
+    return if warehouse.nil? || business_id.nil?
+
+    errors.add(:warehouse, :invalid) if warehouse.business_id != business_id
   end
 end

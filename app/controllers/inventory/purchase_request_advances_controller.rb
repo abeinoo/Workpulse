@@ -1,6 +1,8 @@
 # Advance payments on a Purchase Request ("الدفعات المقدمة"). Thin by design:
 # authorize, call the service with IDs, redirect. All rules live in
-# Inventory::PurchaseRequestAdvanceRecorder / PurchaseRequestAdvanceWorkflow.
+# Inventory::PurchaseRequestAdvanceRecorder (records AND posts the funding — no
+# confirmation step) / PurchaseRequestAdvanceWorkflow (reverse; cancel of
+# advances still pending from the old two-step workflow).
 class Inventory::PurchaseRequestAdvancesController < Inventory::BaseController
   before_action :set_purchase_request
 
@@ -29,12 +31,6 @@ class Inventory::PurchaseRequestAdvancesController < Inventory::BaseController
       load_options
       render :new, status: :unprocessable_content
     end
-  end
-
-  def confirm
-    advance = find_advance
-    authorize advance
-    respond_with_result workflow(advance).confirm!, t("inventory.purchase_request_advances.confirmed")
   end
 
   def cancel
@@ -87,7 +83,18 @@ class Inventory::PurchaseRequestAdvancesController < Inventory::BaseController
   def load_options
     # The accounts the user may pay from, with their ledger balances — decided by
     # Finance & Sales (S2).
+    # Every advance funds the request's responsible employee (nil when none is
+    # assigned or they are no longer eligible — the form then shows a blocking
+    # state). Eligibility and balances are decided by Finance & Sales.
+    responsible_id = @purchase_request.responsible_employee_id
+    if responsible_id
+      @responsible_option = Inventory::PurchaseRequestAdvanceEffects.responsible_employee_options(actor: current_user)
+                                                                     .find { |option| option.user_id == responsible_id }
+    end
+    # Employee custody transfer sources: never the responsible employee's own account.
     @custody_options = Inventory::PurchaseRequestAdvanceEffects.custody_account_options(actor: current_user)
-    @capacity = @purchase_request.advance_capacity(pending_total: @purchase_request.advances.pending.sum(:amount))
+                                                               .reject { |o| o.id == @responsible_option&.custody_account_id }
+    # Context only — an advance is not capped by the request total.
+    @funded_total = @purchase_request.confirmed_funding_total
   end
 end

@@ -66,6 +66,9 @@ here only so its stable ID and history are kept.
 | BUG-043 | Till custody flows resolve the cashier's branch with the UTC calendar date (`Date.current`), not the business day | Finance & Sales (till custody / daily reconciliations) | Medium (only near the business-day rollover AND with a shift-assignment change at that boundary) | Suspected (code; same mechanism Confirmed for `OpeningFloatsController` by `opening_floats_spec.rb`) | Deferred | Next Finance & Sales till-custody fix |
 | BUG-044 | Biometric device create, edit, branch reassignment, token regeneration and delete write no audit entry | Attendance & Payroll (device administration) | Low–Medium (configuration, not money; every punch log records its own branch, so attribution stays traceable) | Confirmed (code reading, 2026-11-03) | Deferred | Before devices are managed by more than the owner, or the next device-administration change |
 | BUG-045 | Draft Regenerate drops entry notes, API-added cash incentives and adjustment line-item review state | Attendance & Payroll (payroll regeneration) | Medium (an API cash incentive silently leaves net pay; draft periods only; the pre-regenerate snapshot shows the change) | Confirmed (reproduction 2026-11-04, rolled-back test transaction) | Deferred | Next payroll-regeneration change, or before the API incentive endpoint is used on draft periods |
+| BUG-048 | Advances on a Purchase Request with several line suppliers are not attributed to a supplier | Inventory & Purchasing / Finance & Sales (purchase request advances) | Low (no money is lost or double-counted; attribution only) | Improvement (owner decision 2026-11-13) | Open | Product decision, before advances are used on multi-supplier requests at scale |
+| BUG-049 | Company cash / bank funding of a responsible employee's custody has no company-side ledger entry | Finance & Sales (custody ledger, purchase request advance funding) | Medium (accounting completeness; no money is double-counted) | Known limitation (owner decision 2026-11-13: defer a Cash / Bank Account ledger) | Open | Before company cash / bank balances are reported from WorkPulse |
+| BUG-050 | Goods Receipts list loads each receipt's lines to show its total | Inventory & Purchasing (goods receipts list) | Low (performance only; one query per listed receipt) | Performance (found in the 2026-11-14 engineering audit; owner decision: separate task) | Open | Before the receipts list is paginated beyond its current page size or slows |
 
 ---
 
@@ -1531,3 +1534,76 @@ here only so its stable ID and history are kept.
   `recalculate_totals!`.
 * **Review milestone:** the next payroll-regeneration change, or before the API incentive endpoint is used on draft
   periods.
+
+## BUG-048 — Advances on a Purchase Request with several line suppliers are not attributed to a supplier
+
+* **Source:** Purchase Request warehouse/supplier refactor (warehouse moved to the request, supplier moved to each
+  line), 2026-11-13. **Discovered:** 2026-11-13. **Status:** Open — the owner decided to keep advances unchanged in
+  that change (request-level, applied oldest-first) and to record the open question here.
+* **Domain / files:** Inventory & Purchasing / Finance & Sales — `PurchaseRequestAdvance`,
+  `Inventory::PurchaseRequestAdvanceRecorder` / `PurchaseRequestAdvanceWorkflow` (audit metadata
+  `supplier_id: purchase_request.supplier_id`), `Inventory::PurchaseRequestAdvanceAllocator` (applies unapplied
+  confirmed advances oldest-first at Goods Receipt approval), `Finance::PurchaseRequestAdvanceEffects` (custody
+  description uses `purchase_request.supplier&.name`, else "No supplier").
+* **Observed (code reading):** an advance belongs to the whole request. A request may now buy from several suppliers
+  (one Goods Receipt per supplier), so an advance paid to supplier A is applied to whichever receipt is approved first —
+  possibly supplier B's. For a new request the request-level supplier is nil, so the advance audit metadata has
+  `supplier_id: nil` and the custody transaction description says "No supplier", even when every line names one.
+  (Since the funding workflow, also 2026-11-13, a newly recorded advance funds the request's responsible employee's
+  custody and pays no supplier — it is never applied to a receipt — so this applies to historical (legacy)
+  supplier-payment advances only. See BUG-049.)
+* **Expected:** undecided — either advances stay request-level (current behaviour, same as requests without a supplier
+  before the refactor), or an advance names the supplier it was paid to and is applied only to that supplier's
+  receipts.
+* **Impact:** attribution only. Totals stay correct: an advance is never applied twice, never above the receipt value,
+  and the request-level capacity rule is unchanged. A per-supplier payable view of advances is not possible.
+* **Recommended fix (if supplier-level is chosen):** optional `supplier_id` on `purchase_request_advances` (validated
+  against the request's line suppliers), allocator filter by the receipt's supplier (nil-supplier advances keep the
+  oldest-first rule), audit metadata and custody description from the advance's supplier.
+* **Regression tests:** an advance for A is applied to A's receipt and not to B's; a supplier-less advance keeps
+  today's oldest-first behaviour; capacity and reversal rules unchanged.
+* **Review milestone:** product decision, before advances are used on multi-supplier requests at scale.
+
+## BUG-049 — Company cash / bank funding of a responsible employee's custody has no company-side ledger entry
+
+* **Source:** Purchase Request responsible employee & advance funding, 2026-11-13. **Discovered:** 2026-11-13.
+  **Status:** Open — known limitation; the owner decided to defer a separate Cash Account / Bank Account ledger.
+* **Domain / files:** Finance & Sales — `Finance::PurchaseRequestAdvanceEffects#advance_funded` /
+  `#advance_funding_reversed`, `CustodyTransaction` types `purchase_advance_funding` /
+  `purchase_advance_funding_reversal`; Inventory & Purchasing — `PurchaseRequestAdvance` (source_kind, reference).
+* **Observed (code reading):** recording a company cash or company bank transfer advance (which posts its funding
+  at once — no confirmation step since 2026-11-14) writes ONE custody row: a
+  `purchase_advance_funding` credit on the responsible employee's custody (reversal: a
+  `purchase_advance_funding_reversal` debit). No model represents the company's cash box or bank account
+  (`GoodsReceiptSettlementRecorder` and `GoodsReceiptApproval` already say so for receipt payments), so no matching
+  company-side debit exists anywhere in WorkPulse. The funding method and the bank transfer reference are kept on the
+  advance (`source_kind`, `reference`), its audit entries and the custody row's note — nothing claims a company cash /
+  bank debit was recorded.
+* **Expected:** when a company cash / bank ledger is introduced, each recorded funding (and reversal) posts the
+  equal-and-opposite company-side row, linked to the same advance.
+* **Impact:** the custody side is complete and auditable (who received how much, from which method and reference,
+  recorded by whom, reversed when); company cash / bank balances cannot be derived from WorkPulse. No expense is
+  created and no amount is counted twice.
+* **Recommended fix:** a Finance & Sales Cash / Bank Account ledger; `advance_funded` posts the company debit in the
+  same transaction; backfill from confirmed funding advances (their rows are identifiable by type and by the advance's
+  `funding_transaction_id`).
+* **Regression tests:** company funding credits the custody once and debits the chosen company account once;
+  reversal restores both; employee custody transfers touch no company account.
+* **Review milestone:** before company cash / bank balances are reported from WorkPulse.
+
+## BUG-050 — Goods Receipts list loads each receipt's lines to show its total
+
+* **Source:** final engineering audit of the Purchase Request / Goods Receipt work, 2026-11-14. **Discovered:** 2026-11-14.
+  **Status:** Open — the owner kept it out of that change set as a separate performance task.
+* **Domain / files:** Inventory & Purchasing — `GoodsReceipt#total_value` (`items.sum(&:total_cost)`), rendered per
+  row by `app/views/inventory/goods_receipts/index.html.erb`; `Inventory::GoodsReceiptsController#index` preloads
+  `:supplier, :warehouse` only. Unchanged by that work (identical on `main` 36cb6f7).
+* **Observed (query measurement):** one `SELECT goods_receipt_items … WHERE goods_receipt_id = ?` per listed receipt
+  (4 receipts → 4 queries; the page grew from 20 to 28 queries when 8 receipts were added).
+* **Expected:** a constant number of queries per page, whatever the number of receipts listed.
+* **Impact:** response time grows with the page size; no correctness impact.
+* **Recommended fix:** the receipt total from one grouped SQL sum for the listed page (or preload `:items` for it),
+  keeping `GoodsReceipt#total_value` as the single definition of the total.
+* **Regression tests:** a query-count spec — the list issues the same number of queries for 3 and for 30 receipts,
+  and every row still shows its total.
+* **Review milestone:** before the receipts list page size grows or its response time is reported as slow.
