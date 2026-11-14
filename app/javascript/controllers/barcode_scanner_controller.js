@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { selectProduct } from "lib/product_option"
 
 // Reusable barcode-scanner input for inventory document forms (goods receipt,
 // stock issue, stock transfer — and later stock count / purchase orders /
@@ -6,9 +7,11 @@ import { Controller } from "@hotwired/stimulus"
 // sends Enter, so we trigger on the Enter key, with a short debounce as a fallback
 // for scanners that omit the suffix.
 //
-// On a scan we resolve the product — first against the <option>s already embedded
-// in the page (instant, offline), then via the shared lookup endpoint — then
-// add or select its line-item row and move focus to that row's quantity field.
+// On a scan we resolve the product — first against the products already chosen
+// on the form's lines (instant, offline), then via the shared lookup endpoint —
+// then add or select its line-item row and move focus to that row's quantity
+// field. Line pickers (product-combobox) hold only their chosen products, so a
+// remotely found product gets its <option> added (lib/product_option.js).
 //
 // Mounted on a wrapper inside the form; it cooperates with `line-items` purely
 // through the DOM (the rows/template/emptyState markers), so no controller
@@ -35,11 +38,11 @@ export default class extends Controller {
     if (!code) return
     if (this.modeValue === "rows") return this.#processRows(code)
 
-    const localId = this.#matchLocally(code)
-    if (localId) { this.#useProduct(localId); return }
+    const local = this.#matchLocally(code)
+    if (local) { this.#useProduct(local); return }
 
-    const remoteId = await this.#lookupRemote(code)
-    if (remoteId) this.#useProduct(remoteId)
+    const remote = await this.#lookupRemote(code)
+    if (remote) this.#useProduct(remote)
     else this.#notFound(code)
   }
 
@@ -107,25 +110,22 @@ export default class extends Controller {
   #rowsContainer() { return this.#form().querySelector('[data-line-items-target="rows"]') }
   #template()      { return this.#form().querySelector('[data-line-items-target="template"]') }
 
-  // Match a product by embedded barcode (then SKU) against the option set of any
-  // line-item select, falling back to the row template when no rows exist yet.
+  // Match a product by barcode (then SKU) against the products already chosen on
+  // the form's lines — their <option>s carry the barcodes / SKU.
   #matchLocally(code) {
     const needle = code.toLowerCase()
-    const select = this.#rowsContainer()?.querySelector("select") ||
-                   this.#template()?.content.querySelector("select")
-    if (!select) return null
-
-    const options = Array.from(select.options)
+    const options = Array.from(this.#rowsContainer()?.querySelectorAll("[data-line-row] select option") || [])
+                         .filter(o => o.value)
     const opt = options.find(o => this.#matchesAnyBarcode(o, needle)) ||
                 options.find(o => (o.dataset.sku || "").toLowerCase() === needle)
-    return opt ? opt.value : null
+    return opt ? { id: opt.value } : null
   }
 
   async #lookupRemote(code) {
     const result = await this.#lookupProduct(code)
     if (!result) return null
     if (result.error === "parent_product") { this.#parentProduct(code, result.name); return null }
-    return result.id ? String(result.id) : null
+    return result.id ? result : null
   }
 
   async #lookupProduct(code) {
@@ -139,9 +139,12 @@ export default class extends Controller {
     }
   }
 
-  #useProduct(productId) {
+  // `product` is { id } for a local match, or the lookup payload for a remote one.
+  #useProduct(product) {
+    const productId = String(product.id)
     const rows = this.#rowsContainer()
-    const selects = () => Array.from(rows.querySelectorAll('[data-line-row]:not([hidden]) select'))
+    const productSelect = (row) => row.querySelector("select[data-product-field]") || row.querySelector("select")
+    const selects = () => Array.from(rows.querySelectorAll("[data-line-row]:not([hidden])")).map(productSelect).filter(Boolean)
 
     // Already on a visible row → just focus its quantity (no duplicate row).
     const existing = selects().find(s => s.value === productId)
@@ -149,10 +152,14 @@ export default class extends Controller {
 
     // Otherwise reuse the first empty row, or add a fresh one from the template.
     let select = selects().find(s => !s.value)
-    if (!select) select = this.#addRow().querySelector("select")
+    if (!select) select = productSelect(this.#addRow())
 
-    select.value = productId
-    select.dispatchEvent(new Event("change", { bubbles: true })) // keeps supplier prefill working
+    if (product.name) {
+      selectProduct(select, product) // adds its <option>, then the change event (supplier prefill etc.)
+    } else {
+      select.value = productId
+      select.dispatchEvent(new Event("change", { bubbles: true }))
+    }
     this.#selectRow(select)
   }
 

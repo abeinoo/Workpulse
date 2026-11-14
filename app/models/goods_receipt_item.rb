@@ -58,6 +58,12 @@ class GoodsReceiptItem < ApplicationRecord
   # on the request must go through its request line: an unreferenced line for
   # it (e.g. a reference stripped from a tampered form) would otherwise post
   # with no remaining-quantity check. A reference must belong to this request.
+  #
+  # A request line with a supplier may only be received from that supplier: a
+  # receipt has one supplier, so a request buying from several is received in
+  # one receipt per supplier. The lines without a supplier are received in
+  # their own receipt (never mixed with a supplier's lines —
+  # GoodsReceipt#purchase_request_lines_one_supplier_group).
   def purchase_request_item_consistent_with_receipt
     return unless goods_receipt&.purchase_request_id.present?
 
@@ -67,6 +73,8 @@ class GoodsReceiptItem < ApplicationRecord
       errors.add(:product_id, :on_purchase_request) if on_request
     elsif purchase_request_item.purchase_request_id != goods_receipt.purchase_request_id
       errors.add(:purchase_request_item, :invalid)
+    elsif purchase_request_item.supplier_id.present? && purchase_request_item.supplier_id != goods_receipt.supplier_id
+      errors.add(:purchase_request_item, :supplier_mismatch)
     end
   end
 

@@ -1,5 +1,8 @@
 require "rails_helper"
 
+# Advances fund the request's responsible employee's custody (Rami here).
+# Receipt-deduction pages concern historical (legacy) advances, built by
+# #legacy_confirmed_advance on a request without a responsible employee.
 RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
   let(:business)  { create(:business) }
   let(:owner)     { create(:user, :super_admin, business: business) }
@@ -8,7 +11,7 @@ RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
   let(:product)   { business.products.create!(name: "Shampoo", sku: "SH-1", average_cost_price: 121) }
 
   let(:request_record) do
-    pr = PurchaseRequest.new(business: business, supplier: supplier, created_by: owner)
+    pr = PurchaseRequest.new(business: business, supplier: supplier, created_by: owner, responsible_employee: responsible)
     pr.items.build(product: product, quantity: 2, unit_price: 121, source_warehouse: warehouse) # 242
     pr.save!
     pr.update_column(:status, "approved")
@@ -20,7 +23,8 @@ RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
     create(:user, business: business).tap { |u| u.update_column(:permission_role_id, role.id) }
   end
 
-  let(:recorder)  { user_with("view_inventory", "manage_purchase_request_advances") }
+  let(:responsible) { purchaser_with_custody(business, first_name: "Rami") }
+  let(:recorder)  { user_with("view_inventory", "manage_purchase_request_advances", "create_purchase_requests") }
   let(:confirmer) { user_with("view_inventory", "confirm_purchase_request_advances") }
   let(:pr_only)   { user_with("view_inventory", "create_purchase_requests", "approve_purchase_requests") }
 
@@ -32,7 +36,18 @@ RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
     }
   end
 
-  def pending_advance(amount = 100)
+  # The request as it was before the funding workflow: no responsible employee.
+  def make_legacy_request! = request_record.update_column(:responsible_employee_id, nil)
+
+  # An employee with the purchasing permission (eligible custody holder).
+  def purchaser(**attrs)
+    @purchaser_role ||= business.permission_roles.create!(name: "Purchaser",
+                                                          permissions: %w[view_inventory create_purchase_requests])
+    create(:user, business: business, **attrs).tap { |u| u.update_column(:permission_role_id, @purchaser_role.id) }
+  end
+
+  # Recorded — and therefore already executed (no confirmation step).
+  def recorded_advance(amount = 100)
     Inventory::PurchaseRequestAdvanceRecorder.new(
       purchase_request_id: request_record.id, actor: recorder,
       params: { amount: amount, source_kind: "company_cash", paid_on: Date.current }
@@ -40,12 +55,15 @@ RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
   end
 
   describe "recording" do
-    it "lets a manage_purchase_request_advances user record a pending advance" do
+    it "lets a manage_purchase_request_advances user record an advance, executed at once (no confirmation)" do
       sign_in recorder
       expect { post_advance }.to change(PurchaseRequestAdvance, :count).by(1)
 
       expect(response).to redirect_to(inventory_purchase_request_path(request_record, anchor: "advances"))
-      expect(PurchaseRequestAdvance.last).to have_attributes(status: "pending", amount: 100, created_by_id: recorder.id)
+      expect(flash[:notice]).to eq(I18n.t("inventory.purchase_request_advances.created"))
+      expect(PurchaseRequestAdvance.last).to have_attributes(status: "confirmed", amount: 100, created_by_id: recorder.id,
+                                                             confirmed_by_id: recorder.id)
+      expect(custody_of(responsible).reload.computed_balance).to eq(100)
     end
 
     it "denies purchase-request users without the advance permission (direct POST)" do
@@ -62,11 +80,46 @@ RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
       expect { post_advance }.not_to change(PurchaseRequestAdvance, :count)
     end
 
-    it "re-renders the form with the error when the amount exceeds what remains" do
+    it "records an amount above the request total (242) for every method" do
       sign_in recorder
-      expect { post_advance(amount: 300) }.not_to change(PurchaseRequestAdvance, :count)
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(response.body).to include("242.00")
+      own = create(:custody_account, business: business, user: recorder)
+      expect { post_advance(amount: 300) }.to change(PurchaseRequestAdvance, :count).by(1)
+      expect { post_advance(amount: "24200.50", source_kind: "bank_account") }.to change(PurchaseRequestAdvance, :count).by(1)
+      expect { post_advance(amount: 1000, source_kind: "employee_custody", custody_account_id: own.id) }
+        .to change(PurchaseRequestAdvance, :count).by(1)
+      expect(request_record.advances.order(:id).pluck(:amount)).to eq([ 300, 24_200.5, 1000 ])
+      expect(request_record.reload.total_amount).to eq(242)
+    end
+
+    it "re-renders the form for a zero or negative amount" do
+      sign_in recorder
+      [ 0, -5 ].each do |amount|
+        expect { post_advance(amount: amount) }.not_to change(PurchaseRequestAdvance, :count)
+        expect(response).to have_http_status(:unprocessable_content)
+      end
+    end
+
+    it "the form has no maximum and no pending step: it explains the excess and the immediate posting (EN and AR)" do
+      recorded_advance(500)
+      recorded_advance(70)
+      scope = "inventory.purchase_request_advances"
+
+      %w[en ar].each do |locale|
+        recorder.update!(preferred_locale: locale)
+        sign_in recorder
+        get new_inventory_purchase_request_advance_path(request_record)
+        page = Nokogiri::HTML(response.body)
+
+        amount = page.at_css("input[name='purchase_request_advance[amount]']")
+        expect(amount["max"]).to be_nil
+        expect(amount["min"]).to eq("0.01")
+        expect(page.at_css("#advance-amount-hint").text).to eq(I18n.t("#{scope}.amount_hint", locale: locale))
+        expect(page.at_css("[data-testid='advance-funded-total']").text).to include("570.00")
+        expect(page.at_css("[data-testid='advance-pending-total']")).to be_nil
+        expect(page.at_css("[data-testid='advance-immediate-hint']").text).to eq(I18n.t("#{scope}.immediate_hint", locale: locale))
+        expect(response.body).to include(ERB::Util.html_escape(I18n.t("#{scope}.summary.total", locale: locale)))
+        expect(page.at_css("[data-testid='advance-capacity']")).to be_nil
+      end
     end
 
     it "ignores a duplicate submission with the same idempotency key" do
@@ -97,7 +150,7 @@ RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
         )
         create(:user, business: business).tap { |u| u.update_column(:permission_role_id, role.id) }
       end
-      let!(:with_account)    { create(:user, business: business, first_name: "Ahmed") }
+      let!(:with_account)    { purchaser(first_name: "Ahmed") }
       let!(:without_account) { create(:user, business: business, first_name: "Omar") }
       let!(:ahmed_custody) do
         create(:custody_account, business: business, user: with_account, name: "Ahmed Float").tap do |a|
@@ -129,19 +182,18 @@ RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
         end
       end
 
-      it "accepts an advance above the balance and confirms it into a negative balance (50 − 100 = −50)" do
+      it "accepts a custody transfer above the balance and posts it at once into a negative balance (50 − 100 = −50)" do
         sign_in manager
-        expect { post_advance(amount: 100, source_kind: "employee_custody", custody_account_id: ahmed_custody.id) }
-          .to change(PurchaseRequestAdvance, :count).by(1)
+        key = SecureRandom.uuid
+        expect {
+          2.times { post_advance(amount: 100, source_kind: "employee_custody", custody_account_id: ahmed_custody.id, key: key) }
+        }.to change(PurchaseRequestAdvance, :count).by(1) # the repeated POST is the same advance
 
         advance = PurchaseRequestAdvance.last
-        # Confirmation by a different user (self-confirmation is blocked).
-        sign_in user_with("view_inventory", "confirm_purchase_request_advances")
-        2.times { post confirm_inventory_purchase_request_advance_path(request_record, advance) }
-
-        expect(advance.reload).to be_confirmed
+        expect(advance).to be_confirmed
         expect(ahmed_custody.reload.computed_balance).to eq(-50)
-        expect(ahmed_custody.custody_transactions.where(txn_type: "inventory_purchase").sum(:amount)).to eq(-100)
+        expect(custody_of(responsible).reload.computed_balance).to eq(100)
+        expect(CustodyTransaction.where(txn_type: "transfer").pluck(:amount)).to contain_exactly(-100, 100)
       end
     end
 
@@ -160,54 +212,90 @@ RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
     end
   end
 
-  describe "confirm / cancel / reverse" do
-    it "requires confirm_purchase_request_advances to confirm" do
-      advance = pending_advance
-      sign_in recorder
-      post confirm_inventory_purchase_request_advance_path(request_record, advance)
-      expect(advance.reload).to be_pending
-
-      sign_in pr_only
-      post confirm_inventory_purchase_request_advance_path(request_record, advance)
-      expect(advance.reload).to be_pending
-
+  describe "no confirmation step; reverse / cancel" do
+    it "there is no confirm endpoint" do
+      advance = recorded_advance
       sign_in confirmer
-      post confirm_inventory_purchase_request_advance_path(request_record, advance)
+      expect { Rails.application.routes.recognize_path("/inventory/purchase_requests/1/advances/2/confirm", method: :post) }
+        .to raise_error(ActionController::RoutingError)
+      post "/inventory/purchase_requests/#{request_record.id}/advances/#{advance.id}/confirm"
+      expect(response).to have_http_status(:not_found)
       expect(advance.reload).to be_confirmed
-      expect(request_record.reload.advances_total).to eq(100)
     end
 
-    it "a repeated confirm POST does not post a second settlement" do
-      advance = pending_advance
-      sign_in confirmer
-      2.times { post confirm_inventory_purchase_request_advance_path(request_record, advance) }
+    it "the responsible employee cannot record on their own request (blocking state, and the POST is refused)" do
+      responsible.permission_role.update!(permissions: responsible.permission_role.permissions + %w[manage_purchase_request_advances])
+      sign_in responsible
 
-      expect(request_record.reload.financial_settlements.count).to eq(1)
+      get inventory_purchase_request_path(request_record)
+      html = Nokogiri::HTML(response.body)
+      expect(html.at_css("[data-testid='add-advance-disabled']")).to be_present
+      expect(html.at_css("[data-testid='advance-recorder-is-responsible-hint']")).to be_present
+
+      get new_inventory_purchase_request_advance_path(request_record)
+      expect(Nokogiri::HTML(response.body).at_css("[data-testid='advance-recorder-is-responsible']")).to be_present
+      expect(response.body).not_to include("purchase_request_advance[amount]")
+
+      expect { post_advance }.not_to change(PurchaseRequestAdvance, :count)
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(CustodyTransaction.where.not(txn_type: "top_up")).to be_empty
     end
 
-    it "cancels a pending advance with a reason; reverses a confirmed one with a reason" do
-      sign_in confirmer
-      to_cancel = pending_advance(10)
-      post cancel_inventory_purchase_request_advance_path(request_record, to_cancel), params: { reason: "" }
-      expect(to_cancel.reload).to be_pending
-      post cancel_inventory_purchase_request_advance_path(request_record, to_cancel), params: { reason: "not needed" }
-      expect(to_cancel.reload).to be_cancelled
+    it "reversing needs confirm_purchase_request_advances (Reverse / Cancel) and a reason" do
+      advance = recorded_advance(20)
 
-      to_reverse = pending_advance(20)
-      post confirm_inventory_purchase_request_advance_path(request_record, to_reverse)
-      sign_in recorder
-      post reverse_inventory_purchase_request_advance_path(request_record, to_reverse), params: { reason: "refund" }
-      expect(to_reverse.reload).to be_confirmed # recorder lacks confirm permission
+      [ recorder, pr_only ].each do |user|
+        sign_in user
+        post reverse_inventory_purchase_request_advance_path(request_record, advance), params: { reason: "refund" }
+        expect(advance.reload).to be_confirmed
+      end
+
       sign_in confirmer
-      post reverse_inventory_purchase_request_advance_path(request_record, to_reverse), params: { reason: "refund" }
-      expect(to_reverse.reload).to be_reversed
+      post reverse_inventory_purchase_request_advance_path(request_record, advance), params: { reason: "" }
+      expect(advance.reload).to be_confirmed
+      post reverse_inventory_purchase_request_advance_path(request_record, advance), params: { reason: "refund" }
+      expect(advance.reload).to be_reversed
+      expect(custody_of(responsible).reload.computed_balance).to eq(0)
+    end
+
+    it "an advance still pending from the old workflow is cancelled with a reason — never executed" do
+      old = old_pending_funding_advance(request: request_record, amount: 10, actor: recorder)
+      sign_in confirmer
+      post cancel_inventory_purchase_request_advance_path(request_record, old), params: { reason: "" }
+      expect(old.reload).to be_pending
+      post cancel_inventory_purchase_request_advance_path(request_record, old), params: { reason: "not needed" }
+      expect(old.reload).to have_attributes(status: "cancelled", cancellation_reason: "not needed")
+      expect(CustodyTransaction.where.not(txn_type: "top_up")).to be_empty
+
+      sign_in recorder # manage_purchase_request_advances may cancel one too
+      other = old_pending_funding_advance(request: request_record, amount: 5, actor: recorder)
+      post cancel_inventory_purchase_request_advance_path(request_record, other), params: { reason: "obsolete" }
+      expect(other.reload).to be_cancelled
+    end
+
+    it "the page labels an old pending advance and offers only Cancel; a recorded one offers only Reverse" do
+      old = old_pending_funding_advance(request: request_record, amount: 10, actor: recorder)
+      new_one = recorded_advance(30)
+      sign_in confirmer
+
+      get inventory_purchase_request_path(request_record)
+      html = Nokogiri::HTML(response.body)
+      old_row = html.at_css("#advance-#{old.id}")
+      expect(old_row.at_css("[data-testid='advance-old-pending-hint']")).to be_present
+      expect(old_row.text).to include(I18n.t("inventory.purchase_request_advances.statuses.pending"))
+      expect(old_row.css("form").map { |f| f["action"] })
+        .to eq([ cancel_inventory_purchase_request_advance_path(request_record, old) ])
+
+      new_row = html.at_css("#advance-#{new_one.id}")
+      expect(new_row.css("form").map { |f| f["action"] })
+        .to eq([ reverse_inventory_purchase_request_advance_path(request_record, new_one) ])
+      expect(response.body).not_to include("/confirm")
     end
   end
 
   describe "pages" do
     it "shows the advances section with totals and the table on the purchase request" do
-      advance = pending_advance(100)
-      Inventory::PurchaseRequestAdvanceWorkflow.new(advance_id: advance.id, actor: confirmer).confirm!
+      advance = recorded_advance(100)
       sign_in recorder
 
       get inventory_purchase_request_path(request_record)
@@ -215,10 +303,14 @@ RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
 
       expect(html.at_css("#advances")).to be_present
       expect(html.at_css("[data-testid='advance-summary-total']").text).to include("242.00")
-      expect(html.at_css("[data-testid='advance-summary-advances']").text).to include("100.00")
-      expect(html.at_css("[data-testid='advance-summary-remaining']").text).to include("142.00")
-      expect(html.at_css("[data-testid='advance-summary-count']").text.strip).to eq("1")
-      expect(html.at_css("#advance-#{advance.id}").text).to include(I18n.t("inventory.purchase_request_advances.method_labels.company_cash"))
+      expect(html.at_css("[data-testid='advance-summary-advances']").text).to include("0.00")
+      expect(html.at_css("[data-testid='advance-summary-funded']").text).to include("100.00")
+      expect(html.at_css("[data-testid='advance-summary-remaining']").text).to include("242.00")
+      expect(html.at_css("[data-testid='advance-summary-count']").text.strip).to eq("0")
+      row = html.at_css("#advance-#{advance.id}")
+      expect(row.text).to include(I18n.t("inventory.purchase_request_advances.method_labels.funding_company_cash"),
+                                  I18n.t("inventory.purchase_request_advances.funding_not_supplier_payment"),
+                                  responsible.full_name)
       expect(response.body).to include(new_inventory_purchase_request_advance_path(request_record))
     end
 
@@ -230,13 +322,15 @@ RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
 
     it "renders the new-advance form in Arabic with the custody options limited to the user's own account" do
       own   = create(:custody_account, business: business, user: recorder, name: "My Float")
-      other = create(:custody_account, business: business, user: create(:user, business: business), name: "Other Float")
+      other = create(:custody_account, business: business, user: purchaser, name: "Other Float")
       recorder.update!(preferred_locale: "ar")
       sign_in recorder
 
       get new_inventory_purchase_request_advance_path(request_record)
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include('dir="rtl"', "إضافة دفعة مقدمة", "من عهدة الموظف", "دفع مباشر من الشركة")
+      expect(response.body).to include('dir="rtl"', "إضافة دفعة مقدمة", "تحويل من عهدة موظف", "نقدي من الشركة",
+                                       "تحويل بنكي من الشركة", "الموظف المسؤول عن الشراء")
+      expect(Nokogiri::HTML(response.body).at_css("[data-testid='recipient-name']").text).to eq(responsible.full_name)
       options = Nokogiri::HTML(response.body).css("select[name='purchase_request_advance[custody_account_id]'] option")
                                              .map { |o| o["value"] }.compact_blank
       expect(options).to eq([ own.id.to_s ])
@@ -244,13 +338,14 @@ RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
     end
 
     it "before approving a custody-paid receipt, shows current balance, amount due and a negative balance after — and approval succeeds" do
-      advance = pending_advance(100)
-      Inventory::PurchaseRequestAdvanceWorkflow.new(advance_id: advance.id, actor: confirmer).confirm!
+      make_legacy_request!
+      legacy_confirmed_advance(request: request_record, amount: 100, actor: confirmer)
       holder  = create(:user, business: business, first_name: "Ahmed")
       account = create(:custody_account, business: business, user: holder).tap do |a|
         a.custody_transactions.create!(business: business, txn_type: "top_up", amount: 50)
         a.refresh_balance!
       end
+      request_record.update_column(:responsible_employee_id, holder.id) # only the responsible employee pays from custody
       receipt = business.goods_receipts.build(warehouse: warehouse, supplier: supplier, purchase_request: request_record,
                                               received_on: Date.current, created_by: holder,
                                               funding_source_kind: "employee_custody", funding_source: account)
@@ -279,9 +374,9 @@ RSpec.describe "Purchase Request advance payments (HTTP)", type: :request do
       expect(account.reload.computed_balance).to eq(-92)
     end
 
-    it "shows the amount due on a receipt created from the request" do
-      advance = pending_advance(100)
-      Inventory::PurchaseRequestAdvanceWorkflow.new(advance_id: advance.id, actor: confirmer).confirm!
+    it "shows the amount due on a receipt created from the request (historical advance)" do
+      make_legacy_request!
+      advance = legacy_confirmed_advance(request: request_record, amount: 100, actor: confirmer)
       receipt = business.goods_receipts.build(warehouse: warehouse, supplier: supplier, purchase_request: request_record,
                                               received_on: Date.current, created_by: owner, funding_source_kind: "supplier_credit")
       receipt.items.build(product: product, quantity: 2, unit_cost: 121, purchase_request_item: request_record.items.first)

@@ -18,6 +18,7 @@ class Inventory::ReportsController < Inventory::BaseController
                                                    warehouse_ids: effective_warehouse_ids,
                                                    stock_status:  params[:stock_status])
     @rows       = @report.rows
+    preload_product_images(@rows.map(&:product))
     @warehouses = accessible_warehouses
   end
 
@@ -28,14 +29,17 @@ class Inventory::ReportsController < Inventory::BaseController
     @branch     = @branches.find_by(id: params[:branch_id]) if params[:branch_id].present?
     @report     = Inventory::Reports::LowStock.new(current_user.business, warehouse_ids: low_stock_warehouse_ids)
     @rows       = @report.rows
+    preload_product_images(@rows.map(&:product))
     @warehouses = accessible_warehouses
     @suppliers  = current_user.business.suppliers.ordered
+    load_responsible_options # the review modal's responsible employee
   end
 
   def no_movement
     @report     = Inventory::Reports::NoMovement.new(current_user.business,
                                                      warehouse_ids: effective_warehouse_ids, days: params[:days])
     @rows       = @report.rows
+    preload_product_images(@rows.map(&:product))
     @warehouses = accessible_warehouses
   end
 
@@ -45,13 +49,14 @@ class Inventory::ReportsController < Inventory::BaseController
   # those warehouses supply. The drill-down reuses the Stock Movement query.
   def branch_comparison
     @report     = branch_comparison_report
+    preload_product_images([ @report.product ])
     # Show the effective period (default: last 30 days) in the date inputs,
     # and carry it into export / drill-down links.
     params[:from] = @report.from.iso8601 if params[:from].blank?
     params[:to]   = @report.to.iso8601   if params[:to].blank?
     @warehouses = accessible_warehouses
     @branches   = @report.selectable_branches
-    @products   = current_user.business.products.active.inventory_tracked.non_parent.ordered
+    load_filter_product
     return unless @report.ready? && params[:drill_branch_id].present?
 
     @drill_branch  = @branches.find_by(id: params[:drill_branch_id])
@@ -85,8 +90,9 @@ class Inventory::ReportsController < Inventory::BaseController
     @total_pages = @report.total_pages(@per_page)
     @page        = params[:page].to_i.clamp(1, @total_pages)
     @rows        = @report.page(@page, @per_page)
+    preload_product_images(@rows.map(&:product))
     @warehouses  = accessible_warehouses
-    @products    = current_user.business.products.ordered
+    load_filter_product
     @branches    = report_branches
   end
 
@@ -107,7 +113,7 @@ class Inventory::ReportsController < Inventory::BaseController
   def consumption
     @branches   = report_branches
     @warehouses = accessible_warehouses
-    @products   = current_user.business.products.ordered
+    load_filter_product
     period_key  = params[:period].presence || (params[:from].present? || params[:to].present? ? "custom" : nil)
     @period     = Inventory::Reports::Period.new(current_user.business, key: period_key, from: params[:from], to: params[:to],
                                                                         default: "month", keys: CONSUMPTION_PERIODS)
@@ -121,6 +127,7 @@ class Inventory::ReportsController < Inventory::BaseController
       to:            @period.to
     )
     @rows = @report.rows
+    preload_product_images(@rows.map(&:product))
   end
 
   def transfers
@@ -133,8 +140,9 @@ class Inventory::ReportsController < Inventory::BaseController
       status:        params[:status]
     )
     @rows       = @report.rows
+    preload_product_images(@rows.map(&:product))
     @warehouses = accessible_warehouses
-    @products   = current_user.business.products.ordered
+    load_filter_product
   end
 
   def adjustments
@@ -147,8 +155,9 @@ class Inventory::ReportsController < Inventory::BaseController
       reason:        params[:reason]
     )
     @rows       = @report.rows
+    preload_product_images(@rows.map(&:product))
     @warehouses = accessible_warehouses
-    @products   = current_user.business.products.ordered
+    load_filter_product
   end
 
   def purchases
@@ -196,6 +205,14 @@ class Inventory::ReportsController < Inventory::BaseController
   # Branches offered in branch filters: those supplied by the warehouses the
   # user can access — explicit supply links first, ledger-inferred as fallback
   # (Inventory::BranchSupplyMap). A warehouse-scoped user never sees others.
+  # The product filter's selected product only — its picker (product-combobox)
+  # searches the catalogue on demand.
+  def load_filter_product
+    @filter_product = if params[:product_id].present?
+                        policy_scope(Product).includes(:product_barcodes).with_attached_image.find_by(id: params[:product_id])
+    end
+  end
+
   def report_branches
     supply_map.branches
   end

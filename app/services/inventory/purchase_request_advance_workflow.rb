@@ -1,28 +1,24 @@
 module Inventory
-  # Lifecycle of one PurchaseRequestAdvance (see that model):
+  # After-the-fact lifecycle of one PurchaseRequestAdvance (see that model).
+  # Recording an advance posts its funding at once
+  # (Inventory::PurchaseRequestAdvanceRecorder) — there is no confirmation step.
   #
-  #   confirm!  pending → confirmed   THE financial event: one settlement on
-  #             the Purchase Request and, for employee custody, its linked
-  #             custody debit — exactly how Goods Receipt payments are recorded.
-  #             No balance check: the custody balance may go negative.
-  #   cancel!   pending → cancelled   nothing financial ever happened.
-  #   reverse!  confirmed → reversed  equal-and-opposite settlement + custody
-  #             credit; the originals are never touched.
-  #
-  # The ledger writes are Finance & Sales': since S2 they go only through the
-  # Inventory contract Inventory::PurchaseRequestAdvanceEffects (implemented by
-  # Finance & Sales), inside this transaction, after the locks below.
+  #   reverse!  confirmed → reversed  the opposite custody rows (funding), or the
+  #             equal-and-opposite settlement + custody credit (LEGACY supplier
+  #             payment); the originals are never touched.
+  #   cancel!   pending → cancelled   only for advances still PENDING from the
+  #             old two-step workflow (funding or legacy): nothing financial
+  #             ever happened to them, and they are never executed or replayed —
+  #             cancel with a reason, then record a new advance.
   #
   # Every step runs in one transaction with the Purchase Request row locked
-  # first (the same lock receipt approval takes before applying advances), then
-  # the advance row (reloaded) — so a double click / retry finds the advance no
-  # longer pending and is refused: custody is never debited twice.
-  #
-  # Confirmation is blocked for the person who recorded the advance (shared
-  # Approvals::SelfApproval rule, owner exempt), like every other approval.
-  # Reversal is refused once any part of the advance has been applied to a
-  # receipt — void that receipt first (which returns the applied amount to the
-  # advance), so an advance can never be both refunded and consumed.
+  # first (the same lock receipt approval and the recorder take), then the
+  # advance row (reloaded) — so a double click / retry finds the advance no
+  # longer in the expected status and is refused: custody is never moved twice.
+  # The ledger writes are Finance & Sales': they go only through
+  # Inventory::PurchaseRequestAdvanceEffects, inside this transaction, after
+  # these locks. Reversal of a legacy advance is refused once any part of it has
+  # been applied to a receipt — void that receipt first.
   class PurchaseRequestAdvanceWorkflow
     include AuditLoggable
 
@@ -31,28 +27,6 @@ module Inventory
     def initialize(advance_id:, actor:)
       @advance_id = advance_id
       @actor      = actor
-    end
-
-    def confirm!
-      return Result.new(ok: false, advance: advance, error: Approvals::SelfApproval.error_message) if self_approval?
-
-      in_locked_transaction do
-        return err(:invalid_transition) unless advance.pending?
-        return err(:not_allowed_for_status) unless purchase_request.receivable?
-
-        capacity = purchase_request.advance_capacity
-        return err(:exceeds_remaining, remaining: format_amount(capacity)) if advance.amount > capacity
-
-        # Locks the custody account (if any) after the request and the advance.
-        confirmation = Inventory::PurchaseRequestAdvanceEffects.advance_confirmed(advance: advance, actor: @actor)
-        return err(:custody_account_inactive) unless confirmation.confirmed?
-
-        advance.update!(status: "confirmed", confirmed_by: @actor, confirmed_at: Time.current,
-                        financial_settlement_id: confirmation.settlement_id)
-        log_audit(actor: @actor, auditable: advance, action: "confirm",
-                  changes: { status: %w[pending confirmed] },
-                  metadata: audit_metadata(settlement_id: confirmation.settlement_id))
-      end
     end
 
     def cancel!(reason:)
@@ -77,29 +51,43 @@ module Inventory
         return err(:invalid_transition) unless advance.confirmed?
         return err(:already_applied) if advance.applied_amount.positive?
 
-        reversal = Inventory::PurchaseRequestAdvanceEffects.advance_reversed(advance: advance, actor: @actor, reason: reason)
-
-        advance.update!(status: "reversed", reversed_by: @actor, reversed_at: Time.current, reversal_reason: reason)
-        log_audit(actor: @actor, auditable: advance, action: "reverse",
-                  changes: { status: %w[confirmed reversed] },
-                  metadata: audit_metadata(settlement_id: reversal.settlement_id, reversal_id: reversal.reversal_id,
-                                           reason: reason))
+        advance.funding? ? reverse_funding!(reason) : reverse_settlement!(reason)
       end
     end
 
     private
+
+    def source_employee_id = advance.custody_account&.user_id
+
+    def reverse_settlement!(reason)
+      reversal = Inventory::PurchaseRequestAdvanceEffects.advance_reversed(advance: advance, actor: @actor, reason: reason)
+
+      advance.update!(status: "reversed", reversed_by: @actor, reversed_at: Time.current, reversal_reason: reason)
+      log_audit(actor: @actor, auditable: advance, action: "reverse",
+                changes: { status: %w[confirmed reversed] },
+                metadata: audit_metadata(settlement_id: reversal.settlement_id, reversal_id: reversal.reversal_id,
+                                         reason: reason))
+    end
+
+    def reverse_funding!(reason)
+      reversal = Inventory::PurchaseRequestAdvanceEffects.advance_funding_reversed(advance: advance, actor: @actor,
+                                                                                  reason: reason)
+
+      advance.update!(status: "reversed", reversed_by: @actor, reversed_at: Time.current, reversal_reason: reason,
+                      funding_reversal_transaction_id: reversal.transaction_id)
+      log_audit(actor: @actor, auditable: advance, action: "reverse",
+                changes: { status: %w[confirmed reversed] },
+                metadata: audit_metadata(funding_transaction_id: advance.funding_transaction_id,
+                                         funding_reversal_transaction_id: reversal.transaction_id,
+                                         funding_reversal_counterparty_id: reversal.counterparty_id,
+                                         reason: reason))
+    end
 
     def advance
       @advance ||= PurchaseRequestAdvance.where(business_id: @actor.business_id).find(@advance_id)
     end
 
     def purchase_request = advance.purchase_request
-
-    def self_approval?
-      return false if @actor.owner?
-
-      Approvals::SelfApproval.by_requester?(approver: @actor, requester: advance.created_by_id)
-    end
 
     # Lock order matches receipt approval: Purchase Request, then the advance
     # (reloaded by lock!), then — inside the block, in the Finance & Sales
@@ -118,12 +106,10 @@ module Inventory
     def audit_metadata(**extra)
       { purchase_request_id: purchase_request.id, request_number: purchase_request.request_number,
         supplier_id: purchase_request.supplier_id, amount: advance.amount.to_s, source_kind: advance.source_kind,
-        custody_account_id: advance.custody_account_id, employee_id: advance.custody_account&.user_id,
+        custody_account_id: advance.custody_account_id, employee_id: source_employee_id,
+        responsible_employee_id: purchase_request.responsible_employee_id,
+        recipient_custody_account_id: advance.recipient_custody_account_id,
         paid_on: advance.paid_on.to_s, reference: advance.reference }.merge(extra)
-    end
-
-    def format_amount(value)
-      ActiveSupport::NumberHelper.number_to_rounded(value, precision: 2, delimiter: ",")
     end
 
     def err(key, **)

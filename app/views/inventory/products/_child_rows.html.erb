@@ -20,7 +20,7 @@
     <td style="padding-inline-start: calc(var(--space-5) + 20px);">
       <%# Indent to show hierarchy %>
       <span class="td-secondary" aria-hidden="true" style="margin-inline-end: var(--space-1);">└</span>
-      <%= link_to child.name, inventory_product_path(child), class: "link" %>
+      <%= product_identity(child, link: inventory_product_path(child)) %>
     </td>
     <td class="td-secondary"><%= child.sku %></td>
     <td class="td-secondary"><%= child.brand&.name || "—" %></td>

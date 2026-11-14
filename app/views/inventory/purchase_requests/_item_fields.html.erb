@@ -1,30 +1,24 @@
 <%#
-  require_warehouse - (optional) true on the new-request form: the destination
-                      warehouse is mandatory there (no "No warehouse" option).
-                      The draft edit form keeps the existing optional choice,
-                      since Low Stock total-stock alerts create lines without one.
+  suppliers - the business's suppliers. The line's supplier is optional and
+              is pre-filled from the product's default supplier when a product
+              is picked — unless the user deliberately chose another supplier,
+              which is kept (purchase_request_form_controller); changing it here
+              never touches the product.
+  removable - false in the single-line item editor (no × button). Default true.
 %>
-<% require_warehouse = local_assigns.fetch(:require_warehouse, false) %>
 <tr data-line-row data-purchase-request-form-target="row">
   <td>
-    <div data-controller="searchable-select" data-searchable-select-floating-value="true">
-      <%= f.select :product_id,
-            inventory_product_select_options(product_options, f.object.product_id),
-            { include_blank: "— #{t('inventory.purchase_requests.form.select_product')}" },
-            class: "form-control",
-            data: { product_field: true, searchable_select_target: "select",
-                    search_placeholder: t("inventory.purchase_requests.form.search_product"),
-                    action: "change->purchase-request-form#lineKeyChanged" } %>
-    </div>
+    <%= product_combobox(f, :product_id, selected: f.object.product,
+                         select_data: { product_field: true, action: "change->purchase-request-form#lineKeyChanged" }) %>
   </td>
   <td>
-    <%= f.select :source_warehouse_id,
-          options_from_collection_for_select(warehouses, :id, :name,
-            f.object.source_warehouse_id || (warehouses.first.id if require_warehouse && warehouses.size == 1)),
-          { include_blank: require_warehouse ? "— #{t('inventory.purchase_requests.form.select_warehouse')}" : t("inventory.purchase_requests.form.no_warehouse") },
-          class: "form-control",
-          required: require_warehouse,
-          data: { warehouse_field: true, action: "change->purchase-request-form#lineKeyChanged" } %>
+    <%= f.select :supplier_id,
+          options_from_collection_for_select(suppliers, :id, :name, f.object.supplier_id),
+          { include_blank: "— #{t('inventory.purchase_requests.no_supplier')}" },
+          class: "form-control #{'is-error' if f.object.errors[:supplier_id].any?}",
+          aria: { label: t("inventory.purchase_requests.form.supplier_label") },
+          data: { supplier_field: true } %>
+    <p class="form-hint" data-supplier-kept-note hidden><%= t("inventory.purchase_requests.form.supplier_kept_note") %></p>
   </td>
   <td>
     <%= f.number_field :quantity, step: "0.001", min: 0.001, class: "form-control", placeholder: "0",
@@ -35,11 +29,13 @@
           data: { price_field: true, action: "input->purchase-request-form#recalculate" } %>
   </td>
   <td style="text-align: end;" data-purchase-request-form-target="lineTotal">—</td>
-  <td class="td-actions">
-    <% if f.object.persisted? %>
-      <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>
-    <% end %>
-    <button type="button" class="btn btn-ghost btn-sm text-danger"
-            data-action="click->line-items#remove click->purchase-request-form#recalculate" aria-label="<%= t('common.delete') %>">×</button>
-  </td>
+  <% if local_assigns.fetch(:removable, true) %>
+    <td class="td-actions">
+      <% if f.object.persisted? %>
+        <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>
+      <% end %>
+      <button type="button" class="btn btn-ghost btn-sm text-danger"
+              data-action="click->line-items#remove click->purchase-request-form#recalculate" aria-label="<%= t('common.delete') %>">×</button>
+    </td>
+  <% end %>
 </tr>

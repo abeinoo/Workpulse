@@ -31,6 +31,7 @@ class Inventory::DashboardController < Inventory::BaseController
     @low_stock_rows   = Inventory::Reports::LowStock.rows_for(@low_stock_alerts)
                                                       .sort_by { |r| [ r.on_hand.positive? ? 1 : 0, r.on_hand / [ r.low_stock_level, 1 ].max, r.product.name ] }
     @suppliers        = business.suppliers.ordered
+    load_responsible_options # the review modal's responsible employee
     @family_low_stock = @low_stock_alerts.select { |a| a.product.parent_product_id? }.group_by { |a| a.product.parent_product }
 
     @warehouses        = accessible_warehouses.to_a
@@ -41,6 +42,8 @@ class Inventory::DashboardController < Inventory::BaseController
     @action_items = build_action_items
     load_recent_movements(business, wh_ids)
     load_quick_product
+    preload_product_images(@low_stock_alerts.map(&:product) + @family_low_stock.keys + @active_products.map(&:product) +
+                           @recent_movements.map(&:product))
   end
 
   private
@@ -100,7 +103,9 @@ class Inventory::DashboardController < Inventory::BaseController
   end
 
   def load_quick_product
-    @search_products = policy_scope(Product).transactable.ordered
-    @quick_product   = @search_products.find_by(id: params[:product_id]) if params[:product_id].present?
+    # The quick search is a product-combobox (searched on demand): only the chosen product is loaded.
+    return if params[:product_id].blank?
+
+    @quick_product = policy_scope(Product).transactable.includes(:product_barcodes).with_attached_image.find_by(id: params[:product_id])
   end
 end

@@ -1,12 +1,14 @@
 require "rails_helper"
 
 # Query-count regression guard for the inventory document product pickers.
-# Every line row lists the whole catalog; the original per-product helper
-# (#inventory_product_options -> Product#barcode) ran one or two barcode
-# queries per product per row, so these pages scaled with products x rows.
-# The batched path (one Product.barcode_lookup, options rendered once, each
-# row marking its selection) must keep the query count flat as both grow —
-# while rendering exactly the markup the per-product helper produced.
+# The original per-product helper (#inventory_product_options ->
+# Product#barcode) ran one or two barcode queries per product per row, so these
+# pages scaled with products x rows. The pickers are now searchable
+# (product-combobox, Inventory::ProductPickerSearch): a page embeds no
+# catalogue, only each line's own selected product (with its barcode data), so
+# the query count must stay flat as both the catalogue and the lines grow.
+# Request-line rows still render their one fixed product with the per-product
+# helper's markup.
 RSpec.describe "Inventory product pickers — query count scaling", type: :request do
   let(:business)  { create(:business) }
   let(:owner)     { create(:user, :super_admin, business: business) }
@@ -44,6 +46,10 @@ RSpec.describe "Inventory product pickers — query count scaling", type: :reque
     business.products.transactable.ordered.to_a
   end
 
+  # The searchable pickers on the page and the product ids their <select>s hold.
+  def pickers = Nokogiri::HTML(response.body).css("[data-controller='product-combobox']")
+  def picker_product_ids(picker) = picker.css("select option").map { |o| o["value"] }.compact_blank
+
   def draft_receipt(lines)
     receipt = business.goods_receipts.build(warehouse: warehouse, supplier: supplier, received_on: Date.current,
                                             funding_source_kind: "company_cash", created_by: owner)
@@ -68,7 +74,9 @@ RSpec.describe "Inventory product pickers — query count scaling", type: :reque
         expect(response).to have_http_status(:ok)
         expect(large).to eq(small)
         expect(large).to be <= 30
-        expect(response.body).to include(reference_options(transactable, nil))
+        # A searchable picker, never the catalogue embedded as <option>s.
+        expect(pickers).not_to be_empty
+        expect(pickers.flat_map { |picker| picker_product_ids(picker) }).to be_empty
       end
     end
   end
@@ -88,16 +96,20 @@ RSpec.describe "Inventory product pickers — query count scaling", type: :reque
       expect(large).to be <= 30
     end
 
-    it "renders each line's options exactly as the per-product helper did, with its product selected" do
+    it "gives each line a picker holding only its own product (selected, with its barcode), never the catalogue" do
       add_products(8)
       receipt = draft_receipt(transactable.values_at(0, 3, 6))
 
       get edit_inventory_goods_receipt_path(receipt)
 
       receipt.items.each do |item|
-        expect(response.body).to include(reference_options(transactable, item.product_id))
+        picker = pickers.find { |p| p.at_css("select option[selected][value='#{item.product_id}']") }
+        expect(picker).to be_present
+        expect(picker_product_ids(picker)).to eq([ item.product_id.to_s ])
+        expect(picker.at_css("option[selected]")["data-barcode"]).to eq(item.product.barcode) if item.product.barcode
       end
-      expect(response.body).to include(reference_options(transactable, nil)) # new-row template
+      # The new-row template's picker starts empty.
+      expect(pickers.count { |picker| picker_product_ids(picker).empty? }).to be >= 1
     end
   end
 
@@ -139,9 +151,11 @@ RSpec.describe "Inventory product pickers — query count scaling", type: :reque
       expect(response).to have_http_status(:ok)
       expect(large[:picker]).to eq(small[:picker])
       expect(large[:other]).to eq(small[:other])
-      # The only per-line query left is each request line's "received so far"
-      # hint (PurchaseRequestItem#received_quantity) — outside the picker.
-      expect(large[:received_quantity]).to eq(10)
+      # Each request line's "received so far" is read from the preloaded
+      # receipt lines (GoodsReceiptsController::RECEIVING_INCLUDES) — no
+      # per-line query any more.
+      expect(large[:received_quantity]).to eq(small[:received_quantity])
+      expect(large[:received_quantity]).to eq(0)
       large_pr.items.each do |line|
         expect(response.body).to include(reference_options([ line.product ], line.product_id))
       end
@@ -179,7 +193,9 @@ RSpec.describe "Inventory product pickers — query count scaling", type: :reque
 
       expect(response).to have_http_status(:ok)
       expect(large).to eq(small)
-      expect(response.body.scan(reference_options(transactable, nil)).size).to eq(8)
+      # One searchable picker per unknown row, none embedding the catalogue.
+      expect(pickers.size).to eq(8)
+      expect(pickers.flat_map { |picker| picker_product_ids(picker) }).to be_empty
     end
   end
 end

@@ -5,6 +5,10 @@ module Inventory
   # advance is consumed; nothing is applied at receipt creation or at
   # warehouse confirmation.
   #
+  # Only LEGACY advances (supplier payments) are ever applied: an advance that
+  # funds the responsible employee's custody paid no supplier
+  # (PurchaseRequestAdvance#unapplied_amount is 0 for it).
+  #
   # Deterministic rule — oldest advance first, up to the receipt's value:
   #   applied to this receipt = min(unapplied advances, receipt value)
   #   due now                 = receipt value − applied

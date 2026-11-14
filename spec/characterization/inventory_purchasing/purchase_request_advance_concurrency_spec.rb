@@ -144,15 +144,12 @@ RSpec.describe "Characterization: Purchase Request advance concurrency (two conn
     pr
   end
 
-  def recorded_advance(amount = 100)
-    Inventory::PurchaseRequestAdvanceRecorder.new(
-      purchase_request_id: request_record.id, actor: recorder,
-      params: { amount: amount, source_kind: "employee_custody", custody_account_id: custody.id, paid_on: Date.current }
-    ).call.advance
-  end
-
+  # A confirmed LEGACY (supplier-payment) Employee Custody advance in its
+  # historical shape — the receipt-application / reversal races below concern
+  # historical rows. Funding advances: the examples at the end.
   def confirmed_advance
-    recorded_advance.tap { |a| expect(confirm(a.id, other)).to be_ok }
+    legacy_confirmed_advance(request: request_record, amount: 100, actor: other, source_kind: "employee_custody",
+                             custody_account: custody)
   end
 
   # A pending receipt for one unit (121) from the request, paid by supplier credit.
@@ -166,7 +163,6 @@ RSpec.describe "Characterization: Purchase Request advance concurrency (two conn
     receipt
   end
 
-  def confirm(id, actor) = Inventory::PurchaseRequestAdvanceWorkflow.new(advance_id: id, actor: actor).confirm!
   def reverse(id) = Inventory::PurchaseRequestAdvanceWorkflow.new(advance_id: id, actor: other).reverse!(reason: "refund")
   def approve(id) = Inventory::GoodsReceiptApproval.new(goods_receipt_id: id, actor: other).approve!
 
@@ -175,31 +171,6 @@ RSpec.describe "Characterization: Purchase Request advance concurrency (two conn
   def request_settlements = FinancialSettlement.where(settleable_type: "PurchaseRequest").order(:id).to_a
   def applications_of(advance_id)
     FinancialSettlement.where(funding_source_type: "PurchaseRequestAdvance", funding_source_id: advance_id)
-  end
-
-  it "two confirmations: the second waits on the request row, then is refused — custody is debited once" do
-    advance = recorded_advance
-    second_actor = create(:user, business: business)
-    reached, release = pause_after_first(FinancialSettlementService, :create)
-
-    first = on_other_connection { confirm(advance.id, other) }
-    wait_for(reached) # request + advance + account locked, settlement written — not committed
-
-    second = on_other_connection { confirm(advance.id, second_actor) }
-    expect(wait_until_lock_waits("%purchase_requests%FOR UPDATE%")).to match(/FOR UPDATE/)
-    expect(second.join(0)).to be_nil
-
-    release << true
-    expect(result_of(first)).to be_ok
-    refused = result_of(second)
-    expect([ refused.ok?, refused.error ])
-      .to eq([ false, I18n.t("inventory.purchase_request_advances.errors.invalid_transition") ])
-
-    expect(request_settlements.map(&:amount)).to eq([ 100 ])
-    expect(CustodyTransaction.where(txn_type: "inventory_purchase").count).to eq(1)
-    expect(balance_of(custody)).to eq(400)
-    expect(balance_of(custody)).to eq(ledger_sum(custody))
-    expect(PurchaseRequestAdvance.find(advance.id).confirmed_by_id).to eq(other.id)
   end
 
   it "receipt approval applies the advance first: the reversal waits on the request row, then is refused (already applied)" do
@@ -249,5 +220,131 @@ RSpec.describe "Characterization: Purchase Request advance concurrency (two conn
     expect(balance_of(custody)).to eq(500)
     expect(balance_of(custody)).to eq(ledger_sum(custody))
     expect(GoodsReceipt.find(receipt.id).approval_status).to eq("approved")
+  end
+
+  describe "funding advances (the responsible employee's custody; no settlement)" do
+    let(:ahmed)   { purchaser_with_custody(business, first_name: "Ahmed", balance: 5000) }
+    let(:mohamed) { purchaser_with_custody(business, first_name: "Mohamed", balance: 2000) }
+
+    def funded_request(responsible, quantity: 2)
+      pr = business.purchase_requests.build(warehouse: warehouse, created_by: owner, responsible_employee: responsible)
+      pr.items.build(product: product, quantity: quantity, unit_price: 121, supplier: supplier)
+      pr.save!
+      pr.update_column(:status, "approved")
+      pr
+    end
+
+    def record_funding(request, amount:, source: nil)
+      Inventory::PurchaseRequestAdvanceRecorder.new(
+        purchase_request_id: request.id, actor: recorder,
+        params: { amount: amount, source_kind: source ? "employee_custody" : "company_cash",
+                  custody_account_id: source&.id, paid_on: Date.current }
+      ).call
+    end
+
+    def transfers = CustodyTransaction.where(txn_type: "transfer")
+
+    it "recording posts at once: a racing reversal waits on the request row and finds the posted funding" do
+      request = funded_request(mohamed)
+      reached, release = pause_after_first(Inventory::PurchaseRequestAdvanceEffects, :advance_funded)
+
+      first = on_other_connection { record_funding(request, amount: 100, source: custody_of(ahmed)) }
+      wait_for(reached) # request + both accounts locked, advance + pair written — not committed
+      expect(PurchaseRequestAdvance.count).to eq(0) # nothing visible (and nothing pending) before commit
+
+      release << true
+      advance = result_of(first).advance
+      expect(advance.reload).to have_attributes(status: "confirmed", confirmed_by_id: recorder.id)
+      expect(transfers.pluck(:amount)).to contain_exactly(-100, 100)
+      expect([ balance_of(custody_of(ahmed)), balance_of(custody_of(mohamed)) ]).to eq([ 4900, 2100 ])
+    end
+
+    it "two reversals of one advance: the second waits on the request row, then is refused — one reversal pair" do
+      request = funded_request(mohamed)
+      advance = record_funding(request, amount: 100, source: custody_of(ahmed)).advance
+      reached, release = pause_after_first(Inventory::PurchaseRequestAdvanceEffects, :advance_funding_reversed)
+
+      first = on_other_connection { reverse(advance.id) }
+      wait_for(reached)
+
+      second = on_other_connection { reverse(advance.id) }
+      expect(wait_until_lock_waits("%purchase_requests%FOR UPDATE%")).to match(/FOR UPDATE/)
+      expect(second.join(0)).to be_nil
+
+      release << true
+      expect(result_of(first)).to be_ok
+      refused = result_of(second)
+      expect([ refused.ok?, refused.error ])
+        .to eq([ false, I18n.t("inventory.purchase_request_advances.errors.invalid_transition") ])
+
+      expect(transfers.pluck(:amount)).to contain_exactly(-100, 100, 100, -100)
+      expect(FinancialSettlement.count).to eq(0)
+      expect([ balance_of(custody_of(ahmed)), balance_of(custody_of(mohamed)) ]).to eq([ 5000, 2000 ])
+      expect(balance_of(custody_of(ahmed))).to eq(ledger_sum(custody_of(ahmed)))
+    end
+
+    it "opposite transfers recorded on two requests lock the accounts in the same order: no deadlock, both posted" do
+      to_mohamed = funded_request(mohamed)
+      to_ahmed   = funded_request(ahmed)
+      reached, release = pause_after_first(Inventory::PurchaseRequestAdvanceEffects, :advance_funded)
+
+      first = on_other_connection { record_funding(to_mohamed, amount: 200, source: custody_of(ahmed)) }
+      wait_for(reached) # both accounts locked by the first recording
+
+      second = on_other_connection { record_funding(to_ahmed, amount: 50, source: custody_of(mohamed)) }
+      expect(wait_until_lock_waits("%custody_accounts%FOR UPDATE%")).to match(/FOR UPDATE/)
+      expect(second.join(0)).to be_nil
+
+      release << true
+      expect(result_of(first)).to be_ok
+      expect(result_of(second)).to be_ok
+
+      expect(transfers.count).to eq(4)
+      expect(balance_of(custody_of(ahmed))).to eq(5000 - 200 + 50)
+      expect(balance_of(custody_of(mohamed))).to eq(2000 + 200 - 50)
+      expect(balance_of(custody_of(mohamed))).to eq(ledger_sum(custody_of(mohamed)))
+    end
+
+    it "two recordings above the request total race: serialized on the request row, both recorded (no cap)" do
+      request = funded_request(mohamed) # 242
+      reached, release = pause_after_first(Inventory::PurchaseRequestAdvanceEffects, :responsible_custody_account_id)
+
+      first = on_other_connection { record_funding(request, amount: 200) }
+      wait_for(reached) # inside the recorder's transaction, request row locked
+
+      second = on_other_connection { record_funding(request, amount: 500) }
+      expect(wait_until_lock_waits("%purchase_requests%FOR UPDATE%")).to match(/FOR UPDATE/)
+      expect(second.join(0)).to be_nil
+
+      release << true
+      expect(result_of(first)).to be_ok
+      expect(result_of(second)).to be_ok
+      expect(PurchaseRequestAdvance.where(purchase_request: request).pluck(:amount)).to contain_exactly(200, 500)
+      expect(request.reload.total_amount).to eq(242)
+    end
+
+    it "the same submission twice at once (one idempotency key): one advance, both callers get it" do
+      request = funded_request(mohamed)
+      key = SecureRandom.uuid
+      submit = lambda do
+        Inventory::PurchaseRequestAdvanceRecorder.new(
+          purchase_request_id: request.id, actor: recorder, idempotency_key: key,
+          params: { amount: 1000, source_kind: "bank_account", paid_on: Date.current, reference: "TR-9" }
+        ).call
+      end
+      reached, release = pause_after_first(Inventory::PurchaseRequestAdvanceEffects, :responsible_custody_account_id)
+
+      first = on_other_connection { submit.() }
+      wait_for(reached)
+      second = on_other_connection { submit.() }
+      expect(wait_until_lock_waits("%purchase_requests%FOR UPDATE%")).to match(/FOR UPDATE/)
+
+      release << true
+      results = [ result_of(first), result_of(second) ]
+      expect(results).to all(be_ok)
+      expect(results.map { |r| r.advance.id }.uniq.size).to eq(1)
+      expect(PurchaseRequestAdvance.where(purchase_request: request).count).to eq(1)
+      expect(AuditLog.where(auditable_type: "PurchaseRequestAdvance", action: "create").count).to eq(1)
+    end
   end
 end

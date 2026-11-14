@@ -1,4 +1,12 @@
 class Inventory::GoodsReceiptsController < Inventory::BaseController
+  # ?supplier_id= value for "receive the request lines without a supplier".
+  RECEIPT_NO_SUPPLIER = "none".freeze
+  # A request being received: its lines with what each has received so far
+  # (PurchaseRequestItem#received_quantity reads loaded receipt lines) — never
+  # one query per line.
+  RECEIVING_INCLUDES = [ :warehouse, :responsible_employee,
+                         { items: [ :product, :supplier, { goods_receipt_items: :goods_receipt } ] } ].freeze
+
   def index
     authorize GoodsReceipt
     @filters = filter_params
@@ -22,10 +30,10 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   def show
     @goods_receipt = find_receipt(
       includes: [ :funding_source, :custody_transactions, :created_by, :decided_by, :confirmed_by, :voided_by,
-                 purchase_request: :supplier ]
+                 { purchase_request: [ :supplier, { items: :supplier } ] } ]
     )
     authorize @goods_receipt
-    @items           = @goods_receipt.items.includes(:product)
+    @items           = @goods_receipt.items.includes(product: { image_attachment: :blob })
     @settlements     = @goods_receipt.financial_settlements.chronological
                                      .includes(:created_by, :custody_transaction, :funding_source,
                                                { reversal: :created_by }, :reverses_settlement).to_a
@@ -51,6 +59,18 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
 
     if params[:purchase_request_id].present?
       @purchase_request = find_receivable_purchase_request(params[:purchase_request_id])
+      # Only the request's responsible employee may pay from custody (none
+      # when the request has no responsible employee).
+      @goods_receipt.funding_source_kind = nil if @purchase_request.responsible_employee_id != current_user.id
+      @receipt_supplier_options = receipt_supplier_options(@purchase_request)
+
+      # Several supplier groups (suppliers, or the lines without one) still have
+      # outstanding lines: the user first picks which this receipt is for.
+      if receipt_supplier_choice_needed?
+        authorize @goods_receipt
+        render :choose_supplier and return
+      end
+
       prefill_from_purchase_request(@purchase_request)
 
       if @goods_receipt.items.empty?
@@ -76,7 +96,8 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     # hard guard, this just makes sure @purchase_request is set for re-rendering
     # the "from Purchase Request" banner on a validation failure.
     if @goods_receipt.purchase_request_id.present?
-      @purchase_request = policy_scope(PurchaseRequest).find_by(id: @goods_receipt.purchase_request_id)
+      @purchase_request = policy_scope(PurchaseRequest).includes(RECEIVING_INCLUDES).find_by(id: @goods_receipt.purchase_request_id)
+      @receipt_supplier_options = receipt_supplier_options(@purchase_request) if @purchase_request
     end
 
     result = Inventory::GoodsReceiptDraftService.new(@goods_receipt, actor: current_user).call
@@ -195,13 +216,18 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   def load_options
     @warehouses      = accessible_warehouses
     @suppliers       = current_user.business.suppliers.ordered
-    @products        = current_user.business.products.transactable.ordered.to_a
-    # Request-line rows render their own (possibly no longer transactable)
-    # product: load those once, and resolve every product's barcode in one
-    # query — instead of one or two barcode queries per product per row.
+    # Line pickers search the catalogue on demand; only each line's own product
+    # is rendered (request-line rows too — possibly no longer transactable).
     lines = @goods_receipt.items.to_a
-    ActiveRecord::Associations::Preloader.new(records: lines, associations: :product).call
-    @product_barcodes = Product.barcode_lookup(@products.map(&:id) + lines.map(&:product_id))
+    preload_line_products(lines)
+    # Each request line's ordered / received / remaining figures.
+    request_lines = lines.select(&:purchase_request_item_id).reject { |line| line.association(:purchase_request_item).loaded? }
+    if request_lines.any?
+      ActiveRecord::Associations::Preloader.new(
+        records: request_lines, associations: { purchase_request_item: { goods_receipt_items: :goods_receipt } }
+      ).call
+    end
+    @product_barcodes = Product.barcode_lookup(lines.map(&:product_id))
     @custody_account = own_custody_account
     @custody_balance = @custody_account&.computed_balance
   end
@@ -224,16 +250,21 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   # the business rule that it must still have something outstanding
   # (PurchaseRequestPolicy#create_goods_receipt?).
   def find_receivable_purchase_request(id)
-    purchase_request = policy_scope(PurchaseRequest).includes(items: :product).find(id)
+    purchase_request = policy_scope(PurchaseRequest).includes(RECEIVING_INCLUDES).find(id)
     authorize purchase_request, :create_goods_receipt?
     purchase_request
   end
 
   # Inherits supplier, products, unit prices, and remaining quantities from
-  # the Purchase Request — the user never re-enters them. The warehouse is
-  # ONLY preselected when every line already points at the exact same
-  # warehouse; otherwise it is left blank and the form requires an explicit
-  # choice — never a guess (see PurchaseRequestItem#source_warehouse).
+  # the Purchase Request — the user never re-enters them. The warehouse is the
+  # request's own (or, for a legacy request, the one warehouse all its lines
+  # named — see PurchaseRequest#receiving_warehouse_id); otherwise it is left
+  # blank and the form requires an explicit choice — never a guess.
+  #
+  # Supplier: a legacy request's one supplier. Otherwise the chosen supplier
+  # group (see #receipt_supplier_id) and ONLY its outstanding lines —
+  # PurchaseRequest#outstanding_items_for_supplier; GoodsReceipt and
+  # GoodsReceiptItem enforce the same groups on save.
   # Before approval of a custody-funded receipt: what the custody account will
   # look like after paying the amount due (advances already deducted). Display
   # only — a negative result is allowed and never blocks approval.
@@ -242,18 +273,43 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   end
 
   def prefill_from_purchase_request(purchase_request)
+    supplier_id = receipt_supplier_id(purchase_request)
     @goods_receipt.purchase_request = purchase_request
-    @goods_receipt.supplier_id      = purchase_request.supplier_id
+    @goods_receipt.supplier_id      = supplier_id
+    @goods_receipt.warehouse_id     = purchase_request.receiving_warehouse_id
 
-    warehouse_ids = purchase_request.items.filter_map(&:source_warehouse_id).uniq
-    @goods_receipt.warehouse_id = warehouse_ids.first if warehouse_ids.size == 1
-
-    purchase_request.items.each do |item|
-      next unless item.remaining_quantity.positive?
-
+    purchase_request.outstanding_items_for_supplier(supplier_id).each do |item|
       @goods_receipt.items.build(product_id: item.product_id, quantity: item.remaining_quantity,
                                  unit_cost: item.unit_price, purchase_request_item: item)
     end
+  end
+
+  # The request's supplier groups with outstanding lines
+  # (PurchaseRequest#receiving_supplier_groups) as [label, supplier_id param]
+  # pairs — "none" for the lines without a supplier. Empty for a legacy request.
+  def receipt_supplier_options(purchase_request)
+    purchase_request.receiving_supplier_groups.map do |supplier|
+      supplier ? [ supplier.name, supplier.id.to_s ] : [ t("inventory.goods_receipts.no_supplier_lines"), RECEIPT_NO_SUPPLIER ]
+    end
+  end
+
+  def chosen_receipt_supplier
+    value = params[:supplier_id].to_s
+    value if value.present? && @receipt_supplier_options.any? { |_, option| option == value }
+  end
+
+  def receipt_supplier_choice_needed?
+    chosen_receipt_supplier.nil? && @receipt_supplier_options.size > 1
+  end
+
+  # The chosen group, or the only one: a supplier id, or nil for the lines
+  # without a supplier (the user then records the actual supplier on the
+  # receipt). A legacy request: its one supplier.
+  def receipt_supplier_id(purchase_request)
+    return purchase_request.supplier_id if purchase_request.legacy_supplier?
+
+    chosen = chosen_receipt_supplier || @receipt_supplier_options.first&.last
+    chosen.nil? || chosen == RECEIPT_NO_SUPPLIER ? nil : chosen.to_i
   end
 
   # Builds the show page's Activity Timeline: one entry per event that

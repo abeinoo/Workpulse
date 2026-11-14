@@ -47,6 +47,9 @@ class DashboardController < ApplicationController
     @inventory_low_stock = Inventory::LowStockQuery.new(
       current_user.business, warehouse_ids: current_user.inventory_warehouse_ids
     ).alerts.first(8)
+    # Product thumbnails read preloaded images only (ProductThumbnailHelper).
+    products = @inventory_low_stock.map(&:product).uniq(&:object_id)
+    ActiveRecord::Associations::Preloader.new(records: products, associations: { image_attachment: :blob }).call if products.any?
   end
 
   # Team / branch management (roster, pending requests/adjustments): anyone who

@@ -7,32 +7,68 @@ RSpec.describe Inventory::PurchaseRequestUpdater, type: :model do
   let(:supplier_2)  { business.suppliers.create!(name: "Supplier 2") }
   let(:product_a)   { business.products.create!(name: "Product A", sku: "A-1", average_cost_price: 100) }
   let(:product_b)   { business.products.create!(name: "Product B", sku: "B-1", average_cost_price: 200) }
+  let(:warehouse_a) { business.warehouses.create!(name: "WH A") }
+  let(:warehouse_b) { business.warehouses.create!(name: "WH B") }
+  let(:responsible) { purchaser_with_custody(business, first_name: "Rami") }
 
   def draft_request(quantity: 10, unit_price: 100, supplier: supplier_1)
-    pr = business.purchase_requests.build(supplier: supplier, source: "low_stock_alert", created_by: actor)
-    pr.items.build(product: product_a, quantity: quantity, unit_price: unit_price)
+    pr = business.purchase_requests.build(warehouse: warehouse_a, source: "low_stock_alert", created_by: actor,
+                                          responsible_employee: responsible)
+    pr.items.build(product: product_a, quantity: quantity, unit_price: unit_price, supplier: supplier)
     pr.save!
     pr
   end
 
+  # A request created before the warehouse/supplier refactor: one
+  # request-level supplier, the warehouse on the line (or none).
+  def legacy_draft_request(supplier: supplier_1, line_warehouse: nil)
+    pr = business.purchase_requests.build(supplier: supplier, source: "low_stock_alert", created_by: actor)
+    pr.items.build(product: product_a, quantity: 10, unit_price: 100, supplier: supplier, source_warehouse: line_warehouse)
+    pr.save!
+    pr
+  end
+
+  def line_attrs(pr, **overrides)
+    item = pr.items.first
+    { "0" => { id: item.id, product_id: item.product_id, quantity: item.quantity, unit_price: item.unit_price }.merge(overrides) }
+  end
+
+  # A legacy draft (no responsible employee) gets one on its first edit, like
+  # its warehouse — supplied here unless the example passes its own.
   def update(request, attributes)
+    attributes = { responsible_employee_id: responsible.id }.merge(attributes) if request.responsible_employee_id.nil?
     described_class.new(request.id, actor: actor, attributes: attributes).call
   end
 
   # 1. Draft can be edited
-  it "updates a draft request's supplier and notes" do
+  it "updates a draft request's warehouse, notes and a line's supplier" do
     pr = draft_request
-    result = update(pr, supplier_id: supplier_2.id, notes: "Urgent")
+    result = update(pr, warehouse_id: warehouse_b.id, notes: "Urgent", items_attributes: line_attrs(pr, supplier_id: supplier_2.id))
 
     expect(result.ok?).to be(true)
-    expect(pr.reload.supplier_id).to eq(supplier_2.id)
+    pr.reload
+    expect(pr.warehouse).to eq(warehouse_b)
+    expect(pr.items.sole.supplier).to eq(supplier_2)
+    expect(pr.supplier_id).to be_nil
     expect(pr.notes).to eq("Urgent")
     expect(pr).to be_draft
   end
 
-  # 2. Non-draft cannot be edited (each non-draft status)
+  it "keeps one warehouse for the whole request while its lines name different suppliers" do
+    pr = draft_request
+    result = update(pr, items_attributes: line_attrs(pr).merge(
+      "1" => { product_id: product_b.id, quantity: 5, unit_price: 200, supplier_id: supplier_2.id }
+    ))
+
+    expect(result.ok?).to be(true)
+    expect(pr.reload.items.map(&:supplier)).to contain_exactly(supplier_1, supplier_2)
+    expect(pr.warehouse).to eq(warehouse_a)
+  end
+
+  # 2. Nothing after approval (or rejected / cancelled) can be edited; a
+  # pending request only its items (see "editing items before approval").
   %w[pending_approval approved partially_received fully_received rejected cancelled].each do |status|
-    it "refuses to update a #{status} request" do
+    it "refuses to update a #{status} request's details" do
       pr = draft_request
       pr.update_column(:status, status)
 
@@ -44,24 +80,84 @@ RSpec.describe Inventory::PurchaseRequestUpdater, type: :model do
     end
   end
 
-  # 3. Supplier can be changed when valid
-  it "allows changing the supplier without touching Product#default_supplier_id" do
+  # 3. A line's supplier can be changed when valid
+  it "overrides a line's supplier without touching the product's default supplier" do
+    product_a.update!(default_supplier: supplier_1)
     pr = draft_request
-    expect(product_a.default_supplier_id).to be_nil
 
-    update(pr, supplier_id: supplier_2.id)
+    result = update(pr, items_attributes: line_attrs(pr, supplier_id: supplier_2.id))
 
-    expect(pr.reload.supplier_id).to eq(supplier_2.id)
-    expect(product_a.reload.default_supplier_id).to be_nil
+    expect(result.ok?).to be(true)
+    expect(pr.reload.items.sole.supplier).to eq(supplier_2)
+    expect(product_a.reload.default_supplier).to eq(supplier_1)
   end
 
-  it "rejects a supplier from a different business" do
-    other_business = create(:business)
-    foreign_supplier = other_business.suppliers.create!(name: "Foreign")
+  it "rejects a line supplier from a different business" do
+    foreign_supplier = create(:business).suppliers.create!(name: "Foreign")
     pr = draft_request
 
-    result = update(pr, supplier_id: foreign_supplier.id)
+    result = update(pr, items_attributes: line_attrs(pr, supplier_id: foreign_supplier.id))
+
     expect(result.ok?).to be(false)
+    expect(pr.reload.items.sole.supplier).to eq(supplier_1)
+  end
+
+  describe "warehouse" do
+    it "rejects removing the warehouse" do
+      pr = draft_request
+      result = update(pr, warehouse_id: "")
+
+      expect(result.error).to eq(I18n.t("inventory.purchase_requests.errors.missing_warehouse"))
+      expect(pr.reload.warehouse).to eq(warehouse_a)
+    end
+
+    it "rejects a warehouse of another business, an inactive one, and one outside the actor's scope" do
+      pr = draft_request
+      foreign_wh = create(:business).warehouses.create!(name: "Foreign WH")
+      warehouse_b.update!(status: "inactive")
+
+      expect(update(pr, warehouse_id: foreign_wh.id)).not_to be_ok
+      expect(update(pr, warehouse_id: warehouse_b.id)).not_to be_ok
+
+      scoped = create(:user, business: business)
+      WarehouseAssignment.create!(user: scoped, warehouse: warehouse_a)
+      other = business.warehouses.create!(name: "WH C")
+      denied = described_class.new(pr.id, actor: scoped, attributes: { warehouse_id: other.id }).call
+      expect(denied.error).to eq(I18n.t("inventory.purchase_requests.errors.unauthorized_warehouse"))
+      expect(pr.reload.warehouse).to eq(warehouse_a)
+    end
+
+    it "rejects the same product twice in one request, whatever the suppliers" do
+      pr = draft_request
+      result = update(pr, items_attributes: line_attrs(pr).merge(
+        "1" => { product_id: product_a.id, quantity: 1, unit_price: 100, supplier_id: supplier_2.id }
+      ))
+
+      expect(result.error).to eq(I18n.t("inventory.purchase_requests.errors.duplicate_product"))
+      expect(pr.reload.items.count).to eq(1)
+    end
+  end
+
+  describe "legacy draft (request-level supplier)" do
+    it "must be given a warehouse before it can be saved, and keeps its legacy columns" do
+      pr = legacy_draft_request
+      expect(update(pr, notes: "edited").error).to eq(I18n.t("inventory.purchase_requests.errors.missing_warehouse"))
+
+      result = update(pr, warehouse_id: warehouse_a.id, notes: "edited")
+      expect(result).to be_ok
+      pr.reload
+      expect(pr.warehouse).to eq(warehouse_a)
+      expect(pr.supplier).to eq(supplier_1)
+      expect(pr.items.sole.source_warehouse_id).to be_nil
+    end
+
+    it "keeps every line on the request's one supplier" do
+      pr = legacy_draft_request
+      result = update(pr, warehouse_id: warehouse_a.id, items_attributes: line_attrs(pr, supplier_id: supplier_2.id))
+
+      expect(result).not_to be_ok
+      expect(pr.reload.items.sole.supplier).to eq(supplier_1)
+    end
   end
 
   # 4 & 5. Items can be added / removed
@@ -195,21 +291,60 @@ RSpec.describe Inventory::PurchaseRequestUpdater, type: :model do
     expect(log.actor).to eq(actor)
   end
 
-  # 19. Concurrency: state changes from draft to submitted between load and update
-  it "fails safely if the request was submitted for approval by someone else in between" do
+  # 19. Concurrency: approved by someone else between load and update
+  it "fails safely if the request was approved by someone else in between" do
     pr = draft_request
+    pr.update_column(:status, "pending_approval")
 
-    updater = described_class.new(pr.id, actor: actor, attributes: { notes: "edited" })
-    # Simulate another request racing in and submitting it for approval
-    # between this service loading the record and it acquiring the lock.
-    allow_any_instance_of(PurchaseRequest).to receive(:draft?).and_wrap_original do |method|
-      pr.update_column(:status, "pending_approval")
+    updater = described_class.new(pr.id, actor: actor, attributes: { items_attributes: line_attrs(pr, quantity: 99) })
+    # Simulate another request racing in and approving it between this
+    # service loading the record and it acquiring the lock.
+    allow_any_instance_of(PurchaseRequest).to receive(:items_editable?).and_wrap_original do |_method|
+      pr.update_column(:status, "approved")
       false
     end
 
     result = updater.call
     expect(result.ok?).to be(false)
-    expect(pr.reload).to be_pending_approval
-    expect(pr.notes).not_to eq("edited")
+    expect(pr.reload).to be_approved
+    expect(pr.items.sole.quantity).to eq(10)
+  end
+
+  describe "responsible employee" do
+    def message(key) = I18n.t("inventory.purchase_requests.errors.#{key}")
+
+    it "changes a draft's responsible employee to another eligible one and audits the edit" do
+      pr = draft_request
+      other = purchaser_with_custody(business, first_name: "Lina")
+
+      expect(update(pr, responsible_employee_id: other.id)).to be_ok
+      expect(pr.reload.responsible_employee).to eq(other)
+    end
+
+    it "refuses an ineligible employee, leaving the draft unchanged" do
+      pr = draft_request
+      no_permission = create(:user, business: business).tap { |u| create(:custody_account, business: business, user: u) }
+
+      expect(update(pr, responsible_employee_id: no_permission.id).error).to eq(message(:responsible_employee_ineligible))
+      expect(pr.reload.responsible_employee).to eq(responsible)
+    end
+
+    it "is optional on a draft: it may be cleared, and a legacy draft is edited without one" do
+      pr = draft_request
+      expect(update(pr, responsible_employee_id: "")).to be_ok
+      expect(pr.reload.responsible_employee_id).to be_nil
+
+      legacy = legacy_draft_request(line_warehouse: warehouse_a)
+      result = described_class.new(legacy.id, actor: actor, attributes: { warehouse_id: warehouse_a.id, notes: "x" }).call
+      expect(result).to be_ok
+      expect(legacy.reload.responsible_employee_id).to be_nil
+    end
+
+    it "does not re-judge an unchanged employee who has since lost eligibility" do
+      pr = draft_request
+      custody_of(responsible).update_column(:active, false)
+
+      expect(update(pr, notes: "still editable")).to be_ok
+    end
   end
 end

@@ -17,6 +17,15 @@ module AttachmentHelper
     default: { resize_to_limit: [ 200, 100 ], format: :webp, saver: { quality: 85 } },
   }.freeze
 
+  # Product thumbnails (ProductThumbnailHelper). Fitted inside the box, never
+  # cropped (resize_to_limit + CSS object-fit: contain). Only two sizes, so a
+  # product's image is processed at most twice, once each — Active Storage
+  # tracks the variant and serves it from then on.
+  PRODUCT_IMAGE_VARIANTS = {
+    thumb: { resize_to_limit: [ 96, 96 ],   format: :webp, saver: { quality: 80 } }, # up to 48 px at 2x
+    large: { resize_to_limit: [ 192, 192 ], format: :webp, saver: { quality: 85 } }  # the product page
+  }.freeze
+
   NATIONAL_ID_VARIANTS = {
     thumb:   { resize_to_limit: [ 160, 100 ], format: :webp, saver: { quality: 80 } },
     preview: { resize_to_limit: [ 640, 400 ], format: :webp, saver: { quality: 85 } },

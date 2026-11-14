@@ -32,7 +32,7 @@
     </div>
 
     <% fields.each do |field| %>
-      <div class="filter-bar__field" <%= 'data-controller="searchable-select"'.html_safe if field == :product %>>
+      <div class="filter-bar__field">
         <% case field %>
         <% when :branch %>
           <%= f.label :branch_id, t("inventory.reports.fields.branch"), class: "filter-bar__label" %>
@@ -40,9 +40,9 @@
                 { include_blank: t("inventory.reports.all_branches") }, class: "filter-bar__select" %>
         <% when :product %>
           <%= f.label :product_id, t("inventory.reports.fields.product"), class: "filter-bar__label" %>
-          <%= f.select :product_id, options_from_collection_for_select(@products, :id, :name, params[:product_id]),
-                { include_blank: t("inventory.reports.all_products") }, class: "filter-bar__select",
-                data: { searchable_select_target: "select", search_placeholder: t("inventory.reports.branch_comparison.search_product") } %>
+          <%= product_combobox(nil, :product_id, name: "product_id", id: "product_id", selected: @filter_product, kind: "all",
+                               blank: t("inventory.reports.all_products"), placeholder: t("inventory.reports.all_products"),
+                               input_class: "filter-bar__input") %>
         <% when :warehouse %>
           <%= f.label :warehouse_id, t("inventory.reports.fields.warehouse"), class: "filter-bar__label" %>
           <%= f.select :warehouse_id, options_from_collection_for_select(@warehouses, :id, :name, params[:warehouse_id]),

@@ -122,7 +122,7 @@
                           aria-expanded="false"
                           aria-label="<%= t('inventory.products.expand_children') %>">▶</button>
                 <% end %>
-                <%= link_to product.name, inventory_product_path(product), class: "link" %>
+                <%= product_identity(product, link: inventory_product_path(product)) %>
                 <% if product.archived? %>
                   <span class="badge badge-neutral" style="margin-inline-start: var(--space-1);"><%= t("inventory.products.archived_badge") %></span>
                 <% end %>

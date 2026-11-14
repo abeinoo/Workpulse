@@ -25,7 +25,7 @@
           <% @rows.each do |row| %>
             <tr>
               <td class="td-secondary"><%= local_date(row.movement.occurred_on) %></td>
-              <td class="td-wrap"><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %></td>
+              <td class="td-wrap"><%= product_identity(row.product, link: inventory_product_path(row.product)) %></td>
               <td class="td-secondary"><%= row.warehouse.name %></td>
               <td style="text-align: end;"><%= row.balance_before.to_i %></td>
               <td style="text-align: end; font-weight: 600;"><%= row.signed_quantity.positive? ? "+" : "" %><%= row.signed_quantity.to_i %></td>

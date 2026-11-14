@@ -79,9 +79,18 @@ module ArchitectureSpecs
 
     # The files migrated in S2 → the PurchaseRequestAdvanceEffects operations each calls.
     S2_MIGRATED = {
-      "app/controllers/inventory/purchase_request_advances_controller.rb" => %w[custody_account_options],
-      "app/services/inventory/purchase_request_advance_recorder.rb"       => %w[selectable_custody_account_id],
-      "app/services/inventory/purchase_request_advance_workflow.rb"       => %w[advance_confirmed advance_reversed]
+      "app/controllers/inventory/base_controller.rb"                      => %w[responsible_employee_options],
+      "app/controllers/inventory/purchase_request_advances_controller.rb" =>
+        %w[custody_account_options responsible_employee_options],
+      "app/services/inventory/purchase_request_advance_recorder.rb"       =>
+        %w[advance_funded lock_funding_accounts responsible_custody_account_id selectable_custody_account_id],
+      "app/services/inventory/purchase_request_advance_workflow.rb"       =>
+        %w[advance_funding_reversed advance_reversed],
+      # The responsible employee's eligibility (purchasing permission + active
+      # custody account) is Finance & Sales' decision.
+      "app/services/inventory/purchase_request_creator.rb"                => %w[responsible_custody_account_id],
+      "app/services/inventory/purchase_request_responsible_assigner.rb"   => %w[responsible_custody_account_id],
+      "app/services/inventory/purchase_request_updater.rb"                => %w[responsible_custody_account_id]
     }.freeze
 
     # A reference to the Finance & Sales payment ledgers (constants, custody
@@ -107,7 +116,7 @@ module ArchitectureSpecs
       "app/controllers/inventory/goods_receipts_controller.rb"            => 2, # settlement list preload, own-account default
       "app/controllers/inventory/purchase_requests_controller.rb"         => 1, # advance applications on the request page
       "app/models/goods_receipt.rb"                                       => 2, # FUNDING_SOURCE_TYPES, ACCOUNTLESS kinds
-      "app/models/purchase_request.rb"                                    => 4, # advance / payment totals (Settleable reads)
+      "app/models/purchase_request.rb"                                    => 1, # applied advances total (Settleable read)
       "app/models/purchase_request_advance.rb"                            => 1, # SOURCE_KINDS
       "app/services/inventory/custody_payment_preview.rb"                 => 1, # receiving-screen preview
       "app/services/inventory/goods_receipt_draft_service.rb"             => 1, # the draft's own-custody funding default

@@ -1992,6 +1992,71 @@ tr.user-row--inactive:hover {
   .form-page { padding: var(--space-8) var(--space-6); }
 }
 
+/* ── Goods Receipt form (new / edit / choose supplier) ──────────────────────
+   A working width for the line table (ordered / received / remaining /
+   receive now / cost / total), in sections; the total and Save stay in reach.
+   Scoped to the Goods Receipt pages (form-page--receipt). */
+.form-page--receipt { max-width: 1180px; }
+.gr-form { display: flex; flex-direction: column; gap: var(--space-5); }
+.gr-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+}
+.gr-card > .section-title:first-child { margin-top: 0; }
+.gr-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+.gr-summary__item dt { font-size: var(--text-sm); color: var(--text-3); margin-bottom: var(--space-1); }
+.gr-summary__item dd { margin: 0; font-weight: 600; }
+.gr-supplier__current { font-size: var(--text-lg); margin: 0 0 var(--space-1); }
+.gr-supplier__switch {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+.gr-supplier__switch .is-current { cursor: default; border-color: var(--accent); }
+.gr-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 var(--space-5); }
+.gr-fields__wide { grid-column: 1 / -1; }
+.gr-funding { display: flex; flex-wrap: wrap; gap: 0 var(--space-6); }
+.gr-items__table th.line-items-table__product { min-width: 16rem; }
+.gr-num { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gr-num--strong { font-weight: 600; }
+.gr-qty-input { font-weight: 600; background: var(--accent-muted); border-color: var(--accent); }
+.gr-items__empty td { padding: var(--space-4); text-align: center; color: var(--text-3); }
+.gr-actions {
+  position: sticky; bottom: var(--space-3); z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+}
+.gr-actions__total { display: flex; align-items: baseline; gap: var(--space-2); }
+.gr-actions__total strong { font-size: var(--text-lg); font-variant-numeric: tabular-nums; }
+.gr-actions__buttons { display: flex; gap: var(--space-2); }
+@media (max-width: 1023px) {
+  /* Above the fixed bottom navigation. */
+  .gr-actions { bottom: calc(var(--bottom-nav-h) + var(--space-2)); }
+}
+@media (max-width: 900px) {
+  .gr-fields { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 768px) {
+  .gr-card { padding: var(--space-4); }
+  .gr-items__table th.line-items-table__product { min-width: 0; }
+  .gr-num { text-align: start; }
+}
+@media (max-width: 560px) {
+  .gr-fields { grid-template-columns: 1fr; }
+  .gr-actions__buttons { width: 100%; }
+  .gr-actions__buttons > * { flex: 1; text-align: center; }
+}
+
 .form-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -15341,3 +15406,209 @@ a.exec-card, .exec-card a.exec-card-link { text-decoration: none; }
   color: var(--text-2);
   cursor: pointer;
 }
+
+/* ── Low Stock product picker (Purchase Request form) ─────────────────────
+   _low_stock_picker.html.erb: header · scrolling table with a sticky header ·
+   sticky footer. Logical properties throughout, so RTL needs no overrides. */
+/* Above the sidebar (300), bottom nav (200) and PWA banner (400), so the
+   sticky footer is never covered — same layer as .obl-filter-panel. */
+.lsp-overlay { z-index: 450; }
+.modal-card.lsp {
+  display: flex;
+  flex-direction: column;
+  max-width: 880px;
+  max-height: min(88vh, 760px);
+  padding: 0;
+  overflow: hidden;
+}
+.lsp__header { padding: var(--space-5) var(--space-6) var(--space-3); }
+.lsp__title { margin-bottom: var(--space-1); }
+.lsp__subtitle { margin: 0; font-size: var(--text-sm); color: var(--text-2); }
+.lsp__empty { margin: 0; padding: var(--space-4) var(--space-6); color: var(--text-2); }
+.lsp__note {
+  margin: 0 var(--space-6) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+.lsp__note--error { color: var(--danger); font-weight: 600; }
+
+.lsp__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  margin: 0 var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.lsp__table { min-width: 540px; font-variant-numeric: tabular-nums; }
+.lsp__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-2);
+  text-align: start;
+  border-bottom: 1px solid var(--border);
+}
+.lsp__table td { padding: var(--space-2) var(--space-4); vertical-align: middle; border-bottom: 1px solid var(--border); }
+.lsp__table tbody tr:last-child td { border-bottom: 0; }
+.lsp__table .lsp__num { text-align: end; white-space: nowrap; }
+.lsp__table thead th.lsp__num { text-align: end; }
+.lsp__col-product { width: 55%; min-width: 240px; }
+.lsp__row.is-selected { background: var(--accent-muted); }
+
+.lsp__product { display: block; cursor: pointer; }
+.lsp__product .pident__name { font-weight: 600; color: var(--text-1); }
+.lsp__stock { font-weight: 600; color: var(--text-1); }
+.lsp__stock--out { color: var(--danger); }
+.lsp__qty {
+  width: 120px;
+  height: 34px;
+  padding-inline: var(--space-2);
+  text-align: end;
+  font-weight: 600;
+  border-color: var(--accent);
+}
+.lsp__qty.is-error { border-color: var(--danger); }
+
+.lsp__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--border);
+  background: var(--surface-1);
+}
+.lsp__summary { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text-2); }
+.lsp__actions { display: flex; gap: var(--space-2); margin-inline-start: auto; }
+
+@media (max-width: 640px) {
+  .modal-card.lsp { max-height: 94dvh; }
+  .lsp__table { min-width: 460px; }
+  .lsp__col-product { min-width: 170px; }
+  .lsp__qty { width: 96px; }
+  .lsp__header { padding: var(--space-4) var(--space-4) var(--space-2); }
+  .lsp__scroll, .lsp__note { margin-inline: var(--space-4); }
+  .lsp__footer { padding: var(--space-3) var(--space-4); }
+  .lsp__actions { width: 100%; }
+  .lsp__actions .btn { flex: 1 1 0; }
+}
+
+/* ── Purchase Request item editor (PR page, before approval) ─────────────── */
+/* Above the sidebar, bottom nav and PWA banner, like the Low Stock picker. */
+.pri-editor-overlay { z-index: 450; }
+.modal-card.pri-editor { max-width: 860px; }
+.pri-editor__table { min-width: 640px; }
+.pri-editor__table td:last-child { white-space: nowrap; }
+.pri-editor__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+.pri-editor__total strong { font-size: var(--text-base); color: var(--text-1); font-variant-numeric: tabular-nums; }
+
+/* ── Product identity: thumbnail + name (+ SKU) — ProductThumbnailHelper ───
+   Fixed-size, rounded, neutral box; the image is fitted (contain), never
+   cropped or stretched. No image (or one that fails to load) → a placeholder
+   drawn by CSS. Logical properties: RTL puts the thumbnail on the right. */
+.pident { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; max-width: 100%; vertical-align: middle; }
+.pident__text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.pident__name { overflow-wrap: anywhere; }
+.pident__sku { font-size: var(--text-xs); color: var(--text-3); align-self: flex-start; }
+.pthumb {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.pthumb--xs { width: 28px; height: 28px; border-radius: 6px; }
+.pthumb--sm { width: 36px; height: 36px; }
+.pthumb--md { width: 44px; height: 44px; }
+.pthumb--lg { width: 72px; height: 72px; border-radius: 12px; }
+.pthumb__img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.pthumb--empty::before {
+  content: "";
+  width: 55%;
+  height: 55%;
+  background: var(--text-3);
+  opacity: 0.55;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8l-9-5-9 5v8l9 5 9-5z'/%3E%3Cpath d='M3 8l9 5 9-5M12 13v8'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8l-9-5-9 5v8l9 5 9-5z'/%3E%3Cpath d='M3 8l9 5 9-5M12 13v8'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.pident-title { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+
+/* ── Searchable product picker (product_combobox_controller) ───────────────
+   The selected product's thumbnail sits inside the field (start side); the
+   listbox is fixed to the viewport above modals (450) and sticky bars, so no
+   table, card or dialog clips it. Logical properties → RTL / LTR alike. */
+.pcombo { position: relative; min-width: 0; }
+/* In a line-items table the chosen product's name stays readable. */
+td .pcombo { min-width: 220px; }
+.pcombo__control { position: relative; display: flex; align-items: center; }
+.pcombo__thumb {
+  position: absolute;
+  inset-inline-start: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  pointer-events: none;
+}
+.pcombo__thumb .pthumb { width: 30px; height: 30px; border-radius: 6px; }
+.pcombo__input { width: 100%; padding-inline-end: 32px; }
+.pcombo__thumb:not([hidden]) + .pcombo__input { padding-inline-start: 44px; }
+.pcombo__clear {
+  position: absolute;
+  inset-inline-end: 6px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pcombo__clear:hover, .pcombo__clear:focus-visible { background: var(--surface-2); color: var(--text-1); }
+.pcombo__listbox {
+  position: fixed;
+  z-index: 600;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  overflow-y: auto;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 32px rgba(var(--shadow-rgb), 0.25);
+}
+.pcombo__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-2);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.pcombo__option.is-active { background: var(--accent-muted); }
+.pcombo__option[aria-selected="true"] .pcombo__name { color: var(--accent); }
+.pcombo__text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.pcombo__name { font-weight: 600; color: var(--text-1); overflow-wrap: anywhere; }
+.pcombo__meta { font-size: var(--text-xs); color: var(--text-3); align-self: flex-start; }
+.pcombo__option mark { background: transparent; color: inherit; text-decoration: underline; text-underline-offset: 2px; font-weight: 700; }
+.pcombo__status { padding: var(--space-3); color: var(--text-2); font-size: var(--text-sm); }

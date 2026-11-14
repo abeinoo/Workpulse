@@ -343,7 +343,7 @@ RSpec.describe "Purchase Request → Goods Receipt", type: :request do
       }
     end
 
-    it "offers an editable supplier select (with \"No supplier\") instead of a locked one" do
+    it "offers an editable, required supplier select (the actual supplier) instead of a locked one" do
       pr = no_supplier_request
       sign_in owner
 
@@ -352,21 +352,41 @@ RSpec.describe "Purchase Request → Goods Receipt", type: :request do
       expect(response).to have_http_status(:ok)
       select = Nokogiri::HTML(response.body).at_css('select[name="goods_receipt[supplier_id]"]')
       expect(select["disabled"]).to be_nil
-      expect(select.at_css('option[value=""]')).to be_present
-      expect(response.body).to include(I18n.t("inventory.goods_receipts.supplier_from_open_request_hint"))
+      expect(select["required"]).to be_present
+      expect(select.at_css('option[value=""]').text).to include(I18n.t("inventory.goods_receipts.select_supplier"))
+      expect(response.body).to include(I18n.t("inventory.goods_receipts.form.actual_supplier_hint"))
     end
 
-    it "lets each receipt record a different actual supplier, or none, without touching the request" do
+    it "lets each receipt record a different actual supplier — never none — without touching the request" do
       pr = no_supplier_request
       other = business.suppliers.create!(name: "Local Shop")
       sign_in owner
 
       expect { post_receipt(pr, supplier.id, 4) }.to change(GoodsReceipt, :count).by(1)
       expect { post_receipt(pr, other.id, 3) }.to change(GoodsReceipt, :count).by(1)
-      expect { post_receipt(pr, "", 3) }.to change(GoodsReceipt, :count).by(1)
+      expect { post_receipt(pr, "", 3) }.not_to change(GoodsReceipt, :count) # server-side, not only the form
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include(ERB::Util.html_escape(
+        I18n.t("activerecord.errors.models.goods_receipt.attributes.supplier.required_for_unassigned_request_lines")
+      ))
 
-      expect(pr.goods_receipts.map(&:supplier_id)).to contain_exactly(supplier.id, other.id, nil)
+      expect(pr.goods_receipts.map(&:supplier_id)).to contain_exactly(supplier.id, other.id)
       expect(pr.reload.supplier_id).to be_nil
+      expect(pr.items.map(&:supplier_id)).to all(be_nil) # the request lines stay unassigned
+    end
+
+    it "never re-judges a historical receipt saved without a supplier" do
+      pr = no_supplier_request
+      historical = business.goods_receipts.build(purchase_request: pr, warehouse: warehouse, received_on: Date.current,
+                                                 funding_source_kind: "supplier_credit")
+      historical.items.build(product: product_a, quantity: 1, unit_cost: 100, purchase_request_item: pr.items.first)
+      historical.receipt_number = "GR-HIST-1" # as saved before the rule, without a supplier
+      historical.save!(validate: false)
+
+      historical = GoodsReceipt.find(historical.id)
+      historical.notes = "checked"
+      expect(historical.save).to be(true)
+      expect(historical.reload.supplier_id).to be_nil
     end
 
     it "moves through partial and full receiving like any other request" do

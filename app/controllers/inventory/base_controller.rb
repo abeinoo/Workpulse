@@ -27,24 +27,8 @@ class Inventory::BaseController < ApplicationController
   end
   helper_method :accessible_warehouse_ids
 
-  # Products eligible to appear in an inventory transaction line — used to
-  # populate every product picker (new stock issue, import row resolution).
-  def transactable_products
-    current_user.business.products.transactable.ordered
-  end
-  helper_method :transactable_products
-
-  # <option>s for every transactable product, built once per request (one
-  # product query + one barcode query) however many pickers the page renders
-  # — e.g. one per unknown-SKU import row. Rows mark their selection with
-  # inventory_product_select_options.
-  def transactable_product_options_html
-    @transactable_product_options_html ||= begin
-      products = transactable_products.to_a
-      helpers.inventory_product_options_html(products, barcodes: Product.barcode_lookup(products.map(&:id)))
-    end
-  end
-  helper_method :transactable_product_options_html
+  # (Product pickers search on demand — Inventory::ProductPickerSearch — so no
+  # page builds the whole catalogue as <option>s any more.)
 
   # Refuses a write whose warehouse the scoped user isn't assigned to. Pass every
   # warehouse id the document touches (e.g. both ends of a transfer).
@@ -55,5 +39,46 @@ class Inventory::BaseController < ApplicationController
     allowed = allowed.map(&:to_s)
     given   = warehouse_ids.compact.map(&:to_s)
     raise Pundit::NotAuthorizedError if given.empty? || (given - allowed).any?
+  end
+
+  # Product thumbnails (ProductThumbnailHelper) read only preloaded images:
+  # preload them for exactly the products a page is about to list — two
+  # queries, whatever the count. Report services stay untouched.
+  def preload_product_images(products)
+    # By object, not id: the same product may come as separate objects from
+    # different reports, and each one must be marked loaded.
+    records = Array(products).compact.uniq(&:object_id)
+    ActiveRecord::Associations::Preloader.new(records: records, associations: { image_attachment: :blob }).call if records.any?
+    products
+  end
+
+  # Document forms with searchable product pickers render only each line's
+  # SELECTED product (the catalogue is searched on demand): load those with
+  # their barcodes and images in one go — never one query per line.
+  def preload_line_products(lines)
+    records = Array(lines).select(&:product_id)
+    return if records.empty?
+
+    ActiveRecord::Associations::Preloader.new(
+      records: records, associations: { product: [ :product_barcodes, { image_attachment: :blob } ] }
+    ).call
+  end
+
+  # The one product payload of the searchable product pickers and the barcode
+  # scanner (product-combobox / lib/product_option.js): everything a line's
+  # existing listeners read from the product's <option>. Images / barcodes
+  # should be preloaded by the caller.
+  def product_picker_json(product)
+    barcodes = product.product_barcodes.map(&:barcode)
+    { id: product.id, name: product.name, sku: product.sku, barcode: product.barcode, barcodes: barcodes,
+      default_supplier_id: product.default_supplier_id,
+      thumb: helpers.product_thumbnail_url(product, preloaded_only: true) }
+  end
+
+  # Eligible Purchase Request responsible employees (purchasing permission +
+  # active custody account) for the request form, the Low Stock review modal
+  # and the assign action — decided by Finance & Sales.
+  def load_responsible_options
+    @responsible_options = Inventory::PurchaseRequestAdvanceEffects.responsible_employee_options(actor: current_user)
   end
 end

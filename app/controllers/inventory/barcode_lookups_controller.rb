@@ -12,14 +12,8 @@ class Inventory::BarcodeLookupsController < Inventory::BaseController
       if product.parent?
         render json: { error: "parent_product", name: product.name }, status: :unprocessable_entity
       else
-        render json: {
-          id:           product.id,
-          name:         product.name,
-          sku:          product.sku,
-          barcode:      product.barcode,
-          barcodes:     product.product_barcodes.pluck(:barcode),
-          matched_on:   result.matched_on
-        }
+        preload_product_images([ product ])
+        render json: product_picker_json(product).merge(matched_on: result.matched_on)
       end
     else
       render json: { error: "not_found" }, status: :not_found

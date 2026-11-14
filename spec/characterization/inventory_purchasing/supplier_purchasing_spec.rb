@@ -5,7 +5,7 @@ require "rails_helper"
 # goods receipts reference (never write) the supplier, Supplier owns no
 # purchasing behaviour, and the supplier reports stay inside the business and
 # the requested warehouses. Complements spec/requests/inventory/purchase_requests_spec.rb
-# (one request per supplier, missing supplier), purchase_request_goods_receipt_spec.rb
+# (one request per warehouse, line suppliers), purchase_request_goods_receipt_spec.rb
 # (prefill from a request), reports_spec.rb (warehouse-scoped stock reports) and
 # the SEC-P6-1/2/3 regression specs.
 RSpec.describe "Characterization: Supplier in purchasing" do
@@ -48,31 +48,35 @@ RSpec.describe "Characterization: Supplier in purchasing" do
       expect(request_for(supplier)).to be_valid
     end
 
-    it "the creator makes one request per supplier, and a no-supplier request for lines without one" do
+    it "the creator puts each line's supplier on the line — one request, one warehouse, several suppliers" do
       result = Inventory::PurchaseRequestCreator.new(
         business, actor: create(:user, :owner, business: business),
-        items: [ { product_id: product.id, quantity: 1, unit_price: 1, supplier_id: supplier.id },
-                 { product_id: other_product.id, quantity: 2, unit_price: 1, supplier_id: second_supplier.id } ]
+        responsible_employee_id: purchaser_with_custody(business).id,
+        items: [ { product_id: product.id, quantity: 1, unit_price: 1, supplier_id: supplier.id, warehouse_id: wh_a.id },
+                 { product_id: other_product.id, quantity: 2, unit_price: 1, supplier_id: second_supplier.id, warehouse_id: wh_a.id } ]
       ).call
       expect(result).to be_ok
-      expect(result.purchase_requests.map(&:supplier)).to contain_exactly(supplier, second_supplier)
+      request = result.purchase_requests.sole
+      expect(request.supplier).to be_nil
+      expect(request.items.map(&:supplier)).to contain_exactly(supplier, second_supplier)
 
       missing = Inventory::PurchaseRequestCreator.new(
-        business, actor: create(:user, business: business),
-        items: [ { product_id: product.id, quantity: 1, unit_price: 1, supplier_id: nil } ]
+        business, actor: create(:user, business: business), responsible_employee_id: purchaser_with_custody(business).id,
+        items: [ { product_id: product.id, quantity: 1, unit_price: 1, supplier_id: nil, warehouse_id: wh_a.id } ]
       ).call
       expect(missing).to be_ok
-      expect(missing.purchase_requests.sole.supplier_id).to be_nil
+      expect(missing.purchase_requests.sole.items.sole.supplier_id).to be_nil
     end
 
     it "the creator does not create a request for another business's supplier" do
       result = Inventory::PurchaseRequestCreator.new(
         business, actor: create(:user, :owner, business: business),
-        items: [ { product_id: product.id, quantity: 1, unit_price: 1, supplier_id: foreign_supplier.id } ]
+        items: [ { product_id: product.id, quantity: 1, unit_price: 1, supplier_id: foreign_supplier.id, warehouse_id: wh_a.id } ]
       ).call
 
       expect(result).not_to be_ok
-      expect(PurchaseRequest.where(supplier: foreign_supplier)).to be_empty
+      expect(result.error).to eq(I18n.t("inventory.purchase_requests.errors.invalid_supplier"))
+      expect(PurchaseRequestItem.where(supplier: foreign_supplier)).to be_empty
     end
 
     it "the purchase-request policy decides without the supplier" do

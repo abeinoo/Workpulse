@@ -17,7 +17,7 @@
 
     <div class="flex items-center justify-between" style="flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-3);">
       <p class="td-secondary" style="margin: 0;">
-        <strong><%= @report.product.name %></strong> · <%= @report.product.sku %> ·
+        <%= product_thumbnail(@report.product, size: :xs) %> <strong><%= @report.product.name %></strong> · <%= @report.product.sku %> ·
         <%= t("#{bc}.period", from: local_date(@report.from), to: local_date(@report.to), days: @report.period_days) %>
       </p>
       <div class="flex items-center" style="gap: var(--space-2);">

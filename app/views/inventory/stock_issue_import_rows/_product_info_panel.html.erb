@@ -7,15 +7,7 @@
   breakdown_warehouses = breakdown.any? ? accessible_warehouses.where(id: breakdown.keys).index_by(&:id) : {}
 %>
 <div style="display: flex; gap: var(--space-4); margin-bottom: var(--space-4); flex-wrap: wrap;">
-  <% if product.image.attached? %>
-    <%= image_tag url_for(product.image.variant(resize_to_limit: [ 96, 96 ])),
-          alt: product.name,
-          style: "width: 72px; height: 72px; object-fit: cover; border-radius: var(--radius-lg); border: 1px solid var(--border); flex-shrink: 0;" %>
-  <% else %>
-    <div style="width: 72px; height: 72px; border-radius: var(--radius-lg); background: var(--accent-muted); color: var(--accent); border: 1px solid var(--accent-ring); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: var(--text-lg); flex-shrink: 0;">
-      <%= product.name.first(2).upcase %>
-    </div>
-  <% end %>
+  <%= product_thumbnail(product, size: :lg) %>
 
   <div style="flex: 1; min-width: 200px;">
     <p style="margin: 0 0 var(--space-1);">

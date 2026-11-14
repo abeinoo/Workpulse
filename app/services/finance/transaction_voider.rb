@@ -9,7 +9,8 @@ module Finance
   # e.g. a goods receipt payment from custody) is refused: it must be undone by
   # reversing the settlement (Inventory::GoodsReceiptSettlementReverser), which
   # keeps custody and the document's paid amount in step. The model enforces
-  # the same rule as a backstop.
+  # the same rule as a backstop. Likewise a row a Purchase Request advance's
+  # funding posted (CustodyTransaction#advance_funding?): reverse the advance.
   class TransactionVoider
     include AuditLoggable
 
@@ -24,6 +25,7 @@ module Finance
     def call
       return err(I18n.t("finance.custody.errors.already_voided")) if @txn.voided?
       return err(I18n.t("finance.custody.errors.settlement_linked")) if @txn.settlement_linked?
+      return err(I18n.t("finance.custody.errors.advance_funding_linked")) if @txn.advance_funding?
       return err(I18n.t("finance.custody.errors.reason_required")) if @reason.blank?
 
       counterpart = @txn.transfer_counterparty

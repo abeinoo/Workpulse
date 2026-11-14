@@ -91,15 +91,12 @@ RSpec.describe Finance::GoodsReceiptPaymentEffects, type: :model do
       request.items.build(product: product, quantity: 2, unit_price: 125, source_warehouse: warehouse)
       request.save!
       request.update_column(:status, "approved")
-      recorded = Inventory::PurchaseRequestAdvanceRecorder.new(
-        purchase_request_id: request.id, actor: create(:user, :super_admin, business: business), idempotency_key: nil,
-        params: { amount: 100, source_kind: "company_cash", paid_on: Date.current, reference: "DEP-1", notes: "d" }
-      ).call
-      Inventory::PurchaseRequestAdvanceWorkflow.new(advance_id: recorded.advance.id, actor: actor).confirm!
+      # A historical (legacy) supplier-payment advance — the only kind ever applied.
+      advance = legacy_confirmed_advance(request: request, amount: 100, actor: actor, reference: "DEP-1")
       r = receipt(kind: "supplier_credit")
 
-      contract.advance_applied(receipt: r, advance: recorded.advance, amount: 100, actor: actor, reference: "PR-1", notes: "applied")
-      expect(settlements(r).sole).to have_attributes(funding_source: recorded.advance, source_kind: "purchase_request_advance",
+      contract.advance_applied(receipt: r, advance: advance, amount: 100, actor: actor, reference: "PR-1", notes: "applied")
+      expect(settlements(r).sole).to have_attributes(funding_source: advance, source_kind: "purchase_request_advance",
                                                      reference: "PR-1", amount: 100, notes: "applied", created_by_id: actor.id)
     end
   end

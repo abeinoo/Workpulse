@@ -1,0 +1,29 @@
+<%# Receiving a Purchase Request whose outstanding lines name several suppliers:
+    a receipt has one supplier, so the user first picks which supplier this
+    receipt is for (Inventory::GoodsReceiptsController#new). Each choice opens
+    the usual form pre-filled with that supplier's lines plus any lines
+    without a supplier. %>
+<% content_for :title, t("inventory.goods_receipts.new_title") %>
+
+<div class="form-page form-page--wide form-page--receipt">
+  <%= link_to inventory_purchase_request_path(@purchase_request), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+  <h1 class="page-title mb-6"><%= t("inventory.goods_receipts.new_title") %></h1>
+
+  <div class="form-card">
+    <div class="alert alert-info" style="margin-bottom: var(--space-4);">
+      <%= t("inventory.goods_receipts.from_purchase_request") %>:
+      <%= link_to @purchase_request.request_number, inventory_purchase_request_path(@purchase_request), class: "link" %>
+    </div>
+    <h2 class="section-title"><%= t("inventory.goods_receipts.choose_supplier_title") %></h2>
+    <p class="td-secondary"><%= t("inventory.goods_receipts.choose_supplier_intro") %></p>
+    <div class="flex items-center" style="gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3);">
+      <% @receipt_supplier_options.each do |label, value| %>
+        <%= link_to label, new_inventory_goods_receipt_path(purchase_request_id: @purchase_request.id, supplier_id: value),
+                    class: "btn btn-secondary" %>
+      <% end %>
+    </div>
+  </div>
+</div>

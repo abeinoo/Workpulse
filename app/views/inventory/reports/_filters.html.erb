@@ -12,7 +12,7 @@
 <%= form_with url: url, method: :get, local: true, class: "filter-bar" do |f| %>
   <div class="filter-bar__fields">
     <% fields.each do |field| %>
-      <div class="filter-bar__field" <%= 'data-controller="searchable-select"'.html_safe if field == :product_required %>>
+      <div class="filter-bar__field">
         <% case field %>
         <% when :warehouse %>
           <%= f.label :warehouse_id, t("inventory.reports.fields.warehouse"), class: "filter-bar__label" %>
@@ -20,14 +20,13 @@
                 { include_blank: t("inventory.reports.all_warehouses") }, class: "filter-bar__select" %>
         <% when :product %>
           <%= f.label :product_id, t("inventory.reports.fields.product"), class: "filter-bar__label" %>
-          <%= f.select :product_id, options_from_collection_for_select(@products, :id, :name, params[:product_id]),
-                { include_blank: t("inventory.reports.all_products") }, class: "filter-bar__select" %>
+          <%= product_combobox(nil, :product_id, name: "product_id", id: "product_id", selected: @filter_product, kind: "all",
+                               blank: t("inventory.reports.all_products"), placeholder: t("inventory.reports.all_products"),
+                               input_class: "filter-bar__input") %>
         <% when :product_required %>
           <%= f.label :product_id, t("inventory.reports.fields.product"), class: "filter-bar__label" %>
-          <%= f.select :product_id, options_from_collection_for_select(@products, :id, :name, params[:product_id]),
-                { prompt: t("inventory.reports.branch_comparison.select_product") },
-                class: "filter-bar__select", required: true,
-                data: { searchable_select_target: "select", search_placeholder: t("inventory.reports.branch_comparison.search_product") } %>
+          <%= product_combobox(nil, :product_id, name: "product_id", id: "product_id", selected: @filter_product, kind: "tracked",
+                               placeholder: t("inventory.reports.branch_comparison.search_product"), input_class: "filter-bar__input") %>
         <% when :supplier %>
           <%= f.label :supplier_id, t("inventory.reports.fields.supplier"), class: "filter-bar__label" %>
           <%= f.select :supplier_id, options_from_collection_for_select(@suppliers, :id, :name, params[:supplier_id]),

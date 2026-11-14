@@ -5,29 +5,35 @@
   The product is the request line's own product: a one-option select keeps it
   fixed (GoodsReceiptItem#product_matches_purchase_request_item enforces it)
   while still submitting product_id and letting the barcode scanner find the
-  row. Shows requested / already received / remaining for the line; the
-  quantity received now is entered here.
+  row. Ordered / already received / remaining come from the request line
+  (PurchaseRequestItem#received_quantity — confirmed, non-voided receipts
+  only); the quantity received now is entered here, at most the remaining
+  (GoodsReceiptItem#within_remaining_quantity).
 %>
 <% pri = f.object.purchase_request_item %>
 <% qty = ->(n) { number_with_precision(n, precision: 3, strip_insignificant_zeros: true) } %>
-<tr data-line-row class="line-items-row--request">
+<tr data-line-row class="line-items-row--request" data-testid="gr-request-line" data-purchase-request-item-id="<%= pri.id %>">
   <td>
     <%= f.select :product_id, inventory_product_select_options(
           inventory_product_options_html([ f.object.product ].compact, barcodes: barcodes), f.object.product_id),
           {}, class: "form-control", data: { action: "change->receipt-supplier#productChanged" } %>
   </td>
+  <td class="gr-num" data-testid="gr-line-ordered"><%= qty.(pri.quantity) %></td>
+  <td class="gr-num" data-testid="gr-line-received"><%= qty.(pri.received_quantity) %></td>
+  <td class="gr-num gr-num--strong" data-testid="gr-line-remaining"><%= qty.(pri.remaining_quantity) %></td>
   <td>
     <%= f.hidden_field :purchase_request_item_id %>
     <%= f.number_field :quantity, step: "0.001", min: 0, max: pri.remaining_quantity,
-          class: "form-control", placeholder: "0", data: { quantity_field: true } %>
-    <p class="form-hint"><%= t("inventory.goods_receipts.quantity_hint_request",
-                               requested: qty.(pri.quantity),
-                               received: qty.(pri.received_quantity),
-                               remaining: qty.(pri.remaining_quantity)) %></p>
+          class: "form-control gr-qty-input #{'is-error' if f.object.errors[:quantity].any?}", placeholder: "0",
+          inputmode: "decimal", data: { quantity_field: true },
+          "aria-label": t("inventory.goods_receipts.form.receive_now_for", product: f.object.product&.name) %>
+    <% if f.object.errors[:quantity].any? %>
+      <p class="form-hint text-danger" style="margin: 0;"><%= f.object.errors[:quantity].first %></p>
+    <% end %>
   </td>
   <td>
     <%= f.number_field :unit_cost, step: "0.0001", min: 0, class: "form-control", placeholder: "0.00",
-          data: { cost_field: true } %>
+          inputmode: "decimal", data: { cost_field: true } %>
   </td>
   <td class="line-items-table__total" data-line-total aria-live="off">—</td>
   <td class="td-actions">

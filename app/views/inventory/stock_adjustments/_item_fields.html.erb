@@ -1,8 +1,6 @@
 <tr data-line-row>
   <td>
-    <%= f.select :product_id,
-          options_from_collection_for_select(products, :id, ->(p) { "#{p.name} (#{p.sku})" }, f.object.product_id),
-          { include_blank: "— #{t('inventory.stock_adjustments.select_product')}" }, class: "form-control" %>
+    <%= product_combobox(f, :product_id, selected: f.object.product, select_data: { product_field: true }) %>
   </td>
   <td>
     <%= f.number_field :quantity_difference, step: "0.001", class: "form-control", placeholder: "+/- 0" %>

@@ -8,6 +8,7 @@ RSpec.describe "Purchase Request creation form", type: :request do
   let(:supplier)  { business.suppliers.create!(name: "Supplier 1") }
   let!(:main_wh)  { business.warehouses.create!(name: "Main WH") }
   let!(:other_wh) { business.warehouses.create!(name: "Other WH") }
+  let!(:responsible) { purchaser_with_custody(business, first_name: "Rami") }
 
   # Well stocked — never appears in Low Stock.
   let!(:stocked_product) do
@@ -33,15 +34,15 @@ RSpec.describe "Purchase Request creation form", type: :request do
     create(:user, business: business).tap { |u| u.update_column(:permission_role_id, role.id) }
   end
 
-  def line(product, qty:, price: 10, warehouse: main_wh)
-    { product_id: product.id, quantity: qty, unit_price: price, source_warehouse_id: warehouse&.id }
+  def line(product, qty:, price: 10, supplier: self.supplier)
+    { product_id: product.id, quantity: qty, unit_price: price, supplier_id: supplier&.id }
   end
 
-  def submit_form(lines, supplier_id: supplier.id, notes: nil, key: SecureRandom.uuid)
+  def submit_form(lines, warehouse: main_wh, notes: nil, key: SecureRandom.uuid, responsible_employee: responsible)
     post inventory_purchase_requests_path, params: {
       idempotency_key: key,
       purchase_request: {
-        supplier_id: supplier_id, notes: notes,
+        warehouse_id: warehouse&.id, notes: notes, responsible_employee_id: responsible_employee&.id,
         items_attributes: lines.each_with_index.to_h { |l, i| [ i.to_s, l ] }
       }
     }
@@ -62,29 +63,60 @@ RSpec.describe "Purchase Request creation form", type: :request do
 
       expect(response).to have_http_status(:ok)
       doc = Nokogiri::HTML(response.body)
-      product_select = doc.at_css("table.line-items-table select[name*='[product_id]']")
-      option_ids = product_select.css("option").map { |o| o["value"] }.compact_blank
-      expect(option_ids).to include(stocked_product.id.to_s, low_product.id.to_s)
+      # The line's product picker searches every transactable product on demand
+      # (no catalogue in the page) — product_search returns both.
+      picker = doc.at_css("table.line-items-table [data-controller='product-combobox']")
+      expect(picker["data-product-combobox-kind-value"]).to eq("transactable")
+      expect(picker.css("select[name*='[product_id]'] option").map { |o| o["value"] }.compact_blank).to be_empty
+      get inventory_product_search_path(kind: "transactable")
+      expect(response.parsed_body.map { |p| p["id"] }).to include(stocked_product.id, low_product.id)
+      get new_inventory_purchase_request_path
       expect(response.body).to include(I18n.t("inventory.purchase_requests.form.add_from_low_stock"))
       expect(doc.css("table.line-items-table tbody tr[data-line-row]").size).to eq(1)
-      expect(doc.at_css("table.line-items-table [data-controller='searchable-select']")["data-searchable-select-floating-value"]).to eq("true")
       expect(doc.css("table.line-items-table input[name*='[notes]']")).to be_empty
       expect(doc.at_css("textarea[name='purchase_request[notes]']")).to be_present
     end
 
-    it "makes the destination warehouse required, offering only the user's warehouses" do
+    it "asks for ONE required warehouse in the request details, offering only the user's warehouses" do
       scoped = user_with("view_inventory", "create_purchase_requests")
       WarehouseAssignment.create!(user: scoped, warehouse: main_wh)
       sign_in scoped
 
       get new_inventory_purchase_request_path
 
-      select = Nokogiri::HTML(response.body).at_css("table.line-items-table select[name*='[source_warehouse_id]']")
+      doc = Nokogiri::HTML(response.body)
+      select = doc.at_css("select[name='purchase_request[warehouse_id]']")
       expect(select["required"]).to be_present
       expect(select.css("option").map(&:text)).to include(main_wh.name)
-      expect(select.css("option").map(&:text)).not_to include(other_wh.name, I18n.t("inventory.purchase_requests.form.no_warehouse"))
+      expect(select.css("option").map(&:text)).not_to include(other_wh.name)
       # The only accessible warehouse is preselected.
       expect(select.at_css("option[selected]")["value"]).to eq(main_wh.id.to_s)
+      # No per-line warehouse any more.
+      expect(doc.css("table.line-items-table select[name*='warehouse_id']")).to be_empty
+    end
+
+    it "moves the supplier to each line: no request-level supplier, an optional supplier select per row" do
+      sign_in owner
+      supplier
+      get new_inventory_purchase_request_path
+
+      doc = Nokogiri::HTML(response.body)
+      expect(doc.at_css('select[name="purchase_request[supplier_id]"]')).to be_nil
+      row_select = doc.at_css("table.line-items-table select[name*='[supplier_id]'][data-supplier-field]")
+      expect(row_select).to be_present
+      expect(row_select["required"]).to be_nil
+      expect(row_select.at_css('option[value=""]').text).to include(I18n.t("inventory.purchase_requests.no_supplier"))
+      expect(row_select.css("option").map(&:text)).to include(supplier.name)
+    end
+
+    it "carries each product's default supplier in the picker's search results, for the per-line prefill" do
+      stocked_product.update!(default_supplier: supplier)
+      sign_in owner
+      get inventory_product_search_path(kind: "transactable")
+
+      by_id = response.parsed_body.index_by { |p| p["id"] }
+      expect(by_id[stocked_product.id]["default_supplier_id"]).to eq(supplier.id)
+      expect(by_id[low_product.id]["default_supplier_id"]).to be_nil
     end
 
     it "the Low Stock picker lists only Low Stock rows, from the existing report" do
@@ -119,7 +151,7 @@ RSpec.describe "Purchase Request creation form", type: :request do
     it "creates a request for a product that is NOT low stock" do
       sign_in owner
 
-      expect { submit_form([ line(stocked_product, qty: 10, warehouse: main_wh) ]) }
+      expect { submit_form([ line(stocked_product, qty: 10) ]) }
         .to change(PurchaseRequest, :count).by(1)
 
       request = PurchaseRequest.last
@@ -131,7 +163,7 @@ RSpec.describe "Purchase Request creation form", type: :request do
 
     it "creates a request for a product picked from Low Stock" do
       sign_in owner
-      submit_form([ line(low_product, qty: 12, warehouse: main_wh) ])
+      submit_form([ line(low_product, qty: 12) ])
 
       expect(PurchaseRequest.last.items.map(&:product)).to eq([ low_product ])
     end
@@ -146,7 +178,34 @@ RSpec.describe "Purchase Request creation form", type: :request do
       expect(request.items.map(&:product)).to contain_exactly(stocked_product, low_product)
       expect(request.notes).to eq("monthly order")
       expect(request.items.map(&:notes)).to all(be_nil)
-      expect(request.supplier).to eq(supplier)
+      expect(request.items.map(&:supplier)).to all(eq(supplier))
+      expect(request.supplier).to be_nil
+    end
+
+    it "creates ONE request with one warehouse for products of several suppliers" do
+      other_supplier = business.suppliers.create!(name: "Supplier 2")
+      sign_in owner
+
+      expect {
+        submit_form([ line(stocked_product, qty: 1, supplier: supplier), line(low_product, qty: 2, supplier: other_supplier) ])
+      }.to change(PurchaseRequest, :count).by(1)
+
+      request = PurchaseRequest.last
+      expect(request.warehouse).to eq(main_wh)
+      expect(request.items.map { |i| [ i.product, i.supplier ] })
+        .to contain_exactly([ stocked_product, supplier ], [ low_product, other_supplier ])
+      expect(request.items.map(&:source_warehouse_id)).to all(be_nil)
+    end
+
+    it "keeps a manually overridden line supplier without changing the product's default supplier" do
+      other_supplier = business.suppliers.create!(name: "Supplier 2")
+      stocked_product.update!(default_supplier: supplier)
+      sign_in owner
+
+      submit_form([ line(stocked_product, qty: 1, supplier: other_supplier) ])
+
+      expect(PurchaseRequest.last.items.sole.supplier).to eq(other_supplier)
+      expect(stocked_product.reload.default_supplier).to eq(supplier)
     end
 
     it "ignores blank rows (no product chosen)" do
@@ -156,11 +215,11 @@ RSpec.describe "Purchase Request creation form", type: :request do
       expect(PurchaseRequest.last.items.size).to eq(1)
     end
 
-    it "rejects the same product twice for the same warehouse and re-renders the form with the input kept" do
+    it "rejects the same product twice (even under different suppliers) and re-renders the form with the input kept" do
       sign_in owner
 
       expect {
-        submit_form([ line(low_product, qty: 12, warehouse: main_wh), line(low_product, qty: 5, warehouse: main_wh) ])
+        submit_form([ line(low_product, qty: 12), line(low_product, qty: 5, supplier: nil) ])
       }.not_to change(PurchaseRequest, :count)
 
       expect(response).to have_http_status(:unprocessable_content)
@@ -168,10 +227,10 @@ RSpec.describe "Purchase Request creation form", type: :request do
       expect(Nokogiri::HTML(response.body).css("table.line-items-table tbody tr[data-line-row]").size).to eq(2)
     end
 
-    it "rejects a line with no warehouse" do
+    it "rejects a request with no warehouse" do
       sign_in owner
 
-      expect { submit_form([ line(stocked_product, qty: 1, warehouse: nil) ]) }.not_to change(PurchaseRequest, :count)
+      expect { submit_form([ line(stocked_product, qty: 1) ], warehouse: nil) }.not_to change(PurchaseRequest, :count)
       expect(response).to have_http_status(:unprocessable_content)
       expect(response.body).to include(I18n.t("inventory.purchase_requests.errors.missing_warehouse"))
     end
@@ -184,16 +243,16 @@ RSpec.describe "Purchase Request creation form", type: :request do
       expect(response.body).to include(I18n.t("inventory.purchase_requests.errors.unauthorized_warehouse"))
     end
 
-    it "keeps the Low Stock review modal's warehouse-less total-stock lines working" do
+    it "refuses a Low Stock review modal line left without a warehouse (total-stock alert)" do
       sign_in owner
 
       expect {
         post inventory_purchase_requests_path, params: {
-          idempotency_key: SecureRandom.uuid,
+          idempotency_key: SecureRandom.uuid, responsible_employee_id: responsible.id,
           items: [ { product_id: low_product.id, quantity: 12, unit_price: 30, supplier_id: supplier.id } ]
         }
-      }.to change(PurchaseRequest, :count).by(1)
-      expect(PurchaseRequest.last.items.first.source_warehouse_id).to be_nil
+      }.not_to change(PurchaseRequest, :count)
+      expect(flash[:alert]).to eq(I18n.t("inventory.purchase_requests.errors.missing_warehouse"))
     end
 
     it "rejects non-positive quantities" do
@@ -202,32 +261,23 @@ RSpec.describe "Purchase Request creation form", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
 
-    it "creates a draft request without a supplier when none is chosen" do
+    it "creates a draft line without a supplier when none is chosen (product without a default supplier)" do
       sign_in owner
-      expect { submit_form([ line(stocked_product, qty: 1) ], supplier_id: "") }.to change(PurchaseRequest, :count).by(1)
+      expect { submit_form([ line(stocked_product, qty: 1, supplier: nil) ]) }.to change(PurchaseRequest, :count).by(1)
 
       request = PurchaseRequest.last
-      expect(request.supplier_id).to be_nil
+      expect(request.items.sole.supplier_id).to be_nil
       expect(request).to be_draft
-      expect(request.items.sole.source_warehouse).to eq(main_wh)
+      expect(request.warehouse).to eq(main_wh)
     end
 
-    it "rejects a supplier that doesn't belong to the business" do
+    it "rejects a line supplier that doesn't belong to the business" do
       sign_in owner
       foreign = create(:business).suppliers.create!(name: "Foreign")
 
-      expect { submit_form([ line(stocked_product, qty: 1) ], supplier_id: foreign.id) }.not_to change(PurchaseRequest, :count)
+      expect { submit_form([ line(stocked_product, qty: 1, supplier: foreign) ]) }.not_to change(PurchaseRequest, :count)
       expect(response).to have_http_status(:unprocessable_content)
       expect(response.body).to include(I18n.t("inventory.purchase_requests.errors.invalid_supplier"))
-    end
-
-    it "renders the supplier select as optional, with \"No supplier\" as the blank option" do
-      sign_in owner
-      get new_inventory_purchase_request_path
-
-      select = Nokogiri::HTML(response.body).at_css('select[name="purchase_request[supplier_id]"]')
-      expect(select["required"]).to be_nil
-      expect(select.at_css('option[value=""]').text).to include(I18n.t("inventory.purchase_requests.no_supplier"))
     end
 
     it "does not create duplicates when the same idempotency key is resubmitted" do
@@ -275,17 +325,17 @@ RSpec.describe "Purchase Request creation form", type: :request do
       WarehouseAssignment.create!(user: scoped, warehouse: main_wh)
       sign_in scoped
 
-      expect { submit_form([ line(stocked_product, qty: 1, warehouse: other_wh) ]) }.not_to change(PurchaseRequest, :count)
+      expect { submit_form([ line(stocked_product, qty: 1) ], warehouse: other_wh) }.not_to change(PurchaseRequest, :count)
       expect(response.body).to include(I18n.t("inventory.purchase_requests.errors.unauthorized_warehouse"))
 
-      expect { submit_form([ line(stocked_product, qty: 1, warehouse: main_wh) ]) }.to change(PurchaseRequest, :count).by(1)
+      expect { submit_form([ line(stocked_product, qty: 1) ], warehouse: main_wh) }.to change(PurchaseRequest, :count).by(1)
     end
 
     it "rejects another business's warehouse" do
       foreign_wh = foreign_business.warehouses.create!(name: "Foreign WH")
       sign_in owner
 
-      expect { submit_form([ line(stocked_product, qty: 1, warehouse: foreign_wh) ]) }.not_to change(PurchaseRequest, :count)
+      expect { submit_form([ line(stocked_product, qty: 1) ], warehouse: foreign_wh) }.not_to change(PurchaseRequest, :count)
     end
 
     it "applies the same guards to the Low Stock review modal's items[] payload" do
@@ -295,9 +345,9 @@ RSpec.describe "Purchase Request creation form", type: :request do
 
       expect {
         post inventory_purchase_requests_path, params: {
-          idempotency_key: SecureRandom.uuid,
+          idempotency_key: SecureRandom.uuid, responsible_employee_id: responsible.id,
           items: [ { product_id: low_product.id, quantity: 1, unit_price: 1, supplier_id: supplier.id,
-                     source_warehouse_id: other_wh.id } ]
+                     warehouse_id: other_wh.id } ]
         }
       }.not_to change(PurchaseRequest, :count)
       expect(response).to redirect_to(inventory_root_path)
@@ -308,7 +358,7 @@ RSpec.describe "Purchase Request creation form", type: :request do
     sign_in owner
     before_rows = Inventory::Reports::LowStock.new(business).rows.map { |r| [ r.product.id, r.on_hand, r.suggested_quantity ] }
 
-    submit_form([ line(low_product, qty: 12, warehouse: main_wh) ])
+    submit_form([ line(low_product, qty: 12) ])
 
     after_rows = Inventory::Reports::LowStock.new(business).rows.map { |r| [ r.product.id, r.on_hand, r.suggested_quantity ] }
     expect(after_rows).to eq(before_rows)

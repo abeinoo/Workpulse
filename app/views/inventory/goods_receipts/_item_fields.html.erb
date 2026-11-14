@@ -1,13 +1,17 @@
 <tr data-line-row>
   <td>
-    <%= f.select :product_id,
-          inventory_product_select_options(product_options, f.object.product_id),
-          { include_blank: "— #{t('inventory.goods_receipts.select_product')}" },
-          class: "form-control", data: { action: "change->receipt-supplier#productChanged" } %>
+    <%= product_combobox(f, :product_id, selected: f.object.product,
+                         select_data: { product_field: true, action: "change->receipt-supplier#productChanged" }) %>
     <% if local_assigns[:extra] %>
       <span class="badge badge-neutral line-items-extra-badge"><%= t("inventory.goods_receipts.outside_request_badge") %></span>
     <% end %>
   </td>
+  <% if local_assigns[:request_columns] %>
+    <%# Outside the request: no ordered / received / remaining figures. %>
+    <td class="gr-num td-secondary">—</td>
+    <td class="gr-num td-secondary">—</td>
+    <td class="gr-num td-secondary">—</td>
+  <% end %>
   <td>
     <% pri = f.object.purchase_request_item %>
     <%= f.hidden_field :purchase_request_item_id if pri %>

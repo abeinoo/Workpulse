@@ -42,7 +42,7 @@
                 <%= local_date(row.movement.occurred_on) %>
                 <div class="td-secondary" style="font-size: var(--text-xs);"><%= local_time_12h(row.movement.created_at) %></div>
               </td>
-              <td class="td-wrap"><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %></td>
+              <td class="td-wrap"><%= product_identity(row.product, link: inventory_product_path(row.product)) %></td>
               <td class="td-secondary"><%= row.product.sku %></td>
               <td class="td-secondary"><%= row.warehouse.name %></td>
               <td>

@@ -8,7 +8,7 @@ class Inventory::StockTransfersController < Inventory::BaseController
   def show
     @stock_transfer = find_transfer
     authorize @stock_transfer
-    @items = @stock_transfer.items.includes(:product)
+    @items = @stock_transfer.items.includes(product: { image_attachment: :blob })
   end
 
   def new
@@ -54,9 +54,8 @@ class Inventory::StockTransfersController < Inventory::BaseController
 
   def load_options
     @warehouses = accessible_warehouses
-    @products   = current_user.business.products.transactable.ordered.to_a
-    # One query for every option's barcode — each line row lists the whole catalog.
-    @product_barcodes = Product.barcode_lookup(@products.map(&:id))
+    # Line pickers search the catalogue on demand; only each line's product is rendered.
+    preload_line_products(@stock_transfer&.items)
   end
 
   def transfer_params

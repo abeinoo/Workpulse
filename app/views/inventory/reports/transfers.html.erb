@@ -25,7 +25,7 @@
           <% @rows.each do |row| %>
             <tr>
               <td class="td-secondary"><%= local_date(row.transfer.transferred_on) %></td>
-              <td class="td-wrap"><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %></td>
+              <td class="td-wrap"><%= product_identity(row.product, link: inventory_product_path(row.product)) %></td>
               <td class="td-secondary"><%= row.product.sku %></td>
               <td class="td-secondary"><%= row.transfer.source_warehouse.name %></td>
               <td class="td-secondary"><%= row.transfer.destination_warehouse.name %></td>

@@ -33,17 +33,16 @@
   <section class="card inv-dash__search">
     <%= form_with url: inventory_root_path, method: :get, local: true, class: "inv-dash__search-form" do |f| %>
       <% keep.({}).except("product_id").each do |k, v| %><%= hidden_field_tag k, v %><% end %>
-      <div class="inv-dash__search-field" data-controller="searchable-select">
+      <div class="inv-dash__search-field">
         <%= f.label :product_id, t("#{ov}.search_label"), class: "filter-bar__label" %>
-        <%= f.select :product_id, options_from_collection_for_select(@search_products, :id, ->(p) { "#{p.name} — #{p.sku}" }, @quick_product&.id),
-              { prompt: t("#{ov}.search_placeholder") }, class: "filter-bar__select",
-              data: { searchable_select_target: "select", search_placeholder: t("#{ov}.search_placeholder"),
-                      controller: "auto-submit", action: "change->auto-submit#submit" } %>
+        <%= product_combobox(nil, :product_id, name: "product_id", id: "product_id", selected: @quick_product,
+                             placeholder: t("#{ov}.search_placeholder"), input_class: "filter-bar__input",
+                             select_data: { controller: "auto-submit", action: "change->auto-submit#submit" }) %>
       </div>
     <% end %>
     <% if @quick_product %>
       <div class="inv-dash__quick">
-        <strong><%= @quick_product.name %></strong>
+        <%= product_identity(@quick_product, size: :md) %>
         <span class="td-secondary"><%= @quick_product.sku %> · <%= t("#{ov}.on_hand") %>: <%= qty.(@quick_product.current_stock) %></span>
         <div class="inv-dash__quick-links">
           <% if policy(@quick_product).show? %>
@@ -196,7 +195,8 @@
 
   <%# ── Purchase recommendations (existing low-stock purchasing flow) ──── %>
   <%= render "inventory/shared/low_stock_purchasing", rows: @low_stock_rows.first(Inventory::DashboardController::PURCHASE_ROWS),
-             total: @low_stock_rows.size, suppliers: @suppliers, show_min_level: true, title: t("#{ov}.needs_purchase") %>
+             total: @low_stock_rows.size, suppliers: @suppliers, warehouses: @warehouses,
+             responsible_options: @responsible_options, show_min_level: true, title: t("#{ov}.needs_purchase") %>
   <% if @low_stock_rows.size > Inventory::DashboardController::PURCHASE_ROWS %>
     <p class="inv-dash__more">
       <%= link_to t("#{ov}.view_all_low_stock", count: @low_stock_rows.size), inventory_low_stock_report_path, class: "link" %>
@@ -220,7 +220,7 @@
           <tbody>
             <% @family_low_stock.each do |parent, alerts| %>
               <tr>
-                <td><%= link_to parent.name, inventory_product_path(parent), class: "link" %></td>
+                <td><%= product_identity(parent, link: inventory_product_path(parent)) %></td>
                 <td style="text-align: end;"><span class="badge badge-warning"><%= alerts.size %></span></td>
               </tr>
             <% end %>
@@ -255,7 +255,7 @@
           <tbody>
             <% @active_products.each do |row| %>
               <tr>
-                <td class="td-wrap"><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %> <span class="td-secondary"><%= row.product.sku %></span></td>
+                <td class="td-wrap"><%= product_identity(row.product, sku: true, link: inventory_product_path(row.product)) %></td>
                 <td style="text-align: end; font-weight: 600;"><%= qty.(row.quantity) %></td>
                 <td style="text-align: end;"><%= row.issue_count %></td>
                 <td class="td-secondary"><%= row.top_branch ? "#{row.top_branch.name} (#{qty.(row.top_branch_quantity)})" : "—" %></td>
@@ -330,7 +330,7 @@
               <% branch_id = row.movement.branch_id || (row.source.branch_id if row.source.respond_to?(:branch_id)) %>
               <tr>
                 <td class="td-secondary"><%= local_date(row.movement.occurred_on) %> <span style="font-size: var(--text-xs);"><%= local_time_12h(row.movement.created_at) %></span></td>
-                <td class="td-wrap"><%= link_to row.product.name, inventory_product_path(row.product), class: "link" %></td>
+                <td class="td-wrap"><%= product_identity(row.product, link: inventory_product_path(row.product)) %></td>
                 <td><%= inventory_movement_badge(row.reason, source: row.source) %></td>
                 <td style="text-align: end; font-weight: 600;"><%= row.signed_quantity.positive? ? "+" : "−" %><%= qty.(row.quantity) %></td>
                 <td class="td-secondary"><%= row.warehouse.name %></td>

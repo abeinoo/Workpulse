@@ -1,0 +1,34 @@
+<%# "تعيين الموظف المسؤول" on an approved / receivable request (policy-gated by
+    the caller). Locked while a funding advance is pending or confirmed — the
+    service re-checks every rule under lock. %>
+<% scope = "inventory.purchase_requests" %>
+<% missing = purchase_request.responsible_employee_id.nil? %>
+<div class="<%= missing ? 'alert alert-warning' : 'card' %>" id="responsible-employee" style="margin-bottom: var(--space-4); padding: var(--space-4);">
+  <% if missing %>
+    <p style="margin: 0 0 var(--space-2);"><strong><%= t("#{scope}.responsible_missing_title") %></strong></p>
+    <p style="margin: 0 0 var(--space-3);"><%= t("#{scope}.responsible_missing_body") %></p>
+  <% end %>
+  <% if purchase_request.responsible_employee_locked? %>
+    <p class="td-secondary" style="margin: 0;" data-testid="responsible-locked"><%= t("#{scope}.responsible_locked_hint") %></p>
+  <% elsif options.empty? %>
+    <p class="form-hint text-warning" style="margin: 0;"><%= t("#{scope}.form.no_responsible_employees") %></p>
+  <% else %>
+    <details <%= "open" if missing %>>
+      <summary class="btn <%= missing ? 'btn-primary' : 'btn-ghost' %> btn-sm">
+        <%= t(missing ? "#{scope}.actions.assign_responsible" : "#{scope}.actions.change_responsible") %>
+      </summary>
+      <%= form_with url: assign_responsible_employee_inventory_purchase_request_path(purchase_request), method: :post,
+                    class: "mt-4", style: "max-width: 420px;" do %>
+        <div class="form-group">
+          <%= label_tag "assign-responsible-employee", t("#{scope}.responsible_employee"), class: "form-label" %>
+          <%= select_tag :responsible_employee_id,
+                options_for_select(options.map { |o| [ o.name, o.user_id ] }, purchase_request.responsible_employee_id),
+                include_blank: "— #{t("#{scope}.form.select_responsible_employee")}", required: true,
+                id: "assign-responsible-employee", class: "form-control" %>
+          <p class="form-hint"><%= t("#{scope}.form.responsible_employee_hint") %></p>
+        </div>
+        <%= submit_tag t("#{scope}.actions.save_responsible"), class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </details>
+  <% end %>
+</div>

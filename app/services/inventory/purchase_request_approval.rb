@@ -41,6 +41,7 @@ module Inventory
     # Inventory::PurchaseRequestBulkApproval marks its approvals as one batch).
     def approve!(metadata: {})
       return self_approval_error if self_approval?
+      return review_editor_error if self.class.review_editor?(request, @actor)
 
       transition(to: "approved", action: "approve", metadata: metadata) do
         request.approved_by = @actor
@@ -82,6 +83,31 @@ module Inventory
 
     def self_approval?
       self.class.self_approval?(request, @actor)
+    end
+
+    # Whoever last changed the items while the request was pending approval
+    # (PurchaseRequestUpdater's "review_edit" audit, since the latest
+    # submission) may not approve it — the same idea as self-approval, owner
+    # exempt likewise. Derived from the audit trail, never stored.
+    def self.review_editor?(request, actor)
+      review_editor_ids([ request ], actor).include?(request.id)
+    end
+
+    # Batch form for list pages: the ids among `requests` whose last
+    # review-time item edit is `actor`'s — one query.
+    def self.review_editor_ids(requests, actor)
+      return Set.new if actor.owner? || requests.empty?
+
+      since = requests.to_h { |r| [ r.id, r.submitted_at || r.created_at ] }
+      AuditLog.where(auditable_type: "PurchaseRequest", auditable_id: since.keys, action: "review_edit")
+              .order(:created_at, :id).pluck(:auditable_id, :actor_id, :created_at)
+              .select { |id, _, at| at >= since[id] }
+              .group_by(&:first).filter_map { |id, edits| id if edits.last[1] == actor.id }.to_set
+    end
+
+    def review_editor_error
+      Result.new(ok: false, purchase_request: request,
+                 error: I18n.t("inventory.purchase_requests.errors.review_editor_cannot_approve"))
     end
 
     def self_approval_error

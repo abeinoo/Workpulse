@@ -64,6 +64,12 @@ module Inventory
         # Same lock advance confirm/reverse take: no advance can change, and no
         # other receipt can consume one, while this receipt's share is decided.
         receipt.purchase_request&.lock!
+        # Paying for more than can still arrive is refused here, before any
+        # write: under the request lock (approvals of one request serialize),
+        # nothing is applied or paid on refusal.
+        refusal = over_approvable_quantity_error
+        return refusal if refusal
+
         allocator = Inventory::PurchaseRequestAdvanceAllocator.new(receipt)
         amount_due = allocator.amount_due
 
@@ -71,6 +77,11 @@ module Inventory
            !Inventory::GoodsReceiptPaymentEffects.custody_account_active?(receipt: receipt)
           return no_active_custody_error
         end
+        # Only the request's responsible employee pays from custody
+        # (PurchaseRequest#custody_payment_refusal) — re-checked here for a
+        # draft made before.
+        refusal = receipt.custody_payment_refusal
+        return custody_payment_refused_error(refusal) if refusal
 
         transition(from: "pending_approval", to: "approved", action: "approve",
                    metadata: advance_metadata(allocator, amount_due)) do
@@ -131,6 +142,35 @@ module Inventory
     def no_active_custody_error
       Result.new(ok: false, receipt: receipt,
                 error: I18n.t("inventory.goods_receipts.errors.no_active_custody_account"))
+    end
+
+    # The first request line this receipt would take more of than is still
+    # approvable (PurchaseRequestItem.approvable_quantities — other receipts'
+    # received and approved quantities excluded), as a failed Result; nil when
+    # every line fits or the receipt is not from a request.
+    def over_approvable_quantity_error
+      wanted = receipt.request_line_quantities
+      return nil if receipt.purchase_request.nil? || wanted.empty?
+
+      lines     = PurchaseRequestItem.where(id: wanted.keys).includes(:product).order(:id).to_a
+      available = PurchaseRequestItem.approvable_quantities(lines, except_receipt_id: receipt.id) # one query
+      lines.each do |line|
+        next if wanted[line.id] <= available[line.id]
+
+        return Result.new(ok: false, receipt: receipt,
+                          error: I18n.t("inventory.goods_receipts.errors.exceeds_approvable_quantity",
+                                        product: line.product.name, available: format_quantity(available[line.id])))
+      end
+      nil
+    end
+
+    def format_quantity(value)
+      ActiveSupport::NumberHelper.number_to_rounded(value, precision: 3, strip_insignificant_zeros: true)
+    end
+
+    def custody_payment_refused_error(key)
+      Result.new(ok: false, receipt: receipt,
+                 error: I18n.t("activerecord.errors.models.goods_receipt.attributes.base.#{key}"))
     end
 
     def advance_metadata(allocator, amount_due)

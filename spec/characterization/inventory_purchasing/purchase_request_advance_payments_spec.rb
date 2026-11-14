@@ -12,6 +12,16 @@ require "rails_helper"
 # settlement, the custody credit, the balance, the advance and its audit; every
 # refusal message with nothing written; and the rollback when a ledger write
 # fails. Concurrency is pinned separately (…_concurrency_spec.rb).
+#
+# Since the funding workflow (2026-11-13) every advance funds the request's
+# responsible employee's custody and its confirmation posts no settlement
+# (spec/services/inventory/purchase_request_advance_funding_spec.rb). What
+# stays pinned here: the source account the recorder accepts and the form
+# offers (every holder has the purchasing permission, a selection rule since
+# then, and the request names a responsible employee, whose own account is
+# never a source); that a LEGACY pending advance is refused at confirmation with
+# nothing written; and the legacy supplier-payment REVERSAL, on a confirmed
+# advance built in its historical shape (#legacy_confirmed_advance).
 RSpec.describe "Characterization: Purchase Request advance payments (S2 M1)", type: :request do
   let(:business)  { create(:business) }
   let(:owner)     { create(:user, :super_admin, business: business) }
@@ -21,7 +31,7 @@ RSpec.describe "Characterization: Purchase Request advance payments (S2 M1)", ty
 
   # 2 × 121 = 242
   let(:request_record) do
-    pr = PurchaseRequest.new(business: business, supplier: supplier, created_by: owner)
+    pr = PurchaseRequest.new(business: business, supplier: supplier, created_by: owner, responsible_employee: responsible)
     pr.items.build(product: product, quantity: 2, unit_price: 121, source_warehouse: warehouse)
     pr.save!
     pr.update_column(:status, "approved")
@@ -36,7 +46,7 @@ RSpec.describe "Characterization: Purchase Request advance payments (S2 M1)", ty
     create(:user, **attrs).tap { |u| u.update_column(:permission_role_id, role.id) }
   end
 
-  let(:recorder)  { user_with("view_inventory", "manage_purchase_request_advances", first_name: "Rana") }
+  let(:recorder)  { user_with("view_inventory", "manage_purchase_request_advances", "create_purchase_requests", first_name: "Rana") }
   let(:confirmer) { user_with("view_inventory", "confirm_purchase_request_advances") }
   let(:manager) do
     user_with("view_inventory", "manage_purchase_request_advances", "confirm_purchase_request_advances",
@@ -44,8 +54,15 @@ RSpec.describe "Characterization: Purchase Request advance payments (S2 M1)", ty
               scopes: { "view_employee_balances" => "business" })
   end
 
-  let(:employee) { create(:user, business: business, first_name: "Ahmed", last_name: "Fathy") }
+  def purchaser(**attrs)
+    @purchaser_role ||= business.permission_roles.create!(name: "Purchaser",
+                                                          permissions: %w[view_inventory create_purchase_requests])
+    create(:user, business: business, **attrs).tap { |u| u.update_column(:permission_role_id, @purchaser_role.id) }
+  end
+
+  let(:employee) { purchaser(first_name: "Ahmed", last_name: "Fathy") }
   let(:custody) { funded_account(employee, 500, name: "Ahmed Float") }
+  let(:responsible) { purchaser(first_name: "Mona").tap { |u| funded_account(u, 0, name: "Mona Float") } }
 
   def funded_account(user, amount, name:, active: true)
     create(:custody_account, business: business, user: user, name: name).tap do |account|
@@ -64,6 +81,12 @@ RSpec.describe "Characterization: Purchase Request advance payments (S2 M1)", ty
     ).call
   end
 
+  # A confirmed advance as the pre-funding code left it (a supplier payment).
+  def legacy_advance(amount: 100, source_kind: "employee_custody", account: custody)
+    legacy_confirmed_advance(request: request_record, amount: amount, actor: confirmer, source_kind: source_kind,
+                             custody_account: account, reference: "DEP-1", paid_on: Date.new(2026, 10, 1)).reload
+  end
+
   def workflow(advance, actor: confirmer)
     Inventory::PurchaseRequestAdvanceWorkflow.new(advance_id: advance.id, actor: actor)
   end
@@ -77,15 +100,16 @@ RSpec.describe "Characterization: Purchase Request advance payments (S2 M1)", ty
       audits: AuditLog.where(auditable_type: "PurchaseRequestAdvance").count }
   end
 
-  describe "custody account selection when recording (nothing financial written)" do
+  describe "custody account selection when recording (the transfer is posted at once; never a settlement)" do
     it "accepts the actor's own active account without manage_employee_balances" do
       own = funded_account(recorder, 10, name: "Rana Float")
       result = record(actor: recorder, account: own)
 
       expect(result).to be_ok
-      expect(result.advance).to have_attributes(status: "pending", custody_account_id: own.id, financial_settlement_id: nil)
+      expect(result.advance).to have_attributes(status: "confirmed", custody_account_id: own.id, financial_settlement_id: nil)
       expect(FinancialSettlement.count).to eq(0)
-      expect(CustodyTransaction.where.not(txn_type: "top_up")).to be_empty
+      expect(CustodyTransaction.where(custody_account: own).where.not(txn_type: "top_up").pluck(:txn_type, :amount))
+        .to eq([ [ "transfer", -100 ] ])
     end
 
     it "refuses another employee's account without manage_employee_balances" do
@@ -125,8 +149,8 @@ RSpec.describe "Characterization: Purchase Request advance payments (S2 M1)", ty
 
     it "lists every active account in scope, ordered, labelled with the holder and the ledger balance" do
       custody
-      zed = funded_account(create(:user, business: business, first_name: "Zed", last_name: "Ali"), 0, name: "Zed Float")
-      funded_account(create(:user, business: business), 30, name: "Inactive", active: false)
+      zed = funded_account(purchaser(first_name: "Zed", last_name: "Ali"), 0, name: "Zed Float")
+      funded_account(purchaser, 30, name: "Inactive", active: false)
       sign_in manager
       get new_inventory_purchase_request_advance_path(request_record)
 
@@ -139,7 +163,7 @@ RSpec.describe "Characterization: Purchase Request advance payments (S2 M1)", ty
       expect(options.drop(1).map(&:first)).to eq([ "Ahmed Fathy — balance SAR 500.00", "Zed Ali — balance SAR 0.00" ])
     end
 
-    it "offers only the actor's own account without manage_employee_balances, and the no-account hint without one" do
+    it "offers only the actor's own account without manage_employee_balances, and hides Employee Custody without one" do
       own = funded_account(recorder, 0, name: "Rana Float")
       custody
       sign_in recorder
@@ -148,8 +172,9 @@ RSpec.describe "Characterization: Purchase Request advance payments (S2 M1)", ty
 
       own.update_column(:active, false)
       get new_inventory_purchase_request_advance_path(request_record)
-      expect(options).to eq([])
-      expect(response.body).to include(I18n.t("inventory.purchase_request_advances.no_custody_accounts"))
+      expect(options.map(&:second).compact_blank).to eq([])
+      kinds = Nokogiri::HTML(response.body).css("input[name='purchase_request_advance[source_kind]']").map { |i| i["value"] }
+      expect(kinds).to eq(%w[company_cash bank_account])
     end
 
     it "re-renders the refused form with the submitted account selected" do
@@ -157,7 +182,7 @@ RSpec.describe "Characterization: Purchase Request advance payments (S2 M1)", ty
       sign_in manager
       post inventory_purchase_request_advances_path(request_record), params: {
         idempotency_key: SecureRandom.uuid,
-        purchase_request_advance: { amount: 999, source_kind: "employee_custody", custody_account_id: custody.id,
+        purchase_request_advance: { amount: 0, source_kind: "employee_custody", custody_account_id: custody.id,
                                     paid_on: Date.current.to_s }
       }
       expect(response).to have_http_status(:unprocessable_content)
@@ -165,162 +190,21 @@ RSpec.describe "Characterization: Purchase Request advance payments (S2 M1)", ty
     end
   end
 
-  describe "confirmation" do
-    it "employee custody: one settlement, one linked debit, the cached balance, the advance and its audit" do
-      advance = record.advance
-      before_confirm = Time.current
-      result = workflow(advance).confirm!
-      expect(result).to be_ok
-
-      settlement = FinancialSettlement.sole
-      expect(settlement).to have_attributes(
-        settleable_type: "PurchaseRequest", settleable_id: request_record.id,
-        funding_source_type: "CustodyAccount", funding_source_id: custody.id,
-        source_kind: "employee_custody", reference: "DEP-1", amount: 100, created_by_id: confirmer.id,
-        reverses_settlement_id: nil,
-        notes: I18n.t("inventory.purchase_request_advances.settlement_note",
-                      reference: request_record.request_number, advance: advance.id)
-      )
-      expect(settlement.settled_at.to_date).to eq(Date.new(2026, 10, 1))
-
-      txn = CustodyTransaction.find_by!(txn_type: "inventory_purchase")
-      expect(txn).to have_attributes(
-        business_id: business.id, custody_account_id: custody.id, amount: -100,
-        source_type: "PurchaseRequest", source_id: request_record.id, financial_settlement_id: settlement.id,
-        created_by_id: confirmer.id, voided_at: nil,
-        notes: I18n.t("finance.custody.purchase_request_advance_note",
-                      reference: request_record.request_number, advance: advance.id, supplier: "Nile Beauty")
-      )
-      expect(custody.reload.current_balance).to eq(400)
-      expect(custody.computed_balance).to eq(400)
-
-      advance.reload
-      expect(advance).to have_attributes(status: "confirmed", confirmed_by_id: confirmer.id,
-                                         financial_settlement_id: settlement.id)
-      expect(advance.confirmed_at).to be >= before_confirm.change(usec: 0)
-
-      audit = AuditLog.where(auditable: advance, action: "confirm").sole
-      expect(audit).to have_attributes(actor_id: confirmer.id, business_id: business.id,
-                                       changes_json: { "status" => %w[pending confirmed] })
-      expect(audit.metadata).to eq(
-        "purchase_request_id" => request_record.id, "request_number" => request_record.request_number,
-        "supplier_id" => supplier.id, "amount" => "100.0", "source_kind" => "employee_custody",
-        "custody_account_id" => custody.id, "employee_id" => employee.id, "paid_on" => "2026-10-01",
-        "reference" => "DEP-1", "settlement_id" => settlement.id
-      )
-    end
-
-    it "company payment: an accountless settlement, no custody row" do
-      custody
-      advance = record(actor: recorder, source_kind: "bank_account", account: nil, reference: "").advance
-      expect(workflow(advance).confirm!).to be_ok
-
-      expect(FinancialSettlement.sole).to have_attributes(
-        funding_source_type: nil, funding_source_id: nil, source_kind: "bank_account", amount: 100,
-        reference: request_record.request_number
-      )
-      expect(CustodyTransaction.where.not(txn_type: "top_up")).to be_empty
-      expect(custody.reload.current_balance).to eq(500)
-      expect(AuditLog.where(auditable: advance, action: "confirm").sole.metadata)
-        .to include("custody_account_id" => nil, "employee_id" => nil, "reference" => nil,
-                    "settlement_id" => FinancialSettlement.sole.id)
-    end
-
-    it "the debit uses the no-supplier label when the request has none" do
-      request_record.update_column(:supplier_id, nil)
-      advance = record.advance
-      workflow(advance).confirm!
-      expect(CustodyTransaction.find_by!(txn_type: "inventory_purchase").notes)
-        .to eq(I18n.t("finance.custody.purchase_request_advance_note",
-                      reference: request_record.request_number, advance: advance.id,
-                      supplier: I18n.t("inventory.purchase_requests.no_supplier")))
-    end
-
-    it "takes the balance negative (no limit): 500 − 600 is refused only by capacity, 50 − 100 = −50" do
-      small = funded_account(create(:user, business: business), 50, name: "Small")
-      advance = record(account: small).advance
-      expect(workflow(advance).confirm!).to be_ok
-      expect(small.reload.current_balance).to eq(-50)
-    end
-
-    describe "refusals write nothing" do
-      it "a second confirm: invalid_transition" do
-        advance = record.advance
-        workflow(advance).confirm!
-        snapshot = ledger_snapshot
-        expect(workflow(advance).confirm!.error).to eq(message(:invalid_transition))
-        expect(ledger_snapshot).to eq(snapshot)
-      end
-
-      it "an inactive custody account at confirmation: custody_account_inactive" do
-        advance = record.advance
-        custody.update_column(:active, false)
-        snapshot = ledger_snapshot
-        expect(workflow(advance).confirm!.error).to eq(message(:custody_account_inactive))
-        expect(ledger_snapshot).to eq(snapshot)
-        expect(advance.reload).to be_pending
-      end
-
-      it "a request no longer receivable: not_allowed_for_status" do
-        advance = record.advance
-        request_record.update_column(:status, "received")
-        snapshot = ledger_snapshot
-        expect(workflow(advance).confirm!.error).to eq(message(:not_allowed_for_status))
-        expect(ledger_snapshot).to eq(snapshot)
-      end
-
-      it "more than the remaining capacity: exceeds_remaining" do
-        first  = record(amount: 200).advance
-        second = record(amount: 40).advance
-        workflow(first).confirm!
-        PurchaseRequestAdvance.where(id: second.id).update_all(amount: 50)
-        snapshot = ledger_snapshot
-        expect(workflow(second).confirm!.error).to eq(message(:exceeds_remaining, remaining: "42.00"))
-        expect(ledger_snapshot).to eq(snapshot)
-      end
-
-      it "the recorder confirming their own advance: the self-approval message" do
-        advance = record.advance
-        snapshot = ledger_snapshot
-        expect(workflow(advance, actor: manager).confirm!.error).to eq(Approvals::SelfApproval.error_message)
-        expect(ledger_snapshot).to eq(snapshot)
-      end
-    end
-
-    describe "rollback when a ledger write fails" do
-      it "the custody debit fails: no settlement, no debit, balance unchanged, advance pending, no audit" do
-        advance  = record.advance
-        snapshot = ledger_snapshot
-        allow_any_instance_of(CustodyTransaction).to receive(:save!) do |txn|
-          txn.errors.add(:base, "custody write refused")
-          raise ActiveRecord::RecordInvalid, txn
-        end
-
-        result = workflow(advance).confirm!
-        expect(result).not_to be_ok
-        expect(result.error).to eq("custody write refused")
-        expect(ledger_snapshot).to eq(snapshot)
-        expect(advance.reload).to have_attributes(status: "pending", financial_settlement_id: nil)
-      end
-
-      it "the settlement is refused: its validation message, nothing written" do
-        advance  = record.advance
-        snapshot = ledger_snapshot
-        allow(FinancialSettlementService).to receive(:create).and_wrap_original do |_original, **kwargs|
-          settlement = FinancialSettlement.new(amount: kwargs[:amount])
-          settlement.errors.add(:base, "settlement refused")
-          FinancialSettlementService::Result.new(ok: false, settlement: settlement, error: "settlement refused")
-        end
-
-        expect(workflow(advance).confirm!.error).to eq("settlement refused")
-        expect(ledger_snapshot).to eq(snapshot)
-        expect(advance.reload).to be_pending
-      end
+  describe "a legacy pending advance" do
+    it "is never executed: it can only be cancelled (with a reason), nothing financial written" do
+      pending = request_record.advances.create!(business: business, amount: 100, source_kind: "employee_custody",
+                                                custody_account: custody, paid_on: Date.new(2026, 10, 1),
+                                                created_by: manager)
+      snapshot = ledger_snapshot
+      expect(workflow(pending).reverse!(reason: "x").error).to eq(message(:invalid_transition))
+      expect(workflow(pending).cancel!(reason: "re-record")).to be_ok
+      expect(pending.reload).to have_attributes(status: "cancelled", financial_settlement_id: nil)
+      expect(ledger_snapshot.except(:audits)).to eq(snapshot.except(:audits))
     end
   end
 
   describe "reversal" do
-    let!(:advance) { record.advance.tap { |a| workflow(a).confirm! }.reload }
+    let!(:advance) { legacy_advance }
     let(:original) { advance.financial_settlement }
 
     it "employee custody: a reversal settlement, a linked credit, the balance restored, the advance and its audit" do
@@ -354,8 +238,7 @@ RSpec.describe "Characterization: Purchase Request advance payments (S2 M1)", ty
     end
 
     it "company payment: a reversal settlement and no custody row" do
-      company = record(actor: recorder, source_kind: "company_cash", account: nil, amount: 20).advance
-      workflow(company).confirm!
+      company = legacy_advance(source_kind: "company_cash", account: nil, amount: 20)
       expect(workflow(company).reverse!(reason: "refund")).to be_ok
       expect(FinancialSettlement.where(reverses_settlement_id: company.reload.financial_settlement_id).sole)
         .to have_attributes(amount: -20, funding_source_id: nil, source_kind: "company_cash")
@@ -364,7 +247,8 @@ RSpec.describe "Characterization: Purchase Request advance payments (S2 M1)", ty
 
     describe "refusals write nothing" do
       it "a blank reason, a pending advance, a second reversal" do
-        pending  = record(amount: 10).advance
+        pending  = request_record.advances.create!(business: business, amount: 10, source_kind: "company_cash",
+                                                   paid_on: Date.current, created_by: manager)
         snapshot = ledger_snapshot
         expect(workflow(advance).reverse!(reason: "  ").error).to eq(message(:reason_required))
         expect(workflow(pending).reverse!(reason: "x").error).to eq(message(:invalid_transition))

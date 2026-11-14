@@ -50,8 +50,14 @@ module Inventory
       return err(t("errors.invalid_payment_date")) unless payment_date
 
       # Resolved by Finance & Sales: always the actor's own active custody account.
+      # For a receipt from a Purchase Request, only its responsible employee may
+      # pay from custody, and none at all without one
+      # (PurchaseRequest#custody_payment_refusal).
       custody_account_id = nil
       if source_kind == "employee_custody"
+        refusal = @receipt.purchase_request&.custody_payment_refusal(@actor.id)
+        return err(t("errors.#{refusal}")) if refusal
+
         custody_account_id = Inventory::GoodsReceiptPaymentEffects.payer_custody_account_id(actor: @actor)
         return err(t("errors.no_custody_account")) unless custody_account_id
       end

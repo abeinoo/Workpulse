@@ -236,6 +236,8 @@
                         t("inventory.purchase_requests.bulk.not_selectable_status")
                       elsif Inventory::PurchaseRequestApproval.self_approval?(pr, current_user)
                         t("inventory.purchase_requests.bulk.not_selectable_self")
+                      elsif @review_editor_ids.include?(pr.id)
+                        t("inventory.purchase_requests.bulk.not_selectable_review_editor")
                       end
                   %>
                   <td class="td-check pr-list__check">
@@ -251,6 +253,10 @@
                   <%= link_to pr.request_number, inventory_purchase_request_path(pr), class: "link pr-list__ref" %>
                   <span class="pr-list__meta"><%= l pr.created_at, format: :short %></span>
                   <span class="pr-list__meta pr-list__creator" title="<%= pr.created_by&.full_name %>"><%= pr.created_by&.full_name || "—" %></span>
+                  <span class="pr-list__meta pr-list__responsible" data-testid="pr-responsible">
+                    <%= t("inventory.purchase_requests.responsible_short") %>:
+                    <bdi><%= pr.responsible_employee&.full_name || t("inventory.purchase_requests.responsible_not_assigned") %></bdi>
+                  </span>
                 </td>
                 <td class="pr-list__supplier"><span class="pr-list__clamp" title="<%= purchase_request_supplier_name(pr) %>"><%= purchase_request_supplier_name(pr) %></span></td>
                 <td class="pr-list__num pr-list__items" data-label="<%= t("inventory.purchase_requests.items_count") %>"><%= pr.items.size %></td>

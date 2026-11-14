@@ -11,3 +11,4 @@ pin "flatpickr/ar", to: "https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/esm/
 pin "chart.js/auto", to: "https://cdn.jsdelivr.net/npm/chart.js@4.4.9/auto/+esm"
 pin_all_from "app/javascript/controllers", under: "controllers"
 pin_all_from "app/javascript/charts", under: "charts"
+pin_all_from "app/javascript/lib", under: "lib"

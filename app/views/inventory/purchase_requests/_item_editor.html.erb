@@ -1,0 +1,62 @@
+<%#
+  Item editor on the Purchase Request page (before approval; rendered only when
+  PurchaseRequestPolicy#edit_items?). One modal for "Add Product" and each
+  row's "Edit": purchase_request_item_editor_controller fills it from the
+  clicked button. The line itself is the form's ordinary line row
+  (_item_fields) under purchase_request_form_controller — the same live line
+  total, supplier pre-fill rule and validations as the edit form — and
+  "request total after saving" = the other lines + this line. Saving goes
+  through Inventory::PurchaseRequestItemsController → PurchaseRequestUpdater.
+
+  Locals:
+    purchase_request - the PurchaseRequest
+%>
+<% scope = "inventory.purchase_requests" %>
+<%
+  cur_info   = Business::CURRENCIES[current_user.business.currency] || Business::CURRENCIES["SAR"]
+  cur_prefix = I18n.locale.to_s == "ar" ? "" : "#{cur_info[:symbol_en]} "
+  cur_suffix = I18n.locale.to_s == "ar" ? " #{cur_info[:symbol]}" : ""
+%>
+<div class="modal-overlay pri-editor-overlay" style="display:none" data-purchase-request-item-editor-target="modal"
+     data-request-total="<%= purchase_request.total_amount.to_d %>">
+  <div class="modal-card pri-editor" role="dialog" aria-modal="true" aria-labelledby="item-editor-title">
+    <h3 class="modal-card__title" id="item-editor-title" data-purchase-request-item-editor-target="title"
+        data-add-title="<%= t("#{scope}.item_editor.add_title") %>"
+        data-edit-title="<%= t("#{scope}.item_editor.edit_title") %>"></h3>
+
+    <%= form_with model: purchase_request, url: inventory_purchase_request_items_path(purchase_request), method: :post,
+                  data: { purchase_request_item_editor_target: "form", controller: "purchase-request-form",
+                          "purchase-request-form-currency-prefix-value": cur_prefix,
+                          "purchase-request-form-currency-suffix-value": cur_suffix,
+                          "purchase-request-form-duplicate-message-value": t("#{scope}.form.duplicate_line") } do |f| %>
+      <input type="hidden" name="_method" value="post" data-purchase-request-item-editor-target="method">
+      <div class="table-wrap">
+        <table class="line-items-table pri-editor__table">
+          <thead><tr>
+            <th><%= t("#{scope}.form.product_label") %></th>
+            <th><%= t("#{scope}.form.supplier_label") %></th>
+            <th><%= t("#{scope}.form.quantity_label") %></th>
+            <th><%= t("#{scope}.form.unit_price_label") %></th>
+            <th style="text-align: end;"><%= t("#{scope}.line_total") %></th>
+          </tr></thead>
+          <tbody>
+            <%= f.fields_for :items, PurchaseRequestItem.new, child_index: 0 do |item_f| %>
+              <%= render "item_fields", f: item_f, suppliers: @suppliers, removable: false %>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pri-editor__total">
+        <span><%= t("#{scope}.item_editor.request_total_after") %></span>
+        <strong data-purchase-request-form-target="grandTotal" data-testid="item-editor-request-total">—</strong>
+      </div>
+      <p class="form-hint" hidden data-purchase-request-form-target="duplicateNotice" role="alert"></p>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" data-action="purchase-request-item-editor#close"><%= t("common.cancel") %></button>
+        <%= f.submit t("#{scope}.item_editor.save"), class: "btn btn-primary", data: { testid: "item-editor-save" } %>
+      </div>
+    <% end %>
+  </div>
+</div>
