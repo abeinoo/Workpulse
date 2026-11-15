@@ -1,0 +1,101 @@
+<%#
+  Employee Data Export dialog (admin/users#export). Lists only the fields the
+  viewer may export (Employee::Export::FieldCatalog.permitted_fields, grouped in
+  the controller); the server validates every submitted field again and refuses
+  the whole request when any is not permitted.
+
+  locals: fields — the permitted Field structs; status — the current tab
+%>
+<div data-controller="dialog employee-export">
+  <button type="button" class="btn btn-secondary" aria-haspopup="dialog" aria-controls="employee-export-dialog"
+          data-action="click->dialog#open" data-testid="export-employees">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <%= t("admin.users.export.button") %>
+  </button>
+
+  <dialog id="employee-export-dialog" class="employee-export" aria-labelledby="employee-export-title"
+          data-dialog-target="modal" data-action="click->dialog#backdropClose">
+    <div class="dialog-body">
+      <div class="dialog-header">
+        <h2 class="dialog-title" id="employee-export-title"><%= t("admin.users.export.title") %></h2>
+        <button type="button" class="btn btn-ghost btn-sm" aria-label="<%= t("forms.cancel") %>"
+                data-action="click->dialog#close">&times;</button>
+      </div>
+
+      <%= form_with url: export_admin_users_path, method: :post, data: { turbo: false, action: "submit->dialog#close" } do %>
+        <div class="employee-export__toolbar">
+          <div class="permission-search employee-export__search">
+            <input type="search" class="form-control form-control--sm permission-search__input"
+                   placeholder="<%= t("admin.users.export.search_placeholder") %>"
+                   aria-label="<%= t("admin.users.export.search_placeholder") %>" autocomplete="off"
+                   data-action="input->employee-export#filter" data-employee-export-target="search">
+            <svg class="permission-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <div class="employee-export__bulk">
+            <button type="button" class="btn btn-ghost btn-sm" data-action="employee-export#selectAll">
+              <%= t("admin.users.export.select_all") %>
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" data-action="employee-export#deselectAll">
+              <%= t("admin.users.export.deselect_all") %>
+            </button>
+          </div>
+        </div>
+
+        <div class="employee-export__groups">
+          <% fields.group_by(&:group).each do |group, group_fields| %>
+            <fieldset class="employee-export__group" data-employee-export-target="group">
+              <legend class="employee-export__group-title"><%= t("admin.users.export.groups.#{group}") %></legend>
+              <% group_fields.each do |field| %>
+                <label class="form-check employee-export__field" data-employee-export-target="field"
+                       data-label="<%= field.label.downcase %>">
+                  <input type="checkbox" name="fields[]" value="<%= field.key %>"
+                         data-action="change->employee-export#update" data-employee-export-target="checkbox"
+                         data-testid="export-field-<%= field.key %>">
+                  <span class="form-check__label"><%= field.label %></span>
+                  <% if field.rule %>
+                    <span class="badge badge-warning employee-export__sensitive"><%= t("admin.users.export.sensitive") %></span>
+                  <% end %>
+                </label>
+              <% end %>
+            </fieldset>
+          <% end %>
+          <p class="form-hint employee-export__empty" data-employee-export-target="empty" hidden>
+            <%= t("admin.users.export.no_match") %>
+          </p>
+        </div>
+
+        <p class="form-hint" aria-live="polite">
+          <%= t("admin.users.export.selected_label") %>
+          <strong data-employee-export-target="counter" data-testid="export-selected-count">0</strong>
+          / <%= fields.size %>
+        </p>
+
+        <div class="form-group">
+          <label class="form-label" for="employee-export-status"><%= t("admin.users.export.scope_label") %></label>
+          <select id="employee-export-status" name="employee_status" class="form-control">
+            <% %w[active inactive all].each do |value| %>
+              <option value="<%= value %>" <%= "selected" if value == status %>><%= t("admin.users.export.scopes.#{value}") %></option>
+            <% end %>
+          </select>
+          <p class="form-hint"><%= t("admin.users.export.scope_hint") %></p>
+        </div>
+
+        <fieldset class="form-group">
+          <legend class="form-label"><%= t("admin.users.export.format_label") %></legend>
+          <% %w[xlsx csv].each_with_index do |format, i| %>
+            <label class="form-check">
+              <input type="radio" name="file_format" value="<%= format %>" <%= "checked" if i.zero? %>>
+              <span class="form-check__label"><%= t("admin.users.export.formats.#{format}") %></span>
+            </label>
+          <% end %>
+        </fieldset>
+
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-ghost" data-action="click->dialog#close"><%= t("forms.cancel") %></button>
+          <%= button_tag t("admin.users.export.submit"), type: "submit", class: "btn btn-primary",
+                         disabled: true, data: { employee_export_target: "submit", testid: "export-submit" } %>
+        </div>
+      <% end %>
+    </div>
+  </dialog>
+</div>

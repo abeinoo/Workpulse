@@ -49,7 +49,9 @@ module ArchitectureSpecs
       "app/services/employee/insurance_profile_updater.rb"             => "the single write path (M3 caller: profile_changed)",
       CONTRACT_FILE                                                    => "the Workforce contract",
       "app/controllers/admin/employee_insurance_profiles_controller.rb" => "the insurance form (M3 caller: payroll_notice_for)",
-      "app/policies/employee_insurance_profile_policy.rb"              => "authorization (SEC-P8-2 scope)"
+      "app/policies/employee_insurance_profile_policy.rb"              => "authorization (SEC-P8-2 scope)",
+      "app/services/employee/export/field_catalog.rb"                  => "Employee Data Export: the employer-share rule (read only)",
+      "app/services/employee/export/rows.rb"                           => "Employee Data Export: reads profiles through the policy scope (read only)"
     }.freeze
 
     WORKFORCE_DIRS = [ "app/views/admin/employee_insurance_profiles/" ].freeze

@@ -85,6 +85,9 @@ Rails.application.routes.draw do
       resources :salary_payment_holds, only: [ :create ]
       resource  :employee_insurance_profile, only: [ :edit, :update ]
       resource  :password, only: [ :edit, :update ], controller: "user_passwords"
+      collection do
+        post :export
+      end
       member do
         patch :transfer_ownership
         patch :toggle_active

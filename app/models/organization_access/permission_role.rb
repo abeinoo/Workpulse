@@ -16,7 +16,8 @@ class PermissionRole < ApplicationRecord
 
   PERMISSION_GROUPS = {
     employees:             %w[view_employees manage_employees manage_salary_profiles view_salary_history
-                               view_salary_payment_holds manage_salary_payment_holds],
+                               view_salary_payment_holds manage_salary_payment_holds
+                               export_employees export_employee_identity],
     # Employee Add Requests (طلبات إضافة موظف) — the onboarding workflow, kept
     # separate from employee management: none of these grants editing
     # employees, salary, branches, permissions, payroll or attendance.
@@ -233,6 +234,7 @@ class PermissionRole < ApplicationRecord
       %w[finalize_payroll pay_payroll delete_payroll reopen_payroll
          approve_payroll_items create_payroll regenerate_payroll submit_payroll_review
          view_draft_payroll view_payroll_audit_log
+         export_employees export_employee_identity
          approve_adjustments edit_approved_adjustments manage_devices manage_shifts manage_holidays
          manage_evaluation_templates view_performance_reports] +
     # Which submitters' requests a reviewer sees (requests carry no branch; the
@@ -337,6 +339,11 @@ class PermissionRole < ApplicationRecord
     "manage_bank_disputes"              => %w[view_daily_reconciliation],
     "process_till_refund"               => %w[view_daily_reconciliation],
     "manage_obligations"               => %w[view_employees],
+    # Employee Data Export (admin/users#export): the exported rows are exactly
+    # the Employees page's (view_employees scope); National ID needs its own
+    # grant on top. Deliberately in no default role set.
+    "export_employees"                 => %w[view_employees],
+    "export_employee_identity"         => %w[export_employees],
     "manage_inventory"       => %w[view_inventory],
     "manage_suppliers"       => %w[view_inventory],
     "manage_products"        => %w[view_inventory],

@@ -9844,6 +9844,64 @@ dialog::backdrop {
   border-top: 1px solid var(--border);
 }
 
+/* ── Employees page header actions + Employee Data Export dialog ─────────── */
+.page-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+dialog.employee-export {
+  max-width: min(640px, calc(100vw - 2rem));
+}
+
+.employee-export__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.employee-export__search { flex: 1 1 14rem; margin: 0; }
+.employee-export__bulk { display: flex; gap: var(--space-1); }
+
+.employee-export__groups {
+  max-height: min(50vh, 26rem);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.employee-export__group {
+  border: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: var(--space-1) var(--space-3);
+}
+
+.employee-export__group-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+
+.employee-export__field[hidden],
+.employee-export__group[hidden] { display: none; }
+
+.employee-export__sensitive {
+  margin-inline-start: var(--space-1);
+  font-size: var(--text-xs);
+}
+
 /* Generic utility: fully removed from layout (used for JS-injected hidden forms). */
 .hidden { display: none !important; }
 

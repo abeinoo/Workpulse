@@ -12,6 +12,27 @@ class Admin::UsersController < Admin::BaseController
              when "inactive" then scope.where(active: false)
              else                 scope
              end
+    # Employee Data Export dialog: only the fields this viewer may export.
+    @export_fields = Employee::Export::FieldCatalog.permitted_fields(current_user) if policy(User).export?
+  end
+
+  # Employee Data Export (Employee::Export::Exporter): the rows, fields and
+  # field-level access are decided by the service, which refuses the whole
+  # request when any requested field is not permitted.
+  def export
+    authorize User, :export?
+
+    fields = params[:fields].is_a?(Array) ? params[:fields].map(&:to_s) : []
+    result = Employee::Export::Exporter.new(actor_id: current_user.id, field_keys: fields,
+                                            format: params[:file_format], status: params[:employee_status]).call
+    if result.ok?
+      download = result.record
+      response.headers["Cache-Control"] = "no-store" # personal data: never cached
+      send_data download.data, filename: download.filename, type: download.content_type, disposition: "attachment"
+    else
+      redirect_to admin_users_path(status: params[:employee_status].presence_in(%w[active inactive])),
+                  alert: t("admin.users.export.errors.#{result.error}")
+    end
   end
 
   def new
