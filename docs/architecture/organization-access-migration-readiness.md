@@ -382,12 +382,12 @@ examples fail (every attack case); the remaining 17 lock in behaviour that must 
 | OA-S3 role assignment / escalation | **Fixed** | Role changes require `manage_roles` and pass `PermissionGrants.can_change_role?` (never self, never the owner, only roles whose permissions the actor holds — old and new role). Role create/update may not add permissions the actor lacks (checked after `role_type` defaults); roles above the actor cannot be edited, deleted or assigned (`PermissionRolePolicy`). The owner is exempt |
 | OA-S4 owner password takeover | **Fixed** | `UserPolicy#reset_password?` refuses the owner for anyone but the owner |
 | OA-S5 owner lockout / deletion | **Fixed** | `destroy?` / `toggle_active?` refuse the owner; `active`, role and login identifiers (email/phone) of the owner are not editable by others; ownership transfer (owner-only) unchanged |
-| OA-S6 account claim + enumeration | **Fixed** | Claiming a pending account requires an administrator-issued, signed invitation link (`User.generates_token_for(:account_claim)`, 7-day expiry, single use, invalid once deactivated; token carries no secrets) **and** the matching phone/email. All failures return one generic message. Employee managers see the link on pending employees (`UserPolicy#invite?`) |
+| OA-S6 account claim + enumeration | ~~**Fixed**~~ **Reverted 2026-11-15 (accepted risk)** — see [OA-S6 reversal](#oa-s6-reversal-2026-11-15) | *Historical (2026-10-01 → 2026-11-15):* claiming a pending account required an administrator-issued, signed invitation link (`User.generates_token_for(:account_claim)`, 7-day expiry, single use, invalid once deactivated; token carries no secrets) **and** the matching phone/email. All failures returned one generic message. Employee managers saw the link on pending employees (`UserPolicy#invite?`). The token, `invite?` and the link were removed on 2026-11-15 |
 | OA-S7 cross-business branch manager | **Fixed** | `Branch` validates that branch/area managers belong to the branch's business |
 
 **Behaviour changes to note:**
 
-* Pending employees can no longer activate with phone/email alone. An administrator shares the invitation link from
+* *(Superseded 2026-11-15 — see [OA-S6 reversal](#oa-s6-reversal-2026-11-15).)* Pending employees can no longer activate with phone/email alone. An administrator shares the invitation link from
   the employee page. There is no automatic delivery: no SMS, WhatsApp or email infrastructure exists.
 * Non-owners editing their own record in the admin area can change profile fields only. A non-owner can no longer
   deactivate themselves.
@@ -453,7 +453,7 @@ Other open items (outside Organization & Access or deferred):
 | OA-S3 role assignment / permission escalation | **Fixed** | `manage_roles` required; `PermissionGrants` (no granting or managing above own permissions; role-type defaults checked) |
 | OA-S4 owner password takeover | **Fixed** | Owner covered only by the owner (`PermissionGrants.covers?`) |
 | OA-S5 owner lockout / deletion | **Fixed** | Same rule for deactivate / delete / login identifiers / role |
-| OA-S6 account claim + enumeration | **Fixed** | Signed, expiring, single-use invitation link + matching phone/email; one generic error |
+| OA-S6 account claim + enumeration | **Reverted 2026-11-15 (accepted risk)** | Was: signed, expiring, single-use invitation link + matching phone/email; one generic error. Now: mobile number alone; one generic error, rate limits, row lock, fail-closed audit — see [OA-S6 reversal](#oa-s6-reversal-2026-11-15) |
 | OA-S7 cross-business branch manager | **Fixed** | `Branch` validation |
 | OA-S8 scope-less employee management | **Fixed** | `UserPolicy#update?`, `reset_password?`, `toggle_active?`, `destroy?`, `invite?` and account/role/login fields require the target to be inside the actor's employee-management scope (`EmployeeScope#for_permissions(:manage_employees, :view_employees)`; business-wide only when explicitly configured; otherwise the branches/areas the actor manages) |
 | Privilege hierarchy | **Fixed** | Taking control of an account (reset password, deactivate, delete, invitation, login identifiers, warehouse access, role) requires the actor's administrative permissions to cover the target's (`PermissionGrants.covers?`). Profile data of an in-scope, higher-privileged user stays editable |
@@ -592,3 +592,36 @@ see `permission-role-migration-plan.md`), with the Step 7B pre-existing migratio
     of the unrelated, pre-existing POS/Sales schema drift.
   * **Step 7A caused no migration compatibility issue.** Details are in the plan's "Step 7B — Fresh Migration
     Verification Status".
+
+## OA-S6 reversal (2026-11-15)
+
+**Product decision (owner, 2026-11-15):** the invitation-link requirement added for OA-S6 is removed. A pending
+(passwordless) employee account is claimed at `/users/sign_up` with its **registered mobile number alone**, plus a
+chosen password; the employee is signed in immediately. The findings and the 2026-10-01 fix above are kept as history.
+
+**Accepted risk — explicitly not mitigated.** Matching a mobile number does **not** prove that the person registering
+owns that phone. Anyone who knows a pending employee's number can claim the account first and receive the role and
+access the administrator already assigned to it. **No OTP, SMS/WhatsApp verification, invitation link, national ID or
+employee-code check is implemented.** This is a temporary decision; phone verification may be added in a future phase.
+Recovery from a hijacked claim: an administrator resets the password (`UserPolicy#reset_password?`) and gives the real
+employee new credentials; the `account_registered` audit entry records when and from which IP the claim happened.
+
+**What stays enforced** (`Users::RegistrationService`, `Users::RegistrationsController`):
+
+| Control | Implementation |
+|---|---|
+| Eligibility | the account exists, is active and has no password (registration status is still derived from `encrypted_password`; no stored flag) |
+| Lookup / tenancy | `User.find_by_phone_login` over the globally unique `users.phone_number`; an ambiguous match (equivalent formats stored on two accounts) matches none. Only the matching row is activated, in its own business; no business, branch, role or other attribute is read from the request |
+| No enumeration | password rules are checked first, independent of the account; every account failure (unknown, ambiguous, inactive, already registered, invalid stored record, audit failure) returns `auth.register.not_available` |
+| Rate limits | Rails `rate_limit` with `Api::RateLimitStore`: 5 / 15 min per IP + hashed phone comparison key (equivalent formats share a bucket), 20 / 15 min per IP |
+| Concurrency | `user.with_lock` and eligibility re-checked inside the lock: of two simultaneous claims exactly one succeeds (two-connection spec) |
+| Writes | the password only (plus `updated_at`) |
+| Audit | `log_audit!` `account_registered` (actor = the employee, metadata `method`, `ip_address`, no secrets) in the same transaction — an audit failure refuses the registration |
+
+**OTP later:** the service runs password rules → lookup → eligibility → activation; a verification step belongs
+between eligibility and activation. Nothing OTP-related exists yet.
+
+**Specs:** `spec/services/users/registration_service_spec.rb`, `registration_service_concurrency_spec.rb`,
+`spec/requests/users/registrations_spec.rb`, `registration_rate_limiting_spec.rb`, and the "OA-S6 account claim
+(phone-only, accepted risk)" block of `spec/requests/security/organization_access_security_spec.rb`, which pins the
+accepted behaviour. Out-of-scope finding from the same audit: BUG-051 (Devise self-service account edit / delete routes).

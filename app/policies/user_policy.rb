@@ -40,9 +40,6 @@ class UserPolicy < ApplicationPolicy
   # manage_employees within the management scope, never on one's own record —
   # the owner included.
   def change_attendance_requirement? = can?(:manage_employees) && !own_record? && in_management_scope?
-  # Issuing an account-claim invitation link (OA-S6).
-  def invite?         = controls_account? && record.persisted? &&
-                        record.active? && record.encrypted_password.blank?
 
   def permitted_attributes
     attributes = PROFILE_ATTRIBUTES.dup
