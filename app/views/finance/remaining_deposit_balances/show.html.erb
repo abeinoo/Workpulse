@@ -388,8 +388,24 @@
                       <span style="font-size: var(--text-xs); background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px var(--space-2); font-weight: 600; color: var(--text-2); vertical-align: middle; margin-inline-start: var(--space-1);">
                         <%= txn.payment_method.display_name %>
                       </span>
+                    <% elsif txn.custody_settlement? %>
+                      <span class="badge badge-success" style="vertical-align: middle; margin-inline-start: var(--space-1);">
+                        <%= t("finance.custody.transactions.types.shortage_settlement_deposit") %>
+                      </span>
                     <% end %>
                   </p>
+                  <% if txn.custody_settlement? %>
+                    <p style="font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0;">
+                      <%= t("remaining_deposit_balances.show.custody_recipient",
+                            recipient: txn.custody_transaction.custody_account.user.full_name,
+                            cashier:   @balance.responsible_user.full_name) %>
+                      <% if policy(txn.custody_transaction.custody_account).show? %>
+                        &middot; <%= link_to t("finance.custody.transactions.txn_ref", id: txn.custody_transaction_id),
+                                      finance_custody_account_path(txn.custody_transaction.custody_account, anchor: "txn-#{txn.custody_transaction_id}"),
+                                      class: "link" %>
+                      <% end %>
+                    </p>
+                  <% end %>
                   <p style="font-size: var(--text-xs); color: var(--text-3); margin: var(--space-1) 0 0;">
                     <%= txn.performed_by.full_name %> &middot; <%= l(txn.created_at, format: :long) %>
                   </p>

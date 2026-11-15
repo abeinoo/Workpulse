@@ -7,7 +7,8 @@
     "inventory_purchase"          => "badge badge-danger",
     "inventory_purchase_reversal" => "badge badge-success",
     "purchase_advance_funding"    => "badge badge-success",
-    "purchase_advance_funding_reversal" => "badge badge-danger"
+    "purchase_advance_funding_reversal" => "badge badge-danger",
+    "shortage_settlement_deposit" => "badge badge-success"
   }.fetch(txn.txn_type, "badge badge-neutral")
 %>
 <span class="<%= color_class %>"><%= t("finance.custody.transactions.types.#{txn.txn_type}") %></span>

@@ -11,6 +11,9 @@ class DailyReconciliationPolicy < ApplicationPolicy
   def receive_opening_float?       = cashier_permission?
   def bulk_receive_opening_float?  = can?(:create_till_session) || can?(:verify_daily_reconciliation)
   def bulk_settle?                 = can?(:settle_remaining_deposit_balance)
+  # "Receive Cash" destination of the bulk settlement — its own permission,
+  # granted per role (never by default). Bulk only.
+  def bulk_settle_cash?            = bulk_settle? && can?(:receive_shortage_settlement_cash)
   def export?                      = can?(:view_daily_reconciliation)
   def correct_opening_float?        = can?(:correct_opening_float)
   def update_opening_float_amounts? = can?(:correct_opening_float)

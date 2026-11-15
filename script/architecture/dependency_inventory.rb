@@ -157,6 +157,9 @@ module ArchitectureTools
       [ %r{\Aapp/models/finance_sales/}, FS ],
       [ %r{\Aapp/services/finance/}, FS ],
       [ %r{\Aapp/services/financial_settlement_service\.rb\z}, FS ],
+      # Recipient scope of the Daily Reconciliation bulk custody settlement
+      # (custody accounts a settler may credit) — Finance & Sales.
+      [ %r{\Aapp/policies/shortage_settlement_recipient_scope\.rb\z}, FS ],
       [ %r{\Aapp/jobs/finance/}, FS ],
       [ %r{\Aapp/controllers/finance/}, FS ],
       [ %r{\Aapp/controllers/(till_deposits|till_handovers|till_refunds|opening_floats|deposit_responsibility_transfers)_controller\.rb\z}, FS ],

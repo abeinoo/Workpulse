@@ -11,6 +11,8 @@ module Finance
   # keeps custody and the document's paid amount in step. The model enforces
   # the same rule as a backstop. Likewise a row a Purchase Request advance's
   # funding posted (CustodyTransaction#advance_funding?): reverse the advance.
+  # And a Shortage Settlement Deposit (CustodyTransaction#shortage_settlement?):
+  # it closed a Remaining Deposit Balance whose append-only ledger names it.
   class TransactionVoider
     include AuditLoggable
 
@@ -26,6 +28,7 @@ module Finance
       return err(I18n.t("finance.custody.errors.already_voided")) if @txn.voided?
       return err(I18n.t("finance.custody.errors.settlement_linked")) if @txn.settlement_linked?
       return err(I18n.t("finance.custody.errors.advance_funding_linked")) if @txn.advance_funding?
+      return err(I18n.t("finance.custody.errors.shortage_settlement_linked")) if @txn.shortage_settlement?
       return err(I18n.t("finance.custody.errors.reason_required")) if @reason.blank?
 
       counterpart = @txn.transfer_counterparty

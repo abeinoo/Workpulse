@@ -64,6 +64,7 @@ class PermissionRole < ApplicationRecord
                                adjust_till_handover
                                void_till_deposit
                                settle_remaining_deposit_balance
+                               receive_shortage_settlement_cash
                                view_own_employee_reconciliation_summary
                                view_all_employee_reconciliation_summary
                                correct_opening_float
@@ -327,6 +328,9 @@ class PermissionRole < ApplicationRecord
     "void_till_deposit"                => %w[view_daily_reconciliation],
     "correct_opening_float"            => %w[view_daily_reconciliation],
     "settle_remaining_deposit_balance"            => %w[view_daily_reconciliation],
+    # Bulk "Receive Cash" settlement of shortages (Daily Reconciliation index).
+    # Deliberately in no default role set — granted per role in the Role Editor.
+    "receive_shortage_settlement_cash"            => %w[settle_remaining_deposit_balance],
     "view_all_employee_reconciliation_summary"    => %w[view_daily_reconciliation],
     "view_sales_transactions_verification" => %w[view_daily_reconciliation],
     "manage_sales_import"      => %w[view_sales_transactions_verification],

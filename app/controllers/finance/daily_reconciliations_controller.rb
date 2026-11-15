@@ -220,56 +220,52 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     @latest_sales_import = current_user.business.sales_imports.imported.order(updated_at: :desc)
                                      .includes(:imported_by).first if current_user.can?(:manage_sales_import)
+
+    @bulk_settle_custody_accounts = bulk_settle_custody_accounts
+    @bulk_settle_cash_methods     =
+      policy(DailyReconciliation).bulk_settle_cash? ? Finance::BulkShortageCashSettler.cash_methods_for(current_user.business).to_a : []
   end
 
   # POST /finance/daily_reconciliations/bulk_settle
+  #
+  # Settles every open shortage of the selected days through ONE destination:
+  #   destination=custody — credit a selected employee's Custody Account
+  #                         (Finance::BulkShortageCustodySettler);
+  #   destination=cash    — receive the cash with the Cash payment method
+  #                         (Finance::BulkShortageCashSettler; needs
+  #                         receive_shortage_settlement_cash).
+  # Anything else is refused. The total is computed by the service from
+  # database records; client totals are ignored.
   def bulk_settle
     authorize DailyReconciliation, :bulk_settle?
 
-    ids = Array(params[:ids]).map(&:to_i).uniq.reject(&:zero?)
-    if ids.empty?
-      return redirect_to finance_daily_reconciliations_path,
-                         alert: t("finance.daily_reconciliations.errors.bulk_none_selected")
-    end
-
-    pm = business_payment_methods.find_by(id: params[:payment_method_id])
-    unless pm
-      return redirect_to finance_daily_reconciliations_path,
-                         alert: t("finance.daily_reconciliations.errors.bulk_settle_no_pm")
-    end
-
-    reconciliations = policy_scope(DailyReconciliation)
-                        .where(id: ids)
-                        .includes(:business, :branch,
-                                  remaining_deposit_balances: :balance_transactions)
-
-    successes = 0
-    failures  = 0
-
-    reconciliations.each do |dr|
-      dr.remaining_deposit_balances.open.each do |rdb|
-        result = Finance::RemainingDepositBalanceSettler.new(
-          rdb.id,
-          actor:             current_user,
-          amount:            rdb.remaining_amount,
-          notes:             params[:notes].presence || t("finance.daily_reconciliations.bulk_settle_default_notes"),
-          payment_method_id: pm.id,
-          reference_number:  params[:reference_number].presence
+    result =
+      case params[:destination]
+      when "custody"
+        Finance::BulkShortageCustodySettler.new(
+          daily_reconciliation_ids: params[:ids],
+          custody_account_id:       params[:custody_account_id],
+          actor:                    current_user,
+          notes:                    params[:notes]
         ).call
-        result.ok? ? successes += 1 : failures += 1
+      when "cash"
+        authorize DailyReconciliation, :bulk_settle_cash?
+        Finance::BulkShortageCashSettler.new(
+          daily_reconciliation_ids: params[:ids],
+          payment_method_id:        params[:cash_payment_method_id],
+          reference_number:         params[:reference_number],
+          actor:                    current_user,
+          notes:                    params[:notes]
+        ).call
       end
-    end
 
-    if failures.zero? && successes > 0
+    if result.nil?
       redirect_to finance_daily_reconciliations_path(filter_params),
-                  notice: t("finance.daily_reconciliations.bulk_settle_done", count: successes)
-    elsif successes > 0
-      redirect_to finance_daily_reconciliations_path(filter_params),
-                  notice: t("finance.daily_reconciliations.bulk_settle_partial",
-                             success: successes, failure: failures)
+                  alert: t("finance.daily_reconciliations.errors.bulk_settle.destination_invalid")
+    elsif result.ok?
+      redirect_to finance_daily_reconciliations_path(filter_params), notice: bulk_settle_notice(result)
     else
-      redirect_to finance_daily_reconciliations_path(filter_params),
-                  alert: t("finance.daily_reconciliations.errors.bulk_settle_failed")
+      redirect_to finance_daily_reconciliations_path(filter_params), alert: result.error
     end
   end
 
@@ -510,10 +506,11 @@ class Finance::DailyReconciliationsController < Finance::BaseController
 
     @all_remaining_balances = @reconciliation.remaining_deposit_balances
                                               .includes(:responsible_user, :created_by, till_deposit: :payment_method)
-                                              .includes(balance_transactions: %i[performed_by
-                                                                                 previous_responsible_user
-                                                                                 new_responsible_user
-                                                                                 payment_method])
+                                              .includes(balance_transactions: [ :performed_by,
+                                                                                :previous_responsible_user,
+                                                                                :new_responsible_user,
+                                                                                :payment_method,
+                                                                                { custody_transaction: { custody_account: :user } } ])
                                               .order(:created_at)
     @total_remaining_balance  = @reconciliation.total_remaining_balance
     @total_settled_later      = @reconciliation.total_settled_later
@@ -1233,6 +1230,18 @@ class Finance::DailyReconciliationsController < Finance::BaseController
   # associations (@all_deposits, @all_remaining_balances); never touches
   # RemainingDepositBalance, its ledger, or any settlement rule.
   def settlement_detail_for(txn, rdb)
+    # A Shortage Settlement Deposit moved no cash and used no payment method:
+    # never fall back to the originating deposit's method (that would label
+    # it "Cash") — show the custody recipient instead.
+    if txn.custody_settlement?
+      return {
+        payment_method:     nil,
+        triggering_deposit: nil,
+        custody_recipient:  txn.custody_transaction.custody_account.user,
+        remaining_after:    remaining_balance_after(rdb, txn)
+      }
+    end
+
     triggering_deposit = triggering_deposit_for(txn, rdb)
     payment_method = txn.payment_method || triggering_deposit&.payment_method || rdb.till_deposit&.payment_method
 
@@ -1933,6 +1942,32 @@ class Finance::DailyReconciliationsController < Finance::BaseController
     end
 
     query
+  end
+
+  def bulk_settle_notice(result)
+    if result.custody_transactions
+      t("finance.daily_reconciliations.bulk_settle_custody_done",
+        count: result.settled_count, amount: helpers.format_currency(result.total),
+        recipient: result.record.user.full_name)
+    else
+      t("finance.daily_reconciliations.bulk_settle_cash_done",
+        count: result.settled_count, amount: helpers.format_currency(result.total),
+        method: result.record.display_name)
+    end
+  end
+
+  # Recipients offered in the bulk-settle bar — ShortageSettlementRecipientScope,
+  # the narrow authorization path of the bulk custody settlement (needs only
+  # settle_remaining_deposit_balance, within its branch scope), which the
+  # service re-checks on submit. It grants no access to the Employee Balances
+  # pages or to manual custody transactions.
+  def bulk_settle_custody_accounts
+    return [] unless policy(DailyReconciliation).bulk_settle?
+
+    ShortageSettlementRecipientScope.new(current_user).resolve
+                                    .includes(:user, :branch)
+                                    .order("users.first_name", "users.last_name", :id)
+                                    .to_a
   end
 
   def filter_params
