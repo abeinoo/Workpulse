@@ -49,7 +49,7 @@ here only so its stable ID and history are kept.
 | BUG-025 | Inventory documents accept another business's warehouses and products (owner / unassigned users) | Inventory & Purchasing | **High — critical (cross-business stock writes and disclosure)** | Confirmed (request reproduction) | **In Progress** (fix committed on `fix/inventory-isolation-branch-lifecycle`, `45c3693`; tests and full suite run; not reviewed, not merged — **Escalated**) | Review and merge |
 | BUG-026 | Deleting a branch hard-deletes its attendance, device punches and legacy payroll periods | Organization & Access (branches) | **High — critical (irreversible data loss)** | Confirmed (characterization spec) | **In Progress** (adopted lifecycle committed on `fix/inventory-isolation-branch-lifecycle`, `bc47ad7` + `b82c6b8`; tests and full suite run; not reviewed, not merged — **Escalated**) | Review and merge |
 | BUG-027 | Remaining models take business-owned foreign keys without a same-business guard | Cross-domain (≈33 models) | Medium (tenant isolation, per path) | Suspected (static inventory; inventory paths fixed under BUG-025) | Open | Before multi-business use |
-| BUG-028 | `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change | Test suite (sign-up) | Low (local runs in a DST time zone, a few days a year) | Confirmed (reproduced 2026-10-29; time-travel arithmetic shown) | Open | Next test-suite fix |
+| BUG-028 | `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change | Test suite (sign-up) | Low (local runs in a DST time zone, a few days a year) | Confirmed (reproduced 2026-10-29; time-travel arithmetic shown) | **Resolved — obsolete** (2026-11-15: the invitation link and its 7-day example were removed) | — |
 | BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by spec (2026-10-30: 21 refusal examples fail on the unchanged code) | **Resolved** (`ce40a61`, `ad5e9dc`, `4d5b442`, `1e6feb3`, PR #88) | — |
 | BUG-030 | Imported stock issues (and product-import opening balances) are dated with the UTC calendar date, not the business day | Inventory & Purchasing | Low (date-boundary window; period attribution in reports) | Confirmed (code; formula evaluated outside the app, no spec) | Open | Next Inventory & Purchasing fix |
 | BUG-031 | Shift templates and template-applied assignments accept another business's shift or rule profile | Workforce (shifts; feeds attendance penalties / payroll) | **High** (cross-business config drives payroll deductions; needs a second business) | Confirmed (reproduced 2026-10-30, rolled-back transaction; regression specs fail on the unchanged code) | **Resolved** (`857506e`, PR #90) | — |
@@ -69,6 +69,7 @@ here only so its stable ID and history are kept.
 | BUG-048 | Advances on a Purchase Request with several line suppliers are not attributed to a supplier | Inventory & Purchasing / Finance & Sales (purchase request advances) | Low (no money is lost or double-counted; attribution only) | Improvement (owner decision 2026-11-13) | Open | Product decision, before advances are used on multi-supplier requests at scale |
 | BUG-049 | Company cash / bank funding of a responsible employee's custody has no company-side ledger entry | Finance & Sales (custody ledger, purchase request advance funding) | Medium (accounting completeness; no money is double-counted) | Known limitation (owner decision 2026-11-13: defer a Cash / Bank Account ledger) | Open | Before company cash / bank balances are reported from WorkPulse |
 | BUG-050 | Goods Receipts list loads each receipt's lines to show its total | Inventory & Purchasing (goods receipts list) | Low (performance only; one query per listed receipt) | Performance (found in the 2026-11-14 engineering audit; owner decision: separate task) | Open | Before the receipts list is paginated beyond its current page size or slows |
+| BUG-051 | Devise self-service account routes (`/users/edit`, `PATCH`/`PUT /users`, `DELETE /users`) are live and bypass Organization & Access | Organization & Access (authentication) | Medium (a signed-in user can change their own email / password or delete their own account without the admin rules or an audit entry) | Confirmed (routes and code reading, 2026-11-15); impact not reproduced | Open | Before the next authentication change, or before self-service account settings are offered |
 
 ---
 
@@ -961,7 +962,10 @@ here only so its stable ID and history are kept.
 ## BUG-028 — `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change
 
 * **Source:** new (full-suite run on `fix/inventory-isolation-branch-lifecycle`, 2026-10-29). **Discovered:**
-  2026-10-29. **Status:** Open.
+  2026-10-29. **Status:** Resolved — obsolete (2026-11-15). The OA-S6 invitation link was removed by product decision
+  (`docs/architecture/organization-access-migration-readiness.md` → "OA-S6 reversal"); `generates_token_for
+  :account_claim` and the "invitation just inside the 7 days" example no longer exist, and the rewritten
+  `registrations_spec.rb` has no time travel. The record below is kept as history.
 * **Domain / files:** test suite — `spec/requests/users/registrations_spec.rb:141`; `User`
   `generates_token_for :account_claim, expires_in: 7.days`.
 * **Observed (facts):** the example fails deterministically on 2026-10-29 (local run), with 422 instead of a redirect.
@@ -1607,3 +1611,35 @@ here only so its stable ID and history are kept.
 * **Regression tests:** a query-count spec — the list issues the same number of queries for 3 and for 30 receipts,
   and every row still shows its total.
 * **Review milestone:** before the receipts list page size grows or its response time is reported as slow.
+
+## BUG-051 — Devise self-service account routes (`/users/edit`, `PATCH`/`PUT /users`, `DELETE /users`) are live and bypass Organization & Access
+
+* **Source:** Phase 1 audit of the self-service registration change (OA-S6 reversal), 2026-11-15. **Discovered:**
+  2026-11-15. **Status:** Open — out of scope for that change by owner decision; routes deliberately left untouched.
+* **Domain / files:** Organization & Access — `config/routes.rb` (`devise_for :users`, `registrations:
+  "users/registrations"`, only `:passwords` skipped); `Users::RegistrationsController` inherits Devise's `edit`,
+  `update`, `destroy` and `cancel`; `app/views/users/registrations/edit.html.erb` (the unstyled Devise generator view
+  from the initial commit, with a "Cancel my account" `button_to … method: :delete`).
+* **Observed (facts, `bin/rails routes -g registration`):** `GET /users/edit`, `PATCH /users`, `PUT /users`,
+  `DELETE /users` and `GET /users/cancel` route to `users/registrations`. Devise requires a signed-in user for
+  edit / update / destroy (`authenticate_scope!`) and the current password for `update`.
+* **Suspected impact (code reading, not reproduced):**
+  * `update` lets a signed-in user change their own **email** (a login identifier) and password with the current
+    password. This bypasses `OrganizationAccess::Accounts` (D1 account-field interface) and writes no audit entry.
+    Whether `email` passes the sanitizer as configured (`ApplicationController#configure_permitted_parameters` only
+    adds `:login` for sign-in; Devise's default `account_update` keys include `email`) needs a probe.
+  * `destroy` calls `resource.destroy` and signs the user out. It bypasses `OrganizationAccess::DeleteUser`, the
+    owner / scope rules (`UserPolicy#destroy?`) and the audit trail. A user with history is protected by the
+    `restrict_with_error` associations (the row survives, but Devise still signs out and reports success); a user
+    without history (e.g. just registered) is deleted. The business owner is protected only by the
+    `businesses.owner_id` foreign key (an unhandled error, not a rule).
+  * `cancel` expires the Devise session data for an in-progress sign-up (low impact).
+* **Expected:** account self-service either does not exist (routes skipped) or goes through Organization & Access
+  services with their rules and audit entries.
+* **Recommended fix:** `devise_for :users, …, skip: [ :passwords ]` plus `only: [ :new, :create ]` for registrations
+  (e.g. `skip: [ :registrations ]` + explicit `devise_scope` routes for `new` / `create`), delete the generator
+  `edit.html.erb`, and add request specs that the four routes are not routable. If self-service password change is
+  wanted later, build it as an Organization & Access service with an audit entry.
+* **Regression tests:** `GET /users/edit`, `PATCH /users`, `PUT /users`, `DELETE /users` → not routable (or 404) for a
+  signed-in user; sign-up (`GET /users/sign_up`, `POST /users`) and sign-in keep working.
+* **Review milestone:** before the next authentication change, or before self-service account settings are offered.

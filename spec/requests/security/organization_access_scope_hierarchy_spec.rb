@@ -99,13 +99,6 @@ RSpec.describe "Organization & Access — employee-management scope and privileg
         delete admin_user_path(emp_b)
         expect(User.exists?(emp_b.id)).to be(true)
       end
-
-      it "is not shown the employee's invitation link" do
-        pending_b = employee_at(branch_b)
-        pending_b.update_column(:encrypted_password, "")
-        get admin_user_path(pending_b)
-        expect(response.body).not_to include(I18n.t("admin.users.invitation_link"))
-      end
     end
 
     context "Branch A manager → employee assigned to Branch A and Branch B" do
