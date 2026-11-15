@@ -1,9 +1,9 @@
 require "rails_helper"
 
 # Keeps docs/api/openapi.yaml in sync with the /api/v1 routes that actually
-# work (a route counts only when its controller and action exist). Routes
-# declared without an implementation are tracked by the last example and must
-# NOT be documented (docs/api/baseline.md → D2).
+# work (a route counts only when its controller and action exist). No route may
+# be declared without an implementation (docs/api/baseline.md → D2, resolved by
+# BUG-047).
 RSpec.describe "docs/api/openapi.yaml" do
   let(:http_methods) { %w[get post put patch delete] }
 
@@ -50,9 +50,10 @@ RSpec.describe "docs/api/openapi.yaml" do
     expect(documented - implemented_routes).to be_empty
   end
 
-  it "tracks routes that are declared but not implemented (known defect D2)" do
-    expect(unimplemented_routes.map { |k| k.split(" ", 2).last.split("/")[3] }.uniq)
-      .to match_array(%w[businesses branches users shifts shift_assignments employee_requests])
+  # D2 is resolved (BUG-047): routes.rb declares only implemented actions;
+  # spec/routing/api_routes_resolve_spec.rb guards it as well.
+  it "declares no route without an implementation (D2 resolved, BUG-047)" do
+    expect(unimplemented_routes).to be_empty
   end
 
   it "resolves every $ref" do
