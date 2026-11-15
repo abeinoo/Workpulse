@@ -221,7 +221,6 @@
       total_outstanding = @reconciliations.sum(&:total_remaining_balance)
       can_bulk_settle   = policy(:daily_reconciliation).bulk_settle?
       has_outstanding   = total_outstanding > 0
-      payment_methods   = business_payment_methods
     %>
 
     <%# ═══════════════════════════════════════════════════════════════════
@@ -479,44 +478,151 @@
           </button>
         </div>
 
+        <%# Two mutually exclusive destinations (Finance::BulkShortageSettlement):
+            custody — credit a selected employee's Custody Account (Shortage
+            Settlement Deposit); cash — receive the cash, recorded with the Cash
+            payment method only (no cash drawer ledger exists). The cash option
+            is rendered only for bulk_settle_cash? (receive_shortage_settlement_cash);
+            the server enforces both independently. %>
+        <%
+          can_settle_cash   = policy(:daily_reconciliation).bulk_settle_cash?
+          custody_available = @bulk_settle_custody_accounts.present?
+          cash_methods      = @bulk_settle_cash_methods || []
+          cash_available    = can_settle_cash && cash_methods.any?
+          default_dest      = custody_available ? "custody" : ("cash" if cash_available)
+        %>
         <form id="bulk-settle-form"
               action="<%= bulk_settle_finance_daily_reconciliations_path %>"
               method="post">
           <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
-          <div style="display: flex; align-items: flex-end; gap: var(--space-3); flex-wrap: wrap;">
-            <div class="form-group" style="margin: 0; flex: 0 0 auto;">
-              <label class="form-label" style="font-size: var(--text-xs);">
-                <%= t("finance.daily_reconciliations.index.bulk_settle_pm_label") %>
+
+          <div role="radiogroup" aria-labelledby="bulk-settle-destination-label"
+               style="display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-3);">
+            <span id="bulk-settle-destination-label" class="form-label" style="font-size: var(--text-xs); margin: 0;">
+              <%= t("finance.daily_reconciliations.index.bulk_settle_destination_label") %>
+            </span>
+            <label style="display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); font-weight: 600;">
+              <input type="radio" name="destination" value="custody" id="bulk-settle-destination-custody"
+                     <%= "checked" if default_dest == "custody" %> <%= "disabled" unless custody_available %>>
+              <%= t("finance.daily_reconciliations.index.bulk_settle_destination_custody") %>
+            </label>
+            <% if can_settle_cash %>
+              <label style="display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); font-weight: 600;">
+                <input type="radio" name="destination" value="cash" id="bulk-settle-destination-cash"
+                       <%= "checked" if default_dest == "cash" %> <%= "disabled" unless cash_available %>>
+                <%= t("finance.daily_reconciliations.index.bulk_settle_destination_cash") %>
               </label>
-              <%= select_tag "payment_method_id",
-                    options_from_collection_for_select(payment_methods, :id, :display_name),
-                    class: "form-control form-control-sm", style: "width: auto; font-size: var(--text-sm);" %>
-            </div>
-            <div class="form-group" style="margin: 0; flex: 1; min-width: 160px;">
-              <label class="form-label" style="font-size: var(--text-xs);">
-                <%= t("finance.daily_reconciliations.index.bulk_settle_ref_label") %>
-              </label>
-              <%= text_field_tag "reference_number", nil,
-                    class: "form-control form-control-sm",
-                    placeholder: t("finance.daily_reconciliations.index.bulk_settle_ref_placeholder"),
-                    style: "font-size: var(--text-sm);" %>
-            </div>
-            <div class="form-group" style="margin: 0; flex: 1; min-width: 160px;">
-              <label class="form-label" style="font-size: var(--text-xs);">
-                <%= t("finance.daily_reconciliations.index.bulk_settle_notes_label") %>
-              </label>
-              <%= text_field_tag "notes", nil,
-                    class: "form-control form-control-sm",
-                    placeholder: t("finance.daily_reconciliations.index.bulk_settle_notes_placeholder"),
-                    style: "font-size: var(--text-sm);" %>
-            </div>
-            <button type="submit"
-                    class="btn btn-warning btn-sm"
-                    data-turbo-confirm="<%= t('finance.daily_reconciliations.index.bulk_settle_confirm') %>"
-                    style="flex-shrink: 0;">
-              <%= t("finance.daily_reconciliations.index.bulk_settle_btn") %>
-            </button>
+            <% end %>
           </div>
+
+          <%# Why the custody option is unavailable — always visible, whichever
+              destination is selected. %>
+          <% unless custody_available %>
+            <div class="alert alert-warning" id="bulk-settle-no-recipients" style="margin: 0 0 var(--space-3);">
+              <%= t("finance.daily_reconciliations.index.bulk_settle_no_recipients_scope") %>
+            </div>
+          <% end %>
+
+          <%# ── Custody destination ── %>
+          <fieldset data-bulk-destination="custody" <%= "disabled" unless default_dest == "custody" %>
+                    <%= "hidden" unless default_dest == "custody" %>
+                    style="border: 0; padding: 0; margin: 0;">
+            <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0 0 var(--space-3);">
+              <%= t("finance.daily_reconciliations.index.bulk_settle_custody_explainer") %>
+            </p>
+            <% if custody_available %>
+              <div class="form-group" style="margin: 0 0 var(--space-3); max-width: 520px;">
+                <label class="form-label" for="bulk-settle-recipient" style="font-size: var(--text-xs);">
+                  <%= t("finance.daily_reconciliations.index.bulk_settle_recipient_label") %>
+                </label>
+                <select name="custody_account_id" id="bulk-settle-recipient" required
+                        class="form-control form-control-sm" style="font-size: var(--text-sm);">
+                  <option value=""><%= t("finance.daily_reconciliations.index.bulk_settle_recipient_prompt") %></option>
+                  <% @bulk_settle_custody_accounts.each do |account| %>
+                    <option value="<%= account.id %>" data-recipient-name="<%= account.user.full_name %>">
+                      <%= t("finance.daily_reconciliations.index.bulk_settle_recipient_option",
+                            name:    account.user.full_name,
+                            branch:  account.branch&.name || t("finance.daily_reconciliations.index.bulk_settle_recipient_no_branch"),
+                            balance: format_currency(account.current_balance)) %>
+                    </option>
+                  <% end %>
+                </select>
+              </div>
+            <% end %>
+          </fieldset>
+
+          <%# ── Cash destination ── %>
+          <% if can_settle_cash %>
+            <fieldset data-bulk-destination="cash" <%= "disabled" unless default_dest == "cash" %>
+                      <%= "hidden" unless default_dest == "cash" %>
+                      style="border: 0; padding: 0; margin: 0;">
+              <p style="font-size: var(--text-sm); color: var(--text-2); margin: 0 0 var(--space-3);">
+                <%= t("finance.daily_reconciliations.index.bulk_settle_cash_explainer") %>
+              </p>
+              <% if cash_available %>
+                <div style="display: flex; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3);">
+                  <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+                    <label class="form-label" for="bulk-settle-cash-method" style="font-size: var(--text-xs);">
+                      <%= t("finance.daily_reconciliations.index.bulk_settle_cash_method_label") %>
+                    </label>
+                    <select name="cash_payment_method_id" id="bulk-settle-cash-method" required
+                            class="form-control form-control-sm" style="font-size: var(--text-sm);">
+                      <% if cash_methods.size > 1 %>
+                        <option value=""><%= t("finance.daily_reconciliations.index.bulk_settle_cash_method_prompt") %></option>
+                      <% end %>
+                      <% cash_methods.each do |pm| %>
+                        <option value="<%= pm.id %>" data-method-name="<%= pm.display_name %>"
+                                <%= "selected" if cash_methods.one? %>><%= pm.display_name %></option>
+                      <% end %>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+                    <label class="form-label" for="bulk-settle-reference" style="font-size: var(--text-xs);">
+                      <%= t("finance.daily_reconciliations.index.bulk_settle_ref_label") %>
+                    </label>
+                    <%= text_field_tag "reference_number", nil,
+                          id: "bulk-settle-reference",
+                          class: "form-control form-control-sm",
+                          placeholder: t("finance.daily_reconciliations.index.bulk_settle_ref_placeholder"),
+                          style: "font-size: var(--text-sm);" %>
+                  </div>
+                </div>
+              <% else %>
+                <div class="alert alert-warning" id="bulk-settle-no-cash-method" style="margin: 0 0 var(--space-3);">
+                  <%= t("finance.daily_reconciliations.index.bulk_settle_cash_no_method") %>
+                </div>
+              <% end %>
+            </fieldset>
+          <% end %>
+
+          <% if default_dest %>
+            <div style="display: flex; align-items: flex-end; gap: var(--space-3); flex-wrap: wrap;">
+              <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+                <label class="form-label" for="bulk-settle-notes" style="font-size: var(--text-xs);">
+                  <%= t("finance.daily_reconciliations.index.bulk_settle_reason_label") %>
+                </label>
+                <%= text_field_tag "notes", nil,
+                      id: "bulk-settle-notes",
+                      class: "form-control form-control-sm",
+                      placeholder: t("finance.daily_reconciliations.index.bulk_settle_notes_placeholder"),
+                      style: "font-size: var(--text-sm);" %>
+              </div>
+              <button type="submit"
+                      id="bulk-settle-submit"
+                      class="btn btn-warning btn-sm"
+                      data-turbo-confirm=""
+                      data-custody-label="<%= t('finance.daily_reconciliations.index.bulk_settle_custody_btn') %>"
+                      data-cash-label="<%= t('finance.daily_reconciliations.index.bulk_settle_cash_btn') %>"
+                      data-custody-prompt="<%= t('finance.daily_reconciliations.index.bulk_settle_recipient_prompt') %>"
+                      data-cash-prompt="<%= t('finance.daily_reconciliations.index.bulk_settle_cash_method_prompt') %>"
+                      data-custody-template="<%= t('finance.daily_reconciliations.index.bulk_settle_custody_confirm', amount: '__AMOUNT__', recipient: '__NAME__') %>"
+                      data-cash-template="<%= t('finance.daily_reconciliations.index.bulk_settle_cash_confirm', amount: '__AMOUNT__', method: '__NAME__') %>"
+                      style="flex-shrink: 0;">
+                <%= t(default_dest == "cash" ? "finance.daily_reconciliations.index.bulk_settle_cash_btn" :
+                                               "finance.daily_reconciliations.index.bulk_settle_custody_btn") %>
+              </button>
+            </div>
+          <% end %>
         </form>
       </div>
     <% end %>
@@ -539,26 +645,83 @@
   var settleCount = document.getElementById('bulk-settle-count');
   var settleTotal = document.getElementById('bulk-settle-total');
   var clearSettle = document.getElementById('clear-settle-selection');
+  var recipientEl = document.getElementById('bulk-settle-recipient');
+  var cashMethodEl = document.getElementById('bulk-settle-cash-method');
+  var submitBtn   = document.getElementById('bulk-settle-submit');
 
-  if (!settleForm) return;
+  if (!settleBar) return;
 
   var currencyCode = (settleBar && settleBar.dataset.currencyCode) || 'SAR';
   var locale       = document.documentElement.lang === 'ar' ? 'ar-SA' : 'en-US';
   var fmt          = new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode, minimumFractionDigits: 2 });
 
+  // The displayed total is a preview only — the server recomputes it from
+  // the database and ignores anything the browser could send.
+  var currentTotal = 0;
+
+  function destination() {
+    var checked = settleForm && settleForm.querySelector('input[name="destination"]:checked');
+    return checked ? checked.value : null;
+  }
+
+  // Only the chosen destination's fieldset is enabled (so only its fields are
+  // validated and submitted) and visible.
+  function syncDestination() {
+    var dest = destination();
+    if (!dest) return; // nothing selectable — keep the server-rendered explanations
+    settleForm.querySelectorAll('fieldset[data-bulk-destination]').forEach(function(fs) {
+      var on = fs.dataset.bulkDestination === dest;
+      fs.disabled = !on;
+      fs.hidden   = !on;
+    });
+    if (submitBtn && dest) submitBtn.textContent = submitBtn.dataset[dest + 'Label'];
+    syncConfirm();
+  }
+
+  // Confirmation names the amount and WHO (custody recipient) or HOW (cash
+  // payment method) before anything is posted.
+  function syncConfirm() {
+    if (!submitBtn) return;
+    var dest = destination();
+    var el   = dest === 'cash' ? cashMethodEl : recipientEl;
+    var opt  = el && el.options[el.selectedIndex];
+    var name = opt && opt.value ? (dest === 'cash' ? opt.dataset.methodName : opt.dataset.recipientName) : null;
+    if (!dest || !name) {
+      submitBtn.setAttribute('data-turbo-confirm', dest ? submitBtn.dataset[dest + 'Prompt'] : '');
+      return;
+    }
+    submitBtn.setAttribute('data-turbo-confirm',
+      submitBtn.dataset[dest + 'Template']
+        .replace('__AMOUNT__', fmt.format(currentTotal))
+        .replace('__NAME__', name));
+  }
+
   function syncSettleForm() {
-    settleForm.querySelectorAll('input[name="ids[]"]').forEach(function(el) { el.remove(); });
     var checked = document.querySelectorAll('.dr-settle-checkbox:checked');
     var total   = 0;
+    if (settleForm) settleForm.querySelectorAll('input[name="ids[]"]').forEach(function(el) { el.remove(); });
     checked.forEach(function(cb) {
-      var h = document.createElement('input');
-      h.type = 'hidden'; h.name = 'ids[]'; h.value = cb.dataset.drId;
-      settleForm.appendChild(h);
+      if (settleForm) {
+        var h = document.createElement('input');
+        h.type = 'hidden'; h.name = 'ids[]'; h.value = cb.dataset.drId;
+        settleForm.appendChild(h);
+      }
       total += parseFloat(cb.dataset.amount) || 0;
     });
+    currentTotal = total;
     if (settleCount) settleCount.textContent = checked.length;
     if (settleTotal) settleTotal.textContent = fmt.format(total);
-    if (settleBar)   settleBar.hidden = checked.length === 0;
+    settleBar.hidden = checked.length === 0;
+    syncConfirm();
+  }
+
+  if (recipientEl)  recipientEl.addEventListener('change', syncConfirm);
+  if (cashMethodEl) cashMethodEl.addEventListener('change', syncConfirm);
+  if (settleForm) {
+    settleForm.querySelectorAll('input[name="destination"]').forEach(function(r) {
+      r.addEventListener('change', syncDestination);
+    });
+    syncDestination();
   }
 
   document.querySelectorAll('.dr-settle-checkbox').forEach(function(cb) {

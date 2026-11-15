@@ -1,6 +1,12 @@
 module Finance
   # Writes off the full outstanding amount of an open RemainingDepositBalance.
   # Appends a write_off ledger transaction and closes the balance.
+  #
+  # Concurrency: same canonical lock order as RemainingDepositBalanceSettler
+  # and BulkShortageCustodySettler (DailyReconciliation row, then balance row)
+  # and the open check is repeated on the locked, freshly read row, so a write-
+  # off can never follow a concurrent settlement (or another write-off) of the
+  # same balance; the amount written off is the remaining amount under the lock.
   class RemainingDepositBalanceWriteOff
     include AuditLoggable
 
@@ -18,6 +24,9 @@ module Finance
       return err("not_open") unless @balance.open?
 
       ActiveRecord::Base.transaction do
+        lock_balance!
+        next err("not_open") unless @balance.open?
+
         txn = @balance.balance_transactions.create!(
           transaction_type: "write_off",
           amount:           @balance.remaining_amount,
@@ -41,6 +50,12 @@ module Finance
     end
 
     private
+
+    # DR row, then balance row (reloaded) — see the class comment.
+    def lock_balance!
+      DailyReconciliation.where(id: @balance.daily_reconciliation_id).lock.pluck(:id)
+      @balance.lock!
+    end
 
     def err(key) = Result.new(ok: false, error: I18n.t("remaining_deposit_balances.errors.#{key}"))
   end

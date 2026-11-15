@@ -84,10 +84,11 @@ class Finance::RemainingDepositBalancesController < Finance::BaseController
                  .includes(:daily_reconciliation, :responsible_user, :created_by,
                             till_deposit:          :payment_method,
                             daily_reconciliation:  :branch,
-                            balance_transactions:  %i[performed_by
-                                                       previous_responsible_user
-                                                       new_responsible_user
-                                                       payment_method])
+                            balance_transactions:  [ :performed_by,
+                                                     :previous_responsible_user,
+                                                     :new_responsible_user,
+                                                     :payment_method,
+                                                     { custody_transaction: { custody_account: :user } } ])
                  .find(params[:id])
   end
 end

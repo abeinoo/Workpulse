@@ -312,6 +312,8 @@
                       <%= t("finance.daily_reconciliations.show.timeline.#{cfg[:lbl]}") %>
                       <% if item[:type] == :remaining_settled && item[:payment_method] %>
                         (<%= item[:payment_method].display_name %>)
+                      <% elsif item[:type] == :remaining_settled && item[:custody_recipient] %>
+                        (<%= t("finance.custody.transactions.types.shortage_settlement_deposit") %>)
                       <% end %>
                     </span>
                     <button data-action="click->timeline-event#toggle"
@@ -969,6 +971,15 @@
                         <div style="<%= dl_row %>">
                           <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_payment_method") %></span>
                           <span style="<%= dl_val %>"><%= item[:payment_method].display_name %></span>
+                        </div>
+                      <% elsif item[:custody_recipient] %>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_custody_recipient") %></span>
+                          <span style="<%= dl_val %>"><%= item[:custody_recipient].full_name %></span>
+                        </div>
+                        <div style="<%= dl_row %>">
+                          <span style="<%= dl_lbl %>"><%= t("finance.daily_reconciliations.show.timeline.detail.label_original_cashier") %></span>
+                          <span style="<%= dl_val %>"><%= rdb.responsible_user.full_name %></span>
                         </div>
                       <% end %>
                       <div style="<%= dl_row %>">

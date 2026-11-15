@@ -2,6 +2,15 @@ module Finance
   # Partially or fully settles an open RemainingDepositBalance by appending
   # a ledger transaction.  The balance closes automatically when remaining_amount
   # reaches zero.
+  #
+  # Concurrency: runs under the canonical shortage lock order — the
+  # DailyReconciliation row (the lock Finance::TillDepositRecorder takes before
+  # it touches a shortage), then the balance row — and re-checks status and
+  # remaining amount against the locked, freshly read row. A concurrent
+  # settlement, write-off or bulk custody settlement of the same balance
+  # therefore waits, then sees the committed state and is refused with the same
+  # error as before. Same order as RemainingDepositBalanceWriteOff and
+  # BulkShortageCustodySettler, so the three cannot deadlock each other.
   class RemainingDepositBalanceSettler
     include AuditLoggable
 
@@ -25,6 +34,10 @@ module Finance
       return err("invalid_payment_method") if @payment_method_id && !payment_method_allowed?
 
       ActiveRecord::Base.transaction do
+        lock_balance!
+        next err("not_open")        unless @balance.open?
+        next err("exceeds_balance") if @amount > @balance.remaining_amount
+
         new_remaining = @balance.remaining_amount - @amount
         fully_settled = new_remaining.zero?
 
@@ -55,6 +68,12 @@ module Finance
     end
 
     private
+
+    # DR row, then balance row (reloaded) — see the class comment.
+    def lock_balance!
+      DailyReconciliation.where(id: @balance.daily_reconciliation_id).lock.pluck(:id)
+      @balance.lock!
+    end
 
     # A settlement payment method must be an active one of the balance's own
     # business — the ledger row is append-only and can never be corrected

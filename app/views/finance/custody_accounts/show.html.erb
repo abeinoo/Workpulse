@@ -272,7 +272,7 @@
             <% can_view_purchase_requests = policy(PurchaseRequest).show? %>
             <% @transactions.each do |txn| %>
               <% linked   = txn.settlement_linked? && !txn.voided? %>
-              <% voidable = !linked && !txn.voided? && policy(txn).void? %>
+              <% voidable = !linked && !txn.voided? && !txn.shortage_settlement? && policy(txn).void? %>
               <tr id="txn-<%= txn.id %>" class="<%= 'is-voided' if txn.voided? %>">
                 <td class="custody-ledger__date"><%= l(txn.created_at.to_date, format: :long) %></td>
                 <td class="custody-ledger__type">
@@ -288,6 +288,8 @@
                     <%= link_to inventory_goods_receipt_path(txn.source), class: "link" do %><bdi><%= txn.source.receipt_number %></bdi><% end %>
                   <% elsif txn.source.is_a?(PurchaseRequest) %>
                     <%= link_to inventory_purchase_request_path(txn.source, anchor: "advances"), class: "link" do %><bdi><%= txn.source.request_number %></bdi><% end %>
+                  <% elsif txn.source.is_a?(RemainingDepositBalance) %>
+                    <%= link_to finance_remaining_deposit_balance_path(txn.source), class: "link" do %><bdi><%= t("finance.custody.transactions.shortage_ref", id: txn.source_id) %></bdi><% end %>
                   <% else %>
                     —
                   <% end %>

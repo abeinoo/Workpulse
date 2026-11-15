@@ -70,6 +70,8 @@ here only so its stable ID and history are kept.
 | BUG-049 | Company cash / bank funding of a responsible employee's custody has no company-side ledger entry | Finance & Sales (custody ledger, purchase request advance funding) | Medium (accounting completeness; no money is double-counted) | Known limitation (owner decision 2026-11-13: defer a Cash / Bank Account ledger) | Open | Before company cash / bank balances are reported from WorkPulse |
 | BUG-050 | Goods Receipts list loads each receipt's lines to show its total | Inventory & Purchasing (goods receipts list) | Low (performance only; one query per listed receipt) | Performance (found in the 2026-11-14 engineering audit; owner decision: separate task) | Open | Before the receipts list is paginated beyond its current page size or slows |
 | BUG-051 | Devise self-service account routes (`/users/edit`, `PATCH`/`PUT /users`, `DELETE /users`) are live and bypass Organization & Access | Organization & Access (authentication) | Medium (a signed-in user can change their own email / password or delete their own account without the admin rules or an audit entry) | Confirmed (routes and code reading, 2026-11-15); impact not reproduced | Open | Before the next authentication change, or before self-service account settings are offered |
+| BUG-052 | A bulk shortage settlement into custody cannot be reversed | Finance & Sales (Remaining Deposit Balance, custody ledger) | Medium (an erroneous settlement — wrong recipient, wrong days — cannot be corrected inside WorkPulse; no money is lost or double-counted) | Known limitation (owner decision 2026-11-15: no reversal in the bulk-settlement change) | Open | Before bulk custody settlement is used routinely, or at the first erroneous settlement |
+| BUG-053 | Dispute reserve / release and shortage reassignment write a Remaining Deposit Balance without the shortage lock | Finance & Sales (Remaining Deposit Balance, Bank Disputes) | Medium (a race with a settlement, write-off or bulk custody settlement of the same balance could overwrite its remaining amount / status with a stale value) | Suspected (code reading 2026-11-15; not reproduced) | Open | Next Bank Dispute or Remaining Deposit Balance change |
 
 ---
 
@@ -1643,3 +1645,56 @@ here only so its stable ID and history are kept.
 * **Regression tests:** `GET /users/edit`, `PATCH /users`, `PUT /users`, `DELETE /users` → not routable (or 404) for a
   signed-in user; sign-up (`GET /users/sign_up`, `POST /users`) and sign-in keep working.
 * **Review milestone:** before the next authentication change, or before self-service account settings are offered.
+
+## BUG-052 — A bulk shortage settlement into custody cannot be reversed
+
+* **Source:** bulk settlement of Daily Reconciliation shortages into a custody account
+  (branch `feat/bulk-settle-shortage-custody`), 2026-11-15. **Discovered:** 2026-11-15.
+  **Status:** Open — known limitation; the owner decided not to implement a reversal in that change.
+* **Domain / files:** Finance & Sales — `Finance::BulkShortageCustodySettler`, `CustodyTransaction`
+  (`shortage_settlement_deposit`, `#shortage_settlement?`), `RemainingDepositBalanceTransaction#custody_transaction`,
+  `Finance::TransactionVoider`.
+* **Observed (design):** each settled shortage gets a positive `shortage_settlement_deposit` custody credit
+  (source = the `RemainingDepositBalance`) and an append-only `settlement` ledger row naming that credit, and the
+  balance closes as `settled`. The credit can never be voided on its own (model validation
+  `shortage_settlement_void` + `TransactionVoider` refusal), because voiding it would take the cash back out of
+  custody while the shortage stays settled. No other path undoes the settlement.
+* **Expected:** an authorised user can correct an erroneous bulk settlement (wrong recipient, wrong days) with a
+  dedicated reversal that, per shortage and in ONE transaction under the shortage lock order (DR → balance →
+  custody account): posts the equal-and-opposite custody row linked to the original credit (never voids or edits it),
+  appends a compensating ledger row on the balance, reopens the balance with its remaining amount restored, and
+  audits both sides with a mandatory reason. The original credit and settlement row stay in the history.
+* **Impact:** until then a mistake can only be corrected outside the application (e.g. a manual custody
+  adjustment), which leaves the shortage marked settled and the two ledgers without a link — the audit trail
+  explains it only through notes.
+* **Recommended fix:** a `Finance::ShortageCustodySettlementReverser` (+ a reversal custody type mirroring
+  `purchase_advance_funding_reversal`, a ledger transaction type for the reopening, policy method, DR timeline event,
+  EN/AR keys); the partial unique index `idx_custody_txn_one_active_shortage_settlement` must then admit a new
+  credit after a reversal (scope it to non-reversed credits).
+* **Regression tests:** reversal restores the custody balance and reopens the balance with its full amount; both
+  original rows stay unchanged; a second reversal is refused; a reversed shortage can be settled again; concurrent
+  reversal and settlement serialise on the DR lock.
+* **Review milestone:** before bulk custody settlement is used routinely, or at the first erroneous settlement.
+
+## BUG-053 — Dispute reserve / release and shortage reassignment write a Remaining Deposit Balance without the shortage lock
+
+* **Source:** concurrency review of the bulk shortage settlement, 2026-11-15. **Discovered:** 2026-11-15.
+  **Status:** Open — outside the approved scope of that change (settlement, write-off, bulk settlement).
+* **Domain / files:** Finance & Sales — `Finance::BankDisputes::RemainingBalanceReserver` (called from
+  `BankDisputes::Creator`), `Finance::BankDisputes::RemainingBalanceReleaser` (from
+  `BankDisputes::StatusTransitioner`), `Finance::RemainingDepositBalanceReassigner`.
+* **Observed (code reading):** the shortage lock order is now DailyReconciliation row → balance row(s) by id
+  (→ custody account), taken by `RemainingDepositBalanceSettler`, `RemainingDepositBalanceWriteOff`,
+  `BulkShortageCustodySettler` and (DR row) `TillDepositRecorder`. The reserver / releaser read the balances
+  without any lock and then `update!` `remaining_amount` / `status` from those reads; the reassigner checks `open?`
+  without a lock.
+* **Expected:** every writer of a Remaining Deposit Balance takes the same lock order and re-checks under it.
+* **Impact (suspected, not reproduced):** a dispute reserved or released while the same balance is being settled /
+  written off can wait on the balance row and then write a stale remaining amount or status (e.g. reopen a balance
+  that was just settled); a reassignment can land on a balance closed a moment earlier.
+* **Recommended fix:** lock the DR row, then the balances by id, and re-read them before computing shares / the
+  release; re-check `open?` under the lock in the reassigner.
+* **Regression tests:** two-connection specs in the style of
+  `spec/services/finance/remaining_deposit_balance_concurrency_spec.rb` — dispute reserve vs settlement, release vs
+  write-off, reassignment vs settlement.
+* **Review milestone:** next Bank Dispute or Remaining Deposit Balance change.

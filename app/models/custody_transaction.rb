@@ -17,8 +17,9 @@ class CustodyTransaction < ApplicationRecord
   # Whitelist for the polymorphic #source link (mirrors FinancialAdjustment#adjustable) —
   # used to trace an inventory_purchase/inventory_purchase_reversal back to the
   # GoodsReceipt that caused it, or to the PurchaseRequest whose advance
-  # payment caused it (see PurchaseRequestAdvance).
-  SOURCE_TYPES = %w[GoodsReceipt PurchaseRequest].freeze
+  # payment caused it (see PurchaseRequestAdvance), or a shortage_settlement_deposit
+  # back to the RemainingDepositBalance (cash shortage) it settled.
+  SOURCE_TYPES = %w[GoodsReceipt PurchaseRequest RemainingDepositBalance].freeze
 
   has_one_attached :document
   validates_attachment :document,
@@ -32,16 +33,23 @@ class CustodyTransaction < ApplicationRecord
   # purchase_advance_funding is company cash / bank money given to a Purchase
   # Request's responsible employee through a confirmed advance — kept apart
   # from a manual top_up so the two stay distinguishable.
+  # shortage_settlement_deposit is a Remaining Deposit Balance (cash shortage)
+  # settled by making the selected employee accountable for that cash in
+  # custody (Finance::BulkShortageCustodySettler) — positive, source = the
+  # RemainingDepositBalance, at most one active per balance (DB partial unique
+  # index). No cash drawer, deposit or payment method is involved.
   TXN_TYPES = %w[top_up expense_deduction transfer adjustment inventory_purchase
                  inventory_purchase_reversal expense_deduction_reversal
-                 purchase_advance_funding purchase_advance_funding_reversal].freeze
+                 purchase_advance_funding purchase_advance_funding_reversal
+                 shortage_settlement_deposit].freeze
   enum :txn_type, { top_up: "top_up", expense_deduction: "expense_deduction",
                     transfer: "transfer", adjustment: "adjustment",
                     inventory_purchase: "inventory_purchase",
                     inventory_purchase_reversal: "inventory_purchase_reversal",
                     expense_deduction_reversal: "expense_deduction_reversal",
                     purchase_advance_funding: "purchase_advance_funding",
-                    purchase_advance_funding_reversal: "purchase_advance_funding_reversal" }
+                    purchase_advance_funding_reversal: "purchase_advance_funding_reversal",
+                    shortage_settlement_deposit: "shortage_settlement_deposit" }
 
   validates :amount, presence: true, numericality: true
   validates :source_type, inclusion: { in: SOURCE_TYPES }, allow_nil: true
@@ -51,6 +59,8 @@ class CustodyTransaction < ApplicationRecord
   validate  :mirrors_financial_settlement, on: :create
   validate  :settlement_linked_not_voided_directly, on: :update
   validate  :advance_funding_not_voided_directly, on: :update
+  validate  :shortage_settlement_source_valid, on: :create
+  validate  :shortage_settlement_not_voided_directly, on: :update
 
   scope :for_business, ->(business)    { where(business: business) }
   scope :for_account,  ->(account_id)  { where(custody_account_id: account_id) if account_id.present? }
@@ -71,7 +81,30 @@ class CustodyTransaction < ApplicationRecord
   # would leave the advance confirmed with no money moved.
   def advance_funding? = source_type == "PurchaseRequest" && !settlement_linked?
 
+  # A Shortage Settlement Deposit closed a RemainingDepositBalance whose
+  # append-only ledger now names this row. Voiding it would put the cash back
+  # out of custody while the shortage stays "settled" — so it can never be
+  # voided on its own (Finance::TransactionVoider refuses; the model enforces it).
+  def shortage_settlement? = shortage_settlement_deposit?
+
   private
+
+  # A Shortage Settlement Deposit always names the balance it settled, from
+  # the same business.
+  def shortage_settlement_source_valid
+    return unless shortage_settlement_deposit?
+
+    unless source.is_a?(RemainingDepositBalance) && source.business_id == business_id
+      errors.add(:source, :invalid)
+    end
+  end
+
+  # Model-level backstop for #shortage_settlement?, like the ones below.
+  def shortage_settlement_not_voided_directly
+    return unless shortage_settlement? && will_save_change_to_voided_at? && voided_at.present?
+
+    errors.add(:base, :shortage_settlement_void)
+  end
 
   # Model-level backstop for #settlement_linked?: blocks voiding through ANY
   # path (service, console, future code), not just Finance::TransactionVoider.
@@ -103,7 +136,7 @@ class CustodyTransaction < ApplicationRecord
     return if amount.blank?
 
     case txn_type
-    when "top_up", "purchase_advance_funding"
+    when "top_up", "purchase_advance_funding", "shortage_settlement_deposit"
       errors.add(:amount, :must_be_positive) unless amount.positive?
     when "purchase_advance_funding_reversal"
       errors.add(:amount, :must_be_negative) unless amount.negative?

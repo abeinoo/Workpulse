@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_13_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_15_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -412,6 +412,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_150000) do
     t.index ["custody_account_id"], name: "index_custody_transactions_on_custody_account_id"
     t.index ["expense_id"], name: "index_custody_transactions_on_expense_id"
     t.index ["financial_settlement_id"], name: "index_custody_transactions_on_financial_settlement_id", unique: true
+    t.index ["source_id"], name: "idx_custody_txn_one_active_shortage_settlement", unique: true, where: "(((txn_type)::text = 'shortage_settlement_deposit'::text) AND ((source_type)::text = 'RemainingDepositBalance'::text) AND (voided_at IS NULL))"
     t.index ["source_type", "source_id"], name: "index_custody_transactions_on_source"
     t.index ["transfer_counterparty_id"], name: "index_custody_transactions_on_transfer_counterparty_id"
     t.index ["voided_by_id"], name: "index_custody_transactions_on_voided_by_id"
@@ -1717,7 +1718,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_150000) do
     t.bigint "payment_method_id"
     t.string "reference_number"
     t.bigint "bank_dispute_id"
+    t.bigint "custody_transaction_id"
     t.index ["bank_dispute_id"], name: "idx_on_bank_dispute_id_9a77f70cc7"
+    t.index ["custody_transaction_id"], name: "idx_rdbt_on_custody_transaction_id", unique: true
     t.index ["new_responsible_user_id"], name: "idx_rdbt_on_new_user_id"
     t.index ["payment_method_id"], name: "idx_on_payment_method_id_43b68ad05c"
     t.index ["performed_by_id"], name: "idx_rdbt_on_performed_by_id"
@@ -2903,6 +2906,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_150000) do
   add_foreign_key "recurring_expenses", "expense_types"
   add_foreign_key "recurring_expenses", "users", column: "created_by_id"
   add_foreign_key "remaining_deposit_balance_transactions", "bank_disputes"
+  add_foreign_key "remaining_deposit_balance_transactions", "custody_transactions"
   add_foreign_key "remaining_deposit_balance_transactions", "payment_methods"
   add_foreign_key "remaining_deposit_balance_transactions", "remaining_deposit_balances"
   add_foreign_key "remaining_deposit_balance_transactions", "users", column: "new_responsible_user_id"
