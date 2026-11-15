@@ -321,65 +321,70 @@ RSpec.describe "Organization & Access security", type: :request do
     end
   end
 
-  # ── OA-S6: account claim needs the invitation link ───────────────────────
-  describe "OA-S6 account claim" do
+  # ── OA-S6: account claim by mobile number (reverted 2026-11-15) ─────────
+  # Product decision 2026-11-15: a pending account is claimed with its mobile
+  # number alone — an ACCEPTED RISK (no OTP or other proof of possession). What
+  # stays enforced: one generic answer (no enumeration), only the matching
+  # account in its own business is activated, and nothing but the password is
+  # written. Full coverage: spec/services/users/registration_service_spec.rb and
+  # spec/requests/users/registrations_spec.rb.
+  describe "OA-S6 account claim (phone-only, accepted risk)" do
     let!(:pending) { create(:user, :phone_only, :unregistered, business: business_a, phone_number: "+966507777777") }
+    let(:cashier_role_b) { create(:permission_role, business: business_b, name: "Cashier B", permissions: %w[view_attendance]) }
 
-    def claim(login:, token: nil, password: "claim12345")
+    def claim(phone:, password: "claim12345")
       post user_registration_path,
-           params: { user: { login: login, password: password, password_confirmation: password, invitation_token: token } }
+           params: { user: { phone_number: phone, password: password, password_confirmation: password } }
     end
 
-    it "refuses a claim with only the phone number (no sign-in, no password set)" do
-      claim(login: "+966507777777")
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(pending.reload.encrypted_password).to be_blank
-      get root_path
-      expect(response).to redirect_to(new_user_session_path)
-    end
-
-    it "refuses a claim with another employee's invitation link" do
-      other = create(:user, :phone_only, :unregistered, business: business_a)
-      claim(login: "+966507777777", token: other.generate_token_for(:account_claim))
-      expect(pending.reload.encrypted_password).to be_blank
-    end
-
-    it "gives the same answer for unknown, unclaimed and registered accounts (no enumeration)" do
-      { nil => "auth.register.invitation_required", "forged--token" => "auth.register.invalid_invitation" }.each do |token, key|
-        expected = ERB::Util.html_escape(I18n.t(key))
-        [ "+966500000001", "+966507777777", owner_a.email ].each do |login|
-          claim(login: login, token: token)
-          expect(response).to have_http_status(:unprocessable_content)
-          expect(response.body).to include(expected)
-          expect(response.body).not_to include("No account found", "already been registered")
-        end
-      end
-    end
-
-    it "activates the account through the administrator's invitation link" do
-      token = pending.generate_token_for(:account_claim)
-      get new_user_registration_path(invitation: token)
-      expect(response.body).to include(token)
-
-      claim(login: "+966507777777", token: token)
+    it "activates the pending account with its mobile number alone (the accepted risk, pinned)" do
+      claim(phone: "+966507777777")
       expect(response).to redirect_to(root_path)
       expect(pending.reload.valid_password?("claim12345")).to be(true)
     end
 
-    it "shows the invitation link only to employee managers, only for pending accounts" do
-      sign_in hr_user
-      get admin_user_path(pending)
-      expect(response.body).to include(I18n.t("admin.users.invitation_link"))
-
-      get admin_user_path(employee)
-      expect(response.body).not_to include(I18n.t("admin.users.invitation_link"))
+    it "gives the same answer for unknown, registered and inactive accounts (no enumeration)" do
+      inactive = create(:user, :phone_only, :unregistered, business: business_b, phone_number: "+966507777778", active: false)
+      registered = create(:user, :phone_only, business: business_b, phone_number: "+966507777779")
+      expected = ERB::Util.html_escape(I18n.t("auth.register.not_available"))
+      [ "+966500000001", inactive.phone_number, registered.phone_number, owner_a.email ].each do |phone|
+        claim(phone: phone)
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(response.body).to include(expected)
+        expect(response.body).not_to include("No account found", "already been registered")
+      end
+      expect(inactive.reload.encrypted_password).to be_blank
+      expect(registered.reload.valid_password?("password123")).to be(true)
     end
 
-    it "does not show the invitation link to a user without manage_employees" do
-      viewer = api_user_with(business_a, :view_employees)
-      sign_in viewer
+    it "activates only the matching account in its own business and grants nothing" do
+      pending_b = create(:user, :phone_only, :unregistered, business: business_b, phone_number: "+966507777780")
+      pending_b.update_column(:permission_role_id, cashier_role_b.id)
+
+      claim(phone: "+966507777780")
+      pending_b.reload
+      expect(pending_b.business).to eq(business_b)
+      expect(pending_b.permission_role).to eq(cashier_role_b)
+      expect(pending_b.can?(:manage_settings)).to be(false)
+      expect(pending.reload.encrypted_password).to be_blank
+    end
+
+    it "ignores a submitted business, role or owner flag" do
+      post user_registration_path, params: { user: { phone_number: "+966507777777", password: "claim12345",
+                                                     password_confirmation: "claim12345", business_id: business_b.id,
+                                                     permission_role_id: full_role_a.id, active: "1" } }
+      expect(response).to redirect_to(root_path)
+      pending.reload
+      expect([ pending.business_id, pending.permission_role_id ]).to eq([ business_a.id, nil ])
+      expect(business_a.reload.owner_id).not_to eq(pending.id)
+    end
+
+    it "shows no invitation link on the admin employee page" do
+      sign_in hr_user
       get admin_user_path(pending)
-      expect(response.body).not_to include(I18n.t("admin.users.invitation_link"))
+      expect(response).to have_http_status(:ok)
+      expect(response.body).not_to include("invitation=")
+      expect(response.body).to include(ERB::Util.html_escape(I18n.t("admin.users.pending_registration")))
     end
   end
 end

@@ -103,7 +103,7 @@ Characterized by the security specs (class B) and **not duplicated** in the char
 | Roles of another business never assignable (model validation + scoped lookup) | same (OA-S2) |
 | Role changes need `manage_roles`; no granting or managing above one's own permissions | same (OA-S3) |
 | Owner protected (password, status, deletion, login identifiers, role) | same (OA-S4/S5) |
-| Account claim requires an invitation link; one generic error | same (OA-S6) + `registration_service_spec` |
+| Account claim by registered mobile number alone (invitation link removed 2026-11-15, accepted risk — migration-readiness §OA-S6 reversal); one generic error | same (OA-S6) + `registration_service_spec` |
 | Branch/area managers from the same business only | same (OA-S7) |
 | Employee management limited to the actor's scope | `organization_access_scope_hierarchy_spec` (OA-S8) |
 | Privilege hierarchy (administrative permissions must be covered) | same |

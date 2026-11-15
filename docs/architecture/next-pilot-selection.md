@@ -421,7 +421,8 @@ characterization pins:
 3. `employee.save!` runs inside the transaction (this runs `User#job_title_from_catalog`), followed by `log_audit`
    `employee.created_from_data_request`.
 4. The **account** is not activated here. The new `User` has no password and no role. Account claim happens later
-   through the Organization & Access invitation flow (OA-S6, `generates_token_for(:account_claim)`), and roles are
+   through Organization & Access self-service registration by mobile number (OA-S6; the invitation link,
+   `generates_token_for(:account_claim)`, was removed on 2026-11-15), and roles are
    assigned via `OrganizationAccess::RoleAssignmentRule`.
 
 **Who owns what:**

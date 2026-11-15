@@ -378,7 +378,7 @@ Each guarantee is protected by an existing spec that ran green before and after:
 | OA-S2 business scoping (foreign role, user, branch → 404 / invalid) | security spec "OA-S2", `view_and_role_scope_spec` "9. cross-business", new isolation examples |
 | OA-S3 role assignment and escalation | security spec "OA-S3", Step 1 G1, new change-role examples |
 | OA-S4/S5 owner protection | security spec "OA-S4/S5", `scope_hierarchy_spec` "Case D", G1 owner examples |
-| OA-S6 account claim | security spec "OA-S6", `registration_service_spec` |
+| OA-S6 account claim (phone-only since 2026-11-15, accepted risk) | security spec "OA-S6", `registration_service_spec` |
 | OA-S7 branch managers | security spec "OA-S7" (`Branch` validation; not a PermissionGrants rule) |
 | OA-S8 employee-management scope and privilege hierarchy | `scope_hierarchy_spec` "OA-S8" and "privilege hierarchy" Cases B–E |
 | Role permission-scope escalation | `view_and_role_scope_spec` "role permission scope", new matrix |

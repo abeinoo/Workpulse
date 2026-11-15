@@ -104,16 +104,6 @@ class User < ApplicationRecord
 
   attr_accessor :login
 
-  # Account-claim invitation (OA-S6): knowing a phone/email is not enough to
-  # activate a pending account — the claimant must present this signed token,
-  # issued by an administrator. Stateless (no column); it stops working once a
-  # password is set or the account is deactivated, and after 7 days. The block
-  # value is embedded (signed, not encrypted) in the token, so it must never
-  # include secrets such as the password digest.
-  generates_token_for :account_claim, expires_in: 7.days do
-    [ encrypted_password.present?, active? ]
-  end
-
   validates :preferred_locale, inclusion: { in: %w[en ar] }, allow_blank: true
   validates :employee_code,            uniqueness: { scope: :business_id, case_sensitive: false },
                                        allow_blank: true
