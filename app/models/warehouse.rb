@@ -36,6 +36,13 @@ class Warehouse < ApplicationRecord
   # so a warehouse whose branch later changes type stays valid (it is never
   # deleted or detached automatically).
   validate  :branch_is_sales, if: :will_save_change_to_branch_id?
+  # Structural identity: a warehouse never moves to another business, and once
+  # classified its kind and owning branch are fixed — a branch warehouse is
+  # never re-parented or turned central, a central one never becomes a branch
+  # warehouse through an ordinary update. Classifying a not-yet-classified
+  # warehouse (kind nil -> central/branch) is left open for the explicit,
+  # audited classification step.
+  validate  :structural_identity_unchanged, on: :update
 
   scope :for_business, ->(business) { where(business: business) }
   scope :ordered,      -> { order(:name) }
@@ -58,5 +65,13 @@ class Warehouse < ApplicationRecord
     return if branch.nil?
 
     errors.add(:branch, :not_sales_branch) unless branch.branch_type_sales?
+  end
+
+  def structural_identity_unchanged
+    errors.add(:business_id, :immutable) if will_save_change_to_business_id?
+    return if kind_in_database.nil?
+
+    errors.add(:kind, :immutable)      if will_save_change_to_kind?
+    errors.add(:branch_id, :immutable) if will_save_change_to_branch_id?
   end
 end

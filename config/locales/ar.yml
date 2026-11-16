@@ -4614,6 +4614,31 @@ ar:
       statuses:
         active: "نشط"
         inactive: "غير نشط"
+      errors:
+        not_authorized: "غير مسموح لك بإدارة هذا المستودع."
+        not_found: "المستودع غير موجود."
+        kind_required: "حدد ما إذا كان المستودع مركزياً أم مخزن فرع."
+        status_invalid: "اختر حالة صحيحة للمستودع."
+        branch_not_found: "الفرع غير موجود."
+        branch_already_has_warehouse: "هذا الفرع لديه مخزن فرع بالفعل."
+        reason_required: "يجب ذكر سبب لحذف المستودع."
+        in_use: "لا يمكن حذف هذا المستودع لأنه ما زال مرتبطاً بـ: %{references}."
+        audit_failed: "لم يتم حفظ التغيير لأنه تعذّر تسجيله في سجل التدقيق. يرجى المحاولة مرة أخرى."
+      references:
+        stock_on_hand: "رصيد مخزون قائم"
+        inventory_movements: "حركات مخزون"
+        stock_issues: "أذونات صرف"
+        goods_receipts: "أذونات استلام"
+        stock_adjustments: "تسويات مخزون"
+        stock_counts: "جرد مخزون"
+        stock_transfers: "تحويلات مخزون"
+        stock_issue_import_batches: "استيرادات أذونات الصرف"
+        purchase_requests: "طلبات شراء"
+        purchase_request_items: "بنود طلبات شراء"
+        product_warehouse_settings: "حدود مخزون المنتجات"
+        warehouse_assignments: "صلاحيات وصول المستخدمين للمستودع"
+        warehouse_branch_supplies: "روابط توريد الفروع"
+        other_records: "سجلات أخرى"
     suppliers:
       title: "الموردون"
       add: "إضافة مورد"
@@ -6254,6 +6279,11 @@ ar:
               not_sales_branch: "يجب أن يكون فرع مبيعات — مخزن الفرع لفروع المبيعات فقط"
             branch_id:
               already_has_warehouse: "لديه مخزن فرع بالفعل"
+              immutable: "لا يمكن تغييره بعد تصنيف المستودع"
+            kind:
+              immutable: "لا يمكن تغييره بعد تصنيف المستودع"
+            business_id:
+              immutable: "لا يمكن تغييره"
         custody_transaction:
           attributes:
             amount:
