@@ -227,9 +227,21 @@ RSpec.describe "Characterization: POS terminals through the branch form", type: 
         expect(response).to redirect_to(admin_branch_path(branch))
       end
 
+      # Branch and terminal changes stay unaudited. Since Warehouse Architecture
+      # PR 3 a new sales branch gets its branch warehouse, whose creation IS
+      # audited — exactly one Warehouse "create" row, for that branch's warehouse.
       it "writes no AuditLog row for a branch created with terminals" do
-        expect { create_branch("0" => { terminal_id: "TERM-N1" }) }.not_to change(AuditLog, :count)
+        warehouse_creates = AuditLog.where(auditable_type: "Warehouse", action: "create")
+        expect { create_branch("0" => { terminal_id: "TERM-N1" }) }
+          .to change { AuditLog.where.not(auditable_type: "Warehouse").count }.by(0)
+          .and change { warehouse_creates.count }.by(1)
         expect(response).to have_http_status(:redirect)
+
+        created   = Branch.where(business: business, name: "New").sole
+        warehouse = Warehouse.find_by!(branch_id: created.id)
+        audit     = warehouse_creates.order(:id).last
+        expect(audit.auditable_id).to eq(warehouse.id)
+        expect(audit.metadata).to include("branch_id" => created.id, "source" => "branch_provisioning")
       end
     end
 

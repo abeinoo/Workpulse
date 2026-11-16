@@ -61,15 +61,16 @@ class Admin::BranchesController < Admin::BaseController
     load_managers
   end
 
+  # The branch (and, for a sales branch, its branch warehouse) is created by
+  # OrganizationAccess::CreateBranch in one transaction.
   def create
     @branch = current_user.business.branches.build
     authorize @branch
-    unless assign_branch_params(@branch)
-      load_managers
-      return render :new, status: :unprocessable_entity
-    end
+    result = OrganizationAccess::CreateBranch.new(actor: current_user, attributes: branch_params.to_h,
+                                                  terminal_rows: pos_terminal_rows).call
+    @branch = result.record
 
-    if @branch.save
+    if result.ok?
       redirect_to admin_branch_path(@branch), notice: t("flash.branch_created")
     else
       load_managers
@@ -83,15 +84,16 @@ class Admin::BranchesController < Admin::BaseController
     load_managers
   end
 
+  # A non-sales -> sales change provisions the branch warehouse in the same
+  # transaction (OrganizationAccess::UpdateBranch).
   def update
     @branch = find_branch
     authorize @branch
-    unless assign_branch_params(@branch)
-      load_managers
-      return render :edit, status: :unprocessable_entity
-    end
+    result = OrganizationAccess::UpdateBranch.new(@branch.id, actor: current_user, attributes: branch_params.to_h,
+                                                  terminal_rows: pos_terminal_rows).call
+    @branch = result.record
 
-    if @branch.save
+    if result.ok?
       redirect_to admin_branch_path(@branch), notice: t("flash.branch_updated")
     else
       load_managers
@@ -178,26 +180,6 @@ class Admin::BranchesController < Admin::BaseController
   end
 
   POS_TERMINAL_FIELDS = %i[id terminal_id label active _destroy].freeze
-
-  # Branch#branch_type is a Rails enum — assigning an unsupported string
-  # raises ArgumentError immediately (before any validation runs), which
-  # would otherwise surface as an unhandled 500 for a tampered request
-  # rather than a normal form re-render. Guard against that here so an
-  # invalid value is always a clean validation-style failure.
-  #
-  # POS terminals are owned by Finance & Sales: the form's terminal rows are
-  # staged through the Organization & Access BranchTerminalSettings contract,
-  # after the branch's own attributes, and saved by the branch's own save in
-  # the same transaction (Pilot 12 — POS terminals write boundary, M3).
-  def assign_branch_params(branch)
-    branch.assign_attributes(branch_params)
-    rows = pos_terminal_rows
-    OrganizationAccess::BranchTerminalSettings.assign(branch: branch, rows: rows) unless rows.nil?
-    true
-  rescue ArgumentError
-    branch.errors.add(:branch_type, :inclusion)
-    false
-  end
 
   # The permitted rows as plain hashes, in submitted order. An index-keyed hash
   # becomes its rows; a single row (an "id" at the top level) stays one row —
