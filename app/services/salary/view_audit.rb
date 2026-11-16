@@ -13,6 +13,9 @@ module Salary
   # (view_salary_history) — every profile listed, recorded apart from the
   # current-profile view (admin_employee_page) of the same request.
   #
+  # employee_export: a salary written into an Employee Data Export file
+  # (Payroll::EmployeeExportSalaryColumns) — one row per employee exported.
+  #
   # Like every log_audit call, a failed write is logged and swallowed: it never
   # aborts the request (AuditLoggable).
   class ViewAudit
@@ -22,7 +25,7 @@ module Salary
     SOURCES = %w[
       admin_employee_page admin_employee_page_history admin_salary_profile_edit
       api_salary_profiles api_salary_profile api_salary_profile_update
-      request_advance_limit
+      request_advance_limit employee_export
     ].freeze
 
     def self.record(actor:, employee:, profiles:, source:)

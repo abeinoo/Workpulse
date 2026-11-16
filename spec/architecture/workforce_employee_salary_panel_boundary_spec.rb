@@ -15,6 +15,11 @@ require "rails_helper"
 # 3. The contract names nothing from Attendance & Payroll; the implementation is
 #    named only by the composition root and is the registered handler; the card
 #    partial lives in Attendance & Payroll's salary-profile views.
+# 4. The Employee Data Export (Employee::Export::*, admin/users#export) gets its
+#    salary columns only through Employee::ExportColumns: the export code names
+#    no salary constant or table, the contract names nothing from Attendance &
+#    Payroll, and its implementation is named only by its composition root and
+#    is the registered handler (2026-11-15).
 module ArchitectureSpecs
   module WorkforceEmployeeSalaryPanelBoundary
     module_function
@@ -25,6 +30,13 @@ module ArchitectureSpecs
     IMPLEMENTATION   = "app/services/payroll/employee_salary_panel.rb".freeze
     COMPOSITION_ROOT = "config/initializers/employee_profile_panels.rb".freeze
     PARTIAL          = "app/views/admin/salary_profiles/_employee_panel.html.erb".freeze
+
+    EXPORT_FILES            = Dir.glob("app/services/employee/export/**/*.rb", base: Rails.root.to_s).sort
+    EXPORT_CONTRACT         = "app/services/employee/export_columns.rb".freeze
+    EXPORT_IMPLEMENTATION   = "app/services/payroll/employee_export_salary_columns.rb".freeze
+    EXPORT_COMPOSITION_ROOT = "config/initializers/employee_export_columns.rb".freeze
+    # Attendance & Payroll names (the export contract's own SalaryValues struct is Workforce's).
+    AP_NAMES = /\bSalary::|\bSalaryProfile|\bSalaryPayment|\bPayroll::|\bsalary_profiles\b/
 
     SALARY = /\bSalaryProfile(Policy)?\b|\bSalary::|\bsalary_profiles?\b(?!\.|_path|_url)|@(salary_visible|salary_manageable|active_salary_profile)\b|\bSalaryPayment(Hold|Withholding)(Policy)?\b|\bsalary_payment_(holds|withholdings)\b(?!\.|_path|_url)/
 
@@ -73,7 +85,30 @@ RSpec.describe "Architecture: the Workforce employee page gets the salary card o
     expect(File.read(Rails.root.join(boundary::IMPLEMENTATION))).to include('"admin/salary_profiles/employee_panel"')
   end
 
+  it "the Employee Data Export reads salary only through Employee::ExportColumns (rule 4)" do
+    expect(boundary::EXPORT_FILES).to include("app/services/employee/export/exporter.rb", "app/services/employee/export/rows.rb")
+    found = boundary::EXPORT_FILES.flat_map { boundary.matches_in(_1, boundary::SALARY) }
+    expect(found).to be_empty, "Use Employee::ExportColumns:\n#{found.join("\n")}"
+    expect(boundary.matches_in("app/services/employee/export/rows.rb", /Employee::ExportColumns\.salary_values\(/).size).to eq(1)
+
+    expect(boundary.matches_in(boundary::EXPORT_CONTRACT, boundary::AP_NAMES)).to be_empty
+    outside = (boundary.source_files + boundary.source_files("config"))
+              .reject { [ boundary::EXPORT_IMPLEMENTATION, boundary::EXPORT_COMPOSITION_ROOT ].include?(_1) }
+              .flat_map { boundary.matches_in(_1, /\bPayroll::EmployeeExportSalaryColumns\b/) }
+    expect(outside).to be_empty
+    expect(boundary.matches_in(boundary::EXPORT_COMPOSITION_ROOT,
+                               /Employee::ExportColumns\.register\(Payroll::EmployeeExportSalaryColumns\)/)).to be_present
+    expect(Employee::ExportColumns.handler).to equal(Payroll::EmployeeExportSalaryColumns)
+  end
+
   describe "self-tests" do
+    it "AP_NAMES catches Attendance & Payroll names and not the contract's own struct" do
+      [ "Payroll::EmployeeExportSalaryColumns", "SalaryProfile.where(x)", "Salary::ViewAudit", "salary_profiles" ].each do |code|
+        expect(code).to match(boundary::AP_NAMES), code
+      end
+      expect("SalaryValues = Struct.new(:basic_salary)").not_to match(boundary::AP_NAMES)
+    end
+
     it "catches the former reads planted back, and ignores route helpers, i18n keys and comments" do
       [ "probe = SalaryProfile.new(user_id: @user.id)", "Salary::ViewAudit.record(actor: a)",
         "SalaryPaymentHold.active.find_by(user: @user)", "policy(SalaryPaymentHold.new)",

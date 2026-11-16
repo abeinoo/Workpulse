@@ -40,6 +40,13 @@ class UserPolicy < ApplicationPolicy
   # manage_employees within the management scope, never on one's own record —
   # the owner included.
   def change_attendance_requirement? = can?(:manage_employees) && !own_record? && in_management_scope?
+  # Employee Data Export — a collection gate (authorize User, :export?): the
+  # exported rows are the Employees page's own (Scope below), so it also needs
+  # the page itself. National ID needs export_employee_identity on top; the
+  # salary and insurance columns follow their own view rules
+  # (Employee::Export::FieldCatalog).
+  def export?          = can?(:export_employees) && index?
+  def export_identity? = export? && can?(:export_employee_identity)
 
   def permitted_attributes
     attributes = PROFILE_ATTRIBUTES.dup
