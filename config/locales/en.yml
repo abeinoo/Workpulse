@@ -6162,6 +6162,13 @@ en:
           attributes:
             warehouse_id:
               different_business: "must belong to the same business as the user"
+        warehouse:
+          attributes:
+            branch:
+              only_for_branch_warehouse: "can only be set on a branch warehouse"
+              not_sales_branch: "must be a sales branch — only sales branches have a branch warehouse"
+            branch_id:
+              already_has_warehouse: "already has a branch warehouse"
         custody_transaction:
           attributes:
             amount:
