@@ -171,7 +171,8 @@ RSpec.describe "Architecture: Organization & Access does not write downstream da
 
     it "the employee controller applies warehouse access only through the contract" do
       code = boundary.code_lines(boundary::CONTROLLER).map(&:first).join
-      expect(code).to include("OrganizationAccess::UserWarehouseAccess.assign(user: user, warehouse_ids: warehouse_ids)")
+      # The actor is passed explicitly so every assignment change is audited (PR 5, D7).
+      expect(code).to include("OrganizationAccess::UserWarehouseAccess.assign(user: user, warehouse_ids: warehouse_ids, actor: current_user)")
       expect(code.scan("assign_warehouse_access(@user, warehouse_ids)").size).to eq(2) # create and update
     end
 

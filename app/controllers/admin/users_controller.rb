@@ -252,7 +252,9 @@ class Admin::UsersController < Admin::BaseController
   # save — for a persisted user it applies immediately, as it always has.
   # Absent from the request (or not permitted by the account tier): untouched.
   def assign_warehouse_access(user, warehouse_ids)
-    OrganizationAccess::UserWarehouseAccess.assign(user: user, warehouse_ids: warehouse_ids) unless warehouse_ids.nil?
+    return if warehouse_ids.nil?
+
+    OrganizationAccess::UserWarehouseAccess.assign(user: user, warehouse_ids: warehouse_ids, actor: current_user)
   end
 
   # Stages a requested role change on the (possibly unsaved) user, saved with
