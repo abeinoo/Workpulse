@@ -24,8 +24,10 @@ class PurchaseRequestPolicy < ApplicationPolicy
   def submit_for_approval? = create? &&
                               (!record.is_a?(PurchaseRequest) || record.draft?)
 
+  # A request of a warehouse the user cannot reach is never approved or
+  # rejected by them (D5) — checked against Scope, the one definition.
   def approve? = (can?(:manage_inventory) || can?(:approve_purchase_requests)) &&
-                 (!record.is_a?(PurchaseRequest) || record.pending_approval?)
+                 (!record.is_a?(PurchaseRequest) || (record.pending_approval? && reachable?))
   def reject?  = approve?
 
   # Class-level gate for "اعتماد الطلبات المحددة" — the same permission as a
@@ -61,11 +63,35 @@ class PurchaseRequestPolicy < ApplicationPolicy
 
   def reviewer? = can?(:manage_inventory) || can?(:approve_purchase_requests)
 
+  # The persisted request is within the user's Scope (business + warehouses).
+  def reachable?
+    record.persisted? && Scope.new(user, PurchaseRequest).resolve.exists?(id: record.id)
+  end
+
   public
 
+  # Warehouse scoping (D5): a user restricted to some warehouses sees — and so
+  # can act on — only the purchase requests of those warehouses; nil from
+  # inventory_warehouse_ids (owner, company-wide access) keeps the whole
+  # business; an empty set sees none, never the whole business.
+  #
+  # A request's warehouse is its warehouse_id. A legacy request (no
+  # warehouse_id; each line named its own source warehouse) is reachable only
+  # when it has lines and EVERY line's source warehouse is reachable — a line
+  # with no warehouse at all fails closed.
   class Scope < ApplicationPolicy::Scope
     def resolve
-      scope.for_business(user.business)
+      relation = scope.for_business(user.business)
+      ids = user.inventory_warehouse_ids
+      return relation if ids.nil?
+      return relation.none if ids.empty?
+
+      lines = PurchaseRequestItem.where("purchase_request_items.purchase_request_id = purchase_requests.id")
+      outside = lines.where("purchase_request_items.source_warehouse_id IS NULL OR " \
+                            "purchase_request_items.source_warehouse_id NOT IN (?)", ids)
+      legacy = relation.where(warehouse_id: nil).where(lines.arel.exists).where.not(outside.arel.exists)
+
+      relation.where(warehouse_id: ids).or(legacy)
     end
   end
 end

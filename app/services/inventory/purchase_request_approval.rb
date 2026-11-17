@@ -68,8 +68,10 @@ module Inventory
 
     private
 
+    # Within the actor's business AND warehouses (PurchaseRequestPolicy::Scope,
+    # D5): a request of a warehouse the actor cannot reach is not found.
     def request
-      @request ||= PurchaseRequest.where(business_id: @actor.business_id).find(@purchase_request_id)
+      @request ||= PurchaseRequestPolicy::Scope.new(@actor, PurchaseRequest).resolve.find(@purchase_request_id)
     end
 
     # The business owner is exempt; anyone else may not approve a request

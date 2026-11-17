@@ -33,7 +33,11 @@ module Inventory
 
       approved = []
       ActiveRecord::Base.transaction do
-        requests = PurchaseRequest.where(business_id: @actor.business_id, id: @ids).order(:id).lock.to_a
+        # Business AND warehouse scoped (PurchaseRequestPolicy::Scope, D5): a
+        # selected request of a warehouse the actor cannot reach makes the
+        # count fall short, so the whole batch is refused as unavailable.
+        requests = PurchaseRequestPolicy::Scope.new(@actor, PurchaseRequest).resolve
+                                               .where(id: @ids).order(:id).lock.to_a
         raise BatchError, message(:bulk_unavailable) if requests.size != @ids.size
 
         stale = requests.reject(&:pending_approval?)
