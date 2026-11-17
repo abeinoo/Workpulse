@@ -38,6 +38,7 @@ module ArchitectureSpecs
       "app/models/warehouse_assignment.rb"              => "IP: the model",
       "app/models/warehouse.rb"                         => "IP: Warehouse has_many :warehouse_assignments / :assigned_users",
       "app/services/inventory/user_warehouse_assignments.rb" => "IP implementation of OrganizationAccess::UserWarehouseAccess",
+      "app/services/inventory/warehouse_access.rb"           => "IP implementation of OrganizationAccess::WarehouseAccessProvider (reads assignments)",
       "app/services/inventory/warehouse_manager.rb" => "IP: read-only existence check — assignments block warehouse deletion"
     }.freeze
 
@@ -205,7 +206,9 @@ RSpec.describe "Architecture: Organization & Access does not write downstream da
     it "Organization & Access code names nothing from Inventory & Purchasing for it" do
       files = Dir.glob(Rails.root.join("app/services/organization_access/**/*.rb")).map { |f| f.delete_prefix("#{Rails.root}/") } +
               %w[app/controllers/admin/branches_controller.rb app/policies/branch_policy.rb]
-      offending = files.reject { |file| file == boundary::CONTRACT_FILE } # UserWarehouseAccess: rule 1 above
+      # The two Organization & Access warehouse contracts are checked by their own
+      # rules (rule 1 above; "warehouse access provider" below).
+      offending = files.reject { |file| [ boundary::CONTRACT_FILE, "app/services/organization_access/warehouse_access_provider.rb" ].include?(file) }
                        .flat_map { |file| boundary.matches_in(file, inventory_reference) }
       expect(offending).to be_empty, "Go through OrganizationAccess::BranchProvisioning:\n#{offending.join("\n")}"
     end
@@ -241,6 +244,44 @@ RSpec.describe "Architecture: Organization & Access does not write downstream da
 
     it "adds no Branch -> Warehouse association" do
       expect(Branch.reflect_on_all_associations.map(&:class_name)).not_to include("Warehouse")
+    end
+  end
+
+  # Warehouse Architecture PR 5 (D1): which warehouses a user may reach is
+  # resolved through the Organization & Access contract
+  # OrganizationAccess::WarehouseAccessProvider, implemented by Inventory &
+  # Purchasing (Inventory::WarehouseAccess) and wired in
+  # config/initializers/organization_access_warehouse_access_provider.rb.
+  # The contract is NOT yet in the live path: activating it (fail-closed) is a
+  # separately approved step that must change these pins deliberately.
+  describe "warehouse access provider (Inventory & Purchasing)" do
+    provider_contract = "app/services/organization_access/warehouse_access_provider.rb"
+    provider_root     = "config/initializers/organization_access_warehouse_access_provider.rb"
+    provider_impl     = "app/services/inventory/warehouse_access.rb"
+
+    it "the contract names nothing from Inventory & Purchasing" do
+      expect(boundary.matches_in(provider_contract,
+                                 /\bInventory::|\bWarehouse(?!AccessProvider\b)\w*\b|\bwarehouse_assignments\b/)).to be_empty
+    end
+
+    it "only the composition root and Inventory & Purchasing name the implementation; it is the registered provider" do
+      outside = (boundary.source_files + boundary.source_files("config"))
+                .reject { |file| [ provider_impl, provider_root ].include?(file) }
+                .flat_map { |file| boundary.matches_in(file, /\bInventory::WarehouseAccess\b/) }
+      expect(outside).to be_empty, "Unexpected reference to the implementation:\n#{outside.join("\n")}"
+      expect(boundary.matches_in(provider_root,
+                                 /OrganizationAccess::WarehouseAccessProvider\.register\(Inventory::WarehouseAccess\)/)).to be_present
+      expect(OrganizationAccess::WarehouseAccessProvider.provider).to equal(Inventory::WarehouseAccess)
+    end
+
+    it "is not activated: no application code asks it for warehouse access yet" do
+      callers = (boundary.source_files + boundary.source_files("config"))
+                .reject { |file| file == provider_contract }
+                .flat_map { |file| boundary.matches_in(file, /\bWarehouseAccessProvider\.warehouse_ids_for\b|\bWarehouseAccess\.warehouse_ids_for\b|\bWarehouseAccess\.new\b/) }
+      expect(callers).to be_empty, <<~MSG
+        The warehouse access provider is not approved for the live path (fail-closed activation is a separate step):
+        #{callers.join("\n")}
+      MSG
     end
   end
 

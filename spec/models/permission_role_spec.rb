@@ -117,8 +117,28 @@ RSpec.describe PermissionRole, type: :model do
       expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(24)
     end
 
-    it "has 141 total permissions" do
-      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(141)
+    it "has 142 total permissions" do
+      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(142)
+    end
+
+    # Warehouse Architecture PR 5: company-wide warehouse access, explicit only.
+    it "offers access_all_warehouses in the inventory group, requiring view_inventory, in no default role" do
+      expect(PermissionRole::PERMISSION_GROUPS[:inventory]).to include("access_all_warehouses")
+      expect(PermissionRole::PERMISSION_DEPENDENCIES["access_all_warehouses"]).to eq(%w[view_inventory])
+      expect(PermissionRole::DEFAULT_PERMISSIONS_BY_ROLE_TYPE.values.flatten).not_to include("access_all_warehouses")
+    end
+
+    it "refuses access_all_warehouses without view_inventory" do
+      role = build(:permission_role, permissions: %w[access_all_warehouses])
+      expect(role).not_to be_valid
+      expect(role.errors[:permissions].join).to match(/requires.*view_inventory/i)
+    end
+
+    it "labels access_all_warehouses in English and Arabic" do
+      { en: "Access All Warehouses", ar: "الوصول إلى جميع المستودعات" }.each do |locale, label|
+        expect(I18n.t("admin.permission_roles.permissions.access_all_warehouses", locale: locale)).to eq(label)
+        expect(I18n.t("admin.permission_roles.permission_descriptions.access_all_warehouses", locale: locale, default: "")).to be_present
+      end
     end
 
     it "includes view_payroll_analytics as a separate permission from view_payroll" do
