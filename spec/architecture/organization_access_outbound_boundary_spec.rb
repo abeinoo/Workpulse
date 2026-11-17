@@ -39,7 +39,8 @@ module ArchitectureSpecs
       "app/models/warehouse.rb"                         => "IP: Warehouse has_many :warehouse_assignments / :assigned_users",
       "app/services/inventory/user_warehouse_assignments.rb" => "IP implementation of OrganizationAccess::UserWarehouseAccess",
       "app/services/inventory/warehouse_access.rb"           => "IP implementation of OrganizationAccess::WarehouseAccessProvider (reads assignments)",
-      "app/services/inventory/warehouse_manager.rb" => "IP: read-only existence check — assignments block warehouse deletion"
+      "app/services/inventory/warehouse_manager.rb" => "IP: read-only existence check — assignments block warehouse deletion",
+      "app/services/inventory/warehouse_access_report.rb" => "IP: read-only impact report (PR 5 Phase 4) — reads assignments to compare old vs new access; never authorizes"
     }.freeze
 
     # The only lines app/models/user.rb may contain about warehouse access.
@@ -259,6 +260,11 @@ RSpec.describe "Architecture: Organization & Access does not write downstream da
     provider_contract = "app/services/organization_access/warehouse_access_provider.rb"
     provider_root     = "config/initializers/organization_access_warehouse_access_provider.rb"
     provider_impl     = "app/services/inventory/warehouse_access.rb"
+    # The read-only impact report (PR 5 Phase 4) is the single exception to the
+    # pins below: it computes the resolver's answer only to compare it with
+    # today's, never to authorize, and only its rake task may call it.
+    impact_report      = "app/services/inventory/warehouse_access_report.rb"
+    impact_report_task = "lib/tasks/inventory.rake"
 
     it "the contract names nothing from Inventory & Purchasing" do
       expect(boundary.matches_in(provider_contract,
@@ -267,7 +273,7 @@ RSpec.describe "Architecture: Organization & Access does not write downstream da
 
     it "only the composition root and Inventory & Purchasing name the implementation; it is the registered provider" do
       outside = (boundary.source_files + boundary.source_files("config"))
-                .reject { |file| [ provider_impl, provider_root ].include?(file) }
+                .reject { |file| [ provider_impl, provider_root, impact_report ].include?(file) }
                 .flat_map { |file| boundary.matches_in(file, /\bInventory::WarehouseAccess\b/) }
       expect(outside).to be_empty, "Unexpected reference to the implementation:\n#{outside.join("\n")}"
       expect(boundary.matches_in(provider_root,
@@ -277,12 +283,20 @@ RSpec.describe "Architecture: Organization & Access does not write downstream da
 
     it "is not activated: no application code asks it for warehouse access yet" do
       callers = (boundary.source_files + boundary.source_files("config"))
-                .reject { |file| file == provider_contract }
+                .reject { |file| [ provider_contract, impact_report ].include?(file) }
                 .flat_map { |file| boundary.matches_in(file, /\bWarehouseAccessProvider\.warehouse_ids_for\b|\bWarehouseAccess\.warehouse_ids_for\b|\bWarehouseAccess\.new\b/) }
       expect(callers).to be_empty, <<~MSG
         The warehouse access provider is not approved for the live path (fail-closed activation is a separate step):
         #{callers.join("\n")}
       MSG
+    end
+
+    it "the impact report is reporting only: no controller, policy, service, job or view uses it — only its rake task" do
+      users = (boundary.source_files + boundary.source_files("config"))
+              .reject { |file| [ impact_report, impact_report_task ].include?(file) }
+              .flat_map { |file| boundary.matches_in(file, /\bWarehouseAccessReport\b/) }
+      expect(users).to be_empty, "The read-only impact report must not be used outside its rake task:\n#{users.join("\n")}"
+      expect(boundary.matches_in(impact_report_task, /\bInventory::WarehouseAccessReport\.new\b/).size).to eq(1)
     end
   end
 
