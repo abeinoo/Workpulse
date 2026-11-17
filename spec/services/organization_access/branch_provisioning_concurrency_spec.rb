@@ -362,6 +362,59 @@ RSpec.describe "Branch warehouse provisioning concurrency (two connections)" do
     expect(result_of(holder)).to eq(:released)
   end
 
+  # PR 4 — Inventory::BranchWarehouseBackfill against the branch lifecycle.
+  def backfill(branch_id, actor = admin)
+    Inventory::BranchWarehouseBackfill.new(actor: actor, approved_business_ids: [ business.id ]).execute(branch_ids: [ branch_id ]).sole
+  end
+
+  it "the backfill waits for a sales -> non-sales change holding the branch, then refuses it", :aggregate_failures do
+    branch_id = sales.id
+    reached, release = pause_first_branch_save
+
+    change = on_other_connection { update_branch(branch_id, admin, branch_type: "laundry") }
+    wait_for(reached)
+    run = on_other_connection { backfill(branch_id, admin2) }
+    expect(wait_until_lock_waits("businesses")).to be_present
+
+    release << true
+    expect(result_of(change)).to be_ok
+    outcome = result_of(run)
+    expect(outcome).to have_attributes(status: "FAILED", reason: "NOT_ELIGIBLE: not a sales branch (laundry)")
+    expect(Warehouse.where(branch_id: branch_id)).to be_empty
+  end
+
+  it "a sales -> non-sales change waits for the backfill, which commits; the warehouse is kept", :aggregate_failures do
+    branch_id = sales.id
+    reached, release = pause_first_warehouse_audit
+
+    run = on_other_connection { backfill(branch_id) }
+    wait_for(reached)
+    change = on_other_connection { update_branch(branch_id, admin2, branch_type: "laundry") }
+    expect(wait_until_lock_waits("businesses")).to be_present
+
+    release << true
+    expect(result_of(run).status).to eq("CREATED")
+    expect(result_of(change)).to be_ok
+    expect(Branch.find(branch_id)).to be_branch_type_laundry
+    expect(Warehouse.where(branch_id: branch_id, kind: "branch").count).to eq(1)
+  end
+
+  it "two simultaneous backfills of one branch create exactly one warehouse and one audit entry", :aggregate_failures do
+    branch_id = sales.id
+    reached, release = pause_first_warehouse_audit
+
+    first = on_other_connection { backfill(branch_id) }
+    wait_for(reached)
+    second = on_other_connection { backfill(branch_id, admin2) }
+    expect(wait_until_lock_waits("businesses")).to be_present
+
+    release << true
+    expect([ result_of(first), result_of(second) ].map(&:status)).to eq(%w[CREATED ALREADY_PROVISIONED])
+    expect(Warehouse.where(branch_id: branch_id).count).to eq(1)
+    expect(warehouse_audits.count).to eq(1)
+    expect(warehouse_audits.sole.metadata["source"]).to eq("branch_backfill")
+  end
+
   it "a new sales branch racing a central warehouse of the same name: the later one fails, nothing duplicates", :aggregate_failures do
     reached, release = pause_first_warehouse_audit
 

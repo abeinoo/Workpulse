@@ -197,6 +197,9 @@ RSpec.describe "Architecture: Organization & Access does not write downstream da
     provisioning_contract = "app/services/organization_access/branch_provisioning.rb"
     provisioning_root     = "config/initializers/organization_access_branch_provisioning.rb"
     provisioning_impl     = "app/services/inventory/branch_warehouse_provisioning.rb"
+    # Inventory's own backfill of existing sales branches (PR 4) calls the
+    # implementation directly — Inventory code, not through the contract.
+    provisioning_backfill = "app/services/inventory/branch_warehouse_backfill.rb"
     inventory_reference   = /\bInventory::|\bWarehouse\w*\b|\bwarehouses?\b|\bprovision_branch_warehouse\b/
 
     it "Organization & Access code names nothing from Inventory & Purchasing for it" do
@@ -209,7 +212,7 @@ RSpec.describe "Architecture: Organization & Access does not write downstream da
 
     it "only the composition root and Inventory & Purchasing name the implementation; it is the registered handler" do
       outside = (boundary.source_files + boundary.source_files("config"))
-                .reject { |file| file == provisioning_impl || file == provisioning_root }
+                .reject { |file| file == provisioning_impl || file == provisioning_root || file == provisioning_backfill }
                 .flat_map { |file| boundary.matches_in(file, /\bBranchWarehouseProvisioning\b/) }
       expect(outside).to be_empty, "Unexpected reference to the implementation:\n#{outside.join("\n")}"
       expect(boundary.matches_in(provisioning_root,

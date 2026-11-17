@@ -4575,6 +4575,12 @@ en:
         branch_not_sales: "Only a sales branch gets a branch warehouse."
         branch_warehouse_inconsistent: "This branch is linked to a warehouse that is not a valid branch warehouse — review it before continuing."
         provisioning_outside_transaction: "Branch warehouse provisioning must run inside the branch change."
+        invalid_provisioning_source: "Unknown branch warehouse provisioning source."
+      backfill:
+        errors:
+          transaction_open: "The branch warehouse backfill must not run inside another transaction — every branch needs its own transaction. Nothing was written."
+          inactive_actor: "The branch warehouse backfill cannot run as an inactive user. Nothing was written."
+          not_authorized: "The branch warehouse backfill requires a user who manages branches."
       references:
         stock_on_hand: "stock on hand"
         inventory_movements: "inventory movements"

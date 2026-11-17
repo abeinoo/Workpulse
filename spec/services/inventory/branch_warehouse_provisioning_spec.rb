@@ -114,9 +114,24 @@ RSpec.describe Inventory::BranchWarehouseProvisioning do
       expect(branch_lock).to be < insert
     end
 
-    it "accepts no kind, name or business of the caller's choosing" do
+    it "accepts no kind, name or business of the caller's choosing — only the branch and a known audit source" do
       params = Inventory::WarehouseManager.instance_method(:provision_branch_warehouse).parameters
-      expect(params).to eq([ [ :keyreq, :branch ] ])
+      expect(params).to eq([ [ :keyreq, :branch ], [ :key, :source ] ])
+    end
+
+    it "audits as branch_provisioning by default and as branch_backfill only when asked" do
+      provision
+      other = create(:branch, business: business, name: "Nasr", branch_type: "sales")
+      Branch.transaction { described_class.provision!(branch: other, actor: actor, source: "branch_backfill") }
+
+      expect(audits.order(:id).map { |a| a.metadata["source"] }).to eq(%w[branch_provisioning branch_backfill])
+    end
+
+    it "refuses an unknown audit source and writes nothing" do
+      result = Branch.transaction { manager.provision_branch_warehouse(branch: branch, source: "console") }
+
+      expect(result.code).to eq(:invalid_provisioning_source)
+      expect(Warehouse.count).to eq(0)
     end
 
     it "rolls back only its own savepoint on refusal, leaving the caller's transaction usable" do
