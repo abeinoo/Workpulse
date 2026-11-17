@@ -102,8 +102,9 @@ RSpec.describe "Warehouse manager concurrency (two connections)" do
   # Created eagerly on the main connection: nothing is built lazily inside a
   # worker thread (its own transaction must contain only the operation under test).
   let!(:business)     { create(:business) }
-  let!(:actor)        { user_with_stock_permissions(business, :view_inventory, :manage_inventory, name: "Manager") }
-  let!(:actor2)       { user_with_stock_permissions(business, :view_inventory, :manage_inventory, name: "Manager 2") }
+  # access_all_warehouses: creating a warehouse requires it on top of manage_inventory (PR 5, D4).
+  let!(:actor)        { user_with_stock_permissions(business, :view_inventory, :manage_inventory, :access_all_warehouses, name: "Manager") }
+  let!(:actor2)       { user_with_stock_permissions(business, :view_inventory, :manage_inventory, :access_all_warehouses, name: "Manager 2") }
   let!(:sales_branch) { create(:branch, business: business, branch_type: "sales") }
   let!(:product)      { business.products.create!(name: "Shampoo", sku: "SH-1", average_cost_price: 5) }
 

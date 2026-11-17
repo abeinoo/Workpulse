@@ -141,7 +141,8 @@ RSpec.describe "Branch warehouse provisioning concurrency (two connections)" do
   let!(:business)  { create(:business) }
   let!(:admin)     { user_with_stock_permissions(business, :manage_branches, name: "Branch admin") }
   let!(:admin2)    { user_with_stock_permissions(business, :manage_branches, name: "Branch admin 2") }
-  let!(:inventory) { user_with_stock_permissions(business, :view_inventory, :manage_inventory, name: "Inventory") }
+  # access_all_warehouses: creating a warehouse requires it on top of manage_inventory (PR 5, D4).
+  let!(:inventory) { user_with_stock_permissions(business, :view_inventory, :manage_inventory, :access_all_warehouses, name: "Inventory") }
   let!(:laundry)   { create(:branch, business: business, name: "Wash", branch_type: "laundry") }
   let!(:sales)     { create(:branch, business: business, name: "Nasr", branch_type: "sales") }
 

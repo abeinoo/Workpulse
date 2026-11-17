@@ -3,7 +3,7 @@
 <div class="admin-page">
   <div class="page-header">
     <h1 class="page-title"><%= t("inventory.warehouses.title") %></h1>
-    <% if current_user.can?(:manage_inventory) %>
+    <% if policy(Warehouse).create? %>
       <%= link_to t("inventory.warehouses.add"), new_inventory_warehouse_path, class: "btn btn-primary btn-sm" %>
     <% end %>
   </div>
