@@ -79,4 +79,66 @@ namespace :inventory do
     puts "#{issues.count(&:pending_approval?)} issue(s) pending approval; #{blocked.size} can't be approved right now:"
     issues.select { |i| blocked.include?(i.id) }.each { |i| puts "  #{i.issue_number} business=#{i.business_id}" }
   end
+
+  desc <<~DESC
+    Warehouse Architecture PR 4 — give EXISTING sales branches their branch
+    warehouse ("<Branch Name> – المخزن", kind branch, empty) through the
+    existing provisioning path (Inventory::BranchWarehouseBackfill).
+
+    DRY RUN by default: prints the classification of every branch of the
+    actor's own business (no other business is planned or shown) and writes
+    nothing. Writes only with EXECUTE=1 exactly, and only for the listed
+    BRANCH_IDS, one transaction per branch; every branch ends CREATED,
+    ALREADY_PROVISIONED or FAILED (exit status 1 if any failed).
+
+      ACTOR_ID               the active user the audit entries name (must manage branches)
+      APPROVED_BUSINESS_IDS  comma-separated; the actor's business, if not listed, is REQUIRES_MANUAL_REVIEW
+      BRANCH_IDS             comma-separated (required with EXECUTE=1)
+      EXECUTE=1              actually provision (any other value is a dry run)
+
+      bin/rails inventory:branch_warehouse_backfill ACTOR_ID=12 APPROVED_BUSINESS_IDS=2
+      bin/rails inventory:branch_warehouse_backfill ACTOR_ID=12 APPROVED_BUSINESS_IDS=2 BRANCH_IDS=3,4,5 EXECUTE=1
+
+    Never touches existing warehouses (an unclassified one stays unclassified),
+    stock, movements or documents.
+  DESC
+  task branch_warehouse_backfill: :environment do
+    ids = ->(value) { value.to_s.split(",").map(&:strip).reject(&:empty?).map { |id| Integer(id) } }
+
+    actor    = User.find(Integer(ENV.fetch("ACTOR_ID")))
+    approved = ids.(ENV.fetch("APPROVED_BUSINESS_IDS"))
+    abort "APPROVED_BUSINESS_IDS is empty" if approved.empty?
+
+    backfill = Inventory::BranchWarehouseBackfill.new(actor: actor, approved_business_ids: approved)
+    begin
+      plan = backfill.plan
+    rescue Inventory::BranchWarehouseBackfill::Refused => e
+      abort e.message
+    end
+    puts "Branch warehouse backfill — plan (actor ##{actor.id}, business ##{actor.business_id}; approved businesses #{approved.join(',')})"
+    (approved - [ actor.business_id ]).each do |other|
+      puts "  business ##{other}: outside the actor's business — not planned or shown"
+    end
+    plan.each do |c|
+      puts format("  %-22s business=%d branch=%d %-8s active=%-5s existing=%-6s proposed=%s  — %s",
+                  c.status, c.business_id, c.branch_id, c.branch_type, c.active, c.existing_warehouse_id || "-",
+                  c.proposed_name || "-", c.reason)
+    end
+
+    unless ENV["EXECUTE"] == "1"
+      puts "DRY RUN — nothing was written. Re-run with BRANCH_IDS=… EXECUTE=1 to provision."
+      next
+    end
+
+    branch_ids = ids.(ENV.fetch("BRANCH_IDS"))
+    abort "BRANCH_IDS is empty" if branch_ids.empty?
+    abort "the actor's business ##{actor.business_id} is not in APPROVED_BUSINESS_IDS" unless approved.include?(actor.business_id)
+
+    outcomes = backfill.execute(branch_ids: branch_ids)
+    puts "Branch warehouse backfill — results"
+    outcomes.each do |o|
+      puts format("  %-20s branch=%d warehouse=%-6s %s", o.status, o.branch_id, o.warehouse_id || "-", o.reason)
+    end
+    abort "#{outcomes.count(&:failed?)} branch(es) FAILED — see above" if outcomes.any?(&:failed?)
+  end
 end

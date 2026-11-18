@@ -45,6 +45,7 @@ module Inventory
     }.freeze
 
     UPDATABLE = %i[name description status].freeze
+    PROVISIONING_SOURCES = %w[branch_provisioning branch_backfill].freeze
     KEEP = Object.new.freeze
     private_constant :KEEP
 
@@ -113,7 +114,12 @@ module Inventory
     #
     # Idempotent: an existing branch warehouse of this branch is returned as
     # it is (no write, no audit entry). Anything else fails clearly.
-    def provision_branch_warehouse(branch:)
+    #
+    # source — the audit entry's source, one of PROVISIONING_SOURCES:
+    # "branch_provisioning" (the branch lifecycle, the default) or
+    # "branch_backfill" (Inventory::BranchWarehouseBackfill, existing branches).
+    def provision_branch_warehouse(branch:, source: "branch_provisioning")
+      return failure(:invalid_provisioning_source) unless PROVISIONING_SOURCES.include?(source)
       return failure(:provisioning_outside_transaction) unless Warehouse.connection.transaction_open?
       return failure(:branch_not_found) unless branch&.persisted? && branch.business_id == @actor.business_id
 
@@ -132,7 +138,7 @@ module Inventory
       warehouse = Warehouse.new(business_id: branch.business_id, kind: "branch", branch: branch,
                                 name: self.class.branch_warehouse_name(branch), status: "active")
       Warehouse.transaction(requires_new: true) do
-        persist_new!(warehouse, source: "branch_provisioning")
+        persist_new!(warehouse, source: source)
       end
       Result.new(ok: true, warehouse: warehouse)
     rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique, AuditLoggable::AuditWriteFailed => e
