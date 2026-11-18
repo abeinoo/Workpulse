@@ -141,4 +141,72 @@ namespace :inventory do
     end
     abort "#{outcomes.count(&:failed?)} branch(es) FAILED — see above" if outcomes.any?(&:failed?)
   end
+
+  desc <<~DESC
+    Warehouse Architecture PR 5 — READ-ONLY impact report for the fail-closed
+    switch: per user, today's effective warehouse access (old) vs what the
+    new warehouse access resolver would give once activated (new). IDs only.
+    Runs inside a READ ONLY database transaction; writes nothing, activates nothing.
+
+      BUSINESS_IDS        optional, comma-separated (default: every business)
+      HIGHLIGHT_USER_IDS  optional, comma-separated users to list separately
+
+      bin/rails inventory:warehouse_access_report BUSINESS_IDS=2 HIGHLIGHT_USER_IDS=17
+  DESC
+  task warehouse_access_report: :environment do
+    ids = ->(value) { value.to_s.split(",").map(&:strip).reject(&:empty?).map { |id| Integer(id) } }
+    business_ids = ids.(ENV["BUSINESS_IDS"]).presence
+    highlight    = ids.(ENV["HIGHLIGHT_USER_IDS"])
+    list = ->(values) { "[#{values.join(',')}]" }
+    line = lambda do |r|
+      format("  user=%-4d active=%-5s role=%s perms=%s old=%s new=%s lost=%s gained=%s flags=%s",
+             r.user_id, r.active, r.role_id ? "#{r.role_id}(#{r.role_type || '-'})" : "-",
+             r.inventory_permissions.join(",").presence || "-", list.(r.old_ids), list.(r.new_ids),
+             list.(r.lost), list.(r.gained), r.flags.join(","))
+    end
+
+    sections = nil
+    ActiveRecord::Base.transaction do
+      ActiveRecord::Base.connection.execute("SET TRANSACTION READ ONLY")
+      sections = Inventory::WarehouseAccessReport.new(business_ids: business_ids).sections
+      raise ActiveRecord::Rollback # nothing to keep — and nothing could have been written
+    end
+
+    puts "Warehouse access impact report — READ ONLY (old = current rule, new = Inventory::WarehouseAccess; not activated)"
+    rows = sections.flat_map(&:rows)
+    sections.each do |section|
+      puts "Business ##{section.business_id} — warehouses #{list.(section.warehouse_ids)}"
+      section.rows.each { |row| puts line.(row) }
+      next if section.quiet_user_ids.empty?
+
+      puts "  #{section.quiet_user_ids.size} other user(s) with no inventory permission, assignment or branch " \
+           "warehouse: old = every warehouse (fail-open), new = none — no inventory page either way."
+    end
+
+    if highlight.any?
+      puts "Highlighted users"
+      highlight.each do |user_id|
+        row = rows.find { |r| r.user_id == user_id }
+        puts(row ? line.(row) : "  user=#{user_id}: not among the reported users")
+      end
+    end
+
+    # Every count is printed with the user IDs behind it, so it reconciles
+    # line by line with the detail above. Counts cover the listed users only;
+    # the summarised users are stated separately.
+    tally = ->(label, selected) { "  #{label}=#{selected.size} #{list.(selected.map(&:user_id))}" }
+    flagged = ->(*flags) { rows.select { |r| flags.all? { |flag| r.flags.include?(flag) } } }
+    losing = flagged.("LOSES")
+    quiet = sections.sum { |section| section.quiet_user_ids.size }
+    puts "Summary (#{rows.size} listed user(s); the counts below cover these only)"
+    puts tally.("lose", losing)
+    puts tally.("lose_with_inventory_permission", losing.reject { |r| r.flags.include?("NO_INVENTORY_PERMISSION") })
+    puts tally.("lose_without_inventory_permission", flagged.("LOSES", "NO_INVENTORY_PERMISSION"))
+    puts tally.("gain", flagged.("GAINS"))
+    puts tally.("zero_after", flagged.("ZERO_AFTER"))
+    puts tally.("fail_open", flagged.("FAIL_OPEN"))
+    puts tally.("accountants_losing", flagged.("ACCOUNTANT", "LOSES"))
+    puts "  not listed: #{quiet} user(s) with no inventory permission, assignment or branch warehouse " \
+         "(old = every warehouse by fail-open, new = none; no inventory page either way)"
+  end
 end

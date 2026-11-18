@@ -15,5 +15,12 @@ module OrganizationAccess
     def group(name)
       PermissionRole::PERMISSION_GROUPS.fetch(name.to_sym)
     end
+
+    # { role_id => role_type } for the given role ids (role_type may be nil) —
+    # a read-only label for reports outside Organization & Access (e.g. the
+    # Inventory warehouse access impact report).
+    def role_types(role_ids)
+      PermissionRole.where(id: role_ids).pluck(:id, :role_type).to_h
+    end
   end
 end
