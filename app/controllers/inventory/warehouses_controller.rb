@@ -14,12 +14,23 @@ class Inventory::WarehousesController < Inventory::BaseController
     authorize @warehouse
   end
 
+  # A manually created warehouse is always central: the kind is fixed here and
+  # never read from the request (warehouse_params has no kind or branch_id).
+  # Branch warehouses come only from branch provisioning.
   def create
-    @warehouse = current_user.business.warehouses.build(warehouse_params)
-    authorize @warehouse
-    if @warehouse.save
-      redirect_to inventory_warehouse_path(@warehouse), notice: t("inventory.warehouses.created")
+    authorize Warehouse, :create?
+    result = Inventory::WarehouseManager.new(actor: current_user).create(
+      kind: "central",
+      name: warehouse_params[:name],
+      description: warehouse_params[:description],
+      status: warehouse_params[:status].presence || "active"
+    )
+    if result.ok?
+      redirect_to inventory_warehouse_path(result.warehouse), notice: t("inventory.warehouses.created")
     else
+      @warehouse = result.warehouse ||
+                   current_user.business.warehouses.build(warehouse_params.slice(:name, :description))
+      @warehouse.errors.add(:base, result.error) if @warehouse.errors.empty?
       render :new, status: :unprocessable_entity
     end
   end

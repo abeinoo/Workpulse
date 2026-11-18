@@ -63,9 +63,11 @@ RSpec.describe OrganizationAccess::UpdateBranch do
   describe "sales -> non-sales" do
     let(:sales) { create(:branch, business: business, name: "Nasr", branch_type: "sales") }
     let!(:warehouse) do
-      # access_all_warehouses: creating a warehouse requires it on top of manage_inventory (PR 5, D4).
-      Inventory::WarehouseManager.new(actor: user_with_stock_permissions(business, :view_inventory, :manage_inventory, :access_all_warehouses))
-                                 .create(kind: "branch", name: "Nasr – المخزن", branch_id: sales.id).warehouse
+      # Provisioned through the only branch-warehouse creation path.
+      Warehouse.transaction do
+        Inventory::WarehouseManager.new(actor: user_with_stock_permissions(business, :manage_branches))
+                                   .provision_branch_warehouse(branch: sales).warehouse
+      end
     end
 
     it "keeps the warehouse, its stock and its movements exactly as they were" do

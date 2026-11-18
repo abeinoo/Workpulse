@@ -69,8 +69,8 @@ RSpec.describe Inventory::BranchWarehouseBackfill do
     end
 
     it "recognizes an existing valid branch warehouse and an inconsistent one" do
-      existing = Inventory::WarehouseManager.new(actor: owner).create(kind: "branch", name: "Shubra own", branch_id: shubra.id).warehouse
-      broken   = Inventory::WarehouseManager.new(actor: owner).create(kind: "branch", name: "Bulaq own", branch_id: bulaq.id).warehouse
+      existing = business.warehouses.create!(kind: "branch", name: "Shubra own", branch: shubra)
+      broken   = business.warehouses.create!(kind: "branch", name: "Bulaq own", branch: bulaq)
       broken.update_columns(business_id: demo.id) # an impossible state, forced past every validation
 
       expect(by_branch[shubra.id]).to have_attributes(status: "ALREADY_PROVISIONED", existing_warehouse_id: existing.id)

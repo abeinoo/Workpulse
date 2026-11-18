@@ -14,6 +14,8 @@ RSpec.describe Inventory::WarehouseManager do
 
   def audits_for(warehouse, action) = AuditLog.where(auditable_type: "Warehouse", auditable_id: warehouse.id, action: action)
   def error_for(code) = I18n.t("inventory.warehouses.errors.#{code}")
+  # A branch warehouse through its only creation path (as the branch lifecycle does).
+  def provisioned(branch) = Warehouse.transaction { manager.provision_branch_warehouse(branch: branch) }.warehouse
 
   describe "#create" do
     it "creates a central warehouse without a branch, with an audit entry" do
@@ -38,14 +40,6 @@ RSpec.describe Inventory::WarehouseManager do
       expect(business.warehouses.kind_central.count).to eq(2)
     end
 
-    it "creates a branch warehouse for a sales branch and records the branch in the audit" do
-      result = manager.create(kind: "branch", name: "#{sales_branch.name} – المخزن", branch_id: sales_branch.id)
-
-      expect(result).to be_ok
-      expect(result.warehouse.reload).to have_attributes(kind: "branch", branch_id: sales_branch.id)
-      expect(audits_for(result.warehouse, "create").sole.metadata).to include("branch_id" => sales_branch.id, "kind" => "branch")
-    end
-
     it "requires an explicit, known kind" do
       [ nil, "", "laundry" ].each do |kind|
         result = manager.create(kind: kind, name: "No kind")
@@ -55,58 +49,51 @@ RSpec.describe Inventory::WarehouseManager do
       expect(Warehouse.count).to eq(0)
     end
 
-    it "rejects a branch warehouse without a branch" do
-      result = manager.create(kind: "branch", name: "Orphan")
-
-      expect(result.code).to eq(:invalid)
-      expect(result.warehouse.errors.of_kind?(:branch, :blank)).to be(true)
-      expect(Warehouse.count).to eq(0)
-    end
-
-    it "rejects a central warehouse with a branch" do
-      result = manager.create(kind: "central", name: "Central", branch_id: sales_branch.id)
-
-      expect(result.code).to eq(:invalid)
-      expect(result.warehouse.errors.of_kind?(:branch, :only_for_branch_warehouse)).to be(true)
-      expect(Warehouse.count).to eq(0)
-    end
-
-    %w[laundry headquarters maintenance warehouse other].each do |type|
-      it "rejects a branch warehouse for a #{type} branch" do
-        branch = create(:branch, business: business, branch_type: type)
-        result = manager.create(kind: "branch", name: "X", branch_id: branch.id)
-
-        expect(result.code).to eq(:invalid)
-        expect(result.warehouse.errors.of_kind?(:branch, :not_sales_branch)).to be(true)
+    # Branch warehouses come only from provision_branch_warehouse (branch
+    # lifecycle / backfill); the ordinary creation path refuses them outright.
+    describe "never creates a branch warehouse" do
+      def expect_refused(result)
+        expect(result).not_to be_ok
+        expect(result.code).to eq(:branch_warehouse_requires_provisioning)
+        expect(result.error).to eq(error_for(:branch_warehouse_requires_provisioning))
         expect(Warehouse.count).to eq(0)
+        expect(AuditLog.where(auditable_type: "Warehouse")).to be_empty
       end
-    end
 
-    it "rejects a branch of another business as not found" do
-      foreign = create(:branch, business: other_business, branch_type: "sales")
-      result = manager.create(kind: "branch", name: "X", branch_id: foreign.id)
+      it "refuses kind branch for a sales branch of the actor's business" do
+        expect_refused(manager.create(kind: "branch", name: "#{sales_branch.name} – المخزن", branch_id: sales_branch.id))
+      end
 
-      expect(result.code).to eq(:branch_not_found)
-      expect(Warehouse.count).to eq(0)
-    end
+      it "refuses kind branch without a branch" do
+        expect_refused(manager.create(kind: "branch", name: "Orphan"))
+        expect_refused(manager.create(kind: :branch, name: "Orphan"))
+      end
 
-    it "rejects a second branch warehouse for the same branch" do
-      expect(manager.create(kind: "branch", name: "First", branch_id: sales_branch.id)).to be_ok
-      result = manager.create(kind: "branch", name: "Second", branch_id: sales_branch.id)
+      it "refuses a central warehouse that names a branch" do
+        expect_refused(manager.create(kind: "central", name: "Central", branch_id: sales_branch.id))
+      end
 
-      expect(result.code).to eq(:branch_already_has_warehouse)
-      expect(result.error).to eq(error_for(:branch_already_has_warehouse))
-      expect(Warehouse.where(branch_id: sales_branch.id).count).to eq(1)
-    end
+      %w[laundry headquarters maintenance warehouse other].each do |type|
+        it "refuses a #{type} branch" do
+          branch = create(:branch, business: business, branch_type: type)
+          expect_refused(manager.create(kind: "branch", name: "X", branch_id: branch.id))
+        end
+      end
 
-    it "translates a unique-index violation (a lost race) into a domain error" do
-      expect(manager.create(kind: "branch", name: "First", branch_id: sales_branch.id)).to be_ok
-      # Skip the model's uniqueness pre-check so only the database can refuse.
-      allow_any_instance_of(Warehouse).to receive(:valid?).and_return(true)
-      result = manager.create(kind: "branch", name: "Second", branch_id: sales_branch.id)
+      it "refuses a branch of another business" do
+        foreign = create(:branch, business: other_business, branch_type: "sales")
+        expect_refused(manager.create(kind: "branch", name: "X", branch_id: foreign.id))
+      end
 
-      expect(result.code).to eq(:branch_already_has_warehouse)
-      expect(Warehouse.where(branch_id: sales_branch.id).count).to eq(1)
+      it "leaves branch provisioning as the way to get a branch warehouse" do
+        expect_refused(manager.create(kind: "branch", name: "X", branch_id: sales_branch.id))
+
+        result = Warehouse.transaction { manager.provision_branch_warehouse(branch: sales_branch) }
+        expect(result).to be_ok
+        expect(result.warehouse.reload).to have_attributes(kind: "branch", branch_id: sales_branch.id,
+                                                           name: "#{sales_branch.name} – المخزن")
+        expect(Warehouse.where(branch_id: sales_branch.id).count).to eq(1)
+      end
     end
 
     it "rejects an invalid status" do
@@ -140,7 +127,7 @@ RSpec.describe Inventory::WarehouseManager do
 
   describe "#update" do
     let!(:central)  { manager.create(kind: "central", name: "Central", description: "old").warehouse }
-    let!(:owned)    { manager.create(kind: "branch", name: "Owned", branch_id: sales_branch.id).warehouse }
+    let!(:owned)    { provisioned(sales_branch) }
 
     it "updates the permitted attributes and audits before/after values" do
       result = manager.update(warehouse_id: central.id, name: "Central (renamed)", description: "new", status: "inactive")
@@ -218,7 +205,7 @@ RSpec.describe Inventory::WarehouseManager do
 
   describe "structural identity (model rule behind every write path)" do
     let!(:central) { manager.create(kind: "central", name: "Central").warehouse }
-    let!(:owned)   { manager.create(kind: "branch", name: "Owned", branch_id: sales_branch.id).warehouse }
+    let!(:owned)   { provisioned(sales_branch) }
 
     it "never re-parents a branch warehouse" do
       other_branch = create(:branch, business: business, branch_type: "sales")
@@ -285,7 +272,7 @@ RSpec.describe Inventory::WarehouseManager do
     end
 
     it "deletes an empty branch warehouse and records its branch" do
-      owned = manager.create(kind: "branch", name: "Owned", branch_id: branch.id).warehouse
+      owned = provisioned(branch)
 
       expect(destroy(owned)).to be_ok
       expect(audits_for(owned, "destroy").sole.metadata).to include("kind" => "branch", "branch_id" => branch.id)

@@ -142,5 +142,33 @@ RSpec.describe Inventory::BranchWarehouseProvisioning do
         expect(Branch.where(id: branch.id).count).to eq(1) # the connection still works
       end
     end
+
+    # Moved here from WarehouseManager#create, which no longer creates branch
+    # warehouses: the branch warehouse's uniqueness guards on its only path.
+    it "translates a unique-index violation (a lost race) into a domain error and keeps one warehouse" do
+      first = provision
+      # Simulate the race: the existence check misses the committed warehouse
+      # and the model's uniqueness pre-check is skipped, so only the index refuses.
+      allow(Warehouse).to receive(:find_by).and_call_original
+      allow(Warehouse).to receive(:find_by).with(branch_id: branch.id).and_return(nil)
+      allow_any_instance_of(Warehouse).to receive(:valid?).and_return(true)
+
+      result = Branch.transaction { manager.provision_branch_warehouse(branch: branch) }
+
+      expect(result.code).to eq(:branch_already_has_warehouse)
+      expect(result.error).to eq(I18n.t("inventory.warehouses.errors.branch_already_has_warehouse"))
+      expect(Warehouse.where(branch_id: branch.id).pluck(:id)).to eq([ first.id ])
+      expect(audits.count).to eq(1)
+    end
+
+    it "is the only path that creates a branch warehouse — the ordinary creation path refuses one" do
+      creator = user_with_stock_permissions(business, :view_inventory, :manage_inventory, :access_all_warehouses)
+      refused = manager(creator).create(kind: "branch", name: "Shubra – المخزن", branch_id: branch.id)
+      expect(refused.code).to eq(:branch_warehouse_requires_provisioning)
+      expect(Warehouse.where(branch_id: branch.id)).to be_empty
+
+      warehouse = provision
+      expect(Warehouse.where(business_id: business.id, kind: "branch").pluck(:id, :branch_id)).to eq([ [ warehouse.id, branch.id ] ])
+    end
   end
 end

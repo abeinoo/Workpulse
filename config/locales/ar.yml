@@ -4620,7 +4620,8 @@ ar:
       errors:
         not_authorized: "غير مسموح لك بإدارة هذا المستودع."
         not_found: "المستودع غير موجود."
-        kind_required: "حدد ما إذا كان المستودع مركزياً أم مخزن فرع."
+        kind_required: "المستودع الذي يُنشأ هنا يجب أن يكون مستودعاً مركزياً."
+        branch_warehouse_requires_provisioning: "تُنشأ مخازن الفروع تلقائياً لفروع المبيعات ولا يمكن إنشاؤها يدوياً."
         status_invalid: "اختر حالة صحيحة للمستودع."
         branch_not_found: "الفرع غير موجود."
         branch_already_has_warehouse: "هذا الفرع لديه مخزن فرع بالفعل."
