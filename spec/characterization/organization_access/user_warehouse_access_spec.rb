@@ -84,8 +84,16 @@ RSpec.describe "Characterization: warehouse access through the employee form", t
       expect(assigned).to eq([ main_wh.id ])
     end
 
-    it "writes no AuditLog row for a warehouse access change (existing behaviour)" do
-      expect { update_employee(assigned_warehouse_ids: [ "", second_wh.id.to_s ]) }.not_to change(AuditLog, :count)
+    # Changed by Warehouse Architecture PR 5 (D7): was "writes no AuditLog row".
+    it "audits each assignment removed and added, in the acting user's name" do
+      audits = AuditLog.where(auditable_type: "WarehouseAssignment")
+      expect { update_employee(assigned_warehouse_ids: [ "", second_wh.id.to_s ]) }.to change(audits, :count).by(2)
+
+      removed, added = audits.order(:id).last(2)
+      expect([ removed.action, added.action ]).to eq(%w[destroy create])
+      expect([ removed.actor_id, added.actor_id ]).to eq([ owner.id, owner.id ])
+      expect(removed.metadata).to include("user_id" => employee.id, "warehouse_id" => main_wh.id, "business_id" => business.id)
+      expect(added.metadata).to include("user_id" => employee.id, "warehouse_id" => second_wh.id, "business_id" => business.id)
     end
   end
 

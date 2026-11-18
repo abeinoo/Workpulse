@@ -18,7 +18,10 @@ module OrganizationAccess
   # (UserPolicy#permitted_attributes, the account tier).
   #
   # A handler must respond to:
-  #   assign(user:, warehouse_ids:)
+  #   assign(user:, warehouse_ids:, actor:)
+  #     — actor is the user making the change (required; never implicit): every
+  #       assignment created or removed is audited in that actor's name, in
+  #       the same transaction as the change (Warehouse Architecture PR 5, D7).
   #     — warehouse_ids is the form's submitted list (blank values ignored); an
   #       empty list removes every assignment. An unknown id raises
   #       ActiveRecord::RecordNotFound; another business's warehouse raises
@@ -42,8 +45,8 @@ module OrganizationAccess
         @handler || raise(NotRegistered, "No OrganizationAccess::UserWarehouseAccess handler is registered")
       end
 
-      def assign(user:, warehouse_ids:)
-        handler.assign(user: user, warehouse_ids: warehouse_ids)
+      def assign(user:, warehouse_ids:, actor:)
+        handler.assign(user: user, warehouse_ids: warehouse_ids, actor: actor)
       end
     end
   end

@@ -10,6 +10,7 @@ RSpec.describe OrganizationAccess::UserWarehouseAccess do
   let(:user)       { create(:user, business: business) }
   let(:main_wh)    { Warehouse.create!(business: business, name: "Main") }
   let(:second_wh)  { Warehouse.create!(business: business, name: "Second") }
+  let!(:actor)     { create(:user, :owner, business: business) } # eager: its factory saves the business
 
   # Swaps the registered handler for one example and always restores it.
   def with_handler(handler)
@@ -32,7 +33,7 @@ RSpec.describe OrganizationAccess::UserWarehouseAccess do
 
     it "raises NotRegistered instead of silently dropping access when no handler is registered" do
       with_handler(nil) do
-        expect { described_class.assign(user: user, warehouse_ids: [ main_wh.id ]) }.to raise_error(described_class::NotRegistered)
+        expect { described_class.assign(user: user, warehouse_ids: [ main_wh.id ], actor: actor) }.to raise_error(described_class::NotRegistered)
       end
     end
   end
@@ -41,8 +42,8 @@ RSpec.describe OrganizationAccess::UserWarehouseAccess do
     it "passes the user and ids to the handler and returns its result" do
       handler = double("handler", assign: :assigned)
 
-      with_handler(handler) { expect(described_class.assign(user: user, warehouse_ids: [ "1" ])).to eq(:assigned) }
-      expect(handler).to have_received(:assign).with(user: user, warehouse_ids: [ "1" ])
+      with_handler(handler) { expect(described_class.assign(user: user, warehouse_ids: [ "1" ], actor: actor)).to eq(:assigned) }
+      expect(handler).to have_received(:assign).with(user: user, warehouse_ids: [ "1" ], actor: actor)
     end
   end
 
@@ -50,7 +51,7 @@ RSpec.describe OrganizationAccess::UserWarehouseAccess do
     it "replaces a persisted user's assignments immediately, before any save" do
       user.assigned_warehouses << main_wh
 
-      described_class.assign(user: user, warehouse_ids: [ "", second_wh.id.to_s ])
+      described_class.assign(user: user, warehouse_ids: [ "", second_wh.id.to_s ], actor: actor)
 
       expect(WarehouseAssignment.where(user: user).pluck(:warehouse_id)).to eq([ second_wh.id ])
     end
@@ -58,7 +59,7 @@ RSpec.describe OrganizationAccess::UserWarehouseAccess do
     it "saves a new user's assignments with the user" do
       new_user = business.users.new(first_name: "New", last_name: "Hire", email: "new.hire@example.com")
 
-      described_class.assign(user: new_user, warehouse_ids: [ main_wh.id.to_s ])
+      described_class.assign(user: new_user, warehouse_ids: [ main_wh.id.to_s ], actor: actor)
       expect(WarehouseAssignment.count).to eq(0)
 
       new_user.save!
@@ -68,7 +69,7 @@ RSpec.describe OrganizationAccess::UserWarehouseAccess do
     it "raises RecordInvalid for another business's warehouse" do
       foreign = Warehouse.create!(business: create(:business), name: "Foreign")
 
-      expect { described_class.assign(user: user, warehouse_ids: [ foreign.id.to_s ]) }.to raise_error(ActiveRecord::RecordInvalid)
+      expect { described_class.assign(user: user, warehouse_ids: [ foreign.id.to_s ], actor: actor) }.to raise_error(ActiveRecord::RecordInvalid)
     end
   end
 end
