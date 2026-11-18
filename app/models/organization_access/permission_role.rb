@@ -45,7 +45,8 @@ class PermissionRole < ApplicationRecord
                                manage_stock_transfers
                                manage_stock_counts post_stock_counts view_stock_count_reports
                                create_purchase_requests approve_purchase_requests
-                               manage_purchase_request_advances confirm_purchase_request_advances],
+                               manage_purchase_request_advances confirm_purchase_request_advances
+                               access_all_warehouses],
     performance:           %w[view_performance_dashboard view_notes view_monthly_reviews
                                view_performance_reports manage_evaluation_templates
                                create_observations manage_reviews finalize_reviews],
@@ -362,6 +363,9 @@ class PermissionRole < ApplicationRecord
     "confirm_purchase_request_advances" => %w[view_inventory],
     "manage_stock_counts"    => %w[view_inventory],
     "post_stock_counts"      => %w[view_inventory],
+    # Company-wide warehouse access (every warehouse of the business). Never in
+    # a default role; granted explicitly only (Warehouse Architecture PR 5).
+    "access_all_warehouses"  => %w[view_inventory],
     "manage_evaluation_templates" => %w[view_performance_dashboard],
     "create_observations"         => %w[view_notes],
     "manage_reviews"              => %w[view_monthly_reviews],
