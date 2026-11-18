@@ -5,7 +5,8 @@ require "rails_helper"
 RSpec.describe Inventory::WarehouseManager do
   let(:business)       { create(:business) }
   let(:other_business) { create(:business) }
-  let(:manager_user)   { user_with_stock_permissions(business, :view_inventory, :manage_inventory) }
+  # access_all_warehouses: creating a warehouse requires it on top of manage_inventory (PR 5, D4).
+  let(:manager_user)   { user_with_stock_permissions(business, :view_inventory, :manage_inventory, :access_all_warehouses) }
   let(:viewer)         { user_with_stock_permissions(business, :view_inventory) }
   let(:manager)        { described_class.new(actor: manager_user) }
   let(:sales_branch)   { create(:branch, business: business, branch_type: "sales") }
@@ -117,6 +118,15 @@ RSpec.describe Inventory::WarehouseManager do
 
       expect(result.code).to eq(:not_authorized)
       expect(Warehouse.count).to eq(0)
+    end
+
+    it "refuses manage_inventory alone — creation needs access_all_warehouses too (D4)" do
+      manage_only = user_with_stock_permissions(business, :view_inventory, :manage_inventory)
+      result = described_class.new(actor: manage_only).create(kind: "central", name: "X")
+
+      expect(result.code).to eq(:not_authorized)
+      expect(Warehouse.count).to eq(0)
+      expect(AuditLog.where(auditable_type: "Warehouse")).to be_empty
     end
 
     it "writes nothing when the audit entry cannot be recorded" do
