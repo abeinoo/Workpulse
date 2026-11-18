@@ -35,6 +35,19 @@ RSpec.describe "Daily Reconciliations — bulk settle to custody account", type:
   let!(:day1) { make_dr(Date.new(2026, 11, 1), 100) }
   let!(:day2) { make_dr(Date.new(2026, 11, 2), 150) }
 
+  # The index lists only the last 14 business days to users without full
+  # history access (DailyReconciliation::INDEX_RECENT_BUSINESS_DAYS) — and the
+  # bulk bar needs outstanding shortages among the listed DRs. Pinned so the
+  # fixed DR dates stay inside that window (BUG-054):
+  # 10/11/2026 10:00 UTC = 13:00 Riyadh → business day 10/11; window 28/10 .. 10/11.
+  around { |ex| travel_to(Time.utc(2026, 11, 10, 10, 0)) { ex.run } }
+
+  it "runs on business day 10/11/2026, with both DRs inside the index history window" do
+    today = BusinessDay.current(context: business)
+    expect(today).to eq(Date.new(2026, 11, 10))
+    expect(DailyReconciliation.within_recent_business_days(today)).to include(day1, day2)
+  end
+
   def post_settle(**overrides)
     post bulk_settle_finance_daily_reconciliations_path,
          params: { destination: "custody", ids: [ day1.id, day2.id ], custody_account_id: account.id,
