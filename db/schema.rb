@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_15_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_16_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -2639,8 +2639,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_100000) do
     t.string "status", default: "active", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "kind"
+    t.bigint "branch_id"
+    t.index ["branch_id"], name: "index_warehouses_one_per_branch", unique: true, where: "(branch_id IS NOT NULL)"
     t.index ["business_id", "name"], name: "index_warehouses_on_business_id_and_name"
     t.index ["business_id"], name: "index_warehouses_on_business_id"
+    t.check_constraint "(NOT kind::text IS DISTINCT FROM 'branch'::text) = (branch_id IS NOT NULL)", name: "warehouses_branch_only_for_branch_kind"
+    t.check_constraint "kind IS NULL OR (kind::text = ANY (ARRAY['central'::character varying, 'branch'::character varying]::text[]))", name: "warehouses_kind_known"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
@@ -3056,6 +3061,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_100000) do
   add_foreign_key "warehouse_branch_supplies", "users", column: "created_by_id"
   add_foreign_key "warehouse_branch_supplies", "users", column: "updated_by_id"
   add_foreign_key "warehouse_branch_supplies", "warehouses"
+  add_foreign_key "warehouses", "branches"
   add_foreign_key "warehouses", "businesses"
 
   # Functions and triggers (config/initializers/schema_dumper_database_guards.rb).

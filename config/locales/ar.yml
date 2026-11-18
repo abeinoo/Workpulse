@@ -6247,6 +6247,13 @@ ar:
           attributes:
             warehouse_id:
               different_business: "يجب أن ينتمي إلى نفس منشأة المستخدم"
+        warehouse:
+          attributes:
+            branch:
+              only_for_branch_warehouse: "لا يمكن تحديده إلا لمخزن فرع"
+              not_sales_branch: "يجب أن يكون فرع مبيعات — مخزن الفرع لفروع المبيعات فقط"
+            branch_id:
+              already_has_warehouse: "لديه مخزن فرع بالفعل"
         custody_transaction:
           attributes:
             amount:
