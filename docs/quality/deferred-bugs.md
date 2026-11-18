@@ -72,6 +72,7 @@ here only so its stable ID and history are kept.
 | BUG-051 | Devise self-service account routes (`/users/edit`, `PATCH`/`PUT /users`, `DELETE /users`) are live and bypass Organization & Access | Organization & Access (authentication) | Medium (a signed-in user can change their own email / password or delete their own account without the admin rules or an audit entry) | Confirmed (routes and code reading, 2026-11-15); impact not reproduced | Open | Before the next authentication change, or before self-service account settings are offered |
 | BUG-052 | A bulk shortage settlement into custody cannot be reversed | Finance & Sales (Remaining Deposit Balance, custody ledger) | Medium (an erroneous settlement — wrong recipient, wrong days — cannot be corrected inside WorkPulse; no money is lost or double-counted) | Known limitation (owner decision 2026-11-15: no reversal in the bulk-settlement change) | Open | Before bulk custody settlement is used routinely, or at the first erroneous settlement |
 | BUG-053 | Dispute reserve / release and shortage reassignment write a Remaining Deposit Balance without the shortage lock | Finance & Sales (Remaining Deposit Balance, Bank Disputes) | Medium (a race with a settlement, write-off or bulk custody settlement of the same balance could overwrite its remaining amount / status with a stale value) | Suspected (code reading 2026-11-15; not reproduced) | Open | Next Bank Dispute or Remaining Deposit Balance change |
+| BUG-054 | Bulk-settle index specs fail from 16 Nov 2026 (fixed DR dates fall out of the 14-business-day index window) | Test suite (Finance & Sales, Daily Reconciliation index) | Medium (CI `test` job red on `main` and every branch from 2026-11-16) | Confirmed (CI run 43827866157; reproduced with a fixed clock) | **Resolved** (fixed in the PR that adds this entry) | — |
 
 ---
 
@@ -1698,3 +1699,35 @@ here only so its stable ID and history are kept.
   `spec/services/finance/remaining_deposit_balance_concurrency_spec.rb` — dispute reserve vs settlement, release vs
   write-off, reassignment vs settlement.
 * **Review milestone:** next Bank Dispute or Remaining Deposit Balance change.
+
+## BUG-054 — Bulk-settle index specs fail from 16 Nov 2026 (fixed DR dates fall out of the 14-business-day index window)
+
+* **Source:** new (CI on `main` and on the warehouse-access PRs #139–#149). **Discovered:** 2026-11-17. **Status:**
+  **Resolved** by the PR that adds this entry.
+* **Domain / files:** test suite — `spec/requests/finance/daily_reconciliations_bulk_settle_cash_spec.rb` (examples
+  at lines 115, 128, 146, 154, 160, 174 before the fix) and
+  `spec/requests/finance/daily_reconciliations_bulk_settle_custody_spec.rb` (138, 150, 159). Application code
+  involved, unchanged: `DailyReconciliation::INDEX_RECENT_BUSINESS_DAYS` / `.within_recent_business_days`,
+  `Finance::DailyReconciliationsController#restrict_to_index_history_window`, the bulk bar condition in
+  `app/views/finance/daily_reconciliations/index.html.erb` (`can_bulk_settle && has_outstanding`).
+* **Observed:** CI run 43827866157 on `main` `610bab48` (2026-11-16): 11,673 examples, 9 failures — every example that
+  loads the index and expects the bulk-settle bar or its custody recipient list. `main` `a14a16a9` passed the day
+  before (run 43747345558, 2026-11-15).
+* **Cause:** the specs create their DRs on fixed business dates 2026-11-01 / 11-02 while running on the real clock.
+  Users without full history access (`DailyReconciliationPolicy#view_full_reconciliation_history?`) see only the last
+  14 business days on the index, and the bulk bar renders only when the listed DRs have outstanding shortages. From
+  business day 2026-11-16 (midnight Asia/Riyadh, the test business's timezone) the window starts on 11-03, no DR is
+  listed, the outstanding total is 0 and the bar is not rendered. Not a timezone, business-day calendar or
+  application defect: the 14-day window is the intended behaviour (pinned by
+  `daily_reconciliations_index_history_window_spec.rb`).
+* **Not the cause:** the PostgreSQL errors in the CI job's "Stop containers" output are the database server log of
+  expected negative-path examples; their counts by type are identical in the green run 43747345558.
+* **Fix:** both specs pin the clock (`around` + `travel_to`, 2026-11-10 10:00 UTC = 13:00 in Riyadh, business day
+  2026-11-10, window 2026-10-28 .. 11-10) and gain one example each asserting that business day and that both DRs are
+  inside `DailyReconciliation.within_recent_business_days`. Every existing example and assertion is unchanged; no
+  application, permission or factory change.
+* **Regression tests:** the two specs. With an outer shifted clock (scratch harness that offsets the process clock,
+  not `travel_to`), the old specs pass 29 / 0 at 2026-11-15 12:00 Cairo and fail 29 / 9 at 2026-11-16 12:00 Cairo;
+  the fixed specs pass 31 / 0 at 2026-11-15 12:00, 11-16 00:30, 11-16 12:00, 12-01 12:00, 12-31 23:30,
+  2027-01-01 00:30, 2027-02-15 12:00 and 2027-06-30 12:00 (Cairo).
+* **Review milestone:** — (resolved).
