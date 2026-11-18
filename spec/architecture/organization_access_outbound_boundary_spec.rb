@@ -37,7 +37,8 @@ module ArchitectureSpecs
     INVENTORY_FILES = {
       "app/models/warehouse_assignment.rb"              => "IP: the model",
       "app/models/warehouse.rb"                         => "IP: Warehouse has_many :warehouse_assignments / :assigned_users",
-      "app/services/inventory/user_warehouse_assignments.rb" => "IP implementation of OrganizationAccess::UserWarehouseAccess"
+      "app/services/inventory/user_warehouse_assignments.rb" => "IP implementation of OrganizationAccess::UserWarehouseAccess",
+      "app/services/inventory/warehouse_manager.rb" => "IP: read-only existence check — assignments block warehouse deletion"
     }.freeze
 
     # The only lines app/models/user.rb may contain about warehouse access.

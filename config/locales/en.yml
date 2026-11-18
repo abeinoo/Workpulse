@@ -4560,6 +4560,31 @@ en:
       statuses:
         active: "Active"
         inactive: "Inactive"
+      errors:
+        not_authorized: "You are not allowed to manage this warehouse."
+        not_found: "Warehouse not found."
+        kind_required: "Choose whether the warehouse is a central or a branch warehouse."
+        status_invalid: "Choose a valid warehouse status."
+        branch_not_found: "Branch not found."
+        branch_already_has_warehouse: "This branch already has a branch warehouse."
+        reason_required: "A reason is required to delete a warehouse."
+        in_use: "This warehouse cannot be deleted because it is still referenced by: %{references}."
+        audit_failed: "The change was not saved because its audit entry could not be recorded. Please try again."
+      references:
+        stock_on_hand: "stock on hand"
+        inventory_movements: "inventory movements"
+        stock_issues: "stock issues"
+        goods_receipts: "goods receipts"
+        stock_adjustments: "stock adjustments"
+        stock_counts: "stock counts"
+        stock_transfers: "stock transfers"
+        stock_issue_import_batches: "stock issue imports"
+        purchase_requests: "purchase requests"
+        purchase_request_items: "purchase request lines"
+        product_warehouse_settings: "product stock thresholds"
+        warehouse_assignments: "user warehouse access"
+        warehouse_branch_supplies: "branch supply links"
+        other_records: "other records"
     suppliers:
       title: "Suppliers"
       add: "Add Supplier"
@@ -6169,6 +6194,11 @@ en:
               not_sales_branch: "must be a sales branch — only sales branches have a branch warehouse"
             branch_id:
               already_has_warehouse: "already has a branch warehouse"
+              immutable: "cannot be changed once the warehouse is classified"
+            kind:
+              immutable: "cannot be changed once the warehouse is classified"
+            business_id:
+              immutable: "cannot be changed"
         custody_transaction:
           attributes:
             amount:
