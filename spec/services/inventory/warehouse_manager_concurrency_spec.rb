@@ -129,7 +129,10 @@ RSpec.describe "Warehouse manager concurrency (two connections)" do
     first = on_other_connection { Inventory::WarehouseManager.new(actor: actor).create(kind: "branch", name: "A", branch_id: branch_id) }
     wait_for(reached)
     second = on_other_connection { Inventory::WarehouseManager.new(actor: actor2).create(kind: "branch", name: "B", branch_id: branch_id) }
-    expect(wait_until_lock_waits("warehouses")).to be_present # second INSERT waits on the unique index
+    # The second creation waits at the business row the first one holds
+    # (business -> branch lock order); once the first commits, it sees that
+    # branch warehouse. The unique index stays the final guard (warehouse_manager_spec).
+    expect(wait_until_lock_waits("businesses")).to be_present
 
     release << true
     results = [ result_of(first), result_of(second) ]

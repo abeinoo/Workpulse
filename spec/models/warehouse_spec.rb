@@ -117,6 +117,75 @@ RSpec.describe Warehouse, type: :model do
     end
   end
 
+  describe ".name_lock_key (the per-name advisory lock behind the uniqueness check)" do
+    let(:conn) { ActiveRecord::Base.connection }
+
+    def db_lower(name) = conn.select_value("SELECT LOWER(#{conn.quote(name)})")
+
+    it "gives every name the database's LOWER() folds together the same key, and nothing else" do
+      names = [ "Main", "MAIN", "main", "ÄRZTE Lager", "Ärzte lager", "ärzte lager", "المخزن الرئيسي", "Shubra – المخزن", "SHUBRA – المخزن" ]
+      by_lower = names.group_by { |name| db_lower(name) }
+
+      by_lower.each_value do |equal_names|
+        expect(equal_names.map { |name| described_class.name_lock_key(business.id, name) }.uniq.size).to eq(1), equal_names.inspect
+      end
+      expect(by_lower.values.map { |group| described_class.name_lock_key(business.id, group.first) }.uniq.size).to eq(by_lower.size)
+    end
+
+    it "keeps businesses apart and does not strip the name (the validation does not either)" do
+      expect(described_class.name_lock_key(business.id, "Main")).not_to eq(described_class.name_lock_key(other_business.id, "Main"))
+      expect(described_class.name_lock_key(business.id, "Main ")).not_to eq(described_class.name_lock_key(business.id, "Main"))
+    end
+  end
+
+  # The lock statements are parameterized as a whole (sanitize_sql_array over a
+  # constant template), never built by interpolating SQL text — and they stay
+  # exactly the statements the key definition describes.
+  describe "the name lock statements (parameterized)" do
+    let(:conn) { ActiveRecord::Base.connection }
+    let(:tricky_names) do
+      [ "O'Brien", "x'); SELECT pg_sleep(10); --", "a\\b", "x?y", ":name", "%_", "''", "line\nbreak", "المخزن الرئيسي" ]
+    end
+
+    it "lock exactly the key .name_lock_key_sql defines, values quoted, for any name" do
+      tricky_names.each do |name|
+        expect(described_class.name_lock_statement(business.id, name))
+          .to eq("SELECT pg_advisory_xact_lock(#{described_class.name_lock_key_sql(business.id, name)})"), name.inspect
+        expect(described_class.name_lock_key_sql(business.id, name)).to include(conn.quote(name)), name.inspect
+      end
+    end
+
+    it "refuses a business id that is not an integer" do
+      expect { described_class.name_lock_statement("1; DROP TABLE warehouses", "Main") }.to raise_error(ArgumentError)
+    end
+
+    it "takes, on save, exactly that statement — holding the advisory lock .name_lock_key reports" do
+      name = "O'Brien – المخزن"
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| statements << payload[:sql] }
+      held = described_class.transaction do
+        business.warehouses.create!(name: name)
+        conn.select_rows("SELECT classid::bigint, objid::bigint FROM pg_locks " \
+                         "WHERE locktype = 'advisory' AND objsubid = 2 AND pid = pg_backend_pid()")
+      end
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+
+      expect(statements).to include(described_class.name_lock_statement(business.id, name))
+      # A two-int4 advisory lock shows its keys as unsigned oids in pg_locks.
+      expect(held.map { |pair| pair.map(&:to_i) }).to include(described_class.name_lock_key(business.id, name).map { |k| k & 0xFFFFFFFF })
+    end
+
+    it "saves names with quotes and SQL metacharacters as plain data, uniqueness unchanged" do
+      tricky_names.each { |name| business.warehouses.create!(name: name) }
+
+      expect(business.warehouses.pluck(:name)).to match_array(tricky_names)
+      duplicate = business.warehouses.new(name: "O'BRIEN")
+      expect(duplicate).not_to be_valid
+      expect(duplicate.errors[:name]).to be_present
+      expect(other_business.warehouses.new(name: "O'Brien")).to be_valid
+    end
+  end
+
   describe "compatibility with existing (unclassified) warehouses" do
     it "keeps creating a warehouse with no kind and no branch, exactly as before" do
       warehouse = business.warehouses.create!(name: "Legacy")

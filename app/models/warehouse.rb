@@ -44,8 +44,54 @@ class Warehouse < ApplicationRecord
   # audited classification step.
   validate  :structural_identity_unchanged, on: :update
 
+  # Warehouse names are unique per business only through the validation above
+  # (the database index is not unique). Two writers checking the same name at
+  # once would both pass it, so every save that sets a name first takes a
+  # transaction-scoped advisory lock on (business, lower(name)): save runs its
+  # validations inside its own transaction, so the lock is held until COMMIT
+  # and a competing writer of the same name waits, then validates against the
+  # committed row. Taken only inside a transaction (a bare valid? call has no
+  # transaction to hold it). Lock order: any business/branch row locks of the
+  # caller come first; nothing takes a business or branch lock after this one.
+  NAME_LOCK_NAMESPACE = "warehouses.name".freeze
+  # The one definition of the lock key: a bind-placeholder template (namespace,
+  # business id, name) that PostgreSQL turns into two int4 keys. Both statements
+  # below embed this constant template and are parameterized as a whole with
+  # sanitize_sql_array, so no value is ever interpolated into SQL text.
+  NAME_LOCK_KEY_TEMPLATE = "hashtext(?), hashtext(? || ':' || LOWER(?))".freeze
+  NAME_LOCK_KEY_QUERY    = "SELECT #{NAME_LOCK_KEY_TEMPLATE}".freeze
+  NAME_LOCK_STATEMENT    = "SELECT pg_advisory_xact_lock(#{NAME_LOCK_KEY_TEMPLATE})".freeze
+  before_validation :lock_name_for_uniqueness, if: :name_lock_needed?
+
   scope :for_business, ->(business) { where(business: business) }
   scope :ordered,      -> { order(:name) }
+
+  # The advisory lock key for a (business, name) pair, as SQL: both halves are
+  # computed by PostgreSQL, the name through the same LOWER() the
+  # case-insensitive uniqueness validation compares with — so two names the
+  # database considers equal always map to the same key (a hash collision
+  # between different names only adds serialization; it can never let a
+  # duplicate through, the validation still decides). The name is not
+  # stripped: the validation does not strip either.
+  def self.name_lock_key_sql(business_id, name)
+    sanitize_sql_array([ NAME_LOCK_KEY_TEMPLATE, *name_lock_key_binds(business_id, name) ])
+  end
+
+  # The bind values for NAME_LOCK_KEY_TEMPLATE, in placeholder order.
+  def self.name_lock_key_binds(business_id, name)
+    [ NAME_LOCK_NAMESPACE, Integer(business_id).to_s, name.to_s ]
+  end
+
+  # [namespace_key, name_key] as PostgreSQL computes them (for verification).
+  def self.name_lock_key(business_id, name)
+    connection.select_rows(sanitize_sql_array([ NAME_LOCK_KEY_QUERY, *name_lock_key_binds(business_id, name) ]))
+              .first.map(&:to_i)
+  end
+
+  # The exact statement lock_name_for_uniqueness runs (parameterized).
+  def self.name_lock_statement(business_id, name)
+    sanitize_sql_array([ NAME_LOCK_STATEMENT, *name_lock_key_binds(business_id, name) ])
+  end
 
   private
 
@@ -65,6 +111,15 @@ class Warehouse < ApplicationRecord
     return if branch.nil?
 
     errors.add(:branch, :not_sales_branch) unless branch.branch_type_sales?
+  end
+
+  def name_lock_needed?
+    name.present? && business_id.present? && (new_record? || will_save_change_to_name?) &&
+      self.class.connection.transaction_open?
+  end
+
+  def lock_name_for_uniqueness
+    self.class.connection.execute(self.class.name_lock_statement(business_id, name))
   end
 
   def structural_identity_unchanged

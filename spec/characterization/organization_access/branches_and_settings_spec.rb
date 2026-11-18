@@ -75,10 +75,21 @@ RSpec.describe "Characterization: Organization & Access branches and settings", 
       expect(flash[:notice]).to be_nil
     end
 
+    # Branch changes stay unaudited. Since Warehouse Architecture PR 3 a new
+    # sales branch gets its branch warehouse, whose creation IS audited —
+    # exactly one Warehouse "create" row, for that branch's warehouse.
     it "branch changes are NOT audited (existing behaviour)" do
+      warehouse_creates = AuditLog.where(auditable_type: "Warehouse", action: "create")
       expect {
         post admin_branches_path, params: { branch: { name: "Unaudited", branch_type: "sales" } }
-      }.not_to change(AuditLog, :count)
+      }.to change { AuditLog.where.not(auditable_type: "Warehouse").count }.by(0)
+        .and change { warehouse_creates.count }.by(1)
+
+      created   = Branch.where(business: business, name: "Unaudited").sole
+      warehouse = Warehouse.find_by!(branch_id: created.id)
+      audit     = warehouse_creates.order(:id).last
+      expect(audit.auditable_id).to eq(warehouse.id)
+      expect(audit.metadata).to include("branch_id" => created.id, "source" => "branch_provisioning")
     end
   end
 

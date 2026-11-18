@@ -123,7 +123,10 @@ module ArchitectureSpecs
     /x
 
     CONTRACT_FILE = "app/services/organization_access/branch_terminal_settings.rb".freeze
-    CONTROLLER    = "app/controllers/admin/branches_controller.rb".freeze
+    # The Branch form's staging moved from the controller into the Organization
+    # & Access branch services' shared form assignment (Warehouse Architecture
+    # PR 3), which applies the form to the branch it has locked.
+    FORM_ASSIGNMENT = "app/services/organization_access/branch_form_assignment.rb".freeze
 
     def organization_access_files
       ORGANIZATION_ACCESS_GLOBS.flat_map { |glob| Dir.glob(Rails.root.join(glob)) }
@@ -245,8 +248,8 @@ RSpec.describe "Architecture: Organization & Access reaches POS terminals only t
     MSG
   end
 
-  it "the branch controller stages terminal rows only through the contract" do
-    lines = boundary.code_lines(contract::CONTROLLER).map(&:first).join
+  it "the Branch form stages terminal rows only through the contract" do
+    lines = boundary.code_lines(contract::FORM_ASSIGNMENT).map(&:first).join
     expect(lines).to include("OrganizationAccess::BranchTerminalSettings.assign(branch: branch, rows: rows)")
   end
 

@@ -2560,6 +2560,7 @@ en:
         admin_notes_placeholder: "e.g. Has custody of company laptop. Banking details on file. Special payroll instructions."
         admin_notes_hint: "Internal administrative notes. Not visible to the employee and excluded from exports."
     branches:
+      warehouse_provisioning_failed: "The branch was not saved because its branch warehouse could not be created: %{reason}"
       index:
         title: "Branches"
         page_title: "Branches — WorkPulse"
@@ -4570,6 +4571,10 @@ en:
         reason_required: "A reason is required to delete a warehouse."
         in_use: "This warehouse cannot be deleted because it is still referenced by: %{references}."
         audit_failed: "The change was not saved because its audit entry could not be recorded. Please try again."
+        name_taken: "A warehouse named \"%{name}\" already exists in this business."
+        branch_not_sales: "Only a sales branch gets a branch warehouse."
+        branch_warehouse_inconsistent: "This branch is linked to a warehouse that is not a valid branch warehouse — review it before continuing."
+        provisioning_outside_transaction: "Branch warehouse provisioning must run inside the branch change."
       references:
         stock_on_hand: "stock on hand"
         inventory_movements: "inventory movements"

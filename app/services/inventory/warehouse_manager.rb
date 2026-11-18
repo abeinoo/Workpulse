@@ -52,37 +52,95 @@ module Inventory
       @actor = actor
     end
 
+    # A savepoint (requires_new) so a refusal inside a caller's transaction
+    # rolls back only this warehouse and its audit entry — never leaves the
+    # caller's transaction aborted.
+    #
+    # With a branch, the established lock order business -> branch -> name
+    # lock is taken: the business row FOR NO KEY UPDATE (serializes with every
+    # branch lifecycle service — CreateBranch / UpdateBranch take the same mode,
+    # Deactivate / Delete / Reactivate-style services FOR UPDATE — yet stays
+    # compatible with the key-share lock this transaction's own INSERT needs),
+    # then the branch FOR SHARE (conflicts with the branch lock UpdateBranch
+    # takes, so the branch cannot stop being a sales branch before COMMIT).
+    # Taking the branch first would deadlock against DeactivateBranch /
+    # DeleteBranch, which hold the business and wait for the branch while this
+    # INSERT waits for the business. A central warehouse takes neither lock.
     def create(kind:, name:, branch_id: nil, description: nil, status: "active")
       return failure(:not_authorized) unless WarehousePolicy.new(@actor, Warehouse).create?
       return failure(:kind_required)  unless Warehouse::KINDS.include?(kind.to_s)
       return failure(:status_invalid) unless Warehouse::STATUSES.include?(status.to_s)
 
-      branch = nil
-      if branch_id.present?
-        branch = Branch.find_by(id: branch_id, business_id: @actor.business_id)
-        return failure(:branch_not_found) unless branch
+      warehouse = nil
+      Warehouse.transaction(requires_new: true) do
+        branch = nil
+        if branch_id.present?
+          Business.where(id: @actor.business_id).lock("FOR NO KEY UPDATE").pick(:id)
+          branch = Branch.where(business_id: @actor.business_id).lock("FOR SHARE").find_by(id: branch_id)
+          next failure(:branch_not_found) unless branch
+        end
+
+        warehouse = Warehouse.new(business_id: @actor.business_id, kind: kind.to_s, branch: branch,
+                                  name: name, description: description, status: status.to_s)
+        persist_new!(warehouse)
+        Result.new(ok: true, warehouse: warehouse)
+      end
+    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique, AuditLoggable::AuditWriteFailed => e
+      creation_failure(e, warehouse)
+    end
+
+    # The branch warehouse of a sales branch, created by branch provisioning —
+    # reachable only through Inventory::BranchWarehouseProvisioning, the
+    # Inventory implementation of OrganizationAccess::BranchProvisioning (pinned
+    # by spec/architecture/organization_access_outbound_boundary_spec.rb).
+    #
+    # Not a general creation path: kind is always "branch", the name always
+    # "<Branch Name> – المخزن", the branch must be a sales branch of the actor's
+    # own business, and it only runs inside the caller's transaction. The
+    # branch lifecycle authorized the change (BranchPolicy, manage_branches), so
+    # WarehousePolicy is not asked; the audit entry names that actor and source
+    # "branch_provisioning".
+    #
+    # Lock precondition: the caller holds business -> branch row locks for the
+    # rest of its transaction (OrganizationAccess::CreateBranch / UpdateBranch —
+    # the only callers, pinned by
+    # spec/architecture/organization_access_outbound_boundary_spec.rb). An open
+    # transaction alone proves nothing about those locks, so they are taken
+    # here again, in the same order and mode: a no-op when the caller holds
+    # them (a transaction re-acquiring its own row lock does not wait), and the
+    # guarantee itself if a caller ever did not. The branch type is then re-read
+    # under the lock, from the database, never from the in-memory record.
+    #
+    # Idempotent: an existing branch warehouse of this branch is returned as
+    # it is (no write, no audit entry). Anything else fails clearly.
+    def provision_branch_warehouse(branch:)
+      return failure(:provisioning_outside_transaction) unless Warehouse.connection.transaction_open?
+      return failure(:branch_not_found) unless branch&.persisted? && branch.business_id == @actor.business_id
+
+      Business.where(id: branch.business_id).lock("FOR NO KEY UPDATE").pick(:id)
+      locked_type = Branch.where(id: branch.id, business_id: branch.business_id).lock("FOR NO KEY UPDATE").pick(:branch_type)
+      return failure(:branch_not_found) if locked_type.nil?
+      return failure(:branch_not_sales) unless locked_type == "sales"
+
+      existing = Warehouse.find_by(branch_id: branch.id)
+      if existing
+        return Result.new(ok: true, warehouse: existing) if existing.kind_branch? && existing.business_id == branch.business_id
+
+        return failure(:branch_warehouse_inconsistent, warehouse: existing)
       end
 
-      warehouse = Warehouse.new(business_id: @actor.business_id, kind: kind.to_s, branch: branch,
-                                name: name, description: description, status: status.to_s)
-      Warehouse.transaction do
-        warehouse.save!
-        log_audit!(actor: @actor, auditable: warehouse, action: "create",
-                   changes: { name: [ nil, warehouse.name ], kind: [ nil, warehouse.kind ],
-                              branch_id: [ nil, warehouse.branch_id ], status: [ nil, warehouse.status ] },
-                   metadata: identity(warehouse))
+      warehouse = Warehouse.new(business_id: branch.business_id, kind: "branch", branch: branch,
+                                name: self.class.branch_warehouse_name(branch), status: "active")
+      Warehouse.transaction(requires_new: true) do
+        persist_new!(warehouse, source: "branch_provisioning")
       end
       Result.new(ok: true, warehouse: warehouse)
-    rescue ActiveRecord::RecordInvalid => e
-      return failure(:branch_already_has_warehouse, warehouse: e.record) if e.record.errors.of_kind?(:branch_id, :taken)
-
-      invalid(e.record)
-    rescue ActiveRecord::RecordNotUnique
-      # Lost a race for the branch: the unique index decided (PR 1).
-      failure(:branch_already_has_warehouse, warehouse: warehouse)
-    rescue AuditLoggable::AuditWriteFailed
-      failure(:audit_failed, warehouse: warehouse)
+    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique, AuditLoggable::AuditWriteFailed => e
+      creation_failure(e, warehouse)
     end
+
+    # The approved branch warehouse name: "<Branch Name> – المخزن".
+    def self.branch_warehouse_name(branch) = "#{branch.name} – المخزن"
 
     # Only the given attributes change; structural attributes are not accepted.
     def update(warehouse_id:, name: KEEP, description: KEEP, status: KEEP)
@@ -159,6 +217,36 @@ module Inventory
     def stock_on_hand?(warehouse_id)
       InventoryMovement.where(warehouse_id: warehouse_id).group(:product_id)
                        .having(Arel.sql("#{StockLevels::SIGNED_SUM} <> 0")).exists?
+    end
+
+    def persist_new!(warehouse, source: nil)
+      warehouse.save!
+      metadata = identity(warehouse)
+      metadata[:source] = source if source
+      log_audit!(actor: @actor, auditable: warehouse, action: "create",
+                 changes: { name: [ nil, warehouse.name ], kind: [ nil, warehouse.kind ],
+                            branch_id: [ nil, warehouse.branch_id ], status: [ nil, warehouse.status ] },
+                 metadata: metadata)
+    end
+
+    def creation_failure(error, warehouse)
+      case error
+      when ActiveRecord::RecordNotUnique
+        # Lost a race for the branch: the unique index decided (PR 1).
+        failure(:branch_already_has_warehouse, warehouse: warehouse)
+      when AuditLoggable::AuditWriteFailed
+        failure(:audit_failed, warehouse: warehouse)
+      else
+        record = error.record
+        if record.errors.of_kind?(:branch_id, :taken)
+          failure(:branch_already_has_warehouse, warehouse: record)
+        elsif record.errors.of_kind?(:name, :taken)
+          Result.new(ok: false, warehouse: record, code: :name_taken,
+                     error: I18n.t("inventory.warehouses.errors.name_taken", name: record.name))
+        else
+          invalid(record)
+        end
+      end
     end
 
     def identity(warehouse)

@@ -189,6 +189,58 @@ RSpec.describe "Architecture: Organization & Access does not write downstream da
     end
   end
 
+  # Warehouse Architecture PR 3: a sales branch's warehouse is provisioned
+  # through the Organization & Access contract OrganizationAccess::BranchProvisioning,
+  # implemented by Inventory & Purchasing (Inventory::BranchWarehouseProvisioning)
+  # and wired in config/initializers/organization_access_branch_provisioning.rb.
+  describe "branch warehouse provisioning (Inventory & Purchasing)" do
+    provisioning_contract = "app/services/organization_access/branch_provisioning.rb"
+    provisioning_root     = "config/initializers/organization_access_branch_provisioning.rb"
+    provisioning_impl     = "app/services/inventory/branch_warehouse_provisioning.rb"
+    inventory_reference   = /\bInventory::|\bWarehouse\w*\b|\bwarehouses?\b|\bprovision_branch_warehouse\b/
+
+    it "Organization & Access code names nothing from Inventory & Purchasing for it" do
+      files = Dir.glob(Rails.root.join("app/services/organization_access/**/*.rb")).map { |f| f.delete_prefix("#{Rails.root}/") } +
+              %w[app/controllers/admin/branches_controller.rb app/policies/branch_policy.rb]
+      offending = files.reject { |file| file == boundary::CONTRACT_FILE } # UserWarehouseAccess: rule 1 above
+                       .flat_map { |file| boundary.matches_in(file, inventory_reference) }
+      expect(offending).to be_empty, "Go through OrganizationAccess::BranchProvisioning:\n#{offending.join("\n")}"
+    end
+
+    it "only the composition root and Inventory & Purchasing name the implementation; it is the registered handler" do
+      outside = (boundary.source_files + boundary.source_files("config"))
+                .reject { |file| file == provisioning_impl || file == provisioning_root }
+                .flat_map { |file| boundary.matches_in(file, /\bBranchWarehouseProvisioning\b/) }
+      expect(outside).to be_empty, "Unexpected reference to the implementation:\n#{outside.join("\n")}"
+      expect(boundary.matches_in(provisioning_root,
+                                 /OrganizationAccess::BranchProvisioning\.register\(Inventory::BranchWarehouseProvisioning\)/)).to be_present
+      expect(OrganizationAccess::BranchProvisioning.handler).to equal(Inventory::BranchWarehouseProvisioning)
+      expect(boundary.matches_in(provisioning_contract, inventory_reference)).to be_empty
+    end
+
+    it "the narrow provisioning entry point is reached only through the contract implementation" do
+      callers = boundary.source_files.reject { |file| file == "app/services/inventory/warehouse_manager.rb" }
+                        .flat_map { |file| boundary.matches_in(file, /\bprovision_branch_warehouse\b/) }
+      expect(callers.map { |line| line.split(":").first }.uniq).to eq([ provisioning_impl ])
+    end
+
+    it "only CreateBranch and UpdateBranch invoke the contract (they lock business -> branch first)" do
+      invocation = /\bBranchProvisioning\.provision!/
+      callers = (boundary.source_files + boundary.source_files("config"))
+                .flat_map { |file| boundary.matches_in(file, invocation) }
+                .map { |line| line.split(":").first }.uniq.sort
+      expect(callers).to eq(%w[app/services/organization_access/create_branch.rb app/services/organization_access/update_branch.rb])
+
+      # Self-test: the pattern sees a planted invocation (qualified or not).
+      expect("OrganizationAccess::BranchProvisioning.provision!(branch: b, actor: a)").to match(invocation)
+      expect("BranchProvisioning.provision!(branch: b, actor: a)").to match(invocation)
+    end
+
+    it "adds no Branch -> Warehouse association" do
+      expect(Branch.reflect_on_all_associations.map(&:class_name)).not_to include("Warehouse")
+    end
+  end
+
   describe "inverse associations into other domains (classified, frozen)" do
     boundary::INVERSE_ASSOCIATIONS.each do |model, by_domain|
       it "#{model} holds exactly the classified associations, each to a model of the stated domain" do
