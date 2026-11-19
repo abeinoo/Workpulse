@@ -112,6 +112,28 @@ RSpec.describe Inventory::WarehouseAccessReport do
     expect(sections.find { |s| s.business_id == other.id }.rows.map(&:business_id).uniq).to all(eq(other.id))
   end
 
+  describe "per-business warehouse access mode" do
+    def section(target) = sections.find { |s| s.business_id == target.id }
+
+    it "reports each business's mode (legacy by default)" do
+      expect(section(business).mode).to eq("legacy")
+      store_warehouse_access_fail_closed!(business, true)
+      expect(section(business).mode).to eq("fail_closed")
+      expect(section(other).mode).to eq("legacy")
+    end
+
+    it "in a fail-closed business, old = new and nobody is flagged FAIL_OPEN — not even a company-wide user" do
+      company_wide = user_in(role(:view_inventory, :access_all_warehouses))
+      store_warehouse_access_fail_closed!(business, true)
+
+      rows = section(business).rows
+      expect(rows.flat_map(&:flags)).not_to include("FAIL_OPEN")
+      expect(rows.reject { |r| r.old_ids == r.new_ids }).to be_empty
+      expect(row(company_wide).flags).to include("ACCESS_ALL")
+      expect(row(accountant).flags).to include("ACCOUNTANT", "ZERO_AFTER")
+    end
+  end
+
   it "only reads: no INSERT/UPDATE/DELETE, no audit entry, no permission or assignment change" do
     writes = []
     subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|

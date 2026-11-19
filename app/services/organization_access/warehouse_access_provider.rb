@@ -11,11 +11,12 @@ module OrganizationAccess
   # (config/initializers/organization_access_warehouse_access_provider.rb).
   # This module names nothing from Inventory & Purchasing.
   #
-  # NOT YET IN THE LIVE PATH: User#inventory_warehouse_ids still applies
-  # today's rule (no assignment = every warehouse). Routing it through this
-  # contract switches inventory authorization to fail-closed and is a separate,
-  # explicitly approved activation step — nothing calls warehouse_ids_for in
-  # application code until then (pinned by
+  # LIVE PER BUSINESS (gradual activation): User#inventory_warehouse_ids calls
+  # warehouse_ids_for only when the user's business is switched to fail-closed
+  # (Business#warehouse_access_fail_closed?, written only by the audited
+  # OrganizationAccess::WarehouseAccessMode). Every other business keeps the
+  # legacy rule (no assignment = every warehouse). User#inventory_warehouse_ids
+  # is the only caller (pinned by
   # spec/architecture/organization_access_outbound_boundary_spec.rb).
   #
   # A provider must respond to:

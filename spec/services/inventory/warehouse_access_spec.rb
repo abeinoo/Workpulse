@@ -2,7 +2,8 @@ require "rails_helper"
 
 # Warehouse Architecture PR 5 (Phase 2): Inventory::WarehouseAccess — the
 # Inventory implementation of OrganizationAccess::WarehouseAccessProvider.
-# Not in the live path yet (see the compatibility examples at the end).
+# Live only for a business switched to fail-closed (Business#warehouse_access_fail_closed?);
+# the default legacy rule is pinned by the compatibility examples at the end.
 RSpec.describe Inventory::WarehouseAccess do
   let(:business) { create(:business) }
   let(:other)    { create(:business) }
@@ -157,7 +158,7 @@ RSpec.describe Inventory::WarehouseAccess do
     expect(resolver.warehouse_ids).to eq([ central.id ])
   end
 
-  describe "compatibility — not activated" do
+  describe "compatibility — legacy mode (the default; no business switched)" do
     it "leaves User#inventory_warehouse_ids fail-open for an unassigned non-owner, while the resolver says none" do
       user = inventory_user
 

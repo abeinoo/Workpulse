@@ -172,15 +172,16 @@ namespace :inventory do
       raise ActiveRecord::Rollback # nothing to keep — and nothing could have been written
     end
 
-    puts "Warehouse access impact report — READ ONLY (old = current rule, new = Inventory::WarehouseAccess; not activated)"
+    puts "Warehouse access impact report — READ ONLY (old = the live rule of each business, new = Inventory::WarehouseAccess)"
     rows = sections.flat_map(&:rows)
     sections.each do |section|
-      puts "Business ##{section.business_id} — warehouses #{list.(section.warehouse_ids)}"
+      puts "Business ##{section.business_id} (mode: #{section.mode}) — warehouses #{list.(section.warehouse_ids)}"
       section.rows.each { |row| puts line.(row) }
       next if section.quiet_user_ids.empty?
 
+      old_access = section.mode == "legacy" ? "every warehouse (fail-open)" : "none (fail-closed)"
       puts "  #{section.quiet_user_ids.size} other user(s) with no inventory permission, assignment or branch " \
-           "warehouse: old = every warehouse (fail-open), new = none — no inventory page either way."
+           "warehouse: old = #{old_access}, new = none — no inventory page either way."
     end
 
     if highlight.any?
@@ -207,6 +208,7 @@ namespace :inventory do
     puts tally.("fail_open", flagged.("FAIL_OPEN"))
     puts tally.("accountants_losing", flagged.("ACCOUNTANT", "LOSES"))
     puts "  not listed: #{quiet} user(s) with no inventory permission, assignment or branch warehouse " \
-         "(old = every warehouse by fail-open, new = none; no inventory page either way)"
+         "(old = every warehouse by fail-open in a legacy business, none in a fail-closed one; new = none; " \
+         "no inventory page either way)"
   end
 end

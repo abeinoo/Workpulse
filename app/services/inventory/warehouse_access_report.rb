@@ -22,7 +22,9 @@ module Inventory
     # rows: users who hold an inventory permission, are owners, have
     # assignments or manage a branch with a linked warehouse. quiet_user_ids:
     # everyone else — no inventory permission, so no inventory page either way.
-    Section = Struct.new(:business_id, :warehouse_ids, :rows, :quiet_user_ids, keyword_init: true)
+    # mode: "legacy" or "fail_closed" (Business#warehouse_access_fail_closed?) — in
+    # fail-closed mode old and new coincide and FAIL_OPEN no longer applies.
+    Section = Struct.new(:business_id, :mode, :warehouse_ids, :rows, :quiet_user_ids, keyword_init: true)
 
     def initialize(business_ids: nil)
       @business_ids = business_ids
@@ -48,7 +50,8 @@ module Inventory
 
       rows, quiet = users.map { |user| row_for(user, warehouse_ids, role_types, assigned, branches, linked) }
                          .partition { |row| relevant?(row) }
-      Section.new(business_id: business.id, warehouse_ids: warehouse_ids, rows: rows, quiet_user_ids: quiet.map(&:user_id))
+      Section.new(business_id: business.id, mode: business.warehouse_access_fail_closed? ? "fail_closed" : "legacy",
+                  warehouse_ids: warehouse_ids, rows: rows, quiet_user_ids: quiet.map(&:user_id))
     end
 
     def row_for(user, warehouse_ids, role_types, assigned, branches, linked)
@@ -64,7 +67,7 @@ module Inventory
       flags << "INACTIVE_USER" unless user.active?
       flags << "ACCESS_ALL" if !owner && user.can?(:access_all_warehouses)
       flags << "ACCOUNTANT" if role_type == "accountant"
-      flags << "FAIL_OPEN" if !owner && user.inventory_warehouse_ids.nil?
+      flags << "FAIL_OPEN" if !owner && !user.business.warehouse_access_fail_closed? && user.inventory_warehouse_ids.nil?
       flags << "ASSIGNED" if assigned.key?(user.id)
       flags << "CROSS_BUSINESS_ASSIGNMENT" if (Array(assigned[user.id]) - warehouse_ids).any?
       flags << "BRANCH_MANAGER" if branches.any? { |id, manager, _| manager == user.id && linked.include?(id) }

@@ -5,7 +5,11 @@ class Laundry::LaundryBatchConsumptionsController < Laundry::BaseController
     authorize @laundry_batch, :record_consumption?
 
     product = current_user.business.products.find(params[:product_id])
-    warehouse = current_user.business.warehouses.find(params[:warehouse_id])
+    # Only a warehouse the user may reach (WarehousePolicy::Scope — the user's
+    # business, narrowed by User#inventory_warehouse_ids); anything else, another
+    # business's included, is refused before any stock is touched.
+    warehouse = policy_scope(Warehouse).find_by(id: params[:warehouse_id])
+    raise Pundit::NotAuthorizedError if warehouse.nil?
 
     result = Laundry::LaundryBatchService.new(@laundry_batch)
                                          .record_consumption(actor: current_user, warehouse: warehouse,

@@ -4,8 +4,8 @@
 # to_prepare re-registers after a code reload in development.
 #
 # Registering the provider changes nothing by itself: User#inventory_warehouse_ids
-# does not consult the contract until the fail-closed activation step is
-# separately approved (Warehouse Architecture PR 5).
+# consults the contract only for a business switched to fail-closed by
+# OrganizationAccess::WarehouseAccessMode (gradual activation).
 Rails.application.config.to_prepare do
   OrganizationAccess::WarehouseAccessProvider.register(Inventory::WarehouseAccess)
 end

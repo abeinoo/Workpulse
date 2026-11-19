@@ -3669,6 +3669,7 @@ en:
         not_completable: "This batch can no longer be completed."
         not_reversible: "Only a completed batch can be reversed."
         not_in_progress: "Materials can only be consumed while the batch is in progress."
+        warehouse_not_accessible: "You can only take materials from a warehouse you have access to."
         invalid_quantity: "Quantity must be greater than zero."
         insufficient_stock: "Not enough %{product} in the laundry warehouse (available: %{available})."
 

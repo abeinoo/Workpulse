@@ -70,6 +70,9 @@ module Laundry
 
     def record_consumption(actor:, warehouse:, product:, quantity:)
       return Result.new(ok: false, error: I18n.t("laundry.batches.errors.not_in_progress")) unless @batch.in_progress?
+      unless warehouse_accessible?(actor, warehouse)
+        return Result.new(ok: false, error: I18n.t("laundry.batches.errors.warehouse_not_accessible"))
+      end
 
       outcome = BatchMaterialConsumer.new(@batch, warehouse).call(product: product, quantity: quantity)
       return Result.new(ok: false, error: outcome.error) unless outcome.ok?
@@ -143,6 +146,18 @@ module Laundry
     end
 
     private
+
+    # Material may only be taken from a warehouse of the batch's business that
+    # the actor may reach (User#inventory_warehouse_ids: nil = every warehouse,
+    # an Array — possibly empty — = exactly those). Checked before
+    # BatchMaterialConsumer writes any movement, whatever the caller.
+    def warehouse_accessible?(actor, warehouse)
+      return false if actor.nil? || warehouse.nil?
+      return false unless warehouse.business_id == @batch.business_id && actor.business_id == @batch.business_id
+
+      ids = actor.inventory_warehouse_ids
+      ids.nil? || ids.include?(warehouse.id)
+    end
 
     def post_output_entries(actor)
       [ [ :clean, @batch.output_clean_quantity, "wash_output" ],

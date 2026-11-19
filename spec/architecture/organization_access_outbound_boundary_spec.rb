@@ -208,9 +208,11 @@ RSpec.describe "Architecture: Organization & Access does not write downstream da
     it "Organization & Access code names nothing from Inventory & Purchasing for it" do
       files = Dir.glob(Rails.root.join("app/services/organization_access/**/*.rb")).map { |f| f.delete_prefix("#{Rails.root}/") } +
               %w[app/controllers/admin/branches_controller.rb app/policies/branch_policy.rb]
-      # The two Organization & Access warehouse contracts are checked by their own
-      # rules (rule 1 above; "warehouse access provider" below).
-      offending = files.reject { |file| [ boundary::CONTRACT_FILE, "app/services/organization_access/warehouse_access_provider.rb" ].include?(file) }
+      # The two Organization & Access warehouse contracts and the warehouse access
+      # mode switch are checked by their own rules (rule 1 above; "warehouse
+      # access provider" below).
+      offending = files.reject { |file| [ boundary::CONTRACT_FILE, "app/services/organization_access/warehouse_access_provider.rb",
+                                          "app/services/organization_access/warehouse_access_mode.rb" ].include?(file) }
                        .flat_map { |file| boundary.matches_in(file, inventory_reference) }
       expect(offending).to be_empty, "Go through OrganizationAccess::BranchProvisioning:\n#{offending.join("\n")}"
     end
@@ -254,8 +256,9 @@ RSpec.describe "Architecture: Organization & Access does not write downstream da
   # OrganizationAccess::WarehouseAccessProvider, implemented by Inventory &
   # Purchasing (Inventory::WarehouseAccess) and wired in
   # config/initializers/organization_access_warehouse_access_provider.rb.
-  # The contract is NOT yet in the live path: activating it (fail-closed) is a
-  # separately approved step that must change these pins deliberately.
+  # The contract is in the live path only per business: User#inventory_warehouse_ids
+  # consults it once that business is switched to fail-closed (gradual
+  # activation); any other caller must change these pins deliberately.
   describe "warehouse access provider (Inventory & Purchasing)" do
     provider_contract = "app/services/organization_access/warehouse_access_provider.rb"
     provider_root     = "config/initializers/organization_access_warehouse_access_provider.rb"
@@ -281,14 +284,42 @@ RSpec.describe "Architecture: Organization & Access does not write downstream da
       expect(OrganizationAccess::WarehouseAccessProvider.provider).to equal(Inventory::WarehouseAccess)
     end
 
-    it "is not activated: no application code asks it for warehouse access yet" do
+    # Gradual activation (approved 2026-11-19, option C): the ONE live caller is
+    # User#inventory_warehouse_ids, and only for a business switched to
+    # fail-closed by the audited OrganizationAccess::WarehouseAccessMode.
+    # The per-business switch is Organization & Access code about warehouse
+    # ACCESS, not warehouses: besides its own name and policy it may name only
+    # Business — no Inventory & Purchasing constant, model or association.
+    it "the access mode switch names nothing from Inventory & Purchasing" do
+      mode      = "app/services/organization_access/warehouse_access_mode.rb"
+      inventory = /\bInventory::|\bWarehouse\w*\b|\bwarehouses?\b|\bwarehouse_assignments\b/
+      offending = boundary.matches_in(mode, inventory).select do |line|
+        code = line.split(": ", 2).last
+        code.gsub(/\bWarehouseAccessMode(Policy)?\b/, "").match?(inventory)
+      end
+      expect(offending).to be_empty, "The warehouse access mode switch must not name Inventory & Purchasing:\n#{offending.join("\n")}"
+    end
+
+    # Business keeps the stored mode on every other save
+    # (Business#merge_settings_onto_stored); the one way to stage a new mode is
+    # Business#assign_warehouse_access_mode, used only by the audited switch.
+    it "only the audited mode switch stages a warehouse access mode" do
+      callers = (boundary.source_files + boundary.source_files("config"))
+                .reject { |file| file == "app/models/business.rb" }
+                .flat_map { |file| boundary.matches_in(file, /\bassign_warehouse_access_mode\b|@warehouse_access_mode_write\b/) }
+      expect(callers.map { |line| line.split(":").first }.uniq).to eq([ "app/services/organization_access/warehouse_access_mode.rb" ])
+    end
+
+    it "is consulted only by User#inventory_warehouse_ids, behind the per-business switch" do
       callers = (boundary.source_files + boundary.source_files("config"))
                 .reject { |file| [ provider_contract, impact_report ].include?(file) }
                 .flat_map { |file| boundary.matches_in(file, /\bWarehouseAccessProvider\.warehouse_ids_for\b|\bWarehouseAccess\.warehouse_ids_for\b|\bWarehouseAccess\.new\b/) }
-      expect(callers).to be_empty, <<~MSG
-        The warehouse access provider is not approved for the live path (fail-closed activation is a separate step):
+      expect(callers.size).to eq(1), <<~MSG
+        The warehouse access provider may only be called from User#inventory_warehouse_ids (fail-closed mode):
         #{callers.join("\n")}
       MSG
+      expect(callers.first).to start_with("app/models/user.rb")
+      expect(boundary.matches_in("app/models/user.rb", /warehouse_access_fail_closed\?/)).to be_present
     end
 
     it "the impact report is reporting only: no controller, policy, service, job or view uses it — only its rake task" do

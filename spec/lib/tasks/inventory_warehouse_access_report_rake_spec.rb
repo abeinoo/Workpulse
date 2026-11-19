@@ -40,7 +40,7 @@ RSpec.describe "inventory:warehouse_access_report" do
   it "prints old vs new access per user, by ID, and highlights the requested users" do
     output = run("BUSINESS_IDS" => business.id, "HIGHLIGHT_USER_IDS" => area_manager.id)
 
-    expect(output).to include("READ ONLY", "Business ##{business.id} — warehouses [#{central.id},#{nasr_wh.id}]")
+    expect(output).to include("READ ONLY", "Business ##{business.id} (mode: legacy) — warehouses [#{central.id},#{nasr_wh.id}]")
     expect(output).to include("user=#{area_manager.id}")
     expect(output).to include("old=[#{central.id},#{nasr_wh.id}] new=[#{nasr_wh.id}] lost=[#{central.id}] gained=[]")
     expect(output).to match(/Highlighted users\n\s+user=#{area_manager.id} /)
