@@ -4566,7 +4566,8 @@ en:
       errors:
         not_authorized: "You are not allowed to manage this warehouse."
         not_found: "Warehouse not found."
-        kind_required: "Choose whether the warehouse is a central or a branch warehouse."
+        kind_required: "A warehouse created here must be a central warehouse."
+        branch_warehouse_requires_provisioning: "Branch warehouses are created automatically for sales branches and cannot be created manually."
         status_invalid: "Choose a valid warehouse status."
         branch_not_found: "Branch not found."
         branch_already_has_warehouse: "This branch already has a branch warehouse."

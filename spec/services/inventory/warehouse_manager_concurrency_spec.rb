@@ -113,11 +113,19 @@ RSpec.describe "Warehouse manager concurrency (two connections)" do
                               reason: :opening_balance, quantity: 3, unit_cost: 5, occurred_on: Date.new(2026, 1, 1))
   end
 
-  it "two simultaneous branch-warehouse creations for one branch create exactly one", :aggregate_failures do
+  # Branch warehouses have one creation path, provision_branch_warehouse
+  # (WarehouseManager#create refuses them), always inside a transaction.
+  def provision(by, branch_id)
+    Warehouse.transaction do
+      Inventory::WarehouseManager.new(actor: by).provision_branch_warehouse(branch: Branch.find(branch_id))
+    end
+  end
+
+  it "two simultaneous branch-warehouse provisionings for one branch create exactly one", :aggregate_failures do
     branch_id = sales_branch.id
     reached, release = handshake
     calls = 0
-    # Pause the first creation after its INSERT, before its audit + COMMIT.
+    # Pause the first provisioning after its INSERT, before its audit + COMMIT.
     allow_any_instance_of(Inventory::WarehouseManager).to receive(:log_audit!).and_wrap_original do |original, **kwargs|
       calls += 1
       if calls == 1
@@ -127,19 +135,20 @@ RSpec.describe "Warehouse manager concurrency (two connections)" do
       original.call(**kwargs)
     end
 
-    first = on_other_connection { Inventory::WarehouseManager.new(actor: actor).create(kind: "branch", name: "A", branch_id: branch_id) }
+    first = on_other_connection { provision(actor, branch_id) }
     wait_for(reached)
-    second = on_other_connection { Inventory::WarehouseManager.new(actor: actor2).create(kind: "branch", name: "B", branch_id: branch_id) }
-    # The second creation waits at the business row the first one holds
-    # (business -> branch lock order); once the first commits, it sees that
-    # branch warehouse. The unique index stays the final guard (warehouse_manager_spec).
+    second = on_other_connection { provision(actor2, branch_id) }
+    # The second provisioning waits at the business row the first one holds
+    # (business -> branch lock order); once the first commits, it finds that
+    # branch warehouse and returns it (idempotent). The unique index stays the
+    # final guard (branch_warehouse_provisioning_spec).
     expect(wait_until_lock_waits("businesses")).to be_present
 
     release << true
     results = [ result_of(first), result_of(second) ]
-    expect(results.map(&:ok?)).to eq([ true, false ])
-    expect(results.last.code).to eq(:branch_already_has_warehouse)
-    expect(Warehouse.where(branch_id: branch_id).pluck(:name)).to eq([ "A" ])
+    expect(results.map(&:ok?)).to eq([ true, true ])
+    expect(results.map { |r| r.warehouse.id }.uniq.size).to eq(1)
+    expect(Warehouse.where(branch_id: branch_id).pluck(:name, :kind)).to eq([ [ "#{sales_branch.name} – المخزن", "branch" ] ])
     expect(AuditLog.where(auditable_type: "Warehouse", action: "create").count).to eq(1)
   end
 

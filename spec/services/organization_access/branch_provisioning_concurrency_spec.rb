@@ -169,40 +169,45 @@ RSpec.describe "Branch warehouse provisioning concurrency (two connections)" do
     expect(Branch.find(branch_id)).to be_branch_type_sales
   end
 
-  it "branch provisioning racing a direct branch-warehouse creation leaves exactly one", :aggregate_failures do
+  # A branch warehouse has one creation path — provision_branch_warehouse
+  # (WarehouseManager#create refuses branch warehouses). A provisioning outside
+  # the branch lifecycle (as the backfill runs it) takes the same business ->
+  # branch locks in its own transaction.
+  def provision_directly(branch_id)
+    Warehouse.transaction do
+      Inventory::WarehouseManager.new(actor: inventory).provision_branch_warehouse(branch: Branch.find(branch_id))
+    end
+  end
+
+  it "branch provisioning racing a direct provisioning of the same branch leaves exactly one", :aggregate_failures do
     branch_id = laundry.id
     reached, release = pause_first_warehouse_audit
 
     provisioning = on_other_connection { update_branch(branch_id, admin, branch_type: "sales") }
     wait_for(reached)
-    direct = on_other_connection do
-      Inventory::WarehouseManager.new(actor: inventory).create(kind: "branch", name: "Wash direct", branch_id: branch_id)
-    end
+    direct = on_other_connection { provision_directly(branch_id) }
     expect(wait_until_lock_waits("businesses")).to be_present # business -> branch: waits at the business row first
 
     release << true
     expect(result_of(provisioning)).to be_ok
     result = result_of(direct)
-    expect(result.code).to eq(:branch_already_has_warehouse)
-    expect(Warehouse.where(branch_id: branch_id).pluck(:name)).to eq([ "Wash – المخزن" ])
+    expect(result).to be_ok # finds the committed branch warehouse and returns it (idempotent)
+    expect(Warehouse.where(branch_id: branch_id).pluck(:id, :name)).to eq([ [ result.warehouse.id, "Wash – المخزن" ] ])
+    expect(warehouse_audits.count).to eq(1)
   end
 
-  it "a branch-warehouse creation racing a sales -> non-sales change creates nothing", :aggregate_failures do
+  it "a direct provisioning racing a sales -> non-sales change creates nothing", :aggregate_failures do
     branch_id = sales.id
     reached, release = pause_first_branch_save
 
     change = on_other_connection { update_branch(branch_id, admin, branch_type: "laundry") }
     wait_for(reached)
-    direct = on_other_connection do
-      Inventory::WarehouseManager.new(actor: inventory).create(kind: "branch", name: "Nasr direct", branch_id: branch_id)
-    end
+    direct = on_other_connection { provision_directly(branch_id) }
     expect(wait_until_lock_waits("businesses")).to be_present
 
     release << true
     expect(result_of(change)).to be_ok
-    result = result_of(direct)
-    expect(result.code).to eq(:invalid)
-    expect(result.warehouse.errors.of_kind?(:branch, :not_sales_branch)).to be(true)
+    expect(result_of(direct).code).to eq(:branch_not_sales) # the type is re-read under the lock
     expect(Warehouse.where(branch_id: branch_id)).to be_empty
   end
 
@@ -268,16 +273,14 @@ RSpec.describe "Branch warehouse provisioning concurrency (two connections)" do
     [ reached, release ]
   end
 
-  def create_branch_warehouse(branch_id)
-    Inventory::WarehouseManager.new(actor: inventory).create(kind: "branch", name: "Nasr direct", branch_id: branch_id)
-  end
+  def create_branch_warehouse(branch_id) = provision_directly(branch_id)
 
   it "a branch-warehouse creation holding its locks makes DeactivateBranch wait — no deadlock", :aggregate_failures do
     branch_id = sales.id
     reached, release = pause_first_warehouse_insert
 
     creation = on_other_connection { create_branch_warehouse(branch_id) }
-    wait_for(reached) # holds business (NO KEY UPDATE) + branch (SHARE), not yet inserted
+    wait_for(reached) # holds business + branch (NO KEY UPDATE), not yet inserted
     deactivation = on_other_connection do
       OrganizationAccess::DeactivateBranch.new(branch_id, actor: admin2, reason: "closing").call
     end

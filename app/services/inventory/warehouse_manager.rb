@@ -1,8 +1,9 @@
 module Inventory
-  # The single entry point for a warehouse's own lifecycle: create (central or
-  # branch), update its descriptive attributes, and delete a genuinely empty
-  # one. Every operation is authorized with the existing WarehousePolicy
-  # (records are loaded through its scope inside the actor's business), runs in
+  # The single entry point for a warehouse's own lifecycle: create a central
+  # warehouse, provision a sales branch's branch warehouse, update its
+  # descriptive attributes, and delete a genuinely empty one. Every operation
+  # is authorized (WarehousePolicy; provisioning by the branch lifecycle's
+  # BranchPolicy — records are loaded inside the actor's business), runs in
   # one transaction and writes a fail-closed audit entry (log_audit!) in that
   # same transaction — so an entry can never claim a change that rolled back,
   # and a change whose audit cannot be written does not happen.
@@ -13,7 +14,7 @@ module Inventory
   #
   #   manager = Inventory::WarehouseManager.new(actor: user)
   #   manager.create(kind: "central", name: "Main")
-  #   manager.create(kind: "branch", name: "Shubra – المخزن", branch_id: 3)
+  #   manager.provision_branch_warehouse(branch: branch)  # branch lifecycle / backfill only
   #   manager.update(warehouse_id: 7, name: "Renamed")
   #   manager.destroy(warehouse_id: 7, reason: "Created by mistake")
   class WarehouseManager
@@ -46,6 +47,8 @@ module Inventory
 
     UPDATABLE = %i[name description status].freeze
     PROVISIONING_SOURCES = %w[branch_provisioning branch_backfill].freeze
+    # The only kind #create accepts; "branch" is provision_branch_warehouse's alone.
+    CREATABLE_KINDS = %w[central].freeze
     KEEP = Object.new.freeze
     private_constant :KEEP
 
@@ -53,39 +56,26 @@ module Inventory
       @actor = actor
     end
 
+    # Creates a CENTRAL warehouse — the manual creation path (the Warehouses
+    # page always passes kind "central"). Branch warehouses are never created
+    # here: kind "branch" or any branch_id is refused before anything is
+    # written. They come only from provision_branch_warehouse (the branch
+    # lifecycle and the backfill), which fixes their kind, branch and name.
+    #
     # A savepoint (requires_new) so a refusal inside a caller's transaction
     # rolls back only this warehouse and its audit entry — never leaves the
-    # caller's transaction aborted.
-    #
-    # With a branch, the established lock order business -> branch -> name
-    # lock is taken: the business row FOR NO KEY UPDATE (serializes with every
-    # branch lifecycle service — CreateBranch / UpdateBranch take the same mode,
-    # Deactivate / Delete / Reactivate-style services FOR UPDATE — yet stays
-    # compatible with the key-share lock this transaction's own INSERT needs),
-    # then the branch FOR SHARE (conflicts with the branch lock UpdateBranch
-    # takes, so the branch cannot stop being a sales branch before COMMIT).
-    # Taking the branch first would deadlock against DeactivateBranch /
-    # DeleteBranch, which hold the business and wait for the branch while this
-    # INSERT waits for the business. A central warehouse takes neither lock.
-    def create(kind:, name:, branch_id: nil, description: nil, status: "active")
+    # caller's transaction aborted. No business or branch lock is taken: a
+    # central warehouse belongs to no branch (the name lock still applies).
+    def create(kind:, name:, description: nil, status: "active", branch_id: nil)
       return failure(:not_authorized) unless WarehousePolicy.new(@actor, Warehouse).create?
-      return failure(:kind_required)  unless Warehouse::KINDS.include?(kind.to_s)
+      return failure(:branch_warehouse_requires_provisioning) if kind.to_s == "branch" || branch_id.present?
+      return failure(:kind_required)  unless CREATABLE_KINDS.include?(kind.to_s)
       return failure(:status_invalid) unless Warehouse::STATUSES.include?(status.to_s)
 
-      warehouse = nil
-      Warehouse.transaction(requires_new: true) do
-        branch = nil
-        if branch_id.present?
-          Business.where(id: @actor.business_id).lock("FOR NO KEY UPDATE").pick(:id)
-          branch = Branch.where(business_id: @actor.business_id).lock("FOR SHARE").find_by(id: branch_id)
-          next failure(:branch_not_found) unless branch
-        end
-
-        warehouse = Warehouse.new(business_id: @actor.business_id, kind: kind.to_s, branch: branch,
-                                  name: name, description: description, status: status.to_s)
-        persist_new!(warehouse)
-        Result.new(ok: true, warehouse: warehouse)
-      end
+      warehouse = Warehouse.new(business_id: @actor.business_id, kind: kind.to_s, name: name,
+                                description: description, status: status.to_s)
+      Warehouse.transaction(requires_new: true) { persist_new!(warehouse) }
+      Result.new(ok: true, warehouse: warehouse)
     rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique, AuditLoggable::AuditWriteFailed => e
       creation_failure(e, warehouse)
     end
