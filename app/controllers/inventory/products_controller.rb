@@ -142,6 +142,7 @@ class Inventory::ProductsController < Inventory::BaseController
   end
 
   def create
+    ensure_warehouse_settings_in_scope!(nil)
     @product = current_user.business.products.build(product_params)
     @product.average_cost_price = @product.initial_cost_price if @product.average_cost_price.to_d.zero?
     authorize @product
@@ -170,6 +171,7 @@ class Inventory::ProductsController < Inventory::BaseController
   def update
     @product = find_product
     authorize @product
+    ensure_warehouse_settings_in_scope!(@product)
     if @product.update(product_params)
       redirect_to inventory_product_path(@product), notice: t("inventory.products.updated")
     else
@@ -424,6 +426,12 @@ class Inventory::ProductsController < Inventory::BaseController
                       .ordered
     @warehouses = accessible_warehouses
     @suppliers  = current_user.business.suppliers.ordered
+    # Per-warehouse threshold rows the form may show: only those of warehouses
+    # in the user's scope — another warehouse's values are neither displayed nor
+    # submitted back (ensure_warehouse_settings_in_scope! refuses them anyway).
+    allowed = accessible_warehouse_ids&.to_set
+    @warehouse_setting_rows = @product.product_warehouse_settings.to_a
+    @warehouse_setting_rows.select! { |s| allowed.include?(s.warehouse_id) } if allowed
 
     # Only active root-level products can become parents (max depth = 1).
     # Exclude the current product so it cannot assign itself as its own parent.
@@ -432,6 +440,51 @@ class Inventory::ProductsController < Inventory::BaseController
       .where(parent_product_id: nil)
       .where.not(id: [ @product.id ].compact)
       .ordered
+  end
+
+  # Refuses (Pundit::NotAuthorizedError) a nested product_warehouse_settings
+  # payload that would touch a warehouse outside the user's business or outside
+  # their inventory warehouse scope (accessible_warehouse_ids; nil = every
+  # warehouse of the business). Must run BEFORE the attributes are assigned.
+  #
+  # "Touch" covers every way nested attributes write a row: the warehouse a row
+  # names, AND — for a row given by id (update, re-point, or _destroy, which
+  # Rails applies even with no warehouse_id because reject_if is skipped for
+  # rows marked for destruction) — the warehouse that row belongs to now. A row
+  # id that isn't one of this product's settings is refused outright (on create
+  # every id is foreign).
+  def ensure_warehouse_settings_in_scope!(product)
+    rows = nested_attribute_rows(product_params[:product_warehouse_settings_attributes])
+    return if rows.empty?
+
+    named_ids = rows.filter_map { |row| row["warehouse_id"].presence&.to_s }.uniq
+    row_ids   = rows.filter_map { |row| row["id"].presence&.to_s }.uniq
+
+    current_ids = {}
+    if row_ids.any?
+      current_ids = product.product_warehouse_settings.where(id: row_ids).pluck(:id, :warehouse_id).to_h if product&.persisted?
+      raise Pundit::NotAuthorizedError unless current_ids.keys.map(&:to_s).sort == row_ids.sort
+    end
+
+    named = current_user.business.warehouses.where(id: named_ids).pluck(:id)
+    raise Pundit::NotAuthorizedError unless named.map(&:to_s).sort == named_ids.sort
+
+    touched = (named + current_ids.values).uniq
+    ensure_warehouses_accessible!(*touched) if touched.any?
+  end
+
+  # The rows Rails' nested attributes would process, in the same shapes it
+  # accepts: an array of hashes, an index-keyed hash, or one hash with an id.
+  def nested_attribute_rows(attrs)
+    return [] if attrs.blank?
+
+    attrs = attrs.to_h if attrs.respond_to?(:permitted?)
+    rows  = if attrs.is_a?(Hash)
+      attrs.key?("id") ? [ attrs ] : attrs.values
+    else
+      Array(attrs)
+    end
+    rows.map { |row| row.respond_to?(:permitted?) ? row.to_h : row }.select { |row| row.is_a?(Hash) }
   end
 
   def product_params

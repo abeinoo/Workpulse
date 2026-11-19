@@ -73,6 +73,15 @@ here only so its stable ID and history are kept.
 | BUG-052 | A bulk shortage settlement into custody cannot be reversed | Finance & Sales (Remaining Deposit Balance, custody ledger) | Medium (an erroneous settlement — wrong recipient, wrong days — cannot be corrected inside WorkPulse; no money is lost or double-counted) | Known limitation (owner decision 2026-11-15: no reversal in the bulk-settlement change) | Open | Before bulk custody settlement is used routinely, or at the first erroneous settlement |
 | BUG-053 | Dispute reserve / release and shortage reassignment write a Remaining Deposit Balance without the shortage lock | Finance & Sales (Remaining Deposit Balance, Bank Disputes) | Medium (a race with a settlement, write-off or bulk custody settlement of the same balance could overwrite its remaining amount / status with a stale value) | Suspected (code reading 2026-11-15; not reproduced) | Open | Next Bank Dispute or Remaining Deposit Balance change |
 | BUG-054 | Bulk-settle index specs fail from 16 Nov 2026 (fixed DR dates fall out of the 14-business-day index window) | Test suite (Finance & Sales, Daily Reconciliation index) | Medium (CI `test` job red on `main` and every branch from 2026-11-16) | Confirmed (CI run 43827866157; reproduced with a fixed clock) | **Resolved** (fixed in the PR that adds this entry) | — |
+| BUG-055 | Product form's nested per-warehouse settings write warehouses outside the user's warehouse scope | Inventory & Purchasing (product form) | **High — critical (unauthorized access)** | Confirmed (request spec) | **In Progress** (fix on `security/product-warehouse-settings-scope`, not reviewed / merged; Escalated) | Phase 0 review |
+| BUG-056 | Low-stock alerts ignore the product's "Low Stock Level"; three thresholds with three different rules | Inventory & Purchasing (low stock) | Medium (wrong or missing purchasing alerts) | Confirmed (code) | Deferred | Warehouse availability Phases 4–5 |
+| BUG-057 | Configuring one warehouse's threshold silences every other warehouse of that product | Inventory & Purchasing (low stock) | Medium (stock-outs not alerted) | Confirmed (code) | Deferred | Warehouse availability Phases 2–5 |
+| BUG-058 | Total-stock low-stock fallback hides a warehouse's shortage; scoped users see it labelled "All warehouses" | Inventory & Purchasing (low stock) | Medium | Confirmed (code); scoped-user label Suspected | Deferred | Warehouse availability Phase 5 |
+| BUG-059 | Untracked products with ledger stock are left out of stock valuation reports | Inventory & Purchasing (reports) | Medium (understated stock value) | Confirmed (code; 8 such products in local development data) | Deferred | Warehouse availability Phase 4 (N8) |
+| BUG-060 | Low-stock purchase picker suggests quantity 1 when no reorder quantity is set | Inventory & Purchasing (purchase requests) | Low | Confirmed (code) | Deferred | Warehouse availability Phase 4 |
+| BUG-061 | Product create / update — including threshold and warehouse-setting changes — writes no audit entry | Inventory & Purchasing (products) | Medium (traceability) | Confirmed (code) | Deferred | Warehouse availability Phase 1 |
+| BUG-062 | Product import writes thresholds only to the product-level "Low Stock Level", which no alert reads | Inventory & Purchasing (product import) | Low | Confirmed (code) | Deferred | Warehouse availability Phase 4 (N9) |
+| BUG-063 | Destroying a product removes every warehouse's settings, including warehouses outside a scoped user's reach | Inventory & Purchasing (products) | Low (only products with no inventory history) | Confirmed (code: `dependent: :destroy`) | Open | Owner decision; Warehouse availability Phase 1 (no deletes) |
 
 ---
 
@@ -1731,3 +1740,127 @@ here only so its stable ID and history are kept.
   the fixed specs pass 31 / 0 at 2026-11-15 12:00, 11-16 00:30, 11-16 12:00, 12-01 12:00, 12-31 23:30,
   2027-01-01 00:30, 2027-02-15 12:00 and 2027-06-30 12:00 (Cairo).
 * **Review milestone:** — (resolved).
+
+## BUG-055 — Product form's nested per-warehouse settings write warehouses outside the user's warehouse scope
+
+* **Source:** low-stock threshold audit (warehouse product availability plan). **Discovered:** 2026-11-17; the
+  id-only delete path 2026-11-19. **Status:** **In Progress** — fixed on branch
+  `security/product-warehouse-settings-scope` (Phase 0), not committed, reviewed or merged. **Escalated** — critical
+  under the policy (unauthorized writes outside the user's warehouse scope).
+* **Domain / files:** Inventory & Purchasing — `app/controllers/inventory/products_controller.rb` (`create`,
+  `update`, `product_params`), `app/views/inventory/products/_form.html.erb`, `Product`
+  (`accepts_nested_attributes_for :product_warehouse_settings, allow_destroy: true, reject_if: warehouse_id blank`).
+* **Observed (before the fix):** `product_warehouse_settings_attributes` were assigned without any warehouse-scope
+  check. A user with `manage_products` / `manage_inventory` assigned to Warehouse A could, by crafting the request:
+  create a product carrying a setting for another warehouse; add a setting for another warehouse (indexed, array and
+  mixed-with-allowed payloads); change or delete Warehouse B's setting; re-point A's setting to another warehouse;
+  move B's setting into A by naming A with B's row id. Because Rails skips `reject_if` for rows marked `_destroy`,
+  `{ id: <B's row>, _destroy: 1 }` with no `warehouse_id` deleted B's row (also in the single-row, non-indexed form).
+  The edit form also rendered other warehouses' rows, disclosing their values. Another business's warehouse was
+  already refused (model validation, 422) and another business's row id already raised `RecordNotFound` (404).
+* **Expected vs actual:** writes touching a warehouse outside the user's scope or business are refused with nothing
+  written; they succeeded (302 to the product page).
+* **Fix:** `ProductsController#ensure_warehouse_settings_in_scope!` runs before any attribute is assigned (create
+  and update). It reads the payload in every shape Rails accepts, collects each named warehouse and, for each row
+  given by id, the warehouse that row belongs to now; refuses a row id that is not one of this product's settings, a
+  warehouse not of the user's business, and (via `ensure_warehouses_accessible!`) any warehouse outside
+  `accessible_warehouse_ids` — as `Pundit::NotAuthorizedError`. The form renders only in-scope rows
+  (`@warehouse_setting_rows`).
+* **Scope limit:** "the user's scope" is the live `User#inventory_warehouse_ids` rule: owners and non-owners without
+  warehouse assignments may reach every warehouse of their business. The stricter `Inventory::WarehouseAccess`
+  resolver is not yet activated (separate decision); the guard follows whichever rule is live.
+* **Regression tests:** `spec/requests/security/product_warehouse_settings_scope_spec.rb` — 20 examples. On the
+  unchanged controller and form (base `d697e93f`): 20 / 16 — 10 unauthorized writes succeeded, 1 disclosure on the
+  edit form, and 5 cross-business cases were already refused but as 422 / 404 instead of not-authorized; with the
+  fix 20 / 0. Add / re-point cases target a warehouse with no existing row so the unique index cannot be what
+  refuses them. `product_references_spec.rb` characterization updated: a foreign warehouse is now refused as not
+  authorized instead of 422.
+* **Review milestone:** Phase 0 review.
+
+## BUG-056 — Low-stock alerts ignore the product's "Low Stock Level"; three thresholds with three different rules
+
+* **Source:** low-stock threshold audit. **Discovered:** 2026-11-17. **Status:** Deferred.
+* **Domain / files:** `Inventory::LowStockQuery#alerts`, `Product#low_stock?` / `#low_stock_level_for` /
+  `scope :low_stock` (unused), `app/views/inventory/products/{index,_child_rows,show}.html.erb`,
+  `app/views/inventory/products/_form.html.erb`.
+* **Observed:** alerts, reports and purchasing read `products.reorder_level` (UI "Reorder Level", integer) for
+  products without warehouse rows; product badges compare total stock with `products.low_stock_level` (UI "Low Stock
+  Level" / "حد انخفاض المخزون"), which no alert reads; the show page falls back to `low_stock_level`. The two columns
+  were equal only at their 2026-06-17 back-fill. Specs always set both equal, so none notices. `reorder_level` is an
+  integer, so fractional thresholds (kg / l) are impossible. In local development data 34 products differ.
+* **Impact:** a product can show a "Low stock" badge yet be missing from alerts and purchase suggestions, or the
+  reverse.
+* **Recommended fix:** the approved warehouse availability plan (per-warehouse thresholds only; one shared rule;
+  reconciliation of the historical central-warehouse values before the switch).
+* **Review milestone:** Warehouse availability Phases 4–5.
+
+## BUG-057 — Configuring one warehouse's threshold silences every other warehouse of that product
+
+* **Source:** low-stock threshold audit. **Discovered:** 2026-11-17. **Status:** Deferred.
+* **Domain / files:** `Inventory::LowStockQuery#alerts`; `app/views/inventory/products/show.html.erb` (warehouse
+  table); locale `inventory.products.no_warehouse_thresholds`.
+* **Observed:** once a product has any `product_warehouse_settings` row, only the configured warehouses are
+  evaluated; every other warehouse is never alerted, even at zero. The product page still shows those warehouses
+  with a "(default)" threshold and a low badge, and the form hint says "the defaults above apply".
+* **Recommended fix:** warehouse availability plan (explicit Active / Inactive / Not Configured; "Needs
+  configuration" signal for stock without configuration).
+* **Review milestone:** Warehouse availability Phases 2–5.
+
+## BUG-058 — Total-stock low-stock fallback hides a warehouse's shortage; scoped users see it labelled "All warehouses"
+
+* **Source:** low-stock threshold audit. **Discovered:** 2026-11-17. **Status:** Deferred.
+* **Domain / files:** `Inventory::LowStockQuery#alerts` (fallback branch),
+  `app/views/inventory/shared/_low_stock_purchasing.html.erb`, `low_stock_selection_controller.js`.
+* **Observed:** products without warehouse rows are checked once against the sum of all warehouses, so stock in one
+  warehouse hides a shortage in another. For a warehouse-scoped user the sum covers only their warehouses but the
+  alert is still shown as "All warehouses" (code reading; not reproduced).
+* **Recommended fix:** kept during the transition by owner decision N2; removed in Phase 5 after reconciliation.
+* **Review milestone:** Warehouse availability Phase 5.
+
+## BUG-059 — Untracked products with ledger stock are left out of stock valuation reports
+
+* **Source:** warehouse availability plan investigation. **Discovered:** 2026-11-19. **Status:** Deferred.
+* **Domain / files:** `Inventory::Reports::CurrentStock`, `NoMovement`, `WarehouseSummary` (all filter
+  `inventory_tracked`); no movement poster reads `track_inventory`.
+* **Observed:** `track_inventory = false` never blocks a movement, but those products are excluded from current-stock
+  value and warehouse value. Local development data: 8 untracked, non-parent products have movements.
+* **Recommended fix:** owner decision N8 — include actual ledger stock in valuation regardless of the flag; keep
+  `track_inventory` product-wide.
+* **Review milestone:** Warehouse availability Phase 4.
+
+## BUG-060 — Low-stock purchase picker suggests quantity 1 when no reorder quantity is set
+
+* **Source:** low-stock threshold audit. **Discovered:** 2026-11-17. **Status:** Deferred.
+* **Domain / files:** `app/views/inventory/purchase_requests/_low_stock_picker.html.erb`.
+* **Observed:** a zero reorder quantity pre-fills `1`, a quantity nobody configured.
+* **Recommended fix:** owner decision D5 / plan §11 — leave blank and require input.
+* **Review milestone:** Warehouse availability Phase 4.
+
+## BUG-061 — Product create / update — including threshold and warehouse-setting changes — writes no audit entry
+
+* **Source:** low-stock threshold audit. **Discovered:** 2026-11-17. **Status:** Deferred.
+* **Domain / files:** `Inventory::ProductsController#create` / `#update` (`@product.save` / `@product.update`, no
+  service, no `log_audit`).
+* **Recommended fix:** audited availability service (`log_audit!`) per the plan; product-level edits per a later
+  decision.
+* **Review milestone:** Warehouse availability Phase 1.
+
+## BUG-062 — Product import writes thresholds only to the product-level "Low Stock Level", which no alert reads
+
+* **Source:** low-stock threshold audit. **Discovered:** 2026-11-17. **Status:** Deferred.
+* **Domain / files:** `Inventory::Imports::ProductImporter` ("Low Stock Level", "Reorder Quantity" columns).
+* **Recommended fix:** owner decision N9 — apply to the selected target warehouse's settings; reject without one.
+* **Review milestone:** Warehouse availability Phase 4.
+
+## BUG-063 — Destroying a product removes every warehouse's settings, including warehouses outside a scoped user's reach
+
+* **Source:** Phase 0 review. **Discovered:** 2026-11-19. **Status:** Open.
+* **Domain / files:** `Product has_many :product_warehouse_settings, dependent: :destroy`;
+  `Inventory::ProductsController#destroy` (allowed only when `has_inventory_history?` is false).
+* **Observed (code):** a user allowed to destroy products, assigned to one warehouse, deletes the product's settings
+  for every warehouse. Only products with no inventory history are affected; no movement or document is lost.
+* **Deferral reason:** product deletion is a catalogue-level action outside Phase 0; changing who may delete products
+  needs an owner decision.
+* **Recommended fix:** with availability rows (Phase 1) never delete configuration; refuse destroying a product that
+  has availability rows outside the actor's scope, or archive instead.
+* **Review milestone:** owner decision; Warehouse availability Phase 1.

@@ -92,14 +92,18 @@ RSpec.describe "Characterization: product references to business-owned records",
   end
 
   describe "already isolated" do
-    it "a warehouse setting for another business's warehouse is refused (422)" do
+    # Was refused by the model validation (422). Since the product-warehouse
+    # settings scope guard (product_warehouse_settings_scope_spec) it is refused
+    # earlier, as not authorized, before any attribute is assigned.
+    it "a warehouse setting for another business's warehouse is refused (not authorized)" do
       foreign_wh = other.warehouses.create!(name: "Foreign WH")
 
       expect do
         post inventory_products_path, params: { product: { name: "W", sku: "W-1", initial_cost_price: 1,
                                                            product_warehouse_settings_attributes: { "0" => { warehouse_id: foreign_wh.id, low_stock_level: 3 } } } }
-      end.not_to change(Product, :count)
-      expect(response).to have_http_status(:unprocessable_entity)
+      end.not_to change { [ Product.count, ProductWarehouseSetting.count ] }
+      expect(response).to redirect_to(root_path)
+      expect(flash[:alert]).to eq(I18n.t("flash.not_authorized"))
     end
   end
 end

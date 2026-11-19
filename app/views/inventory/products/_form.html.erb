@@ -235,14 +235,15 @@
             <th></th>
           </tr></thead>
           <tbody data-line-items-target="rows">
-            <%= f.fields_for :product_warehouse_settings do |setting_f| %>
+            <%# Only rows of the user's warehouses (ProductsController#load_options). %>
+            <%= f.fields_for :product_warehouse_settings, @warehouse_setting_rows do |setting_f| %>
               <%= render "warehouse_setting_fields", f: setting_f, warehouses: @warehouses %>
             <% end %>
           </tbody>
         </table>
       </div>
 
-      <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if product.product_warehouse_settings.any? %>>
+      <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if @warehouse_setting_rows.any? %>>
         <%= t("inventory.products.no_warehouse_thresholds") %>
       </p>
 
