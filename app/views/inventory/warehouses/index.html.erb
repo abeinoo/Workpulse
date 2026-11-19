@@ -8,42 +8,69 @@
     <% end %>
   </div>
 
-  <% if @warehouses.empty? %>
+  <% if @kind_counts["all"].zero? %>
     <div class="empty-state">
       <p class="empty-state__title"><%= t("inventory.warehouses.empty") %></p>
     </div>
   <% else %>
-    <div class="table-wrap table-wrap--cards">
-      <table>
-        <thead>
-          <tr>
-            <th><%= t("inventory.warehouses.name") %></th>
-            <th><%= t("inventory.warehouses.description") %></th>
-            <th><%= t("inventory.warehouses.status") %></th>
-            <th><%= t("inventory.warehouses.created") %></th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <% @warehouses.each do |warehouse| %>
+    <nav class="filter-tabs filter-tabs--scrollable" aria-label="<%= t("inventory.warehouses.filters.label") %>">
+      <% [ nil, *Warehouse::KIND_FILTERS ].each do |kind| %>
+        <% key = kind || "all" %>
+        <%= link_to inventory_warehouses_path(kind: kind),
+              class: "filter-tab #{"filter-tab--active" if @kind_filter == kind}",
+              aria: { current: (@kind_filter == kind ? "page" : nil) },
+              data: { kind_filter: key } do %>
+          <%= kind ? t("inventory.warehouses.kinds.#{kind}") : t("inventory.warehouses.filters.all") %>
+          <span class="badge badge-neutral badge-xs"><%= @kind_counts[key] %></span>
+        <% end %>
+      <% end %>
+    </nav>
+
+    <% if @warehouses.empty? %>
+      <div class="empty-state">
+        <p class="empty-state__title"><%= t("inventory.warehouses.empty_for_kind") %></p>
+      </div>
+    <% else %>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
             <tr>
-              <td><%= link_to warehouse.name, inventory_warehouse_path(warehouse), class: "link" %></td>
-              <td class="td-secondary"><%= warehouse.description.presence || "—" %></td>
-              <td>
-                <span class="badge <%= warehouse.active? ? 'badge-success' : 'badge-neutral' %>">
-                  <%= t("inventory.warehouses.statuses.#{warehouse.status}") %>
-                </span>
-              </td>
-              <td class="td-secondary"><%= l warehouse.created_at.to_date, format: :short %></td>
-              <td class="td-actions">
-                <% if current_user.can?(:manage_inventory) %>
-                  <%= link_to t("common.edit"), edit_inventory_warehouse_path(warehouse), class: "link-muted" %>
-                <% end %>
-              </td>
+              <th><%= t("inventory.warehouses.name") %></th>
+              <th><%= t("inventory.warehouses.kind") %></th>
+              <th><%= t("inventory.warehouses.branch") %></th>
+              <th><%= t("inventory.warehouses.description") %></th>
+              <th><%= t("inventory.warehouses.status") %></th>
+              <th><%= t("inventory.warehouses.created") %></th>
+              <th></th>
             </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            <% @warehouses.each do |warehouse| %>
+              <tr>
+                <td data-label="<%= t("inventory.warehouses.name") %>"><%= link_to warehouse.name, inventory_warehouse_path(warehouse), class: "link" %></td>
+                <td data-label="<%= t("inventory.warehouses.kind") %>"><%= warehouse_kind_badge(warehouse) %></td>
+                <td class="td-secondary" data-label="<%= t("inventory.warehouses.branch") %>"><%= warehouse_branch_label(warehouse) %></td>
+                <td class="td-secondary" data-label="<%= t("inventory.warehouses.description") %>"><%= warehouse.description.presence || "—" %></td>
+                <td data-label="<%= t("inventory.warehouses.status") %>">
+                  <span class="badge <%= warehouse.active? ? 'badge-success' : 'badge-neutral' %>">
+                    <%= t("inventory.warehouses.statuses.#{warehouse.status}") %>
+                  </span>
+                </td>
+                <td class="td-secondary" data-label="<%= t("inventory.warehouses.created") %>"><%= l warehouse.created_at.to_date, format: :short %></td>
+                <td class="td-actions">
+                  <% if warehouse.kind.nil? && policy(warehouse).classify? %>
+                    <%= link_to t("inventory.warehouses.classification.action"),
+                          new_inventory_warehouse_classification_path(warehouse), class: "link" %>
+                  <% end %>
+                  <% if current_user.can?(:manage_inventory) %>
+                    <%= link_to t("common.edit"), edit_inventory_warehouse_path(warehouse), class: "link-muted" %>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
   <% end %>
 </div>

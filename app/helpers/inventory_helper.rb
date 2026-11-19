@@ -5,6 +5,11 @@ module InventoryHelper
     "completed" => "badge-accent", "approved" => "badge-success", "cancelled" => "badge-danger"
   }.freeze
 
+  # Badge colour for a warehouse type (kind; NULL = unclassified).
+  WAREHOUSE_KIND_BADGES = {
+    "central" => "badge-accent", "branch" => "badge-neutral", "unclassified" => "badge-warning"
+  }.freeze
+
   # Links a ledger movement's source document by its number — the document a
   # report row came from. Falls back to plain text when there is no route.
   INVENTORY_SOURCE_PATHS = {
@@ -58,6 +63,21 @@ module InventoryHelper
     else
       t("inventory.movements.reasons.#{reason}")
     end
+  end
+
+  # The warehouse type, from its stored kind only (never inferred from the name).
+  def warehouse_kind_badge(warehouse)
+    key = warehouse.kind.presence || "unclassified"
+    tag.span(t("inventory.warehouses.kinds.#{key}"), class: "badge #{WAREHOUSE_KIND_BADGES.fetch(key)}")
+  end
+
+  # The owning branch's name ("—" for central / unclassified), marked when inactive.
+  def warehouse_branch_label(warehouse)
+    branch = warehouse.owning_branch
+    return "—" unless branch
+    return branch.name if branch.active?
+
+    "#{branch.name} #{t('inventory.warehouses.branch_inactive')}"
   end
 
   # Inventory quantities exactly as stored (4.004 stays 4.004; 7.000 shows 7).

@@ -1949,6 +1949,13 @@ tr.user-row--inactive:hover {
   color: var(--text-1);
   font-weight: 600;
 }
+/* Opt-in: more tabs than a phone is wide — scroll sideways instead of clipping. */
+.filter-tabs--scrollable {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.filter-tabs--scrollable::-webkit-scrollbar { display: none; }
 
 /* ── Import page helpers ──────────────────────────────────────────────────── */
 .import-description {

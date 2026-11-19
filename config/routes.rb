@@ -344,7 +344,10 @@ Rails.application.routes.draw do
   namespace :inventory do
     root to: "dashboard#index"
 
-    resources :warehouses
+    resources :warehouses do
+      # Classifying an unclassified warehouse (kind NULL) — Inventory::WarehouseManager#classify.
+      resource :classification, only: %i[new create], controller: "warehouse_classifications"
+    end
     resources :suppliers
     resources :brands,             except: [ :show ]
     resources :product_categories, except: [ :show ]

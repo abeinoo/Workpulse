@@ -49,6 +49,24 @@ RSpec.describe WarehousePolicy do
     end
   end
 
+  describe "#classify? (an unclassified warehouse: company-wide structure, like creation)" do
+    def classify?(user) = described_class.new(user, warehouse).classify?
+
+    it "allows the owner and manage_inventory together with access_all_warehouses" do
+      expect(classify?(create(:user, :owner, business: business))).to be(true)
+      expect(classify?(user_with(:view_inventory, :manage_inventory, :access_all_warehouses))).to be(true)
+    end
+
+    it "refuses manage_inventory alone, a viewer, and a warehouse assignment alone" do
+      assigned = user_with(:view_inventory, :manage_inventory)
+      WarehouseAssignment.create!(user: assigned, warehouse: warehouse)
+
+      expect(classify?(user_with(:view_inventory, :manage_inventory))).to be(false)
+      expect(classify?(user_with(:view_inventory))).to be(false)
+      expect(classify?(assigned)).to be(false)
+    end
+  end
+
   describe "#update? / #destroy? (unchanged: manage_inventory)" do
     it "allows manage_inventory and refuses view_inventory" do
       manager = user_with(:view_inventory, :manage_inventory)

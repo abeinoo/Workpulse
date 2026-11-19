@@ -66,6 +66,29 @@ class Warehouse < ApplicationRecord
   scope :for_business, ->(business) { where(business: business) }
   scope :ordered,      -> { order(:name) }
 
+  # The Warehouses page type filter (read-only). Each value maps to the stored
+  # kind exactly — never to a name; "unclassified" is kind NULL (warehouses
+  # that predate the warehouse architecture). Any other value means all.
+  KIND_FILTERS = %w[central branch unclassified].freeze
+  scope :unclassified, -> { where(kind: nil) }
+  scope :for_kind_filter, lambda { |filter|
+    case filter.to_s
+    when "central"      then kind_central
+    when "branch"       then kind_branch
+    when "unclassified" then unclassified
+    else all
+    end
+  }
+
+  # The owning branch, for display: only a branch warehouse's own branch in
+  # the same business. An inconsistent link (prevented by the validations and
+  # check constraints, but possible if forced) shows no branch at all.
+  def owning_branch
+    return unless kind_branch? && branch && branch.business_id == business_id
+
+    branch
+  end
+
   # The advisory lock key for a (business, name) pair, as SQL: both halves are
   # computed by PostgreSQL, the name through the same LOWER() the
   # case-insensitive uniqueness validation compares with — so two names the

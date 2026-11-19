@@ -1,7 +1,16 @@
 class Inventory::WarehousesController < Inventory::BaseController
   def index
     authorize Warehouse
-    @warehouses = policy_scope(Warehouse).ordered
+    base = policy_scope(Warehouse) # business + accessible warehouses — the filter only narrows it
+    by_kind = base.group(:kind).count
+    @kind_counts = {
+      "all"          => by_kind.values.sum,
+      "central"      => by_kind["central"].to_i,
+      "branch"       => by_kind["branch"].to_i,
+      "unclassified" => by_kind[nil].to_i
+    }
+    @kind_filter = Warehouse::KIND_FILTERS.include?(params[:kind]) ? params[:kind] : nil
+    @warehouses  = base.for_kind_filter(@kind_filter).includes(:branch).ordered
   end
 
   def show
