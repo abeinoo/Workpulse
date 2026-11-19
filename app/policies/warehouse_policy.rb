@@ -10,6 +10,11 @@ class WarehousePolicy < ApplicationPolicy
   # provisioned by the branch lifecycle, not through this gate.
   def create?  = can?(:manage_inventory) && can?(:access_all_warehouses)
 
+  # Classifying an unclassified warehouse (kind NULL -> central / branch) is
+  # the same company-wide structural decision as creating one (D4). The record
+  # must also be reachable (it is loaded through Scope).
+  def classify? = create?
+
   # Unchanged: editing and deleting stay a manage_inventory action, on a
   # warehouse the user can reach (records are loaded through Scope).
   def update?  = can?(:manage_inventory)

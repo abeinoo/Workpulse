@@ -152,6 +152,89 @@ RSpec.describe "Warehouse manager concurrency (two connections)" do
     expect(AuditLog.where(auditable_type: "Warehouse", action: "create").count).to eq(1)
   end
 
+  # Classification of an unclassified warehouse (WarehouseManager#classify).
+  # Pauses the first classification after its UPDATE, before its audit + COMMIT.
+  def pause_first_classification_audit
+    reached, release = handshake
+    calls = 0
+    allow_any_instance_of(Inventory::WarehouseManager).to receive(:log_audit!).and_wrap_original do |original, **kwargs|
+      calls += 1
+      if calls == 1
+        reached << true
+        release.pop
+      end
+      original.call(**kwargs)
+    end
+    [ reached, release ]
+  end
+
+  def classify(by, warehouse_id, kind, branch_id = nil)
+    Inventory::WarehouseManager.new(actor: by).classify(warehouse_id: warehouse_id, kind: kind, branch_id: branch_id,
+                                                        reason: "Owner decision")
+  end
+
+  it "two simultaneous classifications of one warehouse: the first wins, the second sees it classified", :aggregate_failures do
+    legacy_id = business.warehouses.create!(name: "Legacy").id
+    branch_id = sales_branch.id
+    reached, release = pause_first_classification_audit
+
+    first = on_other_connection { classify(actor, legacy_id, "central") }
+    wait_for(reached)
+    second = on_other_connection { classify(actor2, legacy_id, "branch", branch_id) }
+    # The second waits for the warehouse row the first holds (after taking the
+    # business and branch locks, which the central classification never takes).
+    expect(wait_until_lock_waits("warehouses")).to be_present
+
+    release << true
+    results = [ result_of(first), result_of(second) ]
+    expect(results.map(&:ok?)).to eq([ true, false ])
+    expect(results.last.code).to eq(:already_classified)
+    expect(Warehouse.find(legacy_id)).to have_attributes(kind: "central", branch_id: nil)
+    expect(AuditLog.where(auditable_type: "Warehouse", action: "classify").count).to eq(1)
+  end
+
+  it "two warehouses classified to the same branch at once: exactly one is linked", :aggregate_failures do
+    first_id  = business.warehouses.create!(name: "Legacy A").id
+    second_id = business.warehouses.create!(name: "Legacy B").id
+    branch_id = sales_branch.id
+    reached, release = pause_first_classification_audit
+
+    first = on_other_connection { classify(actor, first_id, "branch", branch_id) }
+    wait_for(reached)
+    second = on_other_connection { classify(actor2, second_id, "branch", branch_id) }
+    expect(wait_until_lock_waits("businesses")).to be_present # business -> branch -> warehouse
+
+    release << true
+    results = [ result_of(first), result_of(second) ]
+    expect(results.map(&:ok?)).to eq([ true, false ])
+    expect(results.last.code).to eq(:branch_already_has_warehouse)
+    expect(Warehouse.where(branch_id: branch_id).pluck(:id)).to eq([ first_id ])
+    expect(Warehouse.find(second_id).kind).to be_nil
+  end
+
+  it "a classification racing branch provisioning for the same branch leaves exactly one branch warehouse", :aggregate_failures do
+    legacy_id = business.warehouses.create!(name: "Legacy").id
+    branch_id = sales_branch.id
+    reached, release = pause_first_classification_audit
+
+    classification = on_other_connection { classify(actor, legacy_id, "branch", branch_id) }
+    wait_for(reached)
+    provisioning = on_other_connection do
+      Warehouse.transaction do
+        Inventory::WarehouseManager.new(actor: actor2).provision_branch_warehouse(branch: Branch.find(branch_id))
+      end
+    end
+    expect(wait_until_lock_waits("businesses")).to be_present
+
+    release << true
+    expect(result_of(classification)).to be_ok
+    provisioned = result_of(provisioning)
+    expect(provisioned).to be_ok # finds the classified warehouse and returns it (idempotent)
+    expect(provisioned.warehouse.id).to eq(legacy_id)
+    expect(Warehouse.where(branch_id: branch_id).pluck(:id)).to eq([ legacy_id ])
+    expect(AuditLog.where(auditable_type: "Warehouse", action: "create")).to be_empty
+  end
+
   it "a deletion waits for in-flight inventory activity and then refuses", :aggregate_failures do
     warehouse = Inventory::WarehouseManager.new(actor: actor).create(kind: "central", name: "Spare").warehouse
     reached, release = handshake

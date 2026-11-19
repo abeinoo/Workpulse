@@ -259,4 +259,53 @@ RSpec.describe Warehouse, type: :model do
       expect(warehouse.reload.branch_id).to eq(sales_branch.id)
     end
   end
+
+  # Warehouses index type filter and branch display (read-only).
+  describe "type filter scopes" do
+    let!(:legacy)  { build_warehouse.tap(&:save!) }
+    let!(:central) { build_warehouse(kind: "central").tap(&:save!) }
+    let!(:owned)   { build_warehouse(kind: "branch", branch: sales_branch).tap(&:save!) }
+    let!(:foreign) { other_business.warehouses.create!(name: "Foreign", kind: "central") }
+
+    it "maps each supported filter to the stored kind exactly" do
+      scope = business.warehouses
+      expect(scope.for_kind_filter("central")).to contain_exactly(central)
+      expect(scope.for_kind_filter("branch")).to contain_exactly(owned)
+      expect(scope.for_kind_filter("unclassified")).to contain_exactly(legacy)
+      expect(scope.unclassified).to contain_exactly(legacy)
+    end
+
+    it "returns everything for no filter or any unknown value" do
+      [ nil, "", "all", "laundry", "Central", [ "central" ] ].each do |value|
+        expect(business.warehouses.for_kind_filter(value)).to contain_exactly(legacy, central, owned)
+      end
+    end
+
+    it "only narrows the relation it is given" do
+      expect(Warehouse.where(business: business).for_kind_filter("central")).not_to include(foreign)
+      expect(Warehouse::KIND_FILTERS).to eq(%w[central branch unclassified])
+    end
+
+    it "never changes a warehouse" do
+      expect { business.warehouses.for_kind_filter("unclassified").to_a }.not_to(change { legacy.reload.attributes })
+    end
+  end
+
+  describe "#owning_branch" do
+    it "is the branch of a branch warehouse in the same business" do
+      owned = build_warehouse(kind: "branch", branch: sales_branch).tap(&:save!)
+      expect(owned.owning_branch).to eq(sales_branch)
+    end
+
+    it "is nil for central and unclassified warehouses" do
+      expect(build_warehouse(kind: "central").owning_branch).to be_nil
+      expect(build_warehouse.owning_branch).to be_nil
+    end
+
+    it "is nil for an inconsistent link to another business's branch" do
+      owned = build_warehouse(kind: "branch", branch: sales_branch).tap(&:save!)
+      owned.update_columns(branch_id: create(:branch, business: other_business, branch_type: "sales").id)
+      expect(owned.reload.owning_branch).to be_nil
+    end
+  end
 end

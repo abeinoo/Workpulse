@@ -1,20 +1,23 @@
 module Inventory
   # The single entry point for a warehouse's own lifecycle: create a central
-  # warehouse, provision a sales branch's branch warehouse, update its
-  # descriptive attributes, and delete a genuinely empty one. Every operation
-  # is authorized (WarehousePolicy; provisioning by the branch lifecycle's
-  # BranchPolicy — records are loaded inside the actor's business), runs in
-  # one transaction and writes a fail-closed audit entry (log_audit!) in that
-  # same transaction — so an entry can never claim a change that rolled back,
-  # and a change whose audit cannot be written does not happen.
+  # warehouse, provision a sales branch's branch warehouse, classify an
+  # unclassified one, update its descriptive attributes, and delete a
+  # genuinely empty one. Every operation is authorized (WarehousePolicy;
+  # provisioning by the branch lifecycle's BranchPolicy — records are loaded
+  # inside the actor's business), runs in one transaction and writes a
+  # fail-closed audit entry (log_audit!) in that same transaction — so an
+  # entry can never claim a change that rolled back, and a change whose audit
+  # cannot be written does not happen.
   #
-  # Structural identity (business, kind, owning branch) is never changed here:
-  # update only accepts name / description / status, and the model refuses any
-  # other structural change (Warehouse#structural_identity_unchanged).
+  # Structural identity (business, kind, owning branch) is set once and never
+  # changed: classify only fills a NULL kind, update only accepts name /
+  # description / status, and the model refuses any other structural change
+  # (Warehouse#structural_identity_unchanged).
   #
   #   manager = Inventory::WarehouseManager.new(actor: user)
   #   manager.create(kind: "central", name: "Main")
   #   manager.provision_branch_warehouse(branch: branch)  # branch lifecycle / backfill only
+  #   manager.classify(warehouse_id: 1, kind: "branch", branch_id: 3, reason: "…")  # kind NULL only
   #   manager.update(warehouse_id: 7, name: "Renamed")
   #   manager.destroy(warehouse_id: 7, reason: "Created by mistake")
   class WarehouseManager
@@ -49,6 +52,9 @@ module Inventory
     PROVISIONING_SOURCES = %w[branch_provisioning branch_backfill].freeze
     # The only kind #create accepts; "branch" is provision_branch_warehouse's alone.
     CREATABLE_KINDS = %w[central].freeze
+    # The classification reason's limit (the same as other audit reasons, e.g.
+    # DepositResponsibilityTransfer::REJECTION_REASON_MAX_LENGTH).
+    CLASSIFICATION_REASON_MAX_LENGTH = 500
     KEEP = Object.new.freeze
     private_constant :KEEP
 
@@ -137,6 +143,77 @@ module Inventory
 
     # The approved branch warehouse name: "<Branch Name> – المخزن".
     def self.branch_warehouse_name(branch) = "#{branch.name} – المخزن"
+
+    # Classifies an existing UNCLASSIFIED warehouse (kind NULL) — the explicit,
+    # audited decision the Warehouse model leaves open. Creates nothing and
+    # touches no stock, movement or document; only kind (and, for a branch
+    # warehouse, branch_id) change. Once classified, kind and branch are fixed
+    # (Warehouse#structural_identity_unchanged).
+    #
+    #   kind "central" — no branch.
+    #   kind "branch"  — an active sales branch of the actor's business that
+    #                    has no branch warehouse yet.
+    # reason — required (at most CLASSIFICATION_REASON_MAX_LENGTH characters);
+    # recorded in the audit entry with the actor and the old / new kind and branch.
+    #
+    # Lock order business -> branch -> warehouse (every branch lifecycle
+    # service takes business before branch). For a branch: the business row
+    # FOR NO KEY UPDATE (serializes with provisioning, the backfill and other
+    # classifications in this business) and the branch FOR SHARE (UpdateBranch
+    # / DeactivateBranch cannot change its type or active flag before COMMIT).
+    # Then the warehouse FOR UPDATE, and its kind is re-checked under that
+    # lock. A savepoint (requires_new): a refusal or a failed audit rolls back
+    # only this classification. The unique branch index stays the final guard.
+    def classify(warehouse_id:, kind:, reason:, branch_id: nil)
+      kind   = kind.to_s
+      reason = reason.to_s.strip
+      return failure(:not_authorized) unless WarehousePolicy.new(@actor, Warehouse).classify?
+      return failure(:classification_kind_invalid) unless Warehouse::KINDS.include?(kind)
+      return failure(:branch_required) if kind == "branch" && branch_id.blank?
+      return failure(:central_without_branch) if kind == "central" && branch_id.present?
+      return failure(:classification_reason_required) if reason.empty?
+      if reason.length > CLASSIFICATION_REASON_MAX_LENGTH
+        return Result.new(ok: false, code: :classification_reason_too_long,
+                          error: I18n.t("inventory.warehouses.errors.classification_reason_too_long",
+                                        count: CLASSIFICATION_REASON_MAX_LENGTH))
+      end
+
+      warehouse = nil
+      Warehouse.transaction(requires_new: true) do
+        branch = nil
+        if kind == "branch"
+          Business.where(id: @actor.business_id).lock("FOR NO KEY UPDATE").pick(:id)
+          branch = Branch.where(business_id: @actor.business_id).lock("FOR SHARE").find_by(id: branch_id)
+          next failure(:branch_not_found) unless branch
+          next failure(:branch_not_sales) unless branch.branch_type_sales?
+          next failure(:branch_inactive) unless branch.active?
+          next failure(:branch_already_has_warehouse) if Warehouse.exists?(branch_id: branch.id)
+        end
+
+        warehouse = scoped.lock.find_by(id: warehouse_id)
+        next failure(:not_found) unless warehouse
+        next failure(:not_authorized, warehouse: warehouse) unless WarehousePolicy.new(@actor, warehouse).classify?
+        next failure(:already_classified, warehouse: warehouse) unless warehouse.kind.nil?
+
+        warehouse.assign_attributes(kind: kind, branch: branch)
+        warehouse.save!
+        log_audit!(actor: @actor, auditable: warehouse, action: "classify",
+                   changes: { kind: [ nil, kind ], branch_id: [ nil, branch&.id ] },
+                   metadata: identity(warehouse).merge(name: warehouse.name, reason: reason))
+        Result.new(ok: true, warehouse: warehouse)
+      end
+    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique, AuditLoggable::AuditWriteFailed => e
+      creation_failure(e, warehouse)
+    end
+
+    # The branches an unclassified warehouse may be classified to: active
+    # sales branches of the actor's business without a branch warehouse.
+    # Read-only (the form's choices; #classify re-checks everything under lock).
+    def classifiable_branches
+      Branch.where(business_id: @actor.business_id, branch_type: "sales", active: true)
+            .where.not(id: Warehouse.where.not(branch_id: nil).select(:branch_id))
+            .order(:name)
+    end
 
     # Only the given attributes change; structural attributes are not accepted.
     def update(warehouse_id:, name: KEEP, description: KEEP, status: KEEP)
