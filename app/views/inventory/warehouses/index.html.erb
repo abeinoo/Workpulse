@@ -3,9 +3,15 @@
 <div class="admin-page">
   <div class="page-header">
     <h1 class="page-title"><%= t("inventory.warehouses.title") %></h1>
-    <% if policy(Warehouse).create? %>
-      <%= link_to t("inventory.warehouses.add"), new_inventory_warehouse_path, class: "btn btn-primary btn-sm" %>
-    <% end %>
+    <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+      <% if policy(ProductWarehouseSetting).reconciliation? %>
+        <%= link_to t("product_availability.reconciliation.title"), inventory_availability_reconciliation_path,
+              class: "btn btn-secondary btn-sm", data: { testid: "availability-reconciliation-link" } %>
+      <% end %>
+      <% if policy(Warehouse).create? %>
+        <%= link_to t("inventory.warehouses.add"), new_inventory_warehouse_path, class: "btn btn-primary btn-sm" %>
+      <% end %>
+    </div>
   </div>
 
   <% if @kind_counts["all"].zero? %>

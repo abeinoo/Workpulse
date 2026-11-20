@@ -1,0 +1,34 @@
+<%# What deactivating a pair blocks and allows, its dependency summary, and the
+    reason form — shared by the warehouse tab's Deactivate page and the
+    product Edit page's inline panel (both post to #deactivate).
+    locals: setting, warehouse, dependencies, inline (true on the product page),
+            reason / return_to (optional: kept after a refused deactivation) %>
+<% return_to = local_assigns[:return_to] || (params[:return_to] if respond_to?(:return_to_product?) && return_to_product?) %>
+<% reason    = local_assigns.key?(:reason) ? local_assigns[:reason] : params[:reason] %>
+<% deps = dependencies %>
+<h3 class="form-label" style="margin-top: var(--space-2);"><%= t("product_availability.deactivation.effects_title") %></h3>
+<ul class="td-secondary" style="margin: 0 0 var(--space-4); padding-inline-start: var(--space-5); line-height: 1.7;">
+  <li><%= t("product_availability.deactivation.blocks_incoming") %></li>
+  <li><%= t("product_availability.deactivation.allows_outgoing") %></li>
+  <li><%= t("product_availability.deactivation.keeps_settings") %></li>
+  <li><%= t("product_availability.deactivation.receipts_exception") %></li>
+</ul>
+
+<%= render "inventory/warehouse_product_availabilities/dependency_summary", dependencies: deps %>
+
+<%= form_with url: deactivate_inventory_warehouse_product_availability_path(warehouse, setting), method: :post,
+      data: (inline ? { turbo_frame: "product-availability" } : {}) do %>
+  <%= hidden_field_tag :return_to, return_to, id: nil if return_to %>
+  <div class="form-group">
+    <label class="form-label form-label--required" for="deactivation-reason-<%= setting.id %>"><%= t("product_availability.deactivation.reason") %></label>
+    <textarea id="deactivation-reason-<%= setting.id %>" name="reason" rows="3" class="form-control" required maxlength="500" dir="auto"
+              placeholder="<%= t("product_availability.deactivation.reason_placeholder") %>"><%= reason %></textarea>
+  </div>
+  <div class="form-actions">
+    <% unless inline %>
+      <%= link_to t("forms.cancel"), cancel_path(setting.product), class: "btn btn-ghost" %>
+    <% end %>
+    <%= button_tag t("product_availability.deactivation.submit"), type: "submit", class: "btn btn-danger",
+          data: { testid: "confirm-deactivation", turbo_submits_with: t("product_availability.saving") } %>
+  </div>
+<% end %>

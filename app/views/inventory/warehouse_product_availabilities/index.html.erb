@@ -1,0 +1,126 @@
+<% content_for :title, "#{@warehouse.name} — #{t("product_availability.tabs.products")}" %>
+
+<div class="admin-page">
+  <%= render "inventory/warehouses/header", warehouse: @warehouse, active_tab: "products" %>
+
+  <div class="page-header" style="margin-bottom: var(--space-3);">
+    <div>
+      <h2 class="section-title" style="margin: 0;"><%= t("product_availability.index.title") %></h2>
+      <p class="form-hint"><%= t("product_availability.index.hint") %></p>
+    </div>
+    <% if @can_manage && @warehouse.active? %>
+      <%= link_to t("product_availability.index.add"), new_inventory_warehouse_product_availability_path(@warehouse),
+            class: "btn btn-primary btn-sm", data: { testid: "add-products" } %>
+    <% end %>
+  </div>
+
+  <% unless @warehouse.active? %>
+    <div class="alert alert-warning"><%= t("product_availability.index.inactive_warehouse") %></div>
+  <% end %>
+
+  <% if @warehouse.availability_included_by_default? %>
+    <div class="alert alert-info" data-testid="included-by-default"><%= t("product_availability.index.included_by_default") %></div>
+  <% elsif @unconfigured_with_stock_count.positive? %>
+    <div class="alert alert-warning" data-testid="unconfigured-with-stock">
+      <%= t("product_availability.index.unconfigured_with_stock", count: @unconfigured_with_stock_count) %>
+      <% if @can_manage && @warehouse.active? %>
+        <%= link_to t("product_availability.index.review_unconfigured"),
+              new_inventory_warehouse_product_availability_path(@warehouse, filter: "with_stock"), class: "link" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <nav class="filter-tabs" aria-label="<%= t("product_availability.index.status_filter") %>">
+    <% [ nil, *Inventory::WarehouseProductAvailabilitiesController::STATUS_FILTERS ].each do |status| %>
+      <% key = status || "all" %>
+      <%= link_to inventory_warehouse_product_availabilities_path(@warehouse, status: status, q: @query),
+            class: "filter-tab #{'filter-tab--active' if @status_filter == status}",
+            aria: { current: (@status_filter == status ? "page" : nil) }, data: { status_filter: key } do %>
+        <%= status ? t("product_availability.states.#{status}") : t("product_availability.index.all") %>
+        <span class="badge badge-neutral badge-xs"><%= @status_counts[key] %></span>
+      <% end %>
+    <% end %>
+  </nav>
+
+  <%= form_with url: inventory_warehouse_product_availabilities_path(@warehouse), method: :get, class: "filter-bar", style: "margin: var(--space-4) 0;" do |f| %>
+    <%= f.hidden_field :status, value: @status_filter %>
+    <%= f.label :q, t("product_availability.index.search_label"), class: "sr-only" %>
+    <%= f.search_field :q, value: @query, placeholder: t("product_availability.index.search_placeholder"), class: "form-control" %>
+    <%= f.submit t("common.search"), class: "btn btn-secondary btn-sm", name: nil %>
+  <% end %>
+
+  <% if @status_counts["all"].zero? %>
+    <div class="empty-state">
+      <p class="empty-state__title"><%= t("product_availability.index.empty_title") %></p>
+      <p class="empty-state__text"><%= t("product_availability.index.empty_text") %></p>
+    </div>
+  <% elsif @pairs.empty? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("product_availability.index.no_match") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table class="availability-table">
+        <thead>
+          <tr>
+            <th><%= t("product_availability.columns.product") %></th>
+            <th><%= t("product_availability.columns.state") %></th>
+            <th style="text-align: end;"><%= t("product_availability.columns.on_hand") %></th>
+            <th style="text-align: end;"><%= t("product_availability.columns.low_stock_level") %></th>
+            <th style="text-align: end;"><%= t("product_availability.columns.reorder_quantity") %></th>
+            <th><%= t("product_availability.columns.notifications") %></th>
+            <th aria-label="<%= t("product_availability.columns.actions") %>"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @pairs.each do |pair| %>
+            <% setting = pair.setting %>
+            <tr data-testid="availability-row-<%= setting.id %>">
+              <td data-label="<%= t("product_availability.columns.product") %>" style="min-width: 14rem;">
+                <%= link_to pair.product.name, inventory_product_path(pair.product), class: "link" %>
+                <div class="td-secondary"><%= pair.product.sku %></div>
+                <% if pair.inactive? %>
+                  <div class="td-secondary" style="margin-top: var(--space-1);" data-testid="inactive-reason">
+                    <%= t("product_availability.inactive_since_html", date: local_date(setting.status_changed_at),
+                          user: setting.status_changed_by&.full_name.presence || "—") %>
+                    <br><bdi><%= setting.status_reason %></bdi>
+                  </div>
+                <% end %>
+              </td>
+              <td data-label="<%= t("product_availability.columns.state") %>">
+                <div style="display: flex; flex-wrap: wrap; gap: var(--space-1);">
+                  <%= availability_state_badge(pair.state) %>
+                  <% if pair.low_stock? %><span class="badge badge-warning" style="white-space: nowrap;"><%= t("product_availability.low_stock") %></span><% end %>
+                </div>
+              </td>
+              <td style="text-align: end;" data-label="<%= t("product_availability.columns.on_hand") %>">
+                <%= availability_quantity(pair.on_hand) %>
+                <div class="td-secondary" style="white-space: nowrap;" data-testid="reserved"><%= t("product_availability.reserved_line", quantity: availability_quantity(pair.reserved)) %></div>
+              </td>
+              <% if pair.tracked? %>
+                <td style="text-align: end;" data-label="<%= t("product_availability.columns.low_stock_level") %>"><%= availability_quantity(setting.low_stock_level) %></td>
+                <td style="text-align: end;" data-label="<%= t("product_availability.columns.reorder_quantity") %>"><%= setting.reorder_quantity.to_d.positive? ? availability_quantity(setting.reorder_quantity) : t("product_availability.no_suggestion") %></td>
+                <td data-label="<%= t("product_availability.columns.notifications") %>"><%= setting.receive_low_stock_notification? ? t("product_availability.notifications_on") : t("product_availability.notifications_off") %></td>
+              <% else %>
+                <td colspan="3" class="td-secondary" data-label="<%= t("product_availability.columns.low_stock_level") %>"><%= t("product_availability.untracked") %></td>
+              <% end %>
+              <td class="td-actions">
+                <% if @can_manage %>
+                  <% if pair.active? %>
+                    <%= link_to t("common.edit"), edit_inventory_warehouse_product_availability_path(@warehouse, setting), class: "link" %>
+                    <%= link_to t("product_availability.actions.deactivate"), deactivation_inventory_warehouse_product_availability_path(@warehouse, setting), class: "link-muted" %>
+                  <% elsif @warehouse.active? %>
+                    <%= button_to t("product_availability.actions.reactivate"), reactivate_inventory_warehouse_product_availability_path(@warehouse, setting),
+                          class: "btn btn-secondary btn-sm", form: { style: "display: inline;" },
+                          data: { turbo_confirm: t("product_availability.reactivate_confirm", product: pair.product.name, warehouse: @warehouse.name) } %>
+                  <% end %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <%= render "shared/pagination", page: @page, total_pages: @total_pages,
+          path_proc: ->(p) { inventory_warehouse_product_availabilities_path(@warehouse, status: @status_filter, q: @query, page: p) } %>
+  <% end %>
+</div>

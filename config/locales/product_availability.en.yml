@@ -1,0 +1,283 @@
+# Product availability per warehouse — the product Edit page's warehouse cards,
+# the warehouse Products tab and the reconciliation report.
+en:
+  product_availability:
+    states:
+      active: Active
+      inactive: Inactive
+      not_configured: Not configured
+      included: Included
+      excluded: Excluded
+    tabs:
+      label: Warehouse sections
+      overview: Overview
+      products: Products
+    columns:
+      product: Product
+      warehouse: Warehouse
+      state: Availability
+      on_hand: On hand
+      low_stock_level: Low-stock at
+      reorder_quantity: Reorder qty
+      notifications: Alerts
+      actions: Actions
+    actions:
+      add: Add
+      deactivate: Deactivate
+      reactivate: Reactivate
+    reserved_line: Reserved %{quantity}
+    saving: Saving…
+    section:
+      archived: 'This product is archived: its warehouse settings are shown read-only.'
+      title: Product Availability per Warehouse
+      hint: 'Saved separately from the product details above: each action here applies straight away to that warehouse only and is recorded in the audit log. Unsaved product details are kept.'
+      untracked: 'Stock quantity is not tracked for this product (Track stock quantity is off): no warehouse stock levels, low-stock alerts or reorder settings. Turn tracking on and save the product to manage them per warehouse.'
+      warehouse_inactive: Warehouse inactive
+      kept_settings: Its settings are kept and restored on reactivation.
+      save: Save
+      loading: Loading what still involves this product here…
+      exclude_label: Exclude this product from this warehouse
+      include: Include again
+      include_hint: The product becomes available in this warehouse again, with its previous low-stock settings.
+      unsaved: Unsaved changes
+      threshold_hint: Low-stock level 0 = no low-stock alert. Reorder quantity 0 = no suggested quantity.
+      legacy_alerts_off: Dashboard alerts were turned off for this branch earlier; that setting is kept.
+      central_badge: Central warehouse
+      groups:
+        branches:
+          title: Sales branches
+          hint: Included by default. Exclude a branch only if this product is not used there.
+          empty: No active sales branch you can access.
+        central:
+          title: Central warehouses
+          hint: Included by default, exactly like the branches. Exclude a warehouse only if this product is not used there.
+          empty: No central warehouse you can access.
+        other:
+          title: Other warehouses
+          hint: 'Not included automatically: warehouses not classified yet, and inactive or non-sales warehouses. Shown only when this product already has settings there, read-only, for review.'
+          empty: None.
+      not_included_note: This warehouse is inactive or not used for normal product inventory, so its settings are shown read-only. Manage them from the warehouse's Products tab.
+    low_stock: Low stock
+    no_suggestion: No suggestion
+    notifications_on: 'On'
+    notifications_off: 'Off'
+    untracked: Inventory not tracked — no low-stock settings
+    excluded_since_html: Excluded since %{date} (<bdi>%{user}</bdi>)
+    inactive_since_html: Inactive since %{date} (<bdi>%{user}</bdi>)
+    reactivate_confirm: Reactivate %{product} in %{warehouse}? Its previous low-stock settings are restored and incoming stock is allowed again.
+    index:
+      included_by_default: Every product is included in this warehouse by default, with no low-stock alert until a level is set. This list shows the products with their own settings here, or excluded from this warehouse.
+      title: Products in this warehouse
+      hint: Only products added to this warehouse are listed. Low-stock settings here apply to this warehouse only.
+      add: Add products
+      all: All
+      status_filter: Filter by availability
+      search_label: Search products
+      search_placeholder: Name or SKU
+      empty_title: No products have been added to this warehouse yet
+      empty_text: Add the products this warehouse uses to set their low-stock levels and see them here.
+      no_match: No products match this search.
+      inactive_warehouse: 'This warehouse is inactive: products cannot be added or reactivated here.'
+      unconfigured_with_stock:
+        one: 1 product has stock in this warehouse but has not been added to it.
+        other: "%{count} products have stock in this warehouse but have not been added to it."
+      review_unconfigured: Review and add them
+    add:
+      title: Add products to %{warehouse}
+      hint: Select the products this warehouse uses. Each one starts Active here with the settings you enter; nothing changes in any other warehouse.
+      filter_label: Which products to show
+      filters:
+        not_configured: Not added yet
+        with_stock: Not added, with stock here
+        all: All products
+      search_label: Search the catalog
+      select_all: Select all products on this page
+      select_product: Select %{product}
+      already_active: Already in this warehouse
+      inactive_hint: Inactive here — reactivate it from the Products tab instead
+      settings_hint: Low-stock level 0 means no low-stock alert; reorder quantity 0 means no suggested quantity. You can change both later.
+      page_hint: Only the products ticked on this page are added. Add them, then go to the next page.
+      submit: Add selected
+      empty:
+        not_configured: Every product in the catalog has already been added to this warehouse, or none matches this search.
+        with_stock: No product holds stock here without having been added.
+        all: No product matches this search.
+    edit:
+      title: "%{product} in %{warehouse}"
+      hint: These settings apply to this warehouse only.
+      low_stock_hint: Alert when on-hand stock here falls to this level or below. 0 = no alert.
+      reorder_hint: Suggested quantity when reordering for this warehouse. 0 = no suggestion.
+      notify_label: Show low-stock alerts for this warehouse on dashboards
+      notify_hint: Turning this off only hides dashboard alerts. Reports, this page and purchasing still show the product as low on stock.
+      untracked: This product does not track inventory, so it has no low-stock settings.
+      submit: Save settings
+    deactivation:
+      title: Deactivate %{product} in %{warehouse}
+      effects_title: What happens
+      blocks_incoming: 'No more stock can come into this warehouse for this product: goods receipts, transfers into it and opening balances are refused.'
+      allows_outgoing: 'Stock already here can still go out: stock issues, transfers out, stock counts, adjustments and voids keep working.'
+      keeps_settings: Its low-stock settings are kept, and reactivating restores them.
+      receipts_exception: A goods receipt for a purchase request can still be received only if both the request and the receipt were approved before this deactivation; each such receipt is recorded in the audit log.
+      dependencies_title: Still involving this product here
+      has_dependencies: This product still has stock or open documents in this warehouse. You can still deactivate it; they are not cancelled.
+      reason: Reason
+      reason_placeholder: Why is this product no longer used in this warehouse?
+      submit: Confirm deactivation
+    dependencies:
+      on_hand: On hand
+      reserved: Reserved by open stock issues
+      reserved_short: Reserved
+      open_purchase_request_lines: Open purchase request lines
+      open_stock_issue_lines: Open stock issue lines
+      draft_goods_receipt_lines: Draft goods receipt lines
+      open_stock_count_lines: Open stock count lines
+    card:
+      default_settings_hint: Included by default — no low-stock alert until a level is set
+      title: Warehouse availability
+      hint: Where this product is used, with each warehouse's own low-stock settings. A warehouse it has not been added to has no settings.
+      empty: This product has not been added to any of your warehouses and has no stock in them.
+      not_configured_hint: Not added here — no settings
+      manage: Manage availability
+    form:
+      title: Warehouse availability
+      managed_after_create: After saving, open Edit to add the product to its warehouses in the Product Availability per Warehouse section.
+      save_hint: Saves the product details above. Warehouse settings have their own Save buttons.
+    legacy:
+      low_stock_level: Legacy low-stock level (product-wide)
+      reorder_quantity: Legacy reorder quantity (product-wide)
+      hint: Older product-wide value, kept for the historical central warehouse and the legacy total alert. Per-warehouse settings are managed under Warehouse availability.
+    flash:
+      added:
+        zero: No product was added to %{warehouse}.
+        one: 1 product added to %{warehouse}.
+        other: "%{count} products added to %{warehouse}."
+      skipped:
+        one: 'Skipped 1 product already in this warehouse: %{products}.'
+        other: 'Skipped %{count} products already in this warehouse: %{products}.'
+      updated: Settings saved for %{product} in %{warehouse}.
+      unchanged: Nothing changed.
+      deactivated: "%{product} is now inactive in %{warehouse}. Incoming stock is blocked there."
+      reactivated: "%{product} is active again in %{warehouse}, with its previous settings."
+      excluded: "%{product} is now excluded from %{warehouse}."
+      included: "%{product} is included in %{warehouse} again, with its previous settings."
+    errors:
+      untracked_product: stock quantity is not tracked for this product, so it has no warehouse settings. Turn on Track stock quantity first.
+      for_product: "%{product}: %{message}"
+      invalid: The change could not be saved. Nothing was changed.
+      not_authorized: You are not allowed to manage product availability in this warehouse.
+      no_items: Select at least one product to add.
+      duplicate_product: A product was listed twice. Nothing was added.
+      inactive_warehouse: "%{warehouse} is inactive. Nothing was changed."
+      invalid_product: One of the selected products can no longer be added (archived, deleted or a product family). Nothing was added.
+      invalid_quantity: enter a low-stock level and reorder quantity of 0 or more. Nothing was added.
+      untracked_product_settings: this product does not track inventory, so its low-stock level and reorder quantity must be 0.
+      audit_failed: The change could not be recorded in the audit log, so nothing was changed. Please try again.
+      already_configured: a product was added to this warehouse by someone else at the same moment. Nothing was added; please try again.
+      inactive: this product is inactive here — reactivate it before changing its settings.
+      unchanged: nothing changed.
+      reason_required: enter a reason for deactivating.
+      already_inactive: this product is already inactive in this warehouse.
+      already_active: this product is already active in this warehouse.
+      not_included_by_default: "%{warehouse} is inactive or not used for normal product inventory: manage it from that warehouse's Products tab."
+    reconciliation:
+      title: Availability reconciliation
+      read_only: 'Read-only review. This report changes nothing: it creates no availability rows, changes no statuses and leaves every stock movement as it is. Use it to decide what a future reconciliation should do.'
+      none: None.
+      archived: archived
+      truncated: Showing the first %{shown} of %{total}.
+      central:
+        title: Historical central warehouse
+        list: 'Central warehouses (warehouse type “central”):'
+        target: The product-wide (legacy) low-stock values belong to %{warehouse}, the business's central warehouse. They are compared with its own rows only — never with branch warehouses.
+        none: No warehouse is classified as central, so the product-wide (legacy) values cannot be matched to a warehouse yet. Classify the historical central warehouse first.
+        several: Several warehouses are classified as central (%{warehouses}). Decide which one is the historical central warehouse before reconciling the product-wide values.
+        unclassified: 'Not yet classified: %{warehouses}. Classify these warehouses (central or branch) before reconciling.'
+      warehouses:
+        title: By warehouse
+        unconfigured_with_stock: Stock, not added
+        inactive_with_stock: Inactive, with stock
+      legacy:
+        title: Product-wide (legacy) low-stock values
+        hint: Products whose product-wide low-stock level, reorder quantity, total alert level or alert setting differs from the default — compared with the historical central warehouse's row.
+        transfer: Transfer to central
+        old_low: Old low-stock level
+        old_reorder: Old reorder quantity
+        central_low: Central threshold
+        central_reorder: Central reorder quantity
+        reason: Reason
+        transfers:
+          matching: Transferred successfully
+          to_create: Not transferred yet
+          differing: Existing central settings — preserved, needs review
+          archived: Archived
+          untracked: Untracked
+          unresolved_central: No unique active central warehouse
+          inactive_conflict: Other conflict
+          legacy_alert_only: Other conflict
+          not_applicable: Nothing to transfer
+        reasons:
+          to_create: The transfer will save these values as the central warehouse's settings.
+          differing: The central warehouse already has its own settings; they are never overwritten.
+          archived: Archived products are not transferred; the values are kept.
+          untracked: Stock quantity is not tracked; the values are kept.
+          unresolved_central: The business has no single active central warehouse; nothing is transferred.
+          inactive_conflict: The product is excluded from the central warehouse; that setting is never reactivated.
+          legacy_alert_only: No old low-stock level or reorder quantity to transfer; its stock-wide alert continues until central settings are saved.
+          not_applicable: Only a total-alert level or alert setting — never copied.
+        transfer_summary: 'Transfer to the central warehouse: %{transferred} transferred, %{pending} pending, %{exceptions} exceptions (not transferred; each needs its own review — a legacy stock-wide alert they still have is kept).'
+        total_alert_in_use:
+          zero: No product has a legacy total alert level set.
+          one: 1 product has a legacy total alert level set. It is kept, still drives the stock-wide alert while the product has no warehouse settings, and is never mapped to a warehouse threshold.
+          other: "%{count} products have a legacy total alert level set. It is kept, still drives the stock-wide alert while a product has no warehouse settings, and is never mapped to a warehouse threshold."
+      branch_rows:
+        title: Rows added explicitly in branch warehouses
+        hint: Configured by users before or after the per-warehouse change. They stay as they are (Active unless someone deactivated them).
+      stock_without_row:
+        title: Stock in a warehouse that does not include products by default
+        hint: Stock in an inactive or non-sales warehouse where the product has no availability row. Nothing is added automatically.
+      inactive_with_stock:
+        title: Inactive products with stock remaining
+        hint: No more stock can come in for these pairs; the remaining stock can still be issued, transferred out or adjusted.
+        reason: Reason
+      issues:
+        title: Records to check
+        none: No suspicious records found.
+        issue: Issue
+        codes:
+          untracked_with_settings: Low-stock settings on a product that does not track inventory
+          active_row_in_inactive_warehouse: Active in an inactive warehouse
+          active_row_for_archived_product: Active row for an archived product
+          row_for_parent_product: Row for a product family (parent)
+          row_in_unclassified_warehouse: Row in an unclassified warehouse
+          negative_on_hand: Negative on-hand
+    exclusion:
+      no_incoming: 'No more stock can come into this warehouse for this product: goods receipts, transfers in and opening balances are refused.'
+      no_alerts: No low-stock alerts or purchasing suggestions for this warehouse, and it is left out of new stock counts while it has no stock here.
+      outgoing_allowed: 'Stock already here stays on the books and can still go out: stock issues, transfers out, stock counts, adjustments and voids keep working.'
+      history_kept: Movements, valuation and history are never changed. Its low-stock settings are kept and restored if you include it again.
+      reason: Reason for excluding
+      reason_placeholder: Why is this product not used in this warehouse?
+      confirm: Exclude from this warehouse
+  activerecord:
+    errors:
+      models:
+        product:
+          attributes:
+            track_inventory:
+              tracking_in_use: can't be turned off while the product still has %{details}. Bring the stock to zero (issue, transfer or adjust) and close or cancel those documents first
+          tracking_blockers:
+            on_hand_warehouses:
+              one: stock in 1 warehouse
+              other: stock in %{count} warehouses
+            open_purchase_request_lines:
+              one: 1 open purchase request line
+              other: "%{count} open purchase request lines"
+            open_stock_issue_lines:
+              one: 1 open stock issue line
+              other: "%{count} open stock issue lines"
+            draft_goods_receipt_lines:
+              one: 1 draft goods receipt line
+              other: "%{count} draft goods receipt lines"
+            open_stock_count_lines:
+              one: 1 open stock count line
+              other: "%{count} open stock count lines"

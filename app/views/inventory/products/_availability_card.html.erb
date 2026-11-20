@@ -1,0 +1,129 @@
+<%# One warehouse card in the product's availability section. Every warehouse
+    the product is Included in by default (active central and sales branch —
+    Warehouse#availability_included_by_default?) works the same way: Included /
+    Excluded, settings edited in place with Save, and the
+    "Exclude this product from this warehouse" checkbox. The warehouse type is
+    only a badge. A warehouse outside that rule (inactive, or a non-sales
+    branch) is shown read-only when the product still has a row there.
+    locals: pair, product, availability, return_to, tracked, row_error, typed, refused_exclusion %>
+<% warehouse = pair.warehouse %>
+<% setting   = pair.setting %>
+<% included_model = pair.included_by_default? %>
+<% manage    = included_model && availability.manageable?(warehouse) %>
+<% editable  = manage && tracked && !pair.excluded? %>
+<% form_id   = "availability-settings-#{warehouse.id}" %>
+<% controllers = [ ("availability-row" if editable), ("availability-exclude" if manage) ].compact.join(" ") %>
+<article class="availability-card <%= 'availability-card--inactive' if pair.inactive? %> availability-card--<%= warehouse.kind || 'unclassified' %>"
+         data-testid="availability-card-<%= warehouse.id %>" data-availability-card-state="<%= pair.state %>"
+         <% if controllers.present? %>data-controller="<%= controllers %>"<% end %>
+         <% if refused_exclusion %>data-availability-exclude-pending-value="true"<% end %>>
+  <header class="availability-card__head">
+    <div class="availability-card__name">
+      <span class="availability-card__title"><%= link_to warehouse.name, inventory_warehouse_product_availabilities_path(warehouse), class: "link" %></span>
+      <%= warehouse_kind_badge(warehouse) %>
+      <% unless warehouse.active? %><span class="badge badge-neutral"><%= t("product_availability.section.warehouse_inactive") %></span><% end %>
+    </div>
+    <div class="availability-card__badges">
+      <%= availability_state_badge(pair.state) %>
+      <% if pair.low_stock? %><span class="badge badge-warning" style="white-space: nowrap;"><%= t("product_availability.low_stock") %></span><% end %>
+    </div>
+  </header>
+
+  <% if manage %>
+    <label class="form-check availability-card__exclude">
+      <input type="checkbox" class="form-check-input" <%= "checked" if pair.excluded? %>
+             data-availability-exclude-target="checkbox" data-action="change->availability-exclude#sync"
+             data-testid="exclude-<%= warehouse.id %>" aria-controls="exclusion-panel-<%= warehouse.id %>">
+      <span class="form-check-label"><%= t("product_availability.section.exclude_label") %></span>
+    </label>
+    <% if !pair.excluded? %>
+      <div class="availability-disclosure__body" id="exclusion-panel-<%= warehouse.id %>" data-availability-exclude-target="panel"
+           <%= "hidden" unless refused_exclusion %>>
+        <% if refused_exclusion %>
+          <%= turbo_frame_tag "exclusion_#{warehouse.id}" do %>
+            <div class="alert alert-danger" role="alert" data-testid="exclusion-error-<%= warehouse.id %>"><%= refused_exclusion[:message] %></div>
+            <%= render "inventory/products/exclusion_panel", product: product, warehouse: warehouse,
+                  dependencies: refused_exclusion[:dependencies], return_to: return_to, reason: refused_exclusion[:reason] %>
+          <% end %>
+        <% else %>
+          <%= turbo_frame_tag "exclusion_#{warehouse.id}", loading: :lazy,
+                src: availability_exclusion_inventory_product_path(product, warehouse_id: warehouse.id, return_to: return_to) do %>
+            <p class="td-secondary"><%= t("product_availability.section.loading") %></p>
+          <% end %>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="availability-disclosure__body" id="exclusion-panel-<%= warehouse.id %>" data-availability-exclude-target="panel" hidden>
+        <p class="td-secondary"><%= t("product_availability.section.include_hint") %></p>
+        <div class="availability-disclosure__actions">
+          <%= button_to t("product_availability.section.include"), availability_inclusion_inventory_product_path(product),
+                params: { warehouse_id: warehouse.id, return_to: return_to }, class: "btn btn-primary btn-sm",
+                form: { data: { turbo_frame: "product-availability" } },
+                data: { testid: "include-#{warehouse.id}", turbo_submits_with: t("product_availability.saving") } %>
+        </div>
+      </div>
+    <% end %>
+  <% end %>
+
+  <% if editable %>
+    <%= form_with url: availability_settings_inventory_product_path(product), method: :patch, scope: :product_warehouse_setting,
+          id: form_id, class: "availability-card__form", data: { turbo_frame: "product-availability" } do %>
+      <%= hidden_field_tag :warehouse_id, warehouse.id, id: nil %>
+      <%= hidden_field_tag :return_to, return_to, id: nil %>
+    <% end %>
+  <% end %>
+
+  <dl class="availability-figures">
+    <div><dt><%= t("product_availability.columns.on_hand") %></dt><dd><%= availability_quantity(pair.on_hand) %></dd></div>
+    <div><dt><%= t("product_availability.dependencies.reserved_short") %></dt><dd><%= availability_quantity(pair.reserved) %></dd></div>
+    <% if tracked %>
+      <% low     = typed.fetch("low_stock_level", availability_quantity(setting&.low_stock_level || 0)) %>
+      <% reorder = typed.fetch("reorder_quantity", availability_quantity(setting&.reorder_quantity || 0)) %>
+      <% [ [ :low_stock_level, "low", low ], [ :reorder_quantity, "reorder", reorder ] ].each do |field, suffix, value| %>
+        <div>
+          <% if editable %>
+            <dt><label class="availability-figures__label" for="pws-<%= warehouse.id %>-<%= suffix %>"><%= t("product_availability.columns.#{field}") %></label></dt>
+            <dd>
+              <input type="number" name="product_warehouse_setting[<%= field %>]" form="<%= form_id %>" id="pws-<%= warehouse.id %>-<%= suffix %>"
+                     value="<%= value %>" min="0" step="0.001" required inputmode="decimal"
+                     class="form-control form-control-sm <%= 'is-invalid' if row_error %>"
+                     <% if row_error %>aria-invalid="true" aria-describedby="pws-<%= warehouse.id %>-error"<% end %>
+                     data-availability-row-target="field" data-action="input->availability-row#sync"
+                     data-preserve-id="pws-<%= warehouse.id %>-<%= suffix %>">
+            </dd>
+          <% else %>
+            <dt><%= t("product_availability.columns.#{field}") %></dt>
+            <dd><%= field == :reorder_quantity && value.to_d.zero? ? t("product_availability.no_suggestion") : value %></dd>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
+  </dl>
+  <% if setting && !setting.receive_low_stock_notification? && tracked %>
+    <p class="td-secondary availability-card__note" data-testid="legacy-alerts-off-<%= warehouse.id %>"><%= t("product_availability.section.legacy_alerts_off") %></p>
+  <% end %>
+  <% if row_error %>
+    <p class="availability-field-error" id="pws-<%= warehouse.id %>-error" role="alert" data-testid="row-error-<%= warehouse.id %>"><%= row_error %></p>
+  <% end %>
+
+  <% if pair.inactive? %>
+    <p class="td-secondary availability-card__note" data-testid="inactive-reason">
+      <%= t(pair.excluded? ? "product_availability.excluded_since_html" : "product_availability.inactive_since_html", date: local_date(setting.status_changed_at),
+            user: setting.status_changed_by&.full_name.presence || "—") %>
+      <br><bdi><%= setting.status_reason %></bdi>
+      <br><%= t("product_availability.section.kept_settings") %>
+    </p>
+  <% end %>
+  <% unless included_model %>
+    <p class="td-secondary availability-card__note" data-testid="not-included-<%= warehouse.id %>"><%= t("product_availability.section.not_included_note") %></p>
+  <% end %>
+
+  <% if editable %>
+    <div class="availability-card__actions">
+      <button type="submit" form="<%= form_id %>" class="btn btn-primary btn-sm" disabled
+              data-availability-row-target="save" data-testid="save-<%= warehouse.id %>"
+              data-turbo-submits-with="<%= t("product_availability.saving") %>"><%= t("product_availability.section.save") %></button>
+      <span class="availability-card__unsaved" data-testid="unsaved-<%= warehouse.id %>"><%= t("product_availability.section.unsaved") %></span>
+    </div>
+  <% end %>
+</article>

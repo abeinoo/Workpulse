@@ -1,0 +1,16 @@
+<% product = @setting.product %>
+<% content_for :title, t("product_availability.deactivation.title", product: product.name, warehouse: @warehouse.name) %>
+
+<div class="admin-page">
+  <%= render "inventory/warehouses/header", warehouse: @warehouse, active_tab: "products" %>
+
+  <div class="card" style="padding: var(--space-5); max-width: 46rem;">
+    <h2 class="section-title" style="margin-top: 0;"><%= t("product_availability.deactivation.title", product: product.name, warehouse: @warehouse.name) %></h2>
+
+    <% if @error_message %>
+      <div class="alert alert-danger" role="alert" data-testid="deactivation-error"><%= @error_message %></div>
+    <% end %>
+
+    <%= render "deactivation_panel", setting: @setting, warehouse: @warehouse, dependencies: @dependencies, inline: false %>
+  </div>
+</div>

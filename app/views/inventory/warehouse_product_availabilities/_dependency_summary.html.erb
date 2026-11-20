@@ -1,0 +1,22 @@
+<%# What still involves a product/warehouse pair (ProductAvailabilityManager#dependency_summary).
+    locals: dependencies %>
+<% deps = dependencies %>
+<h3 class="form-label"><%= t("product_availability.deactivation.dependencies_title") %></h3>
+<dl class="detail-list" data-testid="dependency-summary">
+  <% %i[on_hand reserved].each do |key| %>
+    <div class="detail-list__row">
+      <dt><%= t("product_availability.dependencies.#{key}") %></dt>
+      <dd><%= availability_quantity(deps[key]) %></dd>
+    </div>
+  <% end %>
+  <% %i[open_purchase_request_lines open_stock_issue_lines draft_goods_receipt_lines open_stock_count_lines].each do |key| %>
+    <div class="detail-list__row">
+      <dt><%= t("product_availability.dependencies.#{key}") %></dt>
+      <dd><%= deps[key] %></dd>
+    </div>
+  <% end %>
+</dl>
+<% if deps[:on_hand].to_d.nonzero? || deps.values_at(:open_purchase_request_lines, :open_stock_issue_lines, :draft_goods_receipt_lines, :open_stock_count_lines).sum.positive? %>
+  <div class="alert alert-warning" style="margin-top: var(--space-3);"><%= t("product_availability.deactivation.has_dependencies") %></div>
+<% end %>
+

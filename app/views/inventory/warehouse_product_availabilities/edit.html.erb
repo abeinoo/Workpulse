@@ -1,0 +1,55 @@
+<% product = @setting.product %>
+<% content_for :title, t("product_availability.edit.title", product: product.name, warehouse: @warehouse.name) %>
+
+<div class="admin-page">
+  <%= render "inventory/warehouses/header", warehouse: @warehouse, active_tab: "products" %>
+
+  <div class="card" style="padding: var(--space-5); max-width: 40rem;">
+    <h2 class="section-title" style="margin-top: 0;"><%= t("product_availability.edit.title", product: product.name, warehouse: @warehouse.name) %></h2>
+    <p class="form-hint"><%= t("product_availability.edit.hint") %></p>
+
+    <% if @error_message %>
+      <div class="alert alert-danger" role="alert" data-testid="edit-error"><%= @error_message %></div>
+    <% end %>
+
+    <%= form_with model: @setting, url: inventory_warehouse_product_availability_path(@warehouse, @setting), method: :patch do |f| %>
+      <%= hidden_field_tag :return_to, params[:return_to] if return_to_product? %>
+      <% if product.track_inventory? %>
+        <div class="form-grid">
+          <div class="form-group">
+            <%= f.label :low_stock_level, t("product_availability.columns.low_stock_level"), class: "form-label" %>
+            <%= f.number_field :low_stock_level, value: availability_quantity(@setting.low_stock_level), step: "0.001", min: 0, class: "form-control" %>
+            <p class="form-hint"><%= t("product_availability.edit.low_stock_hint") %></p>
+          </div>
+          <div class="form-group">
+            <%= f.label :reorder_quantity, t("product_availability.columns.reorder_quantity"), class: "form-label" %>
+            <%= f.number_field :reorder_quantity, value: availability_quantity(@setting.reorder_quantity), step: "0.001", min: 0, class: "form-control" %>
+            <p class="form-hint"><%= t("product_availability.edit.reorder_hint") %></p>
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="form-check">
+            <%= f.check_box :receive_low_stock_notification, class: "form-check-input" %>
+            <%= f.label :receive_low_stock_notification, t("product_availability.edit.notify_label"), class: "form-check-label" %>
+          </div>
+          <p class="form-hint"><%= t("product_availability.edit.notify_hint") %></p>
+        </div>
+      <% else %>
+        <div class="alert alert-info"><%= t("product_availability.edit.untracked") %></div>
+        <div class="form-group">
+          <div class="form-check">
+            <%= f.check_box :receive_low_stock_notification, class: "form-check-input" %>
+            <%= f.label :receive_low_stock_notification, t("product_availability.edit.notify_label"), class: "form-check-label" %>
+          </div>
+        </div>
+      <% end %>
+
+      <div class="form-actions">
+        <%= link_to t("forms.cancel"),
+              cancel_path(product),
+              class: "btn btn-ghost" %>
+        <%= f.submit t("product_availability.edit.submit"), class: "btn btn-primary" %>
+      </div>
+    <% end %>
+  </div>
+</div>

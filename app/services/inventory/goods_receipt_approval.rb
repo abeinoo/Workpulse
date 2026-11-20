@@ -28,6 +28,13 @@ module Inventory
   # (Inventory::GoodsReceiptConfirmationService), which is purely an inventory
   # event and moves no money, gated on approval_status == "approved".
   #
+  # A receipt with a line for a product whose availability in the receipt's
+  # warehouse is already Inactive is never approved (Phase 1 unit 6): it could
+  # never be received, and approval is the financial event. Checked under the
+  # receipt and request locks, before any write. A receipt approved BEFORE the
+  # deactivation keeps the narrow, audited N6 path at confirmation
+  # (Inventory::IncomingAvailabilityGuard).
+  #
   # Self-approval is blocked (the requester who created/submitted the receipt
   # may not approve or reject their own request), with the business-owner
   # exception, via the shared Approvals::SelfApproval rule.
@@ -68,6 +75,9 @@ module Inventory
         # write: under the request lock (approvals of one request serialize),
         # nothing is applied or paid on refusal.
         refusal = over_approvable_quantity_error
+        return refusal if refusal
+
+        refusal = inactive_pair_error
         return refusal if refusal
 
         allocator = Inventory::PurchaseRequestAdvanceAllocator.new(receipt)
@@ -132,6 +142,19 @@ module Inventory
     def already_processed_error
       Result.new(ok: false, receipt: receipt,
                 error: I18n.t("inventory.goods_receipts.errors.already_processed"))
+    end
+
+    # Locks the receipt's availability rows FOR SHARE (after the receipt and
+    # request locks — the posting order), so a concurrent deactivation either
+    # commits first and is seen here, or waits for this approval.
+    def inactive_pair_error
+      guard = Inventory::IncomingAvailabilityGuard.new(
+        warehouse_id: receipt.warehouse_id,
+        product_ids:  receipt.items.reload.map(&:product_id)
+      )
+      return nil unless guard.refuse!(receipt)
+
+      Result.new(ok: false, receipt: receipt, error: receipt.errors.full_messages.to_sentence)
     end
 
     def invalid_transition_error

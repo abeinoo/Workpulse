@@ -1,0 +1,65 @@
+<%# Warehouse Availability card (product page). Each row is one reachable
+    warehouse where the product has an availability row or stock; its
+    thresholds are that warehouse's OWN settings — a Not Configured warehouse
+    shows none (never the product-level legacy values).
+    Read-only: availability is managed in the product Edit page's section
+    (manage_path; nil when the user manages it in none of their warehouses).
+    locals: product, pairs (Inventory::AvailabilityFigures::Pair), manage_path %>
+<section aria-labelledby="warehouse-availability-title" data-testid="warehouse-availability">
+  <div class="page-header" style="margin-bottom: var(--space-2);">
+    <h2 class="section-title" id="warehouse-availability-title" style="margin: 0;"><%= t("product_availability.card.title") %></h2>
+    <% if manage_path %>
+      <%= link_to t("product_availability.card.manage"), manage_path, class: "btn btn-secondary btn-sm", data: { testid: "manage-availability" } %>
+    <% end %>
+  </div>
+  <p class="form-hint"><%= t("product_availability.card.hint") %></p>
+
+  <% if pairs.empty? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("product_availability.card.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-4);">
+      <table class="availability-table">
+        <thead><tr>
+          <th><%= t("product_availability.columns.warehouse") %></th>
+          <th><%= t("product_availability.columns.state") %></th>
+          <th style="text-align: end;"><%= t("product_availability.columns.on_hand") %></th>
+          <th style="text-align: end;"><%= t("product_availability.columns.low_stock_level") %></th>
+          <th style="text-align: end;"><%= t("product_availability.columns.reorder_quantity") %></th>
+          <th><%= t("product_availability.columns.notifications") %></th>
+        </tr></thead>
+        <tbody>
+          <% pairs.each do |pair| %>
+            <% warehouse = pair.warehouse %>
+            <% setting = pair.setting %>
+            <tr data-testid="availability-warehouse-<%= warehouse.id %>">
+              <td data-label="<%= t("product_availability.columns.warehouse") %>">
+                <%= link_to warehouse.name, inventory_warehouse_product_availabilities_path(warehouse), class: "link" %>
+                <%= warehouse_kind_badge(warehouse) %>
+                <% unless warehouse.active? %><span class="badge badge-neutral"><%= t("inventory.warehouses.statuses.inactive") %></span><% end %>
+              </td>
+              <td data-label="<%= t("product_availability.columns.state") %>">
+                <%= availability_state_badge(pair.state) %>
+                <% if pair.low_stock? %><span class="badge badge-warning"><%= t("product_availability.low_stock") %></span><% end %>
+                <% if pair.inactive? %><div class="td-secondary"><bdi><%= setting.status_reason %></bdi></div><% end %>
+              </td>
+              <td style="text-align: end;" data-label="<%= t("product_availability.columns.on_hand") %>">
+                <%= availability_quantity(pair.on_hand) %>
+                <div class="td-secondary" style="white-space: nowrap;" data-testid="reserved"><%= t("product_availability.reserved_line", quantity: availability_quantity(pair.reserved)) %></div>
+              </td>
+              <% if !pair.configured? %>
+                <td colspan="3" class="td-secondary" data-label="<%= t("product_availability.columns.low_stock_level") %>"><%= pair.included_by_default? ? t("product_availability.card.default_settings_hint") : t("product_availability.card.not_configured_hint") %></td>
+              <% elsif !pair.tracked? %>
+                <td colspan="3" class="td-secondary" data-label="<%= t("product_availability.columns.low_stock_level") %>"><%= t("product_availability.untracked") %></td>
+              <% else %>
+                <td style="text-align: end;" data-label="<%= t("product_availability.columns.low_stock_level") %>"><%= availability_quantity(setting.low_stock_level) %></td>
+                <td style="text-align: end;" data-label="<%= t("product_availability.columns.reorder_quantity") %>"><%= setting.reorder_quantity.to_d.positive? ? availability_quantity(setting.reorder_quantity) : t("product_availability.no_suggestion") %></td>
+                <td data-label="<%= t("product_availability.columns.notifications") %>"><%= setting.receive_low_stock_notification? ? t("product_availability.notifications_on") : t("product_availability.notifications_off") %></td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+</section>

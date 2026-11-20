@@ -45,6 +45,35 @@ module SystemSpecBrowser
   end
 end
 
+# Chrome 158 (Nov 2026) refuses the wildcard origin Capybara 3.40 (the latest
+# release) sends when it resets a session between examples:
+#   ChromeDriver#reset! -> execute_cdp("Storage.clearDataForOrigin", origin: "*",
+#                                      storageTypes: "cookies,local_storage")
+#   -> Selenium::WebDriver::Error::InvalidArgumentError: "* is not a valid URL"
+# Every system example then fails in teardown. That call is what clears cookies
+# (and local storage) between examples, so it is replaced, not skipped: on
+# exactly this refusal, clear every cookie with Network.clearBrowserCookies and
+# the requested storage for the app server's origin (the only origin the specs
+# load). Any other CDP call or error is untouched. Remove once Capybara sends
+# a valid origin.
+module ChromeWildcardStorageResetCompat
+  private
+
+  def execute_cdp(cmd, params = {})
+    super
+  rescue Selenium::WebDriver::Error::InvalidArgumentError
+    raise unless cmd == "Storage.clearDataForOrigin" && params[:origin] == "*"
+
+    super("Network.clearBrowserCookies")
+    other_types = params[:storageTypes].to_s.split(",") - %w[cookies]
+    origin = Capybara.current_session.server&.base_url
+    super("Storage.clearDataForOrigin", origin: origin, storageTypes: other_types.join(",")) if origin && other_types.any?
+  end
+end
+require "capybara/selenium/driver"
+require "capybara/selenium/driver_specializations/chrome_driver"
+Capybara::Selenium::Driver::ChromeDriver.prepend(ChromeWildcardStorageResetCompat)
+
 RSpec.configure do |config|
   config.before(:each, type: :system) do
     driven_by :selenium_chrome_headless_local

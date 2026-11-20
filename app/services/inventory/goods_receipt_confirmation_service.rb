@@ -25,7 +25,7 @@ module Inventory
         return already_processed_error unless @receipt.draft?
         return not_approved_error unless @receipt.approval_approved?
 
-        poster_result = GoodsReceiptPoster.new(@receipt).call
+        poster_result = GoodsReceiptPoster.new(@receipt, actor: @actor).call
         raise ActiveRecord::RecordInvalid, @receipt unless poster_result.ok?
 
         @receipt.status       = "confirmed"
@@ -45,6 +45,10 @@ module Inventory
       Result.new(ok: true, receipt: @receipt)
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, receipt: @receipt, error: e.record.errors.full_messages.to_sentence)
+    rescue AuditLoggable::AuditWriteFailed
+      # Only an N6 exception (receipt into an Inactive pair) writes a
+      # fail-closed entry here; the whole confirmation rolled back with it.
+      Result.new(ok: false, receipt: @receipt, error: I18n.t("inventory.goods_receipts.errors.confirmation_audit_failed"))
     rescue ActiveRecord::Deadlocked, ActiveRecord::LockWaitTimeout
       # PostgreSQL aborted this confirmation to break a lock cycle with another
       # one. Its whole transaction rolled back: the receipt is still a draft, no

@@ -6,6 +6,12 @@ require "rails_helper"
 # inventory warehouse scope (User#inventory_warehouse_ids), nor reach another
 # business's warehouse or setting row. Enforced server-side — the edit form
 # also stops rendering out-of-scope rows, but nothing here relies on that.
+#
+# Phase 2 (product availability per warehouse): the product form no longer
+# writes per-warehouse rows at all — Inventory::ProductAvailabilityManager is
+# the only writer (audited). Every nested payload is now refused, in or out of
+# scope; the refusals below stay as they were, and the formerly allowed
+# in-scope writes are refused too.
 RSpec.describe "Product warehouse settings — warehouse and business scope", type: :request do
   let(:business) { create(:business) }
   let(:owner)    { create(:user, :super_admin, business: business) }
@@ -150,18 +156,20 @@ RSpec.describe "Product warehouse settings — warehouse and business scope", ty
       expect(response).to redirect_to(root_path)
     end
 
-    it "still manages the setting of their own warehouse" do
-      update_settings("0" => { id: setting_a.id, warehouse_id: wh_a.id, low_stock_level: 8, reorder_quantity: 12 })
-      expect(response).to redirect_to(inventory_product_path(product))
-      expect(setting_a.reload.low_stock_level).to eq(8)
-      expect(setting_b.reload.low_stock_level).to eq(5)
+    # Phase 2: their own warehouse's row is changed through the availability
+    # service (warehouse Products tab / product page), not the product form.
+    context "changing the setting of their own warehouse through the product form" do
+      it_behaves_like "a refused settings write" do
+        define_method(:yield_request) do
+          update_settings("0" => { id: setting_a.id, warehouse_id: wh_a.id, low_stock_level: 8, reorder_quantity: 12 })
+        end
+      end
     end
 
-    it "can delete the setting of their own warehouse" do
-      update_settings("0" => { id: setting_a.id, warehouse_id: wh_a.id, _destroy: "1" })
-      expect(response).to redirect_to(inventory_product_path(product))
-      expect(ProductWarehouseSetting.exists?(setting_a.id)).to be(false)
-      expect(ProductWarehouseSetting.exists?(setting_b.id)).to be(true)
+    context "deleting the setting of their own warehouse through the product form" do
+      it_behaves_like "a refused settings write" do
+        define_method(:yield_request) { update_settings("0" => { id: setting_a.id, warehouse_id: wh_a.id, _destroy: "1" }) }
+      end
     end
 
     it "can still save the product without touching any setting" do
@@ -171,11 +179,12 @@ RSpec.describe "Product warehouse settings — warehouse and business scope", ty
       expect(setting_b.reload.low_stock_level).to eq(5)
     end
 
-    it "is not shown another warehouse's setting row on the edit form" do
+    it "is not shown any warehouse's setting row on the edit form (Phase 2: none is rendered)" do
       setting_b.update!(low_stock_level: 4321)
       get edit_inventory_product_path(product)
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include(%(value="#{setting_a.id}"))
+      expect(response.body).not_to include("product_warehouse_settings_attributes")
+      expect(response.body).not_to include(%(value="#{setting_a.id}"))
       expect(response.body).not_to include(%(value="#{setting_b.id}"))
       expect(response.body).not_to include("4321")
     end
@@ -184,14 +193,16 @@ RSpec.describe "Product warehouse settings — warehouse and business scope", ty
   describe "a user without a warehouse restriction (owner)" do
     before { sign_in owner }
 
-    it "manages settings of every warehouse of the business" do
-      update_settings(
-        "0" => { id: setting_b.id, warehouse_id: wh_b.id, low_stock_level: 6, reorder_quantity: 16 },
-        "1" => { id: setting_a.id, warehouse_id: wh_a.id, _destroy: "1" }
-      )
-      expect(response).to redirect_to(inventory_product_path(product))
-      expect(setting_b.reload.low_stock_level).to eq(6)
-      expect(ProductWarehouseSetting.exists?(setting_a.id)).to be(false)
+    # Phase 2: not even an owner writes availability through the product form.
+    context "changing or deleting settings of the business's warehouses through the product form" do
+      it_behaves_like "a refused settings write" do
+        define_method(:yield_request) do
+          update_settings(
+            "0" => { id: setting_b.id, warehouse_id: wh_b.id, low_stock_level: 6, reorder_quantity: 16 },
+            "1" => { id: setting_a.id, warehouse_id: wh_a.id, _destroy: "1" }
+          )
+        end
+      end
     end
 
     context "naming another business's warehouse" do

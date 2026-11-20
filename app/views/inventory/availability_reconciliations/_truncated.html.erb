@@ -1,0 +1,4 @@
+<%# locals: list (AvailabilityReconciliation::List) %>
+<% if list.truncated? %>
+  <p class="form-hint"><%= t("product_availability.reconciliation.truncated", shown: list.rows.size, total: list.total) %></p>
+<% end %>

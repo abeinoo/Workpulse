@@ -1,4 +1,9 @@
-<%= form_with model: [:inventory, product], class: "form-card" do |f| %>
+<%# availability_section (Edit page only): the product's warehouse cards, rendered
+    right after Inventory tracking but OUTSIDE this form (they have their own
+    forms). The form then closes there; the notes field and Save / Cancel below
+    the section still belong to it through the HTML form attribute. %>
+<% availability_section = local_assigns[:availability_section] %>
+<%= form_with model: [:inventory, product], class: "form-card #{'form-card--split' if availability_section}", id: "product-form" do |f| %>
   <%= render "shared/error_messages", object: product %>
   <% if local_assigns[:return_to_import_row_id].present? %>
     <%= hidden_field_tag :return_to_import_row_id, return_to_import_row_id %>
@@ -168,14 +173,6 @@
       <%= f.label :selling_markup_percentage, t("inventory.products.selling_markup_percentage"), class: "form-label" %>
       <%= f.number_field :selling_markup_percentage, step: "0.01", min: 0, class: "form-control" %>
     </div>
-    <div class="form-group">
-      <%= f.label :low_stock_level, t("inventory.products.low_stock_level"), class: "form-label" %>
-      <%= f.number_field :low_stock_level, step: "0.001", min: 0, class: "form-control" %>
-    </div>
-    <div class="form-group">
-      <%= f.label :reorder_quantity, t("inventory.products.reorder_quantity"), class: "form-label" %>
-      <%= f.number_field :reorder_quantity, step: "0.001", min: 0, class: "form-control" %>
-    </div>
   </div>
 
   <div class="divider"></div>
@@ -198,76 +195,46 @@
       <% end %>
     </div>
 
-    <div class="form-group" data-inventory-tracking-target="notificationFields"
-         <%= "hidden" unless product.track_inventory? %>>
-      <div class="form-check">
-        <%= f.check_box :receive_low_stock_notification, class: "form-check-input" %>
-        <%= f.label :receive_low_stock_notification,
-              t("inventory.products.receive_low_stock_notification"), class: "form-check-label" %>
-      </div>
-      <p class="form-hint"><%= t("inventory.products.receive_low_stock_notification_hint") %></p>
-    </div>
-
-    <div class="form-group" data-inventory-tracking-target="notificationFields"
-         <%= "hidden" unless product.track_inventory? %>>
-      <%= f.label :reorder_level, t("inventory.products.reorder_level"), class: "form-label" %>
-      <%= f.number_field :reorder_level, step: 1, min: 0, class: "form-control" %>
-      <p class="form-hint"><%= t("inventory.products.reorder_level_hint") %></p>
-    </div>
+    <%# The product-wide low-stock level, reorder quantity, alert and total-alert
+        fields were retired from this form (2026-11-20): low-stock and reorder
+        settings are per warehouse (Product Availability per Warehouse). Their
+        stored values are kept untouched for the legacy-to-central migration. %>
   </div>
 
   <div class="divider"></div>
 
-  <%# ── Per-warehouse thresholds (override the defaults above) ─ %>
-  <div data-controller="line-items">
-    <h2 class="section-title"><%= t("inventory.products.section_warehouse_thresholds") %></h2>
-    <p class="form-hint"><%= t("inventory.products.warehouse_thresholds_hint") %></p>
+  <% unless availability_section %>
+    <%# ── Per-warehouse availability: written only by
+        Inventory::ProductAvailabilityManager (audited) — added on the Edit
+        page once the product is saved. %>
+    <p class="form-hint" data-testid="availability-managed-elsewhere"><%= t("product_availability.form.managed_after_create") %></p>
 
-    <% if @warehouses.blank? %>
-      <p class="td-secondary"><%= t("inventory.products.no_warehouses") %></p>
-    <% else %>
-      <div class="table-wrap table-wrap--form-cards">
-        <table class="line-items-table">
-          <thead><tr>
-            <th style="width: 45%;"><%= t("inventory.products.warehouse") %></th>
-            <th><%= t("inventory.products.low_stock_level") %></th>
-            <th><%= t("inventory.products.reorder_quantity") %></th>
-            <th></th>
-          </tr></thead>
-          <tbody data-line-items-target="rows">
-            <%# Only rows of the user's warehouses (ProductsController#load_options). %>
-            <%= f.fields_for :product_warehouse_settings, @warehouse_setting_rows do |setting_f| %>
-              <%= render "warehouse_setting_fields", f: setting_f, warehouses: @warehouses %>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
+    <div class="divider"></div>
 
-      <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if @warehouse_setting_rows.any? %>>
-        <%= t("inventory.products.no_warehouse_thresholds") %>
-      </p>
+    <div class="form-group">
+      <%= f.label :notes, t("inventory.products.notes"), class: "form-label" %>
+      <%= f.text_area :notes, rows: 3, class: "form-control" %>
+    </div>
 
-      <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add" style="margin-top: var(--space-3);">
-        + <%= t("inventory.products.add_warehouse_threshold") %>
-      </button>
+    <div class="form-actions">
+      <%= f.submit t("common.save"), class: "btn btn-primary" %>
+      <%= link_to t("common.cancel"), inventory_products_path, class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+<% end %>
 
-      <template data-line-items-target="template">
-        <%= f.fields_for :product_warehouse_settings, ProductWarehouseSetting.new, child_index: "NEW_INDEX" do |setting_f| %>
-          <%= render "warehouse_setting_fields", f: setting_f, warehouses: @warehouses %>
-        <% end %>
-      </template>
-    <% end %>
-  </div>
+<% if availability_section %>
+  <%= availability_section %>
 
-  <div class="divider"></div>
-
-  <div class="form-group">
-    <%= f.label :notes, t("inventory.products.notes"), class: "form-label" %>
-    <%= f.text_area :notes, rows: 3, class: "form-control" %>
-  </div>
-
-  <div class="form-actions">
-    <%= f.submit t("common.save"), class: "btn btn-primary" %>
-    <%= link_to t("common.cancel"), inventory_products_path, class: "btn btn-ghost" %>
+  <div class="form-card form-card--split-tail">
+    <div class="form-group">
+      <%= label_tag "product_notes", t("inventory.products.notes"), class: "form-label" %>
+      <%= text_area_tag "product[notes]", product.notes, rows: 3, class: "form-control", id: "product_notes", form: "product-form" %>
+    </div>
+    <p class="form-hint"><%= t("product_availability.form.save_hint") %></p>
+    <div class="form-actions">
+      <%= submit_tag t("common.save"), class: "btn btn-primary", form: "product-form", name: nil, data: { testid: "product-save" } %>
+      <%= link_to t("common.cancel"), inventory_products_path, class: "btn btn-ghost" %>
+    </div>
   </div>
 <% end %>

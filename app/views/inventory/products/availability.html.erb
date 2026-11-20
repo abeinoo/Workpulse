@@ -1,0 +1,15 @@
+<%# Product availability per warehouse on its own page — for users who manage
+    availability but not the product's details; also where a refused
+    "Add to warehouses" is re-rendered with the user's input. %>
+<% content_for :title, "#{@product.name} — #{t("product_availability.section.title")}" %>
+<% return_to = params[:return_to] == "product_edit" ? "product_edit" : "product_availability" %>
+
+<div class="form-page">
+  <%= link_to inventory_product_path(@product), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+  <h1 class="page-title mb-6"><%= @product.name %></h1>
+  <%= render "inventory/products/availability_section", product: @product, availability: @availability, return_to: return_to,
+        **(@availability_section || {}) %>
+</div>

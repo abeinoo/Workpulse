@@ -16,6 +16,12 @@ module Inventory
   # concurrent issue, transfer, void or second adjustment of the same product
   # can't consume the stock between the check and the OUT movement.
   #
+  # Opening-balance increases into a product/warehouse pair whose availability
+  # is Inactive are refused (Inventory::IncomingAvailabilityGuard) — this also
+  # covers the product importer's opening stock. Every other adjustment
+  # (stock count corrections, damage, loss, manual corrections, either sign)
+  # stays allowed: it records physical reality and carries a reason.
+  #
   # When called inside a caller's transaction (Inventory::StockCountApprover),
   # a failure returns ok: false and the caller rolls back.
   class AdjustmentPoster
@@ -35,6 +41,7 @@ module Inventory
 
       result = ActiveRecord::Base.transaction do
         StockAvailability.lock_products!(@adjustment.items.reject(&:marked_for_destruction?).map(&:product_id))
+        next failure unless opening_balance_allowed?
         next failure unless availability_ok?
 
         @adjustment.adjustment_number = NumberSequencer.new(@adjustment.business, :stock_adjustment).next_number if @adjustment.adjustment_number.blank?
@@ -96,6 +103,16 @@ module Inventory
 
       @adjustment.errors.clear
       false
+    end
+
+    # Runs under the product locks; locks the pair rows last.
+    def opening_balance_allowed?
+      return true unless @adjustment.cost_bearing?
+
+      incoming = @adjustment.items.reject(&:marked_for_destruction?)
+                            .select { |item| item.quantity_difference.to_d.positive? }
+      guard = IncomingAvailabilityGuard.new(warehouse_id: @adjustment.warehouse_id, product_ids: incoming.map(&:product_id))
+      !guard.refuse!(@adjustment)
     end
 
     # Negative lines remove stock — block any that exceed the warehouse on-hand.

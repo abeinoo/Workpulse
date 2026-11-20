@@ -1,0 +1,130 @@
+<% content_for :title, t("product_availability.add.title", warehouse: @warehouse.name) %>
+
+<div class="admin-page">
+  <%= render "inventory/warehouses/header", warehouse: @warehouse, active_tab: "products" %>
+
+  <h2 class="section-title" style="margin-top: 0;"><%= t("product_availability.add.title", warehouse: @warehouse.name) %></h2>
+  <p class="form-hint"><%= t("product_availability.add.hint") %></p>
+
+  <% if @error_message %>
+    <div class="alert alert-danger" role="alert" data-testid="add-error"><%= @error_message %></div>
+  <% end %>
+
+  <nav class="filter-tabs" aria-label="<%= t("product_availability.add.filter_label") %>" style="margin-top: var(--space-4);">
+    <% Inventory::WarehouseProductAvailabilitiesController::CANDIDATE_FILTERS.each do |filter| %>
+      <%= link_to t("product_availability.add.filters.#{filter}"),
+            new_inventory_warehouse_product_availability_path(@warehouse, filter: filter, q: @query),
+            class: "filter-tab #{'filter-tab--active' if @candidate_filter == filter}",
+            aria: { current: (@candidate_filter == filter ? "page" : nil) } %>
+    <% end %>
+  </nav>
+
+  <%= form_with url: new_inventory_warehouse_product_availability_path(@warehouse), method: :get, class: "filter-bar", style: "margin: var(--space-4) 0;" do |f| %>
+    <%= f.hidden_field :filter, value: @candidate_filter %>
+    <%= f.label :q, t("product_availability.add.search_label"), class: "sr-only" %>
+    <%= f.search_field :q, value: @query, placeholder: t("product_availability.index.search_placeholder"), class: "form-control" %>
+    <%= f.submit t("common.search"), class: "btn btn-secondary btn-sm", name: nil %>
+  <% end %>
+
+  <% if @candidates.empty? %>
+    <div class="empty-state empty-state--compact">
+      <p class="empty-state__text"><%= t("product_availability.add.empty.#{@candidate_filter}") %></p>
+    </div>
+    <%= link_to t("forms.back"), inventory_warehouse_product_availabilities_path(@warehouse), class: "btn btn-ghost btn-sm" %>
+  <% else %>
+    <%= form_with url: inventory_warehouse_product_availabilities_path(@warehouse), method: :post,
+          data: { controller: "availability-selection" } do %>
+      <%= hidden_field_tag :filter, @candidate_filter %>
+      <%= hidden_field_tag :q, @query %>
+      <%= hidden_field_tag :page, @page %>
+      <div class="table-wrap table-wrap--cards">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 2.5rem;">
+                <input type="checkbox" class="form-check-input" aria-label="<%= t("product_availability.add.select_all") %>"
+                       data-availability-selection-target="master" data-action="change->availability-selection#toggleAll">
+              </th>
+              <th><%= t("product_availability.columns.product") %></th>
+              <th style="text-align: end;"><%= t("product_availability.columns.on_hand") %></th>
+              <th><%= t("product_availability.columns.low_stock_level") %></th>
+              <th><%= t("product_availability.columns.reorder_quantity") %></th>
+              <th><%= t("product_availability.columns.notifications") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @candidates.each do |pair| %>
+              <% product = pair.product %>
+              <% submitted = @submitted[product.id.to_s] || {} %>
+              <% field = ->(name) { "items[#{product.id}][#{name}]" } %>
+              <% field_id = ->(name) { "items_#{product.id}_#{name}" } %>
+              <tr data-testid="candidate-<%= product.id %>">
+                <td>
+                  <% if pair.configured? %>
+                    <input type="checkbox" class="form-check-input" disabled aria-label="<%= product.name %>">
+                  <% else %>
+                    <%= check_box_tag field.call(:selected), "1", submitted["selected"] == "1", id: field_id.call(:selected),
+                          class: "form-check-input", aria: { label: t("product_availability.add.select_product", product: product.name) },
+                          data: { availability_selection_target: "row", action: "change->availability-selection#sync" } %>
+                  <% end %>
+                </td>
+                <td data-label="<%= t("product_availability.columns.product") %>">
+                  <% if pair.configured? %>
+                    <%= product.name %>
+                  <% else %>
+                    <label for="<%= field_id.call(:selected) %>" style="cursor: pointer;"><%= product.name %></label>
+                  <% end %>
+                  <div class="td-secondary"><%= product.sku %></div>
+                  <% if pair.configured? %>
+                    <div style="margin-top: var(--space-1);">
+                      <%= availability_state_badge(pair.state) %>
+                      <span class="td-secondary">
+                        <%= pair.inactive? ? t("product_availability.add.inactive_hint") : t("product_availability.add.already_active") %>
+                      </span>
+                    </div>
+                  <% end %>
+                </td>
+                <td style="text-align: end;" data-label="<%= t("product_availability.columns.on_hand") %>"><%= availability_quantity(pair.on_hand) %></td>
+                <% if pair.configured? %>
+                  <td colspan="3" class="td-secondary">—</td>
+                <% elsif !pair.tracked? %>
+                  <td colspan="3" class="td-secondary" data-label="<%= t("product_availability.columns.low_stock_level") %>"><%= t("product_availability.untracked") %></td>
+                <% else %>
+                  <td data-label="<%= t("product_availability.columns.low_stock_level") %>">
+                    <%= number_field_tag field.call(:low_stock_level), submitted["low_stock_level"].presence || 0, min: 0, step: "0.001",
+                          class: "form-control", style: "max-width: 8rem;", id: field_id.call(:low_stock_level),
+                          aria: { label: "#{t("product_availability.columns.low_stock_level")} — #{product.name}" } %>
+                  </td>
+                  <td data-label="<%= t("product_availability.columns.reorder_quantity") %>">
+                    <%= number_field_tag field.call(:reorder_quantity), submitted["reorder_quantity"].presence || 0, min: 0, step: "0.001",
+                          class: "form-control", style: "max-width: 8rem;", id: field_id.call(:reorder_quantity),
+                          aria: { label: "#{t("product_availability.columns.reorder_quantity")} — #{product.name}" } %>
+                  </td>
+                  <td data-label="<%= t("product_availability.columns.notifications") %>">
+                    <%= hidden_field_tag field.call(:receive_low_stock_notification), "0", id: nil %>
+                    <%= check_box_tag field.call(:receive_low_stock_notification), "1",
+                          submitted.key?("receive_low_stock_notification") ? submitted["receive_low_stock_notification"] == "1" : true,
+                          id: field_id.call(:notify), class: "form-check-input",
+                          aria: { label: "#{t("product_availability.columns.notifications")} — #{product.name}" } %>
+                  </td>
+                <% end %>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <p class="form-hint"><%= t("product_availability.add.settings_hint") %></p>
+
+      <%= render "shared/pagination", page: @page, total_pages: @total_pages,
+            path_proc: ->(p) { new_inventory_warehouse_product_availability_path(@warehouse, filter: @candidate_filter, q: @query, page: p) } %>
+      <% if @total_pages > 1 %><p class="form-hint"><%= t("product_availability.add.page_hint") %></p><% end %>
+
+      <div class="form-actions">
+        <%= link_to t("forms.cancel"), inventory_warehouse_product_availabilities_path(@warehouse), class: "btn btn-ghost" %>
+        <button type="submit" class="btn btn-primary" data-availability-selection-target="submit" data-testid="add-selected">
+          <span><%= t("product_availability.add.submit") %> (<span data-availability-selection-target="count">0</span>)</span>
+        </button>
+      </div>
+    <% end %>
+  <% end %>
+</div>

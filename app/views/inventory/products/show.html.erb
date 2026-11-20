@@ -143,8 +143,8 @@
       <div class="detail-list__row"><dt><%= t("inventory.products.initial_cost_price") %></dt><dd><%= format_currency(@product.initial_cost_price) %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.products.selling_markup_percentage") %></dt><dd><%= number_to_percentage(@product.selling_markup_percentage, precision: 1) %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.products.selling_price") %></dt><dd><%= format_currency(@product.selling_price) %></dd></div>
-      <div class="detail-list__row"><dt><%= t("inventory.products.low_stock_level") %></dt><dd><%= @product.low_stock_level.to_i %></dd></div>
-      <div class="detail-list__row"><dt><%= t("inventory.products.reorder_quantity") %></dt><dd><%= @product.reorder_quantity.to_i %></dd></div>
+      <div class="detail-list__row"><dt><%= t("product_availability.legacy.low_stock_level") %></dt><dd><%= @product.low_stock_level.to_i %></dd></div>
+      <div class="detail-list__row"><dt><%= t("product_availability.legacy.reorder_quantity") %></dt><dd><%= @product.reorder_quantity.to_i %></dd></div>
       <div class="detail-list__row">
         <dt><%= t("inventory.products.track_inventory") %></dt>
         <dd>
@@ -220,48 +220,8 @@
       </div>
     <% end %>
   <% else %>
-    <%# ── Stock per warehouse ───────────────────────────────── %>
-    <h2 class="section-title"><%= t("inventory.products.stock_by_warehouse") %></h2>
-    <% if @warehouse_row_ids.empty? %>
-      <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("inventory.products.no_stock_yet") %></p></div>
-    <% else %>
-      <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-5);">
-        <table>
-          <thead><tr>
-            <th><%= t("inventory.products.warehouse") %></th>
-            <th style="text-align: end;"><%= t("inventory.products.on_hand") %></th>
-            <th style="text-align: end;"><%= t("inventory.products.low_stock_level") %></th>
-            <th style="text-align: end;"><%= t("inventory.products.reorder_quantity") %></th>
-            <th></th>
-          </tr></thead>
-          <tbody>
-            <% @warehouse_row_ids.each do |warehouse_id| %>
-              <% warehouse = @warehouses[warehouse_id] %>
-              <% next if warehouse.nil? %>
-              <% on_hand = (@stock_by_warehouse[warehouse_id] || 0) %>
-              <% low = @product.low_stock_level_for(warehouse) %>
-              <% has_override = @product.setting_for(warehouse).present? %>
-              <tr>
-                <td>
-                  <%= warehouse.name %>
-                  <% unless has_override %><span class="td-secondary">(<%= t("inventory.products.default_threshold") %>)</span><% end %>
-                </td>
-                <td style="text-align: end;">
-                  <% if on_hand <= low %>
-                    <span class="badge badge-warning"><%= on_hand.to_i %></span>
-                  <% else %>
-                    <%= on_hand.to_i %>
-                  <% end %>
-                </td>
-                <td style="text-align: end;"><%= low.to_i %></td>
-                <td style="text-align: end;"><%= @product.reorder_quantity_for(warehouse).to_i %></td>
-                <td><% if on_hand <= low %><span class="badge badge-warning"><%= t("inventory.products.low_stock_badge") %></span><% end %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-    <% end %>
+    <%= render "inventory/products/warehouse_availability", product: @product, pairs: @availability_pairs,
+          manage_path: @availability_manage_path %>
 
     <% unless @recent_goods_receipts.nil? %>
       <%= render "inventory/products/recent_goods_receipts", rows: @recent_goods_receipts %>

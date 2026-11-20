@@ -79,9 +79,15 @@ here only so its stable ID and history are kept.
 | BUG-058 | Total-stock low-stock fallback hides a warehouse's shortage; scoped users see it labelled "All warehouses" | Inventory & Purchasing (low stock) | Medium | Confirmed (code); scoped-user label Suspected | Deferred | Warehouse availability Phase 5 |
 | BUG-059 | Untracked products with ledger stock are left out of stock valuation reports | Inventory & Purchasing (reports) | Medium (understated stock value) | Confirmed (code; 8 such products in local development data) | Deferred | Warehouse availability Phase 4 (N8) |
 | BUG-060 | Low-stock purchase picker suggests quantity 1 when no reorder quantity is set | Inventory & Purchasing (purchase requests) | Low | Confirmed (code) | Deferred | Warehouse availability Phase 4 |
-| BUG-061 | Product create / update — including threshold and warehouse-setting changes — writes no audit entry | Inventory & Purchasing (products) | Medium (traceability) | Confirmed (code) | Deferred | Warehouse availability Phase 1 |
+| BUG-061 | Product create / update — including threshold and warehouse-setting changes — writes no audit entry | Inventory & Purchasing (products) | Medium (traceability) | Confirmed (code) | **Partially resolved** (warehouse settings: Phase 2, PR #153, not merged — the product form no longer writes them; product-level edits still unaudited, Deferred) | Warehouse availability Phase 4 (product-level edits) |
 | BUG-062 | Product import writes thresholds only to the product-level "Low Stock Level", which no alert reads | Inventory & Purchasing (product import) | Low | Confirmed (code) | Deferred | Warehouse availability Phase 4 (N9) |
-| BUG-063 | Destroying a product removes every warehouse's settings, including warehouses outside a scoped user's reach | Inventory & Purchasing (products) | Low (only products with no inventory history) | Confirmed (code: `dependent: :destroy`) | Open | Owner decision; Warehouse availability Phase 1 (no deletes) |
+| BUG-063 | Destroying a product removes every warehouse's settings, including warehouses outside a scoped user's reach | Inventory & Purchasing (products) | Low (only products with no inventory history) | Confirmed (request spec) | **In Progress** (Phase 1 unit 5, on PR #153's branch, not merged) | Phase 1 review |
+| BUG-064 | Deleting a product referenced only by a purchase request line (or laundry consumption, stock issue import row, legacy variant) fails with a foreign-key error (500) | Inventory & Purchasing (products) | Low (no data lost; the delete rolls back) | Confirmed (spec) | **In Progress** (fixed with BUG-063, Phase 1 unit 5) | Phase 1 review |
+| BUG-065 | Laundry batch consumption takes stock from any warehouse of the business, ignoring the user's warehouse scope | Inventory & Purchasing (Laundry) | Medium (reachable only by a role saved before `record_batch_consumption` left the registry, and owners) | Confirmed (request spec) | **In Progress** (fixed in `6f910a83`, PR #153, not merged) | PR #153 review |
+| BUG-066 | Successful product deletion shows a missing-translation flash (`inventory.products.destroyed` absent in EN and AR) | Inventory & Purchasing (products, i18n) | Low | Confirmed (request spec) | **In Progress** (Phase 1 unit 5) | Phase 1 review |
+| BUG-067 | Product import crashes (500) when its opening-balance adjustment is refused (e.g. a row with stock but no unit cost) | Inventory & Purchasing (product import) | Low (nothing is imported; the reason is lost) | Confirmed (request spec) | **In Progress** (Phase 1 unit 6, on PR #153's branch, not merged) | Phase 1 review |
+| BUG-068 | A parent product's page (and its children list) crashes (500) whenever the parent has child products: the child stock totals nest SUM inside SUM | Inventory & Purchasing (products) | Medium (the page of every product family fails) | Confirmed (request spec; reproduced on `main`'s query) | **In Progress** (Phase 2, on PR #153's branch, not merged) | Phase 2 review |
+| BUG-069 | `common.yes` / `common.no` are missing in EN and AR: the unquoted YAML keys `yes:` / `no:` load as booleans, so every Yes/No badge shows a humanized missing-translation fallback (English "Yes" in the Arabic UI) | Shared (i18n) | Low | Confirmed (request spec) | **In Progress** (Phase 2, on PR #153's branch, not merged) | Phase 2 review |
 
 ---
 
@@ -1844,6 +1850,12 @@ here only so its stable ID and history are kept.
 * **Recommended fix:** audited availability service (`log_audit!`) per the plan; product-level edits per a later
   decision.
 * **Review milestone:** Warehouse availability Phase 1.
+* **Update 2026-11-19 (Phase 2, PR #153, not merged):** the warehouse-setting part is resolved. The product form no longer
+  carries per-warehouse rows (`accepts_nested_attributes_for :product_warehouse_settings` removed; a request that still
+  sends `product_warehouse_settings_attributes` is refused before anything is assigned); every availability change goes
+  through `Inventory::ProductAvailabilityManager` (`log_audit!`) from the warehouse Products tab and the product page's
+  Warehouse Availability card. Product-level create / update (name, prices, legacy product-wide thresholds) still writes
+  no audit entry — still Deferred.
 
 ## BUG-062 — Product import writes thresholds only to the product-level "Low Stock Level", which no alert reads
 
@@ -1854,7 +1866,7 @@ here only so its stable ID and history are kept.
 
 ## BUG-063 — Destroying a product removes every warehouse's settings, including warehouses outside a scoped user's reach
 
-* **Source:** Phase 0 review. **Discovered:** 2026-11-19. **Status:** Open.
+* **Source:** Phase 0 review. **Discovered:** 2026-11-19. **Status:** **In Progress** — fixed on PR #153's branch (Phase 1, unit 5), not committed, reviewed or merged.
 * **Domain / files:** `Product has_many :product_warehouse_settings, dependent: :destroy`;
   `Inventory::ProductsController#destroy` (allowed only when `has_inventory_history?` is false).
 * **Observed (code):** a user allowed to destroy products, assigned to one warehouse, deletes the product's settings
@@ -1864,3 +1876,78 @@ here only so its stable ID and history are kept.
 * **Recommended fix:** with availability rows (Phase 1) never delete configuration; refuse destroying a product that
   has availability rows outside the actor's scope, or archive instead.
 * **Review milestone:** owner decision; Warehouse availability Phase 1.
+* **Fix (Phase 1, unit 5):** deletion goes through `Inventory::ProductDeletion` (ids, business scope,
+  `ProductPolicy#destroy?`, row lock): refused unless the product is archived, has no inventory history and is
+  referenced by nothing — no availability row in ANY warehouse (Active or Inactive), purchase request line, laundry
+  consumption, stock issue import row or legacy variant (BUG-064). A permitted deletion writes a fail-closed audit entry
+  (`log_audit!`) with a product snapshot. `Product has_many :product_warehouse_settings` is now
+  `dependent: :restrict_with_error` (backstop for any other destroy path).
+* **Regression tests:** `spec/services/inventory/product_deletion_spec.rb` (9), `spec/requests/inventory/product_deletion_spec.rb`
+  (3 — all 3 fail on the previous controller and model, pass with the fix).
+* **Still open (Phase 2):** the product form's nested `product_warehouse_settings_attributes` keep `allow_destroy`, so the
+  form can still delete one warehouse's row (unaudited, BUG-061); the Products tab and availability card replace that form.
+
+## BUG-064 — Deleting a product referenced only by a purchase request line fails with a foreign-key error
+
+* **Source:** fail-open / BUG-063 investigation. **Discovered:** 2026-11-19. **Status:** **In Progress** (with BUG-063).
+* **Observed:** `Product#has_inventory_history?` does not cover `purchase_request_items`, `laundry_batch_consumptions`,
+  `stock_issue_import_rows` or `product_variants`; `@product.destroy` then raised `ActiveRecord::InvalidForeignKey` (500).
+  The transaction rolled back, so nothing was lost.
+* **Fix:** `Inventory::ProductDeletion` checks those references first and refuses with a message.
+
+## BUG-065 — Laundry batch consumption ignores the user's warehouse scope
+
+* **Source:** fail-open investigation. **Discovered:** 2026-11-19. **Status:** **In Progress** — fixed in `6f910a83`
+  (PR #153), not merged.
+* **Observed:** `Laundry::LaundryBatchConsumptionsController#create` loaded `business.warehouses.find(params[:warehouse_id])`
+  and posted an OUT movement from any warehouse. `record_batch_consumption` left the permission registry, but
+  `PermissionRole#has_permission?` is an array check, so a role saved before still passes `can?`.
+* **Fix:** warehouse from `policy_scope(Warehouse)` in the controller; `LaundryBatchService#record_consumption` re-checks
+  business and scope before any movement. Tests: `spec/requests/laundry/batch_consumption_warehouse_scope_spec.rb`
+  (6 of 11 fail on the previous code).
+
+## BUG-066 — Successful product deletion shows a missing-translation flash
+
+* **Source:** Phase 1 unit 5. **Discovered:** 2026-11-19. **Status:** **In Progress**.
+* **Observed:** `ProductsController#destroy` used `t("inventory.products.destroyed")`, defined in neither locale.
+* **Fix:** EN and AR keys added with the deletion refusal messages; asserted by `spec/requests/inventory/product_deletion_spec.rb`.
+
+## BUG-067 — Product import crashes when its opening-balance adjustment is refused
+
+* **Source:** Phase 1 unit 6 importer trace. **Discovered:** 2026-11-19. **Status:** **In Progress** (PR #153, not merged).
+* **Observed:** `Inventory::Imports::ProductImporter#post_opening_balances` raised `ActiveRecord::Rollback` when
+  `AdjustmentPoster` refused the opening balance, so the transaction block returned `nil`, `#call` returned `nil` and
+  `ProductsController#run_import` raised `NoMethodError` (`ok?` for nil) — a 500, with the reason lost. Reachable today
+  with any row that has Current Stock but no Initial Cost (`opening_balance_needs_cost`), whenever a warehouse is chosen.
+  Nothing was imported (the rollback worked).
+* **Fix:** the importer still rolls the whole import back, and returns `Result#opening_errors` (the adjustment's
+  messages, which name the product and reason); the controller redirects to the import page with
+  `inventory.imports.opening_balance_refused` naming the warehouse. An Inactive product/warehouse pair cannot reach
+  this path (the importer only creates new products, which have no availability row), but would surface the same way.
+* **Regression tests:** `spec/services/inventory/imports/product_importer_opening_balance_spec.rb`,
+  `spec/requests/inventory/product_import_opening_balance_spec.rb` (3 of 5 fail on the previous importer).
+
+## BUG-068 — A parent product's page crashes when the parent has child products
+
+* **Source:** Phase 2 product page work. **Discovered:** 2026-11-19. **Status:** **In Progress** (PR #153, not merged).
+* **Observed:** `Inventory::ProductsController#show` (parent branch) and `#children` computed child stock totals with
+  `.group(:product_id).sum(Arel.sql(Inventory::StockLevels::SIGNED_SUM))`. `SIGNED_SUM` already contains `SUM(...)`,
+  so PostgreSQL refuses `SUM(COALESCE(SUM(...), 0))` (`PG::GroupingError: aggregate function calls cannot be
+  nested`) — a 500 for every parent product that has children. Reproduced against the test database with the same
+  query as on `main`.
+* **Fix:** both call sites sum `Inventory::StockLevels::SIGNED` (the per-movement signed quantity), as every other
+  grouped stock sum does.
+* **Regression test:** `spec/requests/inventory/product_warehouse_availability_card_spec.rb` (parent product page and
+  children list render with the children's stock).
+
+## BUG-069 — `common.yes` / `common.no` translations are missing (unquoted YAML keys)
+
+* **Source:** Phase 2 Arabic review of the product page. **Discovered:** 2026-11-19. **Status:** **In Progress**
+  (PR #153, not merged).
+* **Observed:** `config/locales/en.yml` and `ar.yml` define `common: yes: … no: …` unquoted. YAML 1.1 (Psych) loads
+  `yes` / `no` as the booleans `true` / `false`, so `t("common.yes")` / `t("common.no")` are missing in both locales
+  and render Rails' humanized fallback — "Yes" / "No" in English even in the Arabic UI (e.g. the product page's
+  Track Inventory and alert badges). Another `"yes"` key elsewhere in each file was already quoted.
+* **Fix:** quote the two keys in both files (`"yes":`, `"no":`).
+* **Regression test:** `spec/requests/inventory/product_warehouse_availability_card_spec.rb` ("renders in Arabic":
+  no missing translation on the product page).

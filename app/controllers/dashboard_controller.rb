@@ -44,9 +44,11 @@ class DashboardController < ApplicationController
   end
 
   def load_inventory_data
+    # A notification surface: only notifiable alerts (a pair whose dashboard
+    # alerts were turned off stays off; reports still list every detected one).
     @inventory_low_stock = Inventory::LowStockQuery.new(
       current_user.business, warehouse_ids: current_user.inventory_warehouse_ids
-    ).alerts.first(8)
+    ).alerts.select(&:notifiable?).first(8)
     # Product thumbnails read preloaded images only (ProductThumbnailHelper).
     products = @inventory_low_stock.map(&:product).uniq(&:object_id)
     ActiveRecord::Associations::Preloader.new(records: products, associations: { image_attachment: :blob }).call if products.any?
