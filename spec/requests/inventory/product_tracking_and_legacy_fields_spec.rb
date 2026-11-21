@@ -55,6 +55,80 @@ RSpec.describe "Product tracking and retired product-wide fields", type: :reques
     end
   end
 
+  # TEMPORARY restoration (2026-11-21): the legacy product-level Low Stock
+  # Threshold and Reorder Quantity are shown read-only on Edit, straight from
+  # products.low_stock_level / products.reorder_quantity.
+  describe "temporary legacy Low Stock Threshold and Reorder Quantity fields" do
+    def legacy_field = doc.at_css("[data-testid='legacy-low-stock-level']")
+    def legacy_reorder_field = doc.at_css("[data-testid='legacy-reorder-quantity']")
+    def legacy_values = [ legacy_field["value"], legacy_reorder_field["value"] ]
+
+    def save_card(warehouse, low:, reorder:)
+      patch availability_settings_inventory_product_path(product), params: {
+        warehouse_id: warehouse.id, return_to: "product_edit",
+        product_warehouse_setting: { low_stock_level: low, reorder_quantity: reorder }
+      }
+    end
+
+    it "shows the stored legacy values, read-only and never submitted" do
+      get edit_inventory_product_path(product)
+      expect(legacy_values).to eq([ "7", "30" ])
+      [ legacy_field, legacy_reorder_field ].each do |field|
+        expect(field["readonly"]).to be_present
+        expect(field["name"]).to be_nil
+      end
+      expect(doc.css("[name='product[low_stock_level]'], [name='product[reorder_quantity]']")).to be_empty
+      expect(response.body).to include("Low Stock Threshold (legacy, read-only)", "Reorder Quantity (legacy, read-only)")
+      expect(ProductWarehouseSetting.count).to eq(0) # rendering copies nothing
+    end
+
+    it "in Arabic too" do
+      owner.update!(preferred_locale: "ar")
+      get edit_inventory_product_path(product)
+      expect(legacy_values).to eq([ "7", "30" ])
+      expect(response.body).to include("حد انخفاض المخزون (القيمة القديمة، للقراءة فقط)", "كمية إعادة الطلب (القيمة القديمة، للقراءة فقط)")
+      expect(response.body).not_to include("translation missing")
+    end
+
+    it "is independent of warehouse settings: the cards keep their own values, the field keeps the legacy one" do
+      manager.add_many(warehouse_id: central.id, items: [ { product_id: product.id, low_stock_level: 3, reorder_quantity: 11 } ], source: "spec")
+      manager.add_many(warehouse_id: branch_wh.id, items: [ { product_id: product.id, low_stock_level: 5, reorder_quantity: 2 } ], source: "spec")
+      get edit_inventory_product_path(product)
+      expect(legacy_values).to eq([ "7", "30" ])
+      expect(doc.at_css("#pws-#{central.id}-low")["value"]).to eq("3")
+      expect(doc.at_css("#pws-#{central.id}-reorder")["value"]).to eq("11")
+      expect(doc.at_css("#pws-#{branch_wh.id}-low")["value"]).to eq("5")
+    end
+
+    it "stays unchanged when warehouse cards are saved, and nothing is copied between them" do
+      save_card(central, low: "12", reorder: "40")
+      save_card(branch_wh, low: "0", reorder: "0")
+      expect(product.reload.attributes.values_at("low_stock_level", "reorder_quantity", "reorder_level")).to eq([ 7, 30, 4 ])
+      expect(ProductWarehouseSetting.find_by!(warehouse: central)).to have_attributes(low_stock_level: 12, reorder_quantity: 40)
+      expect(ProductWarehouseSetting.find_by!(warehouse: branch_wh)).to have_attributes(low_stock_level: 0, reorder_quantity: 0)
+
+      get edit_inventory_product_path(product)
+      expect(legacy_values).to eq([ "7", "30" ])
+      expect(doc.at_css("#pws-#{central.id}-low")["value"]).to eq("12")
+    end
+
+    it "stays unchanged when the product form is saved" do
+      update_product(name: "Shampoo Pro", low_stock_level: 99, reorder_quantity: 99)
+      expect(product.reload.attributes.values_at("name", "low_stock_level", "reorder_quantity")).to eq([ "Shampoo Pro", 7, 30 ])
+      expect(ProductWarehouseSetting.count).to eq(0)
+    end
+
+    it "is not shown on New or for parent products" do
+      get new_inventory_product_path
+      expect(legacy_field).to be_nil
+      expect(legacy_reorder_field).to be_nil
+      business.products.create!(name: "Shampoo 250ml", sku: "SH-1-250", initial_cost_price: 1, average_cost_price: 1, parent_product: product)
+      get edit_inventory_product_path(product)
+      expect(legacy_field).to be_nil
+      expect(legacy_reorder_field).to be_nil
+    end
+  end
+
   describe "legacy product-wide values" do
     def no_transfer_ui!
       expect(response.body).not_to include("pending-transfer", "legacy-total-alert-active", "legacy-values")

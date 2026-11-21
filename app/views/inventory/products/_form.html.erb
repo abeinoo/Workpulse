@@ -199,6 +199,25 @@
         fields were retired from this form (2026-11-20): low-stock and reorder
         settings are per warehouse (Product Availability per Warehouse). Their
         stored values are kept untouched for the legacy-to-central migration. %>
+
+    <%# TEMPORARY (2026-11-21, owner request): the legacy product-level Low Stock
+        Threshold and Reorder Quantity are shown again on Edit, read straight from
+        products.low_stock_level / products.reorder_quantity (never from warehouse
+        settings), so they can be read and typed into the Central warehouse card
+        by hand. Read-only and WITHOUT a name attribute: never submitted, so no
+        save (product form or warehouse card) can change them, and nothing is
+        copied anywhere. Remove once the central cards are entered and verified;
+        the legacy columns stay. %>
+    <% if product.persisted? && !product.parent? %>
+      <% [ [ :low_stock_level, "low-stock-level" ], [ :reorder_quantity, "reorder-quantity" ] ].each do |column, slug| %>
+        <div class="form-group" data-testid="legacy-<%= slug %>-group">
+          <%= label_tag "product_legacy_#{column}", t("inventory.products.legacy_#{column}"), class: "form-label" %>
+          <%= number_field_tag nil, availability_quantity(product.public_send(column) || 0), id: "product_legacy_#{column}", readonly: true,
+                class: "form-control", data: { testid: "legacy-#{slug}" }, form: "" %>
+          <p class="form-hint"><%= t("inventory.products.legacy_#{column}_hint") %></p>
+        </div>
+      <% end %>
+    <% end %>
   </div>
 
   <div class="divider"></div>
