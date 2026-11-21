@@ -1,0 +1,10 @@
+<%# The deactivation panel alone, for the product Edit page's inline
+    "Deactivate" (a lazily loaded Turbo Frame). %>
+<%= turbo_frame_tag "deactivation_#{@setting.id}" do %>
+  <% if @error_message %>
+    <div class="alert alert-danger" role="alert"><%= @error_message %></div>
+  <% end %>
+  <% if @dependencies %>
+    <%= render "deactivation_panel", setting: @setting, warehouse: @warehouse, dependencies: @dependencies, inline: true %>
+  <% end %>
+<% end %>

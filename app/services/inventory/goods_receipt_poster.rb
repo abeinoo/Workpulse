@@ -10,13 +10,24 @@ module Inventory
   # Inventory::GoodsReceiptConfirmationService layers that on top when a real
   # user is confirming through the UI. Called directly (no actor) by specs that
   # just need posted stock, and by the confirmation service.
+  #
+  # A line into a product/warehouse pair whose availability is Inactive is
+  # refused (Inventory::IncomingAvailabilityGuard), unless it fulfils a
+  # purchase request approved before the deactivation (N6). Such a line needs
+  # an actor and writes a fail-closed audit entry; without an actor, or if
+  # the entry can't be written, nothing is posted.
   class GoodsReceiptPoster
+    include AuditLoggable
+
+    EXCEPTION_AUDIT_ACTION = "receive_into_inactive_pair".freeze
+
     Result = Struct.new(:ok, :receipt, keyword_init: true) do
       def ok? = ok
     end
 
-    def initialize(receipt)
+    def initialize(receipt, actor: nil)
       @receipt = receipt
+      @actor   = actor
     end
 
     def call
@@ -31,6 +42,9 @@ module Inventory
           raise ActiveRecord::Rollback
         end
 
+        exception_lines = incoming_availability_exceptions
+        raise ActiveRecord::Rollback if exception_lines.nil?
+
         # Each line's product, with the barcodes and image its cost update
         # validates, in one go — validations still run; lines of the same
         # product share one record, exactly as the cost update needs (it reads
@@ -39,6 +53,7 @@ module Inventory
           records: @receipt.items.to_a, associations: { product: [ :product_barcodes, { image_attachment: :blob } ] }
         ).call
         @receipt.items.each { |item| post_item(item) }
+        audit_exceptions!(exception_lines)
         @receipt.update_column(:status, "confirmed") if @receipt.draft?
         return Result.new(ok: true, receipt: @receipt)
       end
@@ -76,6 +91,47 @@ module Inventory
 
         @receipt.errors.add(:base, :exceeds_remaining_quantity, product: line.product.name, remaining: remaining)
         false
+      end
+    end
+
+    # Runs under the purchase request line locks taken just before. Returns the
+    # lines admitted by the N6 exception, or nil (errors added) when any line
+    # into an Inactive pair is refused.
+    def incoming_availability_exceptions
+      guard = IncomingAvailabilityGuard.new(warehouse_id: @receipt.warehouse_id,
+                                            product_ids:  @receipt.items.reject(&:marked_for_destruction?).map(&:product_id))
+      exceptions, refused = guard.classify_receipt(@receipt)
+      # An exception must name who received the stock; never admitted anonymously.
+      refused += exceptions.map(&:setting) if @actor.nil?
+      return nil if guard.refuse!(@receipt, refused.uniq)
+
+      exceptions
+    end
+
+    # One fail-closed entry per admitted line: AuditWriteFailed propagates and
+    # rolls the whole posting back.
+    def audit_exceptions!(lines)
+      lines.each do |line|
+        setting = line.setting
+        log_audit!(
+          actor: @actor, auditable: @receipt, action: EXCEPTION_AUDIT_ACTION,
+          metadata: {
+            exception:                    "purchase_request_approved_before_deactivation",
+            goods_receipt_id:             @receipt.id,
+            receipt_number:               @receipt.receipt_number,
+            goods_receipt_item_id:        line.item.id,
+            product_id:                   setting.product_id,
+            warehouse_id:                 setting.warehouse_id,
+            quantity:                     line.item.quantity.to_s,
+            purchase_request_id:          line.purchase_request.id,
+            purchase_request_item_id:     line.purchase_request_item.id,
+            purchase_request_approved_at: line.purchase_request.approved_at.iso8601,
+            receipt_approved_at:          @receipt.decided_at.iso8601,
+            product_warehouse_setting_id: setting.id,
+            deactivated_at:               setting.status_changed_at.iso8601,
+            deactivation_reason:          setting.status_reason
+          }
+        )
       end
     end
 

@@ -22,13 +22,12 @@ class Product < ApplicationRecord
   has_many :stock_adjustment_items, dependent: :restrict_with_error
   has_many :stock_count_items,     dependent: :restrict_with_error
   has_many :inventory_movements,   dependent: :restrict_with_error
-  has_many :product_warehouse_settings, dependent: :destroy
+  # Availability rows are configuration history: a product that has any is
+  # never deleted (Inventory::ProductDeletion refuses; this is the backstop).
+  has_many :product_warehouse_settings, dependent: :restrict_with_error
   has_many :configured_warehouses, through: :product_warehouse_settings, source: :warehouse
   has_many :product_barcodes,   dependent: :destroy
 
-  accepts_nested_attributes_for :product_warehouse_settings,
-                                allow_destroy: true,
-                                reject_if:     ->(attrs) { attrs[:warehouse_id].blank? }
   accepts_nested_attributes_for :product_barcodes,
                                 allow_destroy: true,
                                 reject_if:     ->(attrs) { attrs[:barcode].blank? }
@@ -53,6 +52,12 @@ class Product < ApplicationRecord
   # parent never reaches propagate_non_tracking_to_parent (after_save →
   # parent_product.force_non_tracking!) — SEC-P6-6.
   validate :parent_product_in_same_business, if: :parent_product_id?
+  # "Track stock quantity" stays on while the product still holds stock or is
+  # on an open inventory document (Inventory::TrackingDependencies): an
+  # untracked product drops out of counts, alerts and reorder settings, so
+  # stock must never silently leave inventory management. A product becoming
+  # a family parent (force_non_tracking!) follows its own existing rule.
+  validate :tracking_kept_while_stock_or_documents, on: :update
   validate :parent_depth_constraint, if: :parent_product_id?
   validate :not_own_parent,          if: :parent_product_id?
   validate :default_supplier_in_same_business, if: :default_supplier_id?
@@ -240,11 +245,26 @@ class Product < ApplicationRecord
       product_barcodes.exists?
   end
 
+  def tracking_kept_while_stock_or_documents
+    return unless will_save_change_to_track_inventory?(from: true, to: false)
+    return if @becoming_family_parent # force_non_tracking!: an existing, separate rule
+
+    blockers = Inventory::TrackingDependencies.new(self).blockers
+    return if blockers.empty?
+
+    details = blockers.map { |key, count| I18n.t("activerecord.errors.models.product.tracking_blockers.#{key}", count: count) }
+    errors.add(:track_inventory, :tracking_in_use, details: details.to_sentence)
+  end
+
   # Forces parent's track_inventory to false via update! so all callbacks and
   # audit trails fire. Guards against no-op saves.
   def force_non_tracking!
     return unless track_inventory? || receive_low_stock_notification?
+
+    @becoming_family_parent = true
     update!(track_inventory: false, receive_low_stock_notification: false)
+  ensure
+    @becoming_family_parent = false
   end
 
   # Returns the primary barcode value (or first barcode if none marked primary).

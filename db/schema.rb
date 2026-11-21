@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_16_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1530,9 +1530,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_100000) do
     t.decimal "reorder_quantity", precision: 12, scale: 3, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "status", default: "active", null: false
+    t.boolean "receive_low_stock_notification", default: true, null: false
+    t.bigint "business_id", null: false
+    t.datetime "status_changed_at"
+    t.bigint "status_changed_by_id"
+    t.text "status_reason"
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.index ["business_id", "warehouse_id", "status"], name: "index_pws_on_business_warehouse_status"
     t.index ["product_id", "warehouse_id"], name: "idx_on_product_id_warehouse_id_c543ed27c8", unique: true
     t.index ["product_id"], name: "index_product_warehouse_settings_on_product_id"
     t.index ["warehouse_id"], name: "index_product_warehouse_settings_on_warehouse_id"
+    t.check_constraint "low_stock_level >= 0::numeric AND reorder_quantity >= 0::numeric", name: "pws_quantities_non_negative"
+    t.check_constraint "status::text = 'active'::text OR status_reason IS NOT NULL AND status_changed_at IS NOT NULL", name: "pws_inactive_has_reason"
+    t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'inactive'::character varying]::text[])", name: "pws_status_known"
   end
 
   create_table "products", force: :cascade do |t|
@@ -2871,7 +2883,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_100000) do
   add_foreign_key "product_barcodes", "products"
   add_foreign_key "product_categories", "businesses"
   add_foreign_key "product_variants", "products"
+  add_foreign_key "product_warehouse_settings", "businesses"
   add_foreign_key "product_warehouse_settings", "products"
+  add_foreign_key "product_warehouse_settings", "users", column: "created_by_id"
+  add_foreign_key "product_warehouse_settings", "users", column: "status_changed_by_id"
+  add_foreign_key "product_warehouse_settings", "users", column: "updated_by_id"
   add_foreign_key "product_warehouse_settings", "warehouses"
   add_foreign_key "products", "brands"
   add_foreign_key "products", "businesses"

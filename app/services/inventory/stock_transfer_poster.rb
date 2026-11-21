@@ -13,6 +13,10 @@ module Inventory
   # source without moving it into the destination. The product rows are
   # locked before the source-stock check (inside that transaction), so two
   # concurrent transfers/issues can't both pass the check and overdraw it.
+  #
+  # A product whose availability in the DESTINATION warehouse is Inactive is
+  # refused (Inventory::IncomingAvailabilityGuard) — no exception. The source
+  # side is never checked: taking stock out of an Inactive pair is allowed.
   class StockTransferPoster
     Result = Struct.new(:ok, :transfer, keyword_init: true) do
       def ok? = ok
@@ -28,6 +32,7 @@ module Inventory
 
       ActiveRecord::Base.transaction do
         lock_products!
+        raise ActiveRecord::Rollback unless destination_accepts_incoming?
         raise ActiveRecord::Rollback unless availability_ok?
 
         @transfer.transfer_number = NumberSequencer.new(@transfer.business, :stock_transfer).next_number if @transfer.transfer_number.blank?
@@ -55,6 +60,15 @@ module Inventory
     def lock_products!
       ids = @transfer.items.map(&:product_id).compact.uniq.sort
       Product.where(id: ids).order(:id).lock.load if ids.any?
+    end
+
+    # Runs under the product locks; locks the destination pair rows last.
+    def destination_accepts_incoming?
+      guard = IncomingAvailabilityGuard.new(
+        warehouse_id: @transfer.destination_warehouse_id,
+        product_ids:  @transfer.items.reject(&:marked_for_destruction?).map(&:product_id)
+      )
+      !guard.refuse!(@transfer)
     end
 
     # Surfaces the "same warehouse" validation early so availability isn't even

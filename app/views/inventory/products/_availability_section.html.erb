@@ -1,0 +1,85 @@
+<%#
+  Product Availability per Warehouse — the product Edit page's inventory
+  section (and the standalone availability page). It sits OUTSIDE the product
+  form: every card has its own forms, posts to
+  Inventory::WarehouseProductAvailabilitiesController
+  (Inventory::ProductAvailabilityManager: authorized, locked, audited) and
+  refreshes only this Turbo Frame, so unsaved product details are kept.
+
+  Grouped: every reachable active sales branch and every reachable active
+  central warehouse (Included by default, or Excluded — shown without creating
+  anything); any other warehouse that has a row (read-only, for review).
+  Legacy product-wide values are not shown here (see the availability
+  reconciliation report).
+
+  locals: product, availability (Inventory::ProductAvailabilityOverview),
+          return_to ("product_edit" | "product_availability"),
+          row_errors / row_values (optional: { warehouse id => message / typed values }),
+          exclusion_errors (optional: { warehouse id => { message:, reason:, dependencies: } })
+%>
+<% row_errors       = local_assigns[:row_errors] || {} %>
+<% row_values       = local_assigns[:row_values] || {} %>
+<% exclusion_errors = local_assigns[:exclusion_errors] || {} %>
+<% tracked = product.track_inventory? %>
+
+<section id="availability" class="availability-section" aria-labelledby="availability-title" data-controller="availability-preserve">
+  <%= turbo_frame_tag "product-availability", target: "_top", class: "availability-frame" do %>
+    <div class="availability-section__head">
+      <h2 class="section-title" id="availability-title"><%= t("product_availability.section.title") %></h2>
+      <p class="form-hint"><%= t("product_availability.section.hint") %></p>
+      <% if tracked %><p class="form-hint"><%= t("product_availability.section.threshold_hint") %></p><% end %>
+    </div>
+
+    <% if flash[:availability_notice] %>
+      <div class="alert alert-success" role="status" data-testid="availability-notice"><%= flash[:availability_notice] %></div>
+    <% end %>
+    <%# Refusals no card can show next to its fields (no card for that
+        warehouse, or the card has no exclusion panel, e.g. already Excluded). %>
+    <% by_warehouse = tracked ? availability.pairs.index_by { |pair| pair.warehouse.id } : {} %>
+    <% card_has_panel = ->(id) { (pair = by_warehouse[id]) && pair.included_by_default? && !pair.excluded? && availability.manageable?(pair.warehouse) } %>
+    <% orphan_errors = row_errors.reject { |id, _| by_warehouse.key?(id) }.values +
+                       exclusion_errors.reject { |id, _| card_has_panel.call(id) }.values.map { |e| e[:message] } %>
+    <% [ flash[:availability_alert], *orphan_errors ].compact.each do |message| %>
+      <div class="alert alert-danger" role="alert" data-testid="availability-error"><%= message %></div>
+    <% end %>
+    <% unless availability.product_active? %>
+      <div class="alert alert-info" data-testid="archived-read-only"><%= t("product_availability.section.archived") %></div>
+    <% end %>
+    <% unless tracked %>
+      <%# Stock quantity is not tracked: no warehouse cards, thresholds or reorder
+          settings (any existing rows are kept untouched, just not shown). %>
+      <div class="alert alert-info" data-testid="untracked-notice"><%= t("product_availability.section.untracked") %></div>
+    <% end %>
+
+    <%# Three groups, always in this order: active sales branches and active
+        central warehouses (both Included by default, or Excluded), and any
+        other warehouse that has a row (unclassified or inactive: read-only). %>
+    <% groups = [
+         [ "branches", availability.branch_pairs ],
+         [ "central", availability.central_pairs ],
+         [ "other", availability.other_pairs ]
+       ] %>
+    <% groups = [] unless tracked %>
+    <% groups.each do |key, group_pairs| %>
+      <% next if key == "other" && group_pairs.empty? %>
+      <div class="availability-group availability-group--<%= key %>" data-testid="availability-group-<%= key %>">
+        <div class="availability-group__head">
+          <h3 class="availability-subtitle"><%= t("product_availability.section.groups.#{key}.title") %>
+            <span class="badge badge-neutral badge-xs"><%= group_pairs.size %></span></h3>
+          <p class="form-hint"><%= t("product_availability.section.groups.#{key}.hint") %></p>
+        </div>
+        <% if group_pairs.empty? %>
+          <p class="td-secondary availability-group__empty"><%= t("product_availability.section.groups.#{key}.empty") %></p>
+        <% else %>
+          <div class="availability-cards">
+            <% group_pairs.each do |pair| %>
+              <%= render "inventory/products/availability_card", pair: pair, product: product, availability: availability,
+                    return_to: return_to, tracked: tracked, row_error: row_errors[pair.warehouse.id],
+                    typed: row_values[pair.warehouse.id] || {}, refused_exclusion: exclusion_errors[pair.warehouse.id] %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+</section>

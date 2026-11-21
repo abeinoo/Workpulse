@@ -1,0 +1,216 @@
+<% content_for :title, t("product_availability.reconciliation.title") %>
+<% r = @report %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <h1 class="page-title"><%= t("product_availability.reconciliation.title") %></h1>
+  </div>
+  <div class="alert alert-info" data-testid="read-only-notice"><%= t("product_availability.reconciliation.read_only") %></div>
+
+  <%# ── Historical central warehouse ─────────────────────── %>
+  <h2 class="section-title"><%= t("product_availability.reconciliation.central.title") %></h2>
+  <%# The same definition as the product page's "Central warehouse" badge: kind = central. %>
+  <p data-testid="central-list">
+    <%= t("product_availability.reconciliation.central.list") %>
+    <% if r.central_candidates.empty? %>—<% end %>
+    <% r.central_candidates.each do |w| %>
+      <span class="badge badge-accent" data-testid="central-candidate-<%= w.id %>"><%= t("product_availability.section.central_badge") %></span>
+      <strong><%= w.name %></strong><% unless w.active? %> (<%= t("inventory.warehouses.statuses.inactive") %>)<% end %>
+    <% end %>
+  </p>
+  <% if r.central_target %>
+    <p data-testid="central-target"><%= t("product_availability.reconciliation.central.target", warehouse: r.central_target.name) %></p>
+  <% else %>
+    <div class="alert alert-warning" data-testid="central-undetermined">
+      <%= r.central_candidates.empty? ? t("product_availability.reconciliation.central.none") :
+            t("product_availability.reconciliation.central.several", warehouses: r.central_candidates.map(&:name).to_sentence) %>
+    </div>
+  <% end %>
+  <% if r.unclassified_warehouses.any? %>
+    <div class="alert alert-warning">
+      <%= t("product_availability.reconciliation.central.unclassified", warehouses: r.unclassified_warehouses.map(&:name).to_sentence) %>
+    </div>
+  <% end %>
+
+  <%# ── Per warehouse ────────────────────────────────────── %>
+  <h2 class="section-title"><%= t("product_availability.reconciliation.warehouses.title") %></h2>
+  <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-5);">
+    <table>
+      <thead><tr>
+        <th><%= t("product_availability.columns.warehouse") %></th>
+        <th style="text-align: end;"><%= t("product_availability.states.active") %></th>
+        <th style="text-align: end;"><%= t("product_availability.states.inactive") %></th>
+        <th style="text-align: end;"><%= t("product_availability.reconciliation.warehouses.unconfigured_with_stock") %></th>
+        <th style="text-align: end;"><%= t("product_availability.reconciliation.warehouses.inactive_with_stock") %></th>
+      </tr></thead>
+      <tbody>
+        <% r.warehouse_rows.each do |row| %>
+          <tr data-testid="reconciliation-warehouse-<%= row.warehouse.id %>">
+            <td data-label="<%= t("product_availability.columns.warehouse") %>">
+              <%= link_to row.warehouse.name, inventory_warehouse_product_availabilities_path(row.warehouse), class: "link" %>
+              <%= warehouse_kind_badge(row.warehouse) %>
+              <% unless row.warehouse.active? %><span class="badge badge-neutral"><%= t("inventory.warehouses.statuses.inactive") %></span><% end %>
+            </td>
+            <td style="text-align: end;" data-label="<%= t("product_availability.states.active") %>"><%= row.active_rows %></td>
+            <td style="text-align: end;" data-label="<%= t("product_availability.states.inactive") %>"><%= row.inactive_rows %></td>
+            <td style="text-align: end;" data-label="<%= t("product_availability.reconciliation.warehouses.unconfigured_with_stock") %>"><%= row.unconfigured_with_stock %></td>
+            <td style="text-align: end;" data-label="<%= t("product_availability.reconciliation.warehouses.inactive_with_stock") %>"><%= row.inactive_with_stock %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <%# ── Legacy product-level values (historical central) ─── %>
+  <h2 class="section-title"><%= t("product_availability.reconciliation.legacy.title") %> <span class="badge badge-neutral"><%= r.legacy.total %></span></h2>
+  <p class="form-hint"><%= t("product_availability.reconciliation.legacy.hint") %></p>
+  <% if r.transfer_visible? %>
+    <% tp = r.transfer_preview %>
+    <p class="form-hint" data-testid="transfer-summary"><%= t("product_availability.reconciliation.legacy.transfer_summary",
+          transferred: tp.of("matching").size, pending: tp.to_create_count, exceptions: tp.exceptions.size) %></p>
+  <% end %>
+  <p class="form-hint" data-testid="legacy-total-alert-count"><%= t("product_availability.reconciliation.legacy.total_alert_in_use", count: r.legacy_total_alert_count) %></p>
+  <% if r.legacy.rows.empty? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("product_availability.reconciliation.none") %></p></div>
+  <% else %>
+    <% lg = "product_availability.reconciliation.legacy" %>
+    <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-2);">
+      <table>
+        <thead><tr>
+          <th><%= t("product_availability.columns.product") %></th>
+          <th style="text-align: end;"><%= t("#{lg}.old_low") %></th>
+          <th style="text-align: end;"><%= t("#{lg}.old_reorder") %></th>
+          <th style="text-align: end;"><%= t("#{lg}.central_low") %></th>
+          <th style="text-align: end;"><%= t("#{lg}.central_reorder") %></th>
+          <th><%= t("#{lg}.transfer") %></th>
+          <th><%= t("#{lg}.reason") %></th>
+        </tr></thead>
+        <tbody>
+          <% r.legacy.rows.each do |row| %>
+            <% p = row.product %>
+            <% s = row.central_setting %>
+            <% outcome = row.transfer || "not_applicable" %>
+            <tr data-testid="legacy-<%= p.id %>">
+              <td data-label="<%= t("product_availability.columns.product") %>">
+                <%= link_to p.name, inventory_product_path(p), class: "link" %>
+                <div class="td-secondary"><%= p.sku %></div>
+              </td>
+              <td style="text-align: end;" data-label="<%= t("#{lg}.old_low") %>"><%= availability_quantity(p.low_stock_level) %></td>
+              <td style="text-align: end;" data-label="<%= t("#{lg}.old_reorder") %>"><%= availability_quantity(p.reorder_quantity) %></td>
+              <td style="text-align: end;" data-label="<%= t("#{lg}.central_low") %>"><%= s ? availability_quantity(s.low_stock_level) : "—" %></td>
+              <td style="text-align: end;" data-label="<%= t("#{lg}.central_reorder") %>"><%= s ? availability_quantity(s.reorder_quantity) : "—" %></td>
+              <td data-label="<%= t("#{lg}.transfer") %>" data-testid="legacy-transfer-<%= p.id %>">
+                <span class="badge <%= outcome == "matching" ? "badge-success" : (outcome == "to_create" || outcome == "not_applicable" ? "badge-neutral" : "badge-warning") %>"><%= t("#{lg}.transfers.#{outcome}") %></span>
+              </td>
+              <td class="td-secondary" data-label="<%= t("#{lg}.reason") %>" data-testid="legacy-reason-<%= p.id %>">
+                <%= t("#{lg}.reasons.#{outcome}", default: "") %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <%= render "truncated", list: r.legacy %>
+  <% end %>
+
+  <%# ── Explicit branch rows ─────────────────────────────── %>
+  <h2 class="section-title"><%= t("product_availability.reconciliation.branch_rows.title") %> <span class="badge badge-neutral"><%= r.branch_rows.total %></span></h2>
+  <p class="form-hint"><%= t("product_availability.reconciliation.branch_rows.hint") %></p>
+  <% if r.branch_rows.rows.empty? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("product_availability.reconciliation.none") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-2);">
+      <table>
+        <thead><tr>
+          <th><%= t("product_availability.columns.warehouse") %></th>
+          <th><%= t("product_availability.columns.product") %></th>
+          <th><%= t("product_availability.columns.state") %></th>
+          <th style="text-align: end;"><%= t("product_availability.columns.low_stock_level") %></th>
+          <th style="text-align: end;"><%= t("product_availability.columns.reorder_quantity") %></th>
+        </tr></thead>
+        <tbody>
+          <% r.branch_rows.rows.each do |s| %>
+            <tr data-testid="branch-row-<%= s.id %>">
+              <td data-label="<%= t("product_availability.columns.warehouse") %>"><%= s.warehouse.name %></td>
+              <td data-label="<%= t("product_availability.columns.product") %>"><%= link_to s.product.name, inventory_product_path(s.product), class: "link" %></td>
+              <td data-label="<%= t("product_availability.columns.state") %>"><%= availability_state_badge(s.status) %></td>
+              <td style="text-align: end;" data-label="<%= t("product_availability.columns.low_stock_level") %>"><%= availability_quantity(s.low_stock_level) %></td>
+              <td style="text-align: end;" data-label="<%= t("product_availability.columns.reorder_quantity") %>"><%= availability_quantity(s.reorder_quantity) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <%= render "truncated", list: r.branch_rows %>
+  <% end %>
+
+  <%# ── Stock without an availability row ───────────────── %>
+  <% [ [ :stock_without_row, r.stock_without_row ], [ :inactive_with_stock, r.inactive_with_stock ] ].each do |key, list| %>
+    <h2 class="section-title"><%= t("product_availability.reconciliation.#{key}.title") %> <span class="badge badge-neutral"><%= list.total %></span></h2>
+    <p class="form-hint"><%= t("product_availability.reconciliation.#{key}.hint") %></p>
+    <% if list.rows.empty? %>
+      <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("product_availability.reconciliation.none") %></p></div>
+    <% else %>
+      <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-2);">
+        <table>
+          <thead><tr>
+            <th><%= t("product_availability.columns.warehouse") %></th>
+            <th><%= t("product_availability.columns.product") %></th>
+            <th style="text-align: end;"><%= t("product_availability.columns.on_hand") %></th>
+            <% if key == :inactive_with_stock %><th><%= t("product_availability.reconciliation.inactive_with_stock.reason") %></th><% end %>
+          </tr></thead>
+          <tbody>
+            <% list.rows.each do |row| %>
+              <tr data-testid="<%= key %>-<%= row.product.id %>-<%= row.warehouse.id %>">
+                <td data-label="<%= t("product_availability.columns.warehouse") %>"><%= row.warehouse.name %> <%= warehouse_kind_badge(row.warehouse) %></td>
+                <td data-label="<%= t("product_availability.columns.product") %>">
+                  <%= link_to row.product.name, inventory_product_path(row.product), class: "link" %>
+                  <div class="td-secondary"><%= row.product.sku %></div>
+                </td>
+                <td style="text-align: end;" data-label="<%= t("product_availability.columns.on_hand") %>"><%= availability_quantity(row.on_hand) %></td>
+                <% if key == :inactive_with_stock %>
+                  <td class="td-secondary" data-label="<%= t("product_availability.reconciliation.inactive_with_stock.reason") %>"><bdi><%= row.setting.status_reason %></bdi></td>
+                <% end %>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <%= render "truncated", list: list %>
+    <% end %>
+  <% end %>
+
+  <%# ── Suspicious records ───────────────────────────────── %>
+  <h2 class="section-title"><%= t("product_availability.reconciliation.issues.title") %> <span class="badge <%= r.issues.total.zero? ? "badge-success" : "badge-warning" %>"><%= r.issues.total %></span></h2>
+  <% if r.issues.rows.empty? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("product_availability.reconciliation.issues.none") %></p></div>
+  <% else %>
+    <ul class="td-secondary" style="padding-inline-start: var(--space-5); line-height: 1.7;">
+      <% r.issue_counts.each do |code, count| %>
+        <li><strong><%= t("product_availability.reconciliation.issues.codes.#{code}") %></strong>: <%= count %></li>
+      <% end %>
+    </ul>
+    <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-2);">
+      <table>
+        <thead><tr>
+          <th><%= t("product_availability.reconciliation.issues.issue") %></th>
+          <th><%= t("product_availability.columns.warehouse") %></th>
+          <th><%= t("product_availability.columns.product") %></th>
+        </tr></thead>
+        <tbody>
+          <% r.issues.rows.each do |issue| %>
+            <tr data-testid="issue-<%= issue.code %>">
+              <td data-label="<%= t("product_availability.reconciliation.issues.issue") %>">
+                <%= t("product_availability.reconciliation.issues.codes.#{issue.code}") %>
+                <% if issue.detail %><span class="td-secondary">(<%= availability_quantity(issue.detail) %>)</span><% end %>
+              </td>
+              <td data-label="<%= t("product_availability.columns.warehouse") %>"><%= issue.warehouse&.name || "—" %></td>
+              <td data-label="<%= t("product_availability.columns.product") %>"><%= issue.product ? link_to(issue.product.name, inventory_product_path(issue.product), class: "link") : "—" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <%= render "truncated", list: r.issues %>
+  <% end %>
+</div>

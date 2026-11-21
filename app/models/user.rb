@@ -261,12 +261,21 @@ class User < ApplicationRecord
 
   # Warehouse-scoped inventory access.
   #
-  # Returns nil when the user may see EVERY warehouse (owners, and anyone with no
-  # explicit warehouse assignments — accountants, admins), or an array of the
-  # warehouse ids they're restricted to. Assigning warehouses to a user narrows
-  # their inventory visibility to exactly those.
+  # Returns nil when the user may see EVERY warehouse of their business, or an
+  # array of the warehouse ids they're restricted to — possibly EMPTY, which
+  # means no warehouse at all (every caller treats [] as "none", never "all").
+  #
+  # Two modes, chosen per business (Business#warehouse_access_fail_closed?,
+  # switched only by OrganizationAccess::WarehouseAccessMode):
+  #   legacy (default)  owners, and anyone with no explicit warehouse
+  #                     assignments, get nil; assignments narrow to exactly those.
+  #   fail-closed       the registered OrganizationAccess::WarehouseAccessProvider
+  #                     decides (owner / access_all_warehouses -> nil; assignments
+  #                     and managed branch warehouse; otherwise []).
   def inventory_warehouse_ids
     return nil if owner?
+    return fail_closed_inventory_warehouse_ids if business&.warehouse_access_fail_closed?
+
     ids = warehouse_assignments.pluck(:warehouse_id)
     ids.empty? ? nil : ids
   end
@@ -285,6 +294,15 @@ class User < ApplicationRecord
   end
 
   private
+
+  # The provider's answer, accepted only in the documented nil / Array shape —
+  # anything else raises rather than ever resolving to "every warehouse".
+  def fail_closed_inventory_warehouse_ids
+    ids = OrganizationAccess::WarehouseAccessProvider.warehouse_ids_for(self)
+    return ids if ids.nil? || ids.is_a?(Array)
+
+    raise ArgumentError, "WarehouseAccessProvider returned #{ids.class}; expected nil or an Array"
+  end
 
   def generate_employee_code?
     employee_code.blank? && business_id.present?

@@ -63,6 +63,21 @@ class Warehouse < ApplicationRecord
   NAME_LOCK_STATEMENT    = "SELECT pg_advisory_xact_lock(#{NAME_LOCK_KEY_TEMPLATE})".freeze
   before_validation :lock_name_for_uniqueness, if: :name_lock_needed?
 
+  # Product availability: every product is Included by default in every
+  # ACTIVE central warehouse and every ACTIVE sales branch warehouse (approved
+  # 2026-11-20). A product is left out only by an explicit exclusion (an
+  # Inactive availability row). Not included automatically: inactive
+  # warehouses, warehouses not classified yet (kind NULL — reviewed
+  # separately; an existing row there keeps its state), and a branch
+  # warehouse whose branch is no longer a sales branch (Laundry, HQ… — the
+  # type is checked only when the link is set, so it is re-checked here).
+  def availability_included_by_default?
+    return false unless active?
+    return true if kind_central?
+
+    kind_branch? && branch.present? && branch.branch_type_sales?
+  end
+
   scope :for_business, ->(business) { where(business: business) }
   scope :ordered,      -> { order(:name) }
 

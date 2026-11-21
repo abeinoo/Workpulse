@@ -1266,6 +1266,141 @@ tbody td {
   }
   .gr-table .action-group { justify-content: flex-end; }  /* عرض lines up across rows */
 }
+/* Product availability tables (warehouse Products tab, product page card):
+   keep the actions cell a real table cell on desktop so its width counts. */
+@media (min-width: 769px) {
+  .availability-table td.td-actions {
+    display: table-cell;
+    width: 1%;
+    white-space: nowrap;
+  }
+  .availability-table td.td-actions > * + * { margin-inline-start: var(--space-2); }
+}
+
+/* Product Availability per Warehouse — the product Edit page's section. */
+.availability-section { scroll-margin-top: var(--space-6); }
+.availability-frame { display: block; transition: opacity 0.15s; }
+.availability-frame[aria-busy="true"],
+.availability-frame[busy] { opacity: 0.6; pointer-events: none; }
+.availability-section__head { margin-bottom: var(--space-3); }
+.availability-section__head .section-title { margin: 0 0 var(--space-1); }
+.availability-subtitle {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-1);
+  margin: var(--space-5) 0 var(--space-2);
+}
+.availability-cards { display: grid; gap: var(--space-3); }
+.availability-card,
+.availability-add__row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  min-width: 0;
+}
+.availability-card--inactive { background: var(--surface-2); }
+.availability-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.availability-card__name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.availability-card__badges { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.availability-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-3) 0 0;
+}
+.availability-figures dt { font-size: var(--text-xs); color: var(--text-2); }
+.availability-figures dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.availability-card__note { margin: var(--space-3) 0 0; overflow-wrap: anywhere; }
+.availability-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.availability-card__actions form { margin: 0; }
+.availability-disclosure { flex: 0 1 auto; min-width: 0; }
+.availability-disclosure[open] { flex-basis: 100%; }
+.availability-disclosure > summary { list-style: none; cursor: pointer; }
+.availability-disclosure > summary::-webkit-details-marker { display: none; }
+.availability-disclosure__body {
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.availability-disclosure__actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-3); }
+.availability-danger-link { color: var(--danger); }
+.availability-inline-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3);
+}
+.availability-inline-fields .form-group { margin-bottom: 0; }
+.availability-add__all { margin-bottom: var(--space-2); }
+.availability-add__rows { display: grid; gap: var(--space-2); }
+.availability-add__row { display: grid; gap: var(--space-3); }
+.availability-add__pick { display: flex; align-items: flex-start; gap: var(--space-3); }
+.availability-add__label { display: flex; flex-direction: column; gap: 2px; cursor: pointer; min-width: 0; }
+/* A warehouse's starting settings appear once it is ticked. */
+.availability-add__row:not(:has(.availability-add__pick input:checked)) > :not(.availability-add__pick) { display: none; }
+.availability-add__row:has(.availability-add__pick input:checked) { border-color: var(--accent); }
+.availability-readonly-list { margin-top: var(--space-4); }
+
+/* Product Edit page: one flow — product details, the warehouse cards right
+   after Inventory tracking, then notes and Save (still the product form). */
+.form-page.product-edit { max-width: 1040px; }
+.form-card--split { border-end-start-radius: 0; border-end-end-radius: 0; }
+.form-card--split-tail { margin-top: var(--space-5); }
+.product-edit .availability-section {
+  margin-top: var(--space-5);
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.product-edit .availability-card { background: var(--surface-2); }
+.product-edit .availability-card--inactive { background: transparent; }
+.availability-cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); }
+/* Directly editable card fields, the shared action row and errors. */
+.availability-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.availability-figures dd .form-control { width: 100%; }
+.availability-card__title { overflow-wrap: anywhere; }
+.availability-card__hint { margin: var(--space-2) 0 0; }
+.availability-card__actions { justify-content: space-between; }
+.availability-card__unsaved { display: none; font-size: var(--text-xs); color: var(--accent); margin-inline-end: auto; }
+.availability-card--dirty .availability-card__unsaved { display: inline; }
+.availability-card__exclude { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; }
+.availability-card--pending-exclusion { border-color: var(--danger); }
+.availability-group + .availability-group { margin-top: var(--space-6); padding-top: var(--space-5); border-top: 1px solid var(--border); }
+.availability-group__head .availability-subtitle { margin-top: 0; display: flex; align-items: center; gap: var(--space-2); }
+.availability-group__empty { margin: 0; }
+.availability-effects { margin: 0 0 var(--space-3); padding-inline-start: var(--space-5); line-height: 1.6; }
+.availability-figures__label { font-size: var(--text-xs); color: var(--text-2); font-weight: 400; }
+.availability-card__notify { margin-top: var(--space-3); }
+.availability-card--dirty { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.35); }
+.availability-field-error { margin: var(--space-2) 0 0; color: var(--danger); font-size: var(--text-sm); }
+.availability-card .form-control.is-invalid { border-color: var(--danger); }
+.availability-card__actions .btn:focus-visible,
+.availability-card__actions summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Narrow desktops (e.g. 1024px with a classic, space-taking scrollbar): every
    cell stays on one line, so tighter cell padding is what lets the whole table
    fit without horizontal scroll. Wider screens keep the roomier spacing. */

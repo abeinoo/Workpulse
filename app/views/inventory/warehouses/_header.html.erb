@@ -1,0 +1,29 @@
+<%# The warehouse page header and its tabs (Overview / Products).
+    locals: warehouse, active_tab ("overview" | "products") %>
+<%= link_to inventory_warehouses_path, class: "back-link" do %>
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+  <%= t("forms.back") %>
+<% end %>
+
+<div class="page-header">
+  <h1 class="page-title">
+    <%= warehouse.name %>
+    <%= warehouse_kind_badge(warehouse) %>
+    <span class="badge <%= warehouse.active? ? 'badge-success' : 'badge-neutral' %>">
+      <%= t("inventory.warehouses.statuses.#{warehouse.status}") %>
+    </span>
+  </h1>
+  <% if active_tab == "overview" && current_user.can?(:manage_inventory) %>
+    <%= link_to t("common.edit"), edit_inventory_warehouse_path(warehouse), class: "btn btn-secondary btn-sm" %>
+  <% end %>
+</div>
+
+<nav class="filter-tabs filter-tabs--scrollable" aria-label="<%= t("product_availability.tabs.label") %>" style="margin-bottom: var(--space-5);">
+  <%= link_to t("product_availability.tabs.overview"), inventory_warehouse_path(warehouse),
+        class: "filter-tab #{'filter-tab--active' if active_tab == 'overview'}",
+        aria: { current: (active_tab == "overview" ? "page" : nil) } %>
+  <%= link_to t("product_availability.tabs.products"), inventory_warehouse_product_availabilities_path(warehouse),
+        class: "filter-tab #{'filter-tab--active' if active_tab == 'products'}",
+        aria: { current: (active_tab == "products" ? "page" : nil) },
+        data: { testid: "warehouse-products-tab" } %>
+</nav>

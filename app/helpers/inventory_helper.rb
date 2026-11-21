@@ -65,6 +65,24 @@ module InventoryHelper
     end
   end
 
+  # Badge colour for a product's availability in one warehouse.
+  AVAILABILITY_STATE_BADGES = {
+    "active" => "badge-success", "inactive" => "badge-neutral", "not_configured" => "badge-warning",
+    "included" => "badge-success", "excluded" => "badge-neutral"
+  }.freeze
+
+  # Active / Inactive / Not Configured, for a ProductWarehouseSetting status
+  # (or "not_configured" when there is no row).
+  def availability_state_badge(state)
+    tag.span(t("product_availability.states.#{state}"), class: "badge #{AVAILABILITY_STATE_BADGES.fetch(state.to_s)}",
+                                                        style: "white-space: nowrap;", data: { availability_state: state })
+  end
+
+  # A stock quantity or threshold without trailing zeros (2, 2.5, 0.125).
+  def availability_quantity(value)
+    number_with_precision(value.to_d, precision: 3, strip_insignificant_zeros: true)
+  end
+
   # The warehouse type, from its stored kind only (never inferred from the name).
   def warehouse_kind_badge(warehouse)
     key = warehouse.kind.presence || "unclassified"

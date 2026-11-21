@@ -20,8 +20,10 @@ module Inventory
   # area-manager link grants nothing (D2). This resolves warehouse REACH only —
   # the inventory permissions still decide which pages and actions a user has.
   #
-  # NOT YET IN THE LIVE PATH: User#inventory_warehouse_ids still applies the
-  # fail-open rule until the activation step is separately approved.
+  # LIVE PER BUSINESS: User#inventory_warehouse_ids consults this (through the
+  # provider contract) only for a business switched to fail-closed by
+  # OrganizationAccess::WarehouseAccessMode; every other business keeps the
+  # legacy fail-open rule.
   #
   # One query for a non-owner (none for an owner / access_all_warehouses);
   # an instance memoizes its answer.

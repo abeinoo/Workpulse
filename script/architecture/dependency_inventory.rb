@@ -119,7 +119,7 @@ module ArchitectureTools
       [ %r{\Aapp/controllers/api/v1/sessions_controller\.rb\z}, OA ],
       [ %r{\Aapp/views/(users|profile)/}, OA ],
       [ %r{\Aapp/views/admin/(branches|settings|permission_roles|user_passwords)/}, OA ],
-      [ %r{\Aapp/policies/(branch|permission_role)_policy\.rb\z}, OA ],
+      [ %r{\Aapp/policies/(branch|permission_role|warehouse_access_mode)_policy\.rb\z}, OA ],
 
       # Attendance & Payroll (§6) — before Workforce, for services/employee/performance_scorer.rb (§10.1).
       [ %r{\Aapp/services/employee/performance_scorer\.rb\z}, AP ],

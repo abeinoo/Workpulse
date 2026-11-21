@@ -84,6 +84,14 @@ class Business < ApplicationRecord
 
   serialize :settings, coder: JSON
 
+  # settings is ONE serialized column, so a save writes the whole hash from this
+  # object's copy. Without these, a copy read before a concurrent change (another
+  # admin's save, or the warehouse access mode switch) would silently put back
+  # the old values of keys it never touched. See #merge_settings_onto_stored.
+  before_create :drop_unauthorized_warehouse_access_mode
+  before_update :merge_settings_onto_stored, if: :will_save_change_to_settings?
+  after_save    :finish_warehouse_access_mode_write
+
   validates :name,                presence: true
   validates :timezone,            presence: true
   validate  :timezone_recognized
@@ -219,7 +227,62 @@ class Business < ApplicationRecord
     self.settings = (settings || {}).merge("attendance_critical_duration_hours" => val.to_i)
   end
 
+  # ── Warehouse access mode (JSON settings column) ─────────────────────────
+  # Per-business switch from the legacy warehouse access rule (a non-owner with
+  # no warehouse assignment reaches every warehouse) to fail-closed resolution
+  # through OrganizationAccess::WarehouseAccessProvider (User#inventory_warehouse_ids).
+  # Only a stored JSON `true` turns it on: absent, false or any other value keeps
+  # the legacy rule. No attribute setter: the one writer is the audited
+  # OrganizationAccess::WarehouseAccessMode service, through
+  # #assign_warehouse_access_mode (pinned by the architecture spec). Every other
+  # save — however the hash was edited, however stale the copy — keeps the
+  # stored value (#merge_settings_onto_stored).
+  WAREHOUSE_ACCESS_FAIL_CLOSED_SETTING = "warehouse_access_fail_closed".freeze
+
+  def warehouse_access_fail_closed?
+    (settings || {})[WAREHOUSE_ACCESS_FAIL_CLOSED_SETTING] == true
+  end
+
+  # For OrganizationAccess::WarehouseAccessMode only: stage the mode for the
+  # next save (which that service performs under the business row lock).
+  def assign_warehouse_access_mode(fail_closed)
+    @warehouse_access_mode_write = true
+    key = WAREHOUSE_ACCESS_FAIL_CLOSED_SETTING
+    self.settings = (settings || {}).merge(key => fail_closed)
+  end
+
 private
+
+# Applies only the settings keys THIS copy changed onto the stored hash, read
+# under a row lock inside the save's transaction — so a concurrent save of
+# other keys is kept, and a concurrent mode switch (which takes the same lock)
+# is either seen here or waits for this save. The warehouse access mode always
+# comes from the stored hash unless #assign_warehouse_access_mode staged it.
+def merge_settings_onto_stored
+  original = attribute_in_database(:settings) || {}
+  desired  = settings || {}
+  changed  = desired.reject { |key, value| original.key?(key) && original[key] == value }
+  removed  = original.keys - desired.keys
+  stored   = self.class.lock.where(id: id).pick(:settings) || {}
+
+  merged = stored.merge(changed).except(*removed)
+  unless @warehouse_access_mode_write
+    key = WAREHOUSE_ACCESS_FAIL_CLOSED_SETTING
+    stored.key?(key) ? merged[key] = stored[key] : merged.delete(key)
+  end
+  self.settings = merged
+end
+
+# A new business never starts fail-closed except through the mode service.
+def drop_unauthorized_warehouse_access_mode
+  return if @warehouse_access_mode_write || settings.blank?
+
+  self.settings = settings.except(WAREHOUSE_ACCESS_FAIL_CLOSED_SETTING)
+end
+
+def finish_warehouse_access_mode_write
+  @warehouse_access_mode_write = false
+end
 
 def attendance_setting(key)
   (settings || {}).fetch(key, ATTENDANCE_SETTING_DEFAULTS[key]).to_i

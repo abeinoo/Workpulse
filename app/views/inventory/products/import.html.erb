@@ -19,6 +19,7 @@
     </div>
 
     <%= render "inventory/shared/import_columns", columns: Inventory::Imports::ProductImporter::COLUMNS %>
+    <p class="form-hint" data-testid="import-central-settings-hint"><%= t("inventory.imports.central_settings.hint") %></p>
 
     <div class="form-grid">
       <div class="form-group" style="grid-column: 1 / -1;">

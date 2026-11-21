@@ -2,9 +2,14 @@ require "rails_helper"
 
 RSpec.describe Inventory::Imports::ProductImporter do
   let(:business) { create(:business) }
+  # "Low Stock Level" / "Reorder Quantity" are central warehouse settings
+  # (product_importer_central_settings_spec.rb): a central warehouse and an
+  # importing user who manages it.
+  let!(:owner)   { create(:user, :owner, business: business) }
+  let!(:central) { business.warehouses.create!(name: "Central", kind: "central") }
 
   def importer(csv_data, warehouse: nil)
-    described_class.new(business, csv_data, warehouse: warehouse)
+    described_class.new(business, csv_data, warehouse: warehouse, user: owner)
   end
 
   def valid_csv(rows = [])

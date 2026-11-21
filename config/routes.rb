@@ -347,7 +347,20 @@ Rails.application.routes.draw do
     resources :warehouses do
       # Classifying an unclassified warehouse (kind NULL) — Inventory::WarehouseManager#classify.
       resource :classification, only: %i[new create], controller: "warehouse_classifications"
+      # Product availability in this warehouse (the warehouse's Products tab) —
+      # Inventory::ProductAvailabilityManager. Member ids are availability rows.
+      resources :product_availabilities, path: "products", only: %i[index new create edit update],
+                                         controller: "warehouse_product_availabilities" do
+        member do
+          get  :deactivation
+          post :deactivate
+          post :reactivate
+        end
+      end
     end
+    # Read-only review of availability rows, legacy settings and stock before
+    # any future reconciliation (applies nothing).
+    resource :availability_reconciliation, only: :show
     resources :suppliers
     resources :brands,             except: [ :show ]
     resources :product_categories, except: [ :show ]
@@ -364,6 +377,15 @@ Rails.application.routes.draw do
         patch :archive
         patch :restore
         patch :archive_family
+        # Product availability per warehouse, managed from the product: the
+        # section of the Edit page, also standalone for users who manage
+        # availability but not product details. One branch card per request
+        # (params[:warehouse_id]) — Inventory::ProductAvailabilityManager.
+        get   :availability
+        patch :availability_settings,  to: "warehouse_product_availabilities#save_from_product"
+        get   :availability_exclusion, to: "warehouse_product_availabilities#exclusion_panel"
+        post  :availability_exclusion, to: "warehouse_product_availabilities#exclude_from_product"
+        post  :availability_inclusion, to: "warehouse_product_availabilities#include_from_product"
       end
     end
     resources :barcode_labels, only: [ :index, :show ]

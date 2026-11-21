@@ -2988,6 +2988,7 @@ en:
         view_inventory_reports: "View Inventory Reports"
         manage_suppliers: "Manage Suppliers"
         manage_products: "Manage Products"
+        manage_product_availability: "Manage Product Availability per Warehouse"
         manage_stock_receipts: "Manage Goods Receipts"
         create_goods_receipts: "Create Goods Receipts"
         approve_goods_receipts: "Approve Goods Receipts"
@@ -3135,6 +3136,7 @@ en:
         view_inventory_reports: "View inventory reports only (stock, movements, purchases)"
         manage_suppliers: "Create and edit suppliers"
         manage_products: "Create and edit products, brands, and categories"
+        manage_product_availability: "Add products to the warehouses you can access, set their low-stock settings, and deactivate or reactivate them there"
         manage_stock_receipts: "Record incoming stock via goods receipts"
         create_goods_receipts: "Create and edit draft goods receipts, and submit them for approval"
         approve_goods_receipts: "Approve or reject a goods receipt's purchase — a purchasing decision only, does not post stock or move money"
@@ -3669,6 +3671,7 @@ en:
         not_completable: "This batch can no longer be completed."
         not_reversible: "Only a completed batch can be reversed."
         not_in_progress: "Materials can only be consumed while the batch is in progress."
+        warehouse_not_accessible: "You can only take materials from a warehouse you have access to."
         invalid_quantity: "Quantity must be greater than zero."
         insufficient_stock: "Not enough %{product} in the laundry warehouse (available: %{available})."
 
@@ -4701,6 +4704,16 @@ en:
       opening_warehouse_hint: "If set, any \"Current Stock\" is posted as an opening-balance adjustment into this warehouse."
       no_opening_stock: "— Don't import opening stock"
       no_file: "Please select a CSV file to upload."
+      opening_balance_refused: "Nothing was imported: the opening stock for %{warehouse} could not be posted — %{errors}. Fix those rows (or import without a warehouse) and upload the file again."
+      opening_balance_unknown_error: "the opening stock adjustment was refused"
+      central_settings:
+        hint: "\"Low Stock Level\" and \"Reorder Quantity\" become the central warehouse's settings for each new product (exact values, 0 included; leave both blank for none)."
+        no_central_warehouse: "Nothing was imported: \"Low Stock Level\" / \"Reorder Quantity\" are saved as the central warehouse's settings, but this business has no active central warehouse. Classify one warehouse as central, or leave those columns blank, and upload the file again."
+        ambiguous_central_warehouse: "Nothing was imported: this business has more than one active central warehouse, so \"Low Stock Level\" / \"Reorder Quantity\" cannot be assigned. Keep one active central warehouse, or leave those columns blank, and upload the file again."
+        not_authorized: "Nothing was imported: you are not allowed to manage product settings in the central warehouse %{warehouse}. Ask someone who manages it to import the file, or leave \"Low Stock Level\" / \"Reorder Quantity\" blank."
+        settings_conflict: "Nothing was imported: a product in the file already has central warehouse settings in %{warehouse}; they are never overwritten. Upload the file again."
+        audit_failed: "Nothing was imported: the audit entry for the central warehouse settings could not be written. Try again; if it persists, contact support."
+        refused: "Nothing was imported: the central warehouse settings were refused (%{reason})."
       file_and_warehouse_required: "Please choose a warehouse and a CSV file."
       file_warehouse_and_branch_required: "Please choose a warehouse, a branch, and a CSV file."
       branch_inactive: "This branch is inactive and takes no new stock issues. Choose an active branch."
@@ -4821,6 +4834,7 @@ en:
         invalid_row: "Invalid row (missing SKU or quantity)"
         unknown_sku: "No product matches this SKU"
         insufficient_stock: "Not enough stock available"
+        invalid_stock_settings: "Invalid Low Stock Level or Reorder Quantity (a number of 0 or more)"
     barcode_labels:
       title: "Barcode Labels"
       print: "Print Labels"
@@ -4901,8 +4915,12 @@ en:
       section_identity: "Product Details"
       section_pricing: "Pricing & Stock"
       section_inventory_tracking: "Inventory Tracking & Notifications"
-      track_inventory: "Track Inventory"
-      track_inventory_hint: "Uncheck to exclude this product from stock reports, counters, and low stock alerts."
+      track_inventory: "Track stock quantity"
+      track_inventory_hint: "Untick for items whose quantity you don't track (chairs, equipment…): they get no stock counts, low-stock alerts or reorder settings. Refused while the product still has stock or open inventory documents."
+      legacy_low_stock_level: "Low Stock Threshold (legacy, read-only)"
+      legacy_low_stock_level_hint: "The old product-wide value, shown temporarily for reference. Enter it in the Central warehouse card below if needed; it is not copied or saved from here."
+      legacy_reorder_quantity: "Reorder Quantity (legacy, read-only)"
+      legacy_reorder_quantity_hint: "The old product-wide value, shown temporarily for reference. Enter it in the Central warehouse card below if needed; it is not copied or saved from here."
       receive_low_stock_notification: "Receive Low Stock Notifications"
       receive_low_stock_notification_hint: "Send a low stock alert when total stock reaches or falls below the reorder level."
       reorder_level: "Reorder Level"
@@ -5003,6 +5021,10 @@ en:
       family_archived: "Product family archived successfully."
       delete_confirm: "Permanently delete this product? This cannot be undone."
       has_history_cannot_delete: "This product has historical inventory records and cannot be deleted. Archive it instead."
+      destroyed: "Product deleted."
+      delete_requires_archive: "Archive the product before deleting it."
+      delete_referenced: "This product is still used — by a warehouse, a purchase request or another record — and cannot be deleted. Keep it archived instead."
+      delete_audit_failed: "The product was not deleted because its audit record could not be saved. Please try again."
       archive_has_active_children: "Cannot archive a parent product that has active child products. Archive the children first, or use Archive Family."
     movements:
       stock_count_reasons:
@@ -5195,6 +5217,7 @@ en:
         confirmation_busy: "Another receipt for the same purchase request lines was being confirmed at the same moment. Nothing was posted — please confirm this receipt again."
         not_approved: "This receipt must be approved before it can be confirmed."
         invalid_approval_transition: "Invalid approval transition."
+        confirmation_audit_failed: "Nothing was received: the receipt into an inactive product's warehouse could not be recorded in the audit log. Please try again."
       settlements:
         action: "Financial Settlement"
         new_title: "Record Financial Settlement"
@@ -6005,6 +6028,7 @@ en:
         already_voided: "has already been voided"
         void_would_oversell: "cannot void — only %{available} of %{product} (%{sku}) on hand in %{warehouse}, but reversing needs %{needed}"
         void_via_stock_count_reopen: "This adjustment was posted by a stock count — reopen the stock count to reverse it"
+        product_inactive_in_warehouse: "%{product} is inactive in %{warehouse} — reactivate it there before receiving stock into that warehouse"
         before_start: "must be on or after the start date"
         after_start: "must be on or after the start date"
         allocation_not_100: "branch allocations must total 100%"
@@ -6088,6 +6112,10 @@ en:
             warehouse_id:
               taken: "already has a threshold for this product"
               different_business: "must belong to the same business as the product"
+            business_id:
+              different_business: "must be the business of the product"
+            base:
+              inactive_row_locked: "This product is inactive in this warehouse — reactivate it before changing or removing its settings"
         laundry_batch:
           attributes:
             base:
@@ -8927,8 +8955,8 @@ en:
     active: "Active"
     inactive: "Inactive"
     close: "Close"
-    yes: "Yes"
-    no: "No"
+    "yes": "Yes"
+    "no": "No"
     move_up: "Move Up"
     move_down: "Move Down"
     void: "Void"

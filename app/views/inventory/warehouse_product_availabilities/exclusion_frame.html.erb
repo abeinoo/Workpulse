@@ -1,0 +1,5 @@
+<%# The exclusion confirmation alone, lazily loaded into a branch card. %>
+<%= turbo_frame_tag "exclusion_#{@warehouse.id}" do %>
+  <%= render "inventory/products/exclusion_panel", product: @product, warehouse: @warehouse, dependencies: @dependencies,
+        return_to: params[:return_to] %>
+<% end %>

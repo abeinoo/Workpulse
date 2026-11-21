@@ -105,16 +105,13 @@ class Inventory::ProductsController < Inventory::BaseController
         InventoryMovement.where(product_id: child_ids)
                          .then { |r| wh_ids ? r.where(warehouse_id: wh_ids) : r }
                          .group(:product_id)
-                         .sum(Arel.sql(Inventory::StockLevels::SIGNED_SUM))
+                         .sum(Arel.sql(Inventory::StockLevels::SIGNED))
         : {}
     else
       all_by_warehouse    = Inventory::StockLevels.new(@product).by_warehouse
       @stock_by_warehouse = wh_ids ? all_by_warehouse.slice(*wh_ids) : all_by_warehouse
 
-      setting_warehouse_ids = @product.product_warehouse_settings.map(&:warehouse_id)
-      setting_warehouse_ids &= wh_ids if wh_ids
-      @warehouse_row_ids = (@stock_by_warehouse.keys + setting_warehouse_ids).uniq
-                             .sort_by { |id| @warehouses[id]&.name.to_s }
+      load_warehouse_availability
 
       @display_stock       = @stock_by_warehouse.values.sum
       @display_stock_value = @display_stock * @product.average_cost_price
@@ -142,6 +139,7 @@ class Inventory::ProductsController < Inventory::BaseController
   end
 
   def create
+    refuse_nested_warehouse_settings!
     @product = current_user.business.products.build(product_params)
     @product.average_cost_price = @product.initial_cost_price if @product.average_cost_price.to_d.zero?
     authorize @product
@@ -165,15 +163,30 @@ class Inventory::ProductsController < Inventory::BaseController
     authorize @product
     @product.product_barcodes.build if @product.product_barcodes.empty?
     load_options
+    # The availability section below the form (its own forms and actions —
+    # never part of the product form submission).
+    @availability = Inventory::ProductAvailabilityOverview.new(@product, user: current_user) unless @product.parent?
+  end
+
+  # The availability section on its own page — for users who manage
+  # availability but may not edit the product's details.
+  def availability
+    @product = find_product
+    authorize @product, :show?
+    raise Pundit::NotAuthorizedError if @product.parent?
+
+    @availability = Inventory::ProductAvailabilityOverview.new(@product, user: current_user)
   end
 
   def update
     @product = find_product
     authorize @product
+    refuse_nested_warehouse_settings!
     if @product.update(product_params)
       redirect_to inventory_product_path(@product), notice: t("inventory.products.updated")
     else
       load_options
+      @availability = Inventory::ProductAvailabilityOverview.new(@product, user: current_user) unless @product.parent?
       render :edit, status: :unprocessable_entity
     end
   end
@@ -181,14 +194,11 @@ class Inventory::ProductsController < Inventory::BaseController
   def destroy
     @product = find_product
     authorize @product
-    if @product.has_inventory_history?
-      redirect_to inventory_product_path(@product),
-                  alert: t("inventory.products.has_history_cannot_delete")
-    elsif @product.destroy
+    result = Inventory::ProductDeletion.new(actor: current_user).call(product_id: @product.id)
+    if result.ok?
       redirect_to inventory_products_path, notice: t("inventory.products.destroyed")
     else
-      redirect_to inventory_product_path(@product),
-                  alert: @product.errors.full_messages.to_sentence
+      redirect_to inventory_product_path(@product), alert: deletion_refusal_message(result)
     end
   end
 
@@ -281,7 +291,7 @@ class Inventory::ProductsController < Inventory::BaseController
       InventoryMovement.where(product_id: child_ids)
                        .then { |r| wh_ids ? r.where(warehouse_id: wh_ids) : r }
                        .group(:product_id)
-                       .sum(Arel.sql(Inventory::StockLevels::SIGNED_SUM))
+                       .sum(Arel.sql(Inventory::StockLevels::SIGNED))
       : {}
 
     render partial: "child_rows",
@@ -304,6 +314,15 @@ class Inventory::ProductsController < Inventory::BaseController
     if @result.ok?
       @warehouses = accessible_warehouses
       render :import_result
+    elsif @result.settings_error
+      redirect_to import_inventory_products_path,
+                  alert: t("inventory.imports.central_settings.#{@result.settings_error}",
+                           default: t("inventory.imports.central_settings.refused", reason: @result.settings_error.to_s.humanize),
+                           warehouse: @result.central_warehouse&.name)
+    elsif @result.opening_errors.present?
+      redirect_to import_inventory_products_path,
+                  alert: t("inventory.imports.opening_balance_refused",
+                           warehouse: warehouse.name, errors: @result.opening_errors.to_sentence)
     elsif @result.header_error == :malformed_csv
       err = @result.parse_error
       redirect_to import_inventory_products_path,
@@ -403,6 +422,40 @@ class Inventory::ProductsController < Inventory::BaseController
     policy_scope(Product).find(params[:id])
   end
 
+  # The product page's read-only Warehouse availability summary: every
+  # reachable warehouse where this product has an availability row or stock,
+  # with its state, on-hand, reserved and that warehouse's OWN settings (a
+  # warehouse without a row shows Not Configured — never the product-level
+  # legacy values). Managing happens in the Edit page's availability section
+  # (or the standalone availability page).
+  def load_warehouse_availability
+    settings = policy_scope(ProductWarehouseSetting).where(product_id: @product.id).index_by(&:warehouse_id)
+    shown_ids = (settings.keys + @stock_by_warehouse.reject { |_id, qty| qty.to_d.zero? }.keys).uniq
+    warehouses = shown_ids.filter_map { |id| @warehouses[id] }.sort_by(&:name)
+    @availability_pairs = Inventory::AvailabilityFigures.build(warehouses.map { |w| [ @product, w, settings[w.id] ] })
+    @availability_manage_path = availability_manage_path
+  end
+
+  # Where "Manage availability" goes: the Edit page's section for users who
+  # edit products, the standalone page for availability managers who don't;
+  # nil when the user manages availability in none of their warehouses.
+  def availability_manage_path
+    overview = Inventory::ProductAvailabilityOverview.new(@product, user: current_user)
+    return nil if @product.parent? || !overview.any_manageable?
+
+    policy(@product).update? ? edit_inventory_product_path(@product, anchor: "availability") : availability_inventory_product_path(@product)
+  end
+
+  def deletion_refusal_message(result)
+    case result.error
+    when :has_history  then t("inventory.products.has_history_cannot_delete")
+    when :not_archived then t("inventory.products.delete_requires_archive")
+    when :referenced   then t("inventory.products.delete_referenced")
+    when :audit_failed then t("inventory.products.delete_audit_failed")
+    else t("flash.not_authorized")
+    end
+  end
+
   # Quick-create-from-import-row flow: the newly created product resolves the
   # stock-issue import row that triggered the modal, and the response updates
   # that row (and the batch summary) in place instead of navigating away.
@@ -424,7 +477,6 @@ class Inventory::ProductsController < Inventory::BaseController
                       .ordered
     @warehouses = accessible_warehouses
     @suppliers  = current_user.business.suppliers.ordered
-
     # Only active root-level products can become parents (max depth = 1).
     # Exclude the current product so it cannot assign itself as its own parent.
     @parent_product_options = current_user.business.products
@@ -434,14 +486,28 @@ class Inventory::ProductsController < Inventory::BaseController
       .ordered
   end
 
+  # Availability rows (and their per-warehouse low-stock settings) are written
+  # only by Inventory::ProductAvailabilityManager — audited, gated by
+  # manage_product_availability and the warehouse scope — from the product
+  # page's Warehouse Availability card and the warehouse Products tab. The
+  # product form no longer carries them: a request that still does (crafted,
+  # or a form left open from before) is refused before anything is assigned,
+  # whatever warehouse or row it names.
+  def refuse_nested_warehouse_settings!
+    submitted = params[:product]
+    raise Pundit::NotAuthorizedError if submitted.respond_to?(:key?) && submitted.key?(:product_warehouse_settings_attributes)
+  end
+
   def product_params
     params.require(:product).permit(
       :name, :sku, :brand_id, :product_category_id, :default_supplier_id,
       :parent_product_id,
-      :initial_cost_price, :low_stock_level, :reorder_quantity,
-      :track_inventory, :receive_low_stock_notification, :reorder_level,
+      # The product-wide low_stock_level / reorder_quantity /
+      # receive_low_stock_notification / reorder_level were retired from the
+      # form (per-warehouse settings replace them); not accepted any more, so
+      # their stored legacy values stay as they are for the central migration.
+      :initial_cost_price, :track_inventory,
       :selling_markup_percentage, :notes, :image,
-      product_warehouse_settings_attributes: [ :id, :warehouse_id, :low_stock_level, :reorder_quantity, :_destroy ],
       product_barcodes_attributes:           [ :id, :barcode, :barcode_type, :is_primary, :_destroy ]
     )
   end

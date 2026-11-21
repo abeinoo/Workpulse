@@ -1,0 +1,28 @@
+<%# Excluding a product from a sales branch (the branch card's checkbox):
+    what changes, what stays, the dependency summary and the required reason.
+    Posts to WarehouseProductAvailabilitiesController#exclude_from_product.
+    locals: product, warehouse, dependencies, return_to, reason (optional) %>
+<ul class="td-secondary availability-effects">
+  <li><%= t("product_availability.exclusion.no_incoming") %></li>
+  <li><%= t("product_availability.exclusion.no_alerts") %></li>
+  <li><%= t("product_availability.exclusion.outgoing_allowed") %></li>
+  <li><%= t("product_availability.exclusion.history_kept") %></li>
+  <li><%= t("product_availability.deactivation.receipts_exception") %></li>
+</ul>
+<%= render "inventory/warehouse_product_availabilities/dependency_summary", dependencies: dependencies %>
+
+<%= form_with url: availability_exclusion_inventory_product_path(product), method: :post,
+      data: { turbo_frame: "product-availability" } do %>
+  <%= hidden_field_tag :warehouse_id, warehouse.id, id: nil %>
+  <%= hidden_field_tag :return_to, return_to, id: nil %>
+  <div class="form-group">
+    <label class="form-label form-label--required" for="exclusion-reason-<%= warehouse.id %>"><%= t("product_availability.exclusion.reason") %></label>
+    <textarea id="exclusion-reason-<%= warehouse.id %>" name="reason" rows="2" class="form-control" required maxlength="500" dir="auto"
+              data-preserve-id="exclusion-reason-<%= warehouse.id %>"
+              placeholder="<%= t("product_availability.exclusion.reason_placeholder") %>"><%= local_assigns[:reason] %></textarea>
+  </div>
+  <div class="availability-disclosure__actions">
+    <%= button_tag t("product_availability.exclusion.confirm"), type: "submit", class: "btn btn-danger btn-sm",
+          data: { testid: "confirm-exclusion-#{warehouse.id}", turbo_submits_with: t("product_availability.saving") } %>
+  </div>
+<% end %>

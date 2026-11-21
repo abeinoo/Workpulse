@@ -92,7 +92,7 @@ RSpec.describe "Inventory::Reports dashboard services", type: :model do
     end
 
     it "excludes untracked products" do
-      product.update!(track_inventory: false)
+      product.update_column(:track_inventory, false) # existing untracked data (turning it off now refuses while stock remains)
       expect(described_class.new(business).rows.map(&:product)).not_to include(product)
     end
   end

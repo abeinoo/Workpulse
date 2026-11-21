@@ -38,7 +38,7 @@ class PermissionRole < ApplicationRecord
     shifts:                %w[view_shifts manage_shifts assign_shifts manage_holidays],
     reports:               %w[view_dashboard view_reports export_reports],
     inventory:             %w[view_inventory manage_inventory view_inventory_reports
-                               manage_suppliers manage_products manage_stock_receipts
+                               manage_suppliers manage_products manage_product_availability manage_stock_receipts
                                create_goods_receipts approve_goods_receipts
                                confirm_goods_receipts void_goods_receipts
                                manage_stock_issues approve_stock_issues confirm_stock_issues
@@ -348,6 +348,9 @@ class PermissionRole < ApplicationRecord
     "manage_inventory"       => %w[view_inventory],
     "manage_suppliers"       => %w[view_inventory],
     "manage_products"        => %w[view_inventory],
+    # Product availability per warehouse (add / configure / deactivate a product
+    # in a warehouse) — always within the user's warehouse scope.
+    "manage_product_availability" => %w[view_inventory],
     "manage_stock_receipts"  => %w[view_inventory],
     "create_goods_receipts"  => %w[view_inventory],
     "approve_goods_receipts" => %w[view_inventory],

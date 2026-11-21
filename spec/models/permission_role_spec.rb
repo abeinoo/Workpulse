@@ -117,8 +117,8 @@ RSpec.describe PermissionRole, type: :model do
       expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(24)
     end
 
-    it "has 142 total permissions" do
-      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(142)
+    it "has 143 total permissions" do
+      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(143)
     end
 
     # Warehouse Architecture PR 5: company-wide warehouse access, explicit only.
