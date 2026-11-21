@@ -88,18 +88,4 @@ RSpec.describe "Inventory::StockIssues edit performance", type: :request do
     expect(option["data-barcode"]).to eq(primary)
     expect(doc.css("template select option[selected]")).to be_empty
   end
-
-  it "still refuses a product family (parent product) on update" do
-    products = products!(2)
-    issue = pending_issue(products)
-    parent = business.products.create!(name: "Family", sku: "FAM", initial_cost_price: 1, average_cost_price: 1)
-    business.products.create!(name: "Child", sku: "FAM-1", initial_cost_price: 1, average_cost_price: 1, parent_product: parent)
-
-    params = update_params(issue, quantity: 1)
-    params[:stock_issue][:items_attributes]["9"] = { product_id: parent.id, quantity: 1 }
-    patch inventory_stock_issue_path(issue), params: params
-
-    expect(response).to have_http_status(:unprocessable_entity)
-    expect(issue.reload.items.map(&:product_id)).not_to include(parent.id)
-  end
 end

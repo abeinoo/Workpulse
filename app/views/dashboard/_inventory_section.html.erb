@@ -26,7 +26,7 @@
           <tr>
             <td><%= product_identity(alert.product, link: inventory_product_path(alert.product)) %></td>
             <td class="td-secondary"><%= alert.product.sku %></td>
-            <td class="td-secondary"><%= alert.total? ? t("inventory.dashboard.all_warehouses") : alert.warehouse_name %></td>
+            <td class="td-secondary"><%= alert.warehouse_name %></td>
             <td style="text-align: end;"><span class="badge badge-warning"><%= alert.on_hand.to_i %></span></td>
             <td style="text-align: end;"><%= alert.reorder_quantity.to_i %></td>
           </tr>

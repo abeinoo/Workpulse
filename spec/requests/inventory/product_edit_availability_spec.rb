@@ -19,7 +19,11 @@ RSpec.describe "Product Edit — availability per warehouse (included by default
   let!(:nasr)    { sales_warehouse("Nasr City") }
   let!(:shubra)  { sales_warehouse("Shubra") }
   let!(:central) { business.warehouses.create!(name: "Central WH", kind: "central") }
-  let!(:product) { business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10, low_stock_level: 77) }
+  # Stale values in the retired product-level columns: never shown or used.
+  let!(:product) do
+    business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10)
+            .tap { |p| write_retired_product_stock_columns!(p, low_stock_level: 77, reorder_quantity: 88) }
+  end
   let(:manager)  { Inventory::ProductAvailabilityManager.new(actor: owner) }
 
   # Edits products and manages availability.
@@ -232,7 +236,8 @@ RSpec.describe "Product Edit — availability per warehouse (included by default
       row = ProductWarehouseSetting.sole
       expect(row).to have_attributes(low_stock_level: 6, reorder_quantity: 2)
       expect(AuditLog.where(auditable: row, action: "availability_update").count).to eq(1)
-      expect(product.reload.attributes.slice("name", "low_stock_level")).to eq("name" => "Shampoo", "low_stock_level" => 77)
+      expect(product.reload.name).to eq("Shampoo")
+      expect(retired_product_stock_columns(product)["low_stock_level"]).to eq(77)
     end
 
     it "saving unchanged values writes nothing" do

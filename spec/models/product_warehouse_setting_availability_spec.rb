@@ -8,8 +8,7 @@ RSpec.describe ProductWarehouseSetting, "availability state" do
   let!(:central) { business.warehouses.create!(name: "Main Warehouse", kind: "central") }
   let!(:shubra_branch) { create(:branch, business: business, name: "Shoubra", branch_type: "sales") }
   let(:product) do
-    business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 1, average_cost_price: 1,
-                              low_stock_level: 10, reorder_level: 10, reorder_quantity: 20, receive_low_stock_notification: true)
+    business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 1, average_cost_price: 1)
   end
 
   def configure(warehouse = central, **attrs)

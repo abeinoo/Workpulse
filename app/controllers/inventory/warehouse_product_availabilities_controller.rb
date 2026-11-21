@@ -249,8 +249,8 @@ class Inventory::WarehouseProductAvailabilitiesController < Inventory::BaseContr
                      .pluck(:product_id)
   end
 
-  # The Add page's candidate list: transactable products (active, not a
-  # family parent) of the business, searchable, one page at a time.
+  # The Add page's candidate list: transactable (active) products of the
+  # business, searchable, one page at a time.
   def load_candidates
     @candidate_filter = CANDIDATE_FILTERS.include?(params[:filter]) ? params[:filter] : "not_configured"
     @query = params[:q].to_s.strip.presence

@@ -176,8 +176,8 @@ RSpec.describe "Product Edit — availability per warehouse (browser)", type: :s
   end
 
   { "en" => "ltr", "ar" => "rtl" }.each do |locale, dir|
-    it "a product with legacy values: no transfer UI; the central card is a normal editable card like a branch (#{locale})" do
-      product.update_columns(low_stock_level: 6, reorder_quantity: 12, reorder_level: 6)
+    it "stale product-level values: no product-level field; the central card shows its own defaults like a branch (#{locale})" do
+      write_retired_product_stock_columns!(product, low_stock_level: 6, reorder_quantity: 12, reorder_level: 6)
       as(locale, 390)
       visit edit_inventory_product_path(product)
 
@@ -186,36 +186,11 @@ RSpec.describe "Product Edit — availability per warehouse (browser)", type: :s
         expect(page).to have_field("pws-#{central.id}-reorder", with: "0")
         expect(page).to have_css("[data-testid='save-#{central.id}'], [data-testid='exclude-#{central.id}']", count: 2)
       end
-      expect(page).to have_no_css("[data-testid^='pending-transfer'], [data-testid='legacy-total-alert-active'], [data-testid='legacy-values']")
+      expect(page).to have_no_css("[data-testid^='pending-transfer'], [data-testid^='legacy-low-stock'], [data-testid^='legacy-reorder']")
       expect(js("document.documentElement.dir")).to eq(dir)
       expect(js("document.documentElement.scrollWidth")).to be <= 390
       expect(ProductWarehouseSetting.count).to eq(0)
     end
-  end
-
-  it "after the backfill (product 364's case) the central card shows the persisted 2 / 6 in its normal inputs and saves edits" do
-    product.update_columns(low_stock_level: 2, reorder_quantity: 6, reorder_level: 2)
-    manager.save_settings(product_id: product.id, warehouse_id: nasr.id, low_stock_level: 0, reorder_quantity: 0)
-    preview = Inventory::LegacyCentralSettingsBackfill.new(business).dry_run
-    expect(Inventory::LegacyCentralSettingsBackfill.new(business, actor: owner)
-             .apply!(expected_central_id: preview.central.id, expected_count: preview.to_create_count).error).to be_nil
-    as("en", 1440)
-    visit edit_inventory_product_path(product)
-
-    within(card(central)) do
-      expect(page).to have_field("pws-#{central.id}-low", with: "2")
-      expect(page).to have_field("pws-#{central.id}-reorder", with: "6")
-    end
-    expect(ProductWarehouseSetting.find_by!(warehouse: central)).to have_attributes(low_stock_level: 2, reorder_quantity: 6) # persisted
-    expect(page).to have_no_css("[data-testid^='pending-transfer'], [data-testid='legacy-total-alert-active']")
-    if ENV["PRODUCT_364_SCREENSHOT"] # optional evidence image (disposable test data)
-      page.execute_script("arguments[0].scrollIntoView({block: 'center'})", card(central))
-      page.save_screenshot(ENV["PRODUCT_364_SCREENSHOT"])
-    end
-    fill_in "pws-#{central.id}-low", with: "3"
-    find("[data-testid='save-#{central.id}']").click
-    expect(page).to have_css("[data-testid='availability-notice']", text: "Settings saved")
-    expect(ProductWarehouseSetting.find_by!(warehouse: central)).to have_attributes(low_stock_level: 3, reorder_quantity: 6)
   end
 
   it "the card controls are reachable by keyboard" do

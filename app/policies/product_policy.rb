@@ -5,7 +5,6 @@ class ProductPolicy < ApplicationPolicy
   def update?  = create?
   def archive? = create?
   def restore? = create?
-  def archive_family? = create?
   def destroy? = create?
 
   class Scope < ApplicationPolicy::Scope

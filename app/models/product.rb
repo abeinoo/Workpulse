@@ -1,6 +1,17 @@
 class Product < ApplicationRecord
   include Attachable
 
+  # Retired product-level stock settings. Low-stock threshold, reorder
+  # quantity and the low-stock notification are per warehouse only
+  # (ProductWarehouseSetting); the product never has one, and nothing falls
+  # back to these columns. They stay in the table until a reviewed migration
+  # drops them; ignoring them here makes any remaining read or write fail
+  # loudly instead of silently using a stale value.
+  self.ignored_columns += %w[low_stock_level reorder_quantity reorder_level receive_low_stock_notification]
+  # Retired Product Family (parent / child products): every product stands on
+  # its own. The column stays until a reviewed migration drops it.
+  self.ignored_columns += %w[parent_product_id]
+
   has_one_attached :image
 
   validates_attachment :image,
@@ -11,11 +22,7 @@ class Product < ApplicationRecord
   belongs_to :brand,            optional: true
   belongs_to :product_category, optional: true
   belongs_to :default_supplier, class_name: "Supplier", optional: true
-  belongs_to :parent_product,   class_name: "Product", optional: true,
-                                foreign_key: :parent_product_id, inverse_of: :child_products
 
-  has_many :child_products, class_name: "Product", foreign_key: :parent_product_id,
-                            inverse_of: :parent_product, dependent: :nullify
   has_many :goods_receipt_items,   dependent: :restrict_with_error
   has_many :stock_issue_items,     dependent: :restrict_with_error
   has_many :stock_transfer_items,  dependent: :restrict_with_error
@@ -39,8 +46,6 @@ class Product < ApplicationRecord
             numericality: { greater_than_or_equal_to: 0 }
   validates :last_purchase_price,
             numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
-  validates :low_stock_level, :reorder_quantity,
-            numericality: { greater_than_or_equal_to: 0 }
   validates :selling_markup_percentage,
             numericality: { greater_than_or_equal_to: 0 }
   # Display-only — no conversion math anywhere in the app. A product's
@@ -48,40 +53,14 @@ class Product < ApplicationRecord
   # in this one unit; never mix e.g. kg and g on the same product.
   UNITS_OF_MEASURE = %w[pieces kg g l ml].freeze
   validates :unit_of_measure, inclusion: { in: UNITS_OF_MEASURE }
-  # Validations run before every save callback, so a refused cross-business
-  # parent never reaches propagate_non_tracking_to_parent (after_save →
-  # parent_product.force_non_tracking!) — SEC-P6-6.
-  validate :parent_product_in_same_business, if: :parent_product_id?
   # "Track stock quantity" stays on while the product still holds stock or is
   # on an open inventory document (Inventory::TrackingDependencies): an
   # untracked product drops out of counts, alerts and reorder settings, so
-  # stock must never silently leave inventory management. A product becoming
-  # a family parent (force_non_tracking!) follows its own existing rule.
+  # stock must never silently leave inventory management.
   validate :tracking_kept_while_stock_or_documents, on: :update
-  validate :parent_depth_constraint, if: :parent_product_id?
-  validate :not_own_parent,          if: :parent_product_id?
   validate :default_supplier_in_same_business, if: :default_supplier_id?
   validate :brand_in_same_business,            if: :brand_id?
   validate :product_category_in_same_business, if: :product_category_id?
-
-  # Parent must not itself be a child — enforces max depth = 1.
-  def parent_depth_constraint
-    return unless parent_product
-    if parent_product.parent_product_id?
-      errors.add(:parent_product_id, :too_deep)
-    end
-  end
-
-  def not_own_parent
-    errors.add(:parent_product_id, :circular) if parent_product_id == id
-  end
-
-  # The parent must belong to the product's business (SEC-P6-6).
-  def parent_product_in_same_business
-    return if parent_product.nil? || business_id.nil?
-
-    errors.add(:parent_product, :invalid) if parent_product.business_id != business_id
-  end
 
   # The default supplier must belong to the product's business (SEC-P6-2) —
   # the PurchaseRequest / GoodsReceipt supplier_in_same_business rule.
@@ -105,16 +84,8 @@ class Product < ApplicationRecord
     errors.add(:product_category, :invalid) if product_category.business_id != business_id
   end
 
-  # Force parent products to non-tracking before every save.
-  # Runs AFTER validations so the attribute is always correct at the DB layer
-  # regardless of what was submitted through the form.
-  before_save :enforce_parent_not_tracked
   before_save :ensure_single_primary_barcode
 
-  # When this product gains a parent, that parent must be forced non-tracking.
-  # Uses update! (not update_columns) so callbacks, dirty tracking and any future
-  # audit trail (e.g. PaperTrail) all fire on the parent record.
-  after_save  :propagate_non_tracking_to_parent, if: :saved_change_to_parent_product_id?
   # Auto-generate a primary barcode when the product is created with no barcodes.
   # Fires after nested product_barcodes are already saved, so the check is accurate.
   after_create :auto_generate_barcode
@@ -124,48 +95,8 @@ class Product < ApplicationRecord
   scope :active,             -> { where(active: true) }
   scope :archived,           -> { where(active: false) }
   scope :inventory_tracked,  -> { where(track_inventory: true) }
-  scope :low_stock_notifiable, -> { active.inventory_tracked.where(receive_low_stock_notification: true) }
-  # Exclude products that have children — parents carry no inventory of their own.
-  scope :non_parent, -> {
-    where("NOT EXISTS (SELECT 1 FROM products c WHERE c.parent_product_id = products.id)")
-  }
-  # Only products that may appear in inventory transaction line items:
-  # active standalone/child products, never parent or archived products.
-  scope :transactable, -> {
-    where(active: true)
-      .where("NOT EXISTS (SELECT 1 FROM products c WHERE c.parent_product_id = products.id)")
-  }
-  # Family-type filter scopes.
-  scope :root_parents, -> {
-    where(parent_product_id: nil)
-      .where("EXISTS (SELECT 1 FROM products c WHERE c.parent_product_id = products.id)")
-  }
-  scope :children,   -> { where.not(parent_product_id: nil) }
-  scope :standalone, -> {
-    where(parent_product_id: nil)
-      .where("NOT EXISTS (SELECT 1 FROM products c WHERE c.parent_product_id = products.id)")
-  }
-  # Products whose total movement stock is at or below their reorder_level.
-  # Uses a correlated subquery — adequate for catalog sizes typical in this app.
-  scope :low_stock, -> {
-    low_stock_notifiable.where(
-      "products.reorder_level > 0 AND products.reorder_level >= (" \
-      "  SELECT COALESCE(SUM(CASE WHEN im.direction = 'in' THEN im.quantity ELSE -im.quantity END), 0)" \
-      "  FROM inventory_movements im" \
-      "  WHERE im.product_id = products.id" \
-      ")"
-    )
-  }
-
-  # True when this product has child products (is a family container).
-  def parent?
-    child_products.loaded? ? child_products.any? : child_products.exists?
-  end
-
-  # True when this product belongs to a parent family.
-  def child?
-    parent_product_id?
-  end
+  # Products that may appear on inventory document lines: every active product.
+  scope :transactable,       -> { active }
 
   # Total on-hand across all warehouses, derived from the movement ledger.
   # Movements are the source of truth — this is never edited directly.
@@ -176,30 +107,6 @@ class Product < ApplicationRecord
   # On-hand quantity in a single warehouse.
   def stock_in(warehouse)
     Inventory::StockLevels.new(self).in_warehouse(warehouse)
-  end
-
-  def low_stock?
-    active? && track_inventory? && current_stock <= low_stock_level
-  end
-
-  # Warehouse-specific threshold, falling back to the product-level default
-  # when no per-warehouse override is configured.
-  def low_stock_level_for(warehouse)
-    setting_for(warehouse)&.low_stock_level || low_stock_level
-  end
-
-  def reorder_quantity_for(warehouse)
-    setting_for(warehouse)&.reorder_quantity || reorder_quantity
-  end
-
-  # True when this product is at/below its threshold IN the given warehouse.
-  def low_stock_in?(warehouse)
-    active? && track_inventory? && stock_in(warehouse) <= low_stock_level_for(warehouse)
-  end
-
-  def setting_for(warehouse)
-    warehouse_id = warehouse.respond_to?(:id) ? warehouse.id : warehouse
-    product_warehouse_settings.detect { |s| s.warehouse_id == warehouse_id }
   end
 
   def stock_value
@@ -216,23 +123,11 @@ class Product < ApplicationRecord
   end
 
   def archive!
-    if parent? && child_products.where(active: true).exists?
-      errors.add(:base, :archive_has_active_children)
-      raise ActiveRecord::RecordInvalid, self
-    end
     update!(active: false, archived_at: Time.current)
   end
 
   def restore!
     update!(active: true, archived_at: nil)
-  end
-
-  # Archive this parent and all its active children in one call.
-  def archive_family!
-    transaction do
-      child_products.where(active: true).find_each(&:archive!)
-      update!(active: false, archived_at: Time.current)
-    end
   end
 
   def has_inventory_history?
@@ -247,24 +142,12 @@ class Product < ApplicationRecord
 
   def tracking_kept_while_stock_or_documents
     return unless will_save_change_to_track_inventory?(from: true, to: false)
-    return if @becoming_family_parent # force_non_tracking!: an existing, separate rule
 
     blockers = Inventory::TrackingDependencies.new(self).blockers
     return if blockers.empty?
 
     details = blockers.map { |key, count| I18n.t("activerecord.errors.models.product.tracking_blockers.#{key}", count: count) }
     errors.add(:track_inventory, :tracking_in_use, details: details.to_sentence)
-  end
-
-  # Forces parent's track_inventory to false via update! so all callbacks and
-  # audit trails fire. Guards against no-op saves.
-  def force_non_tracking!
-    return unless track_inventory? || receive_low_stock_notification?
-
-    @becoming_family_parent = true
-    update!(track_inventory: false, receive_low_stock_notification: false)
-  ensure
-    @becoming_family_parent = false
   end
 
   # Returns the primary barcode value (or first barcode if none marked primary).
@@ -311,25 +194,12 @@ class Product < ApplicationRecord
 
   private
 
-  def enforce_parent_not_tracked
-    is_parent = child_products.loaded? ? child_products.any? : child_products.exists?
-    if is_parent
-      self.track_inventory              = false
-      self.receive_low_stock_notification = false
-    end
-  end
-
-  def propagate_non_tracking_to_parent
-    parent_product&.force_non_tracking!
-  end
-
   # Ensures at most one barcode is marked primary before the nested records save.
   # If multiple are checked (e.g., JS disabled), keeps the last one. Auto-promotes
   # Generates a primary barcode via the business sequence when the product was
   # created without any barcodes. The DB check (exists?) is authoritative because
   # nested product_barcodes are committed before after_create fires.
   def auto_generate_barcode
-    return if parent?
     return if product_barcodes.exists?
     Inventory::BusinessBarcodeGenerator.new(business).call(self)
   end

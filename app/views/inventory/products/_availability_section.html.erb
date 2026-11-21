@@ -20,12 +20,22 @@
 <% row_errors       = local_assigns[:row_errors] || {} %>
 <% row_values       = local_assigns[:row_values] || {} %>
 <% exclusion_errors = local_assigns[:exclusion_errors] || {} %>
-<% tracked = product.track_inventory? %>
+<%# Cards follow the SAVED tracking state (a refused "untick" re-renders the
+    form with the box off while the product is still tracked). On Product Edit
+    the whole section is hidden while the box is off — on load, and live via
+    inventory_tracking_controller — purely visual: no row is touched. %>
+<%# On Product Edit it is embedded in the "Inventory Tracking, Notifications &
+    Warehouse Availability" section, right below the checkbox (no card of its
+    own, a sub-heading); the standalone availability page shows it as its own section. %>
+<% tracked  = product.attribute_in_database(:track_inventory) %>
+<% embedded = return_to == "product_edit" %>
+<% hidden   = embedded && !product.track_inventory? %>
 
-<section id="availability" class="availability-section" aria-labelledby="availability-title" data-controller="availability-preserve">
+<section id="availability" class="availability-section<%= ' availability-section--embedded' if embedded %>" aria-labelledby="availability-title"
+         data-controller="availability-preserve" data-testid="availability-section" <%= "hidden" if hidden %>>
   <%= turbo_frame_tag "product-availability", target: "_top", class: "availability-frame" do %>
     <div class="availability-section__head">
-      <h2 class="section-title" id="availability-title"><%= t("product_availability.section.title") %></h2>
+      <%= content_tag(embedded ? :h3 : :h2, t("product_availability.section.title"), class: "section-title", id: "availability-title") %>
       <p class="form-hint"><%= t("product_availability.section.hint") %></p>
       <% if tracked %><p class="form-hint"><%= t("product_availability.section.threshold_hint") %></p><% end %>
     </div>

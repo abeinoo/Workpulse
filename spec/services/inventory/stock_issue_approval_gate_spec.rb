@@ -9,8 +9,7 @@ RSpec.describe "Stock issue approval gate" do
   let(:warehouse) { business.warehouses.create!(name: "Main") }
   let(:branch)    { business.branches.create!(name: "Nasr City", active: true) }
   let(:product) do
-    business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10,
-                              reorder_level: 8)
+    business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10)
   end
 
   let(:importer_user) { create(:user, business: business) }
@@ -137,9 +136,9 @@ RSpec.describe "Stock issue approval gate" do
     end
 
     it "low-stock calculations ignore them" do
-      # 10 on hand, reorder level 8: an unposted 5 + 3 would push it below.
-      expect(Product.low_stock).not_to include(product)
-      expect(product.low_stock?).to be false
+      # 10 on hand, warehouse threshold 8: an unposted 5 + 3 would push it below.
+      product.product_warehouse_settings.create!(warehouse: warehouse, low_stock_level: 8, reorder_quantity: 1)
+      expect(Inventory::LowStockQuery.new(business).alerts).to be_empty
     end
 
     it "the consumption ledger, movements report and branch comparison ignore them" do

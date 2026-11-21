@@ -6,8 +6,7 @@ module Inventory
     #   Product Name, SKU, Barcode, Brand, Category, Initial Cost,
     #   Current Stock, Low Stock Level, Reorder Quantity
     #
-    # Each row creates one product. Use Parent/Child Products for grouping
-    # (not the removed Variant system).
+    # Each row creates one product.
     #
     # Validates duplicate SKU / barcode (against the database AND within the file)
     # before importing — offending rows are skipped and reported. Brands and

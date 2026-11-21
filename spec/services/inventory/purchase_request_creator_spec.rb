@@ -273,13 +273,11 @@ RSpec.describe Inventory::PurchaseRequestCreator, type: :model do
       expect(result.purchase_requests.first.source).to be_nil
     end
 
-    it "rejects a product from another business, an archived product, and a parent product" do
+    it "rejects a product from another business and an archived product" do
       foreign  = create(:business).products.create!(name: "F", sku: "F-1", average_cost_price: 1)
       archived = business.products.create!(name: "Arch", sku: "AR-1", average_cost_price: 1, active: false)
-      parent   = business.products.create!(name: "Parent", sku: "P-1", average_cost_price: 1)
-      business.products.create!(name: "Child", sku: "P-1-C", average_cost_price: 1, parent_product: parent)
 
-      [ foreign, archived, parent ].each do |product|
+      [ foreign, archived ].each do |product|
         result = create_batch([ item(product, supplier_1, qty: 1, price: 1) ])
         expect(result).not_to be_ok
         expect(result.error).to eq(I18n.t("inventory.purchase_requests.errors.invalid_product"))

@@ -32,7 +32,6 @@ class Inventory::DashboardController < Inventory::BaseController
                                                       .sort_by { |r| [ r.on_hand.positive? ? 1 : 0, r.on_hand / [ r.low_stock_level, 1 ].max, r.product.name ] }
     @suppliers        = business.suppliers.ordered
     load_responsible_options # the review modal's responsible employee
-    @family_low_stock = @low_stock_alerts.select { |a| a.product.parent_product_id? }.group_by { |a| a.product.parent_product }
 
     @warehouses        = accessible_warehouses.to_a
     @warehouse_summary = Inventory::Reports::WarehouseSummary.new(business, warehouses: @warehouses, movement_summary: @movements,
@@ -42,7 +41,7 @@ class Inventory::DashboardController < Inventory::BaseController
     @action_items = build_action_items
     load_recent_movements(business, wh_ids)
     load_quick_product
-    preload_product_images(@low_stock_alerts.map(&:product) + @family_low_stock.keys + @active_products.map(&:product) +
+    preload_product_images(@low_stock_alerts.map(&:product) + @active_products.map(&:product) +
                            @recent_movements.map(&:product))
   end
 

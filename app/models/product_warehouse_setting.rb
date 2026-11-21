@@ -8,7 +8,7 @@
 #                      so a reactivation restores them (status_reason / status_changed_*)
 #
 # There is no product-wide default: a warehouse without a row never inherits
-# another warehouse's (or the product's legacy) values. A threshold of 0
+# another warehouse's values (products have no stock settings). A threshold of 0
 # means no low-stock detection for that warehouse. receive_low_stock_notification
 # controls dashboard notification surfaces only — never detection.
 #

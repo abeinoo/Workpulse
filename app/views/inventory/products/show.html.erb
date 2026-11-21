@@ -18,7 +18,7 @@
       <%= @product.name %>
       <% if @product.archived? %>
         <span class="badge badge-neutral"><%= t("inventory.products.archived_badge") %></span>
-      <% elsif @product.low_stock? %>
+      <% elsif @low_stock_warehouse %>
         <span class="badge badge-warning"><%= t("inventory.products.low_stock_badge") %></span>
       <% end %>
     </h1>
@@ -42,65 +42,38 @@
                 class: "btn btn-danger btn-sm" %>
         <% else %>
           <%= link_to t("common.edit"), edit_inventory_product_path(@product), class: "btn btn-secondary btn-sm" %>
-          <% if @product.parent? %>
-            <%= button_to t("inventory.products.archive_family"), archive_family_inventory_product_path(@product),
-                  method: :patch,
-                  form: { data: { turbo_confirm: t("inventory.products.archive_family_confirm") } },
-                  class: "btn btn-ghost btn-sm" %>
-          <% else %>
-            <%= button_to t("inventory.products.archive"), archive_inventory_product_path(@product),
-                  method: :patch,
-                  form: { data: { turbo_confirm: t("inventory.products.archive_confirm") } },
-                  class: "btn btn-ghost btn-sm" %>
-          <% end %>
+          <%= button_to t("inventory.products.archive"), archive_inventory_product_path(@product),
+                method: :patch,
+                form: { data: { turbo_confirm: t("inventory.products.archive_confirm") } },
+                class: "btn btn-ghost btn-sm" %>
         <% end %>
       <% end %>
     </div>
   </div>
 
-  <% if @product.parent? %>
-    <%# ── Parent product stat cards (family aggregates, no avg cost) ── %>
-    <div class="stats-grid" style="margin-bottom: var(--space-6);">
-      <div class="stat-card">
-        <span class="stat-card__label"><%= t("inventory.products.family_total_stock") %></span>
-        <span class="stat-card__value"><%= @family_stock.to_i %></span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-card__label"><%= t("inventory.products.child_products_count") %></span>
-        <span class="stat-card__value"><%= @product.child_products.size %></span>
-      </div>
+  <%# ── Standard product stat cards ── %>
+  <div class="stats-grid" style="margin-bottom: var(--space-6);">
+    <div class="stat-card <%= 'stat-card--warning' if @low_stock_warehouse %>">
+      <span class="stat-card__label"><%= t("inventory.products.current_stock") %></span>
+      <span class="stat-card__value"><%= @display_stock.to_i %></span>
     </div>
-  <% else %>
-    <%# ── Standard product stat cards ── %>
-    <div class="stats-grid" style="margin-bottom: var(--space-6);">
-      <div class="stat-card <%= 'stat-card--warning' if @display_stock <= @product.low_stock_level %>">
-        <span class="stat-card__label"><%= t("inventory.products.current_stock") %></span>
-        <span class="stat-card__value"><%= @display_stock.to_i %></span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-card__label"><%= t("inventory.products.avg_cost") %></span>
-        <span class="stat-card__value"><%= format_currency(@product.average_cost_price) %></span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-card__label"><%= t("inventory.products.last_purchase_price") %></span>
-        <span class="stat-card__value"><%= format_currency(@last_purchase_price) %></span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-card__label"><%= t("inventory.products.stock_value") %></span>
-        <span class="stat-card__value"><%= format_currency(@display_stock_value) %></span>
-      </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("inventory.products.avg_cost") %></span>
+      <span class="stat-card__value"><%= format_currency(@product.average_cost_price) %></span>
     </div>
-  <% end %>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("inventory.products.last_purchase_price") %></span>
+      <span class="stat-card__value"><%= format_currency(@last_purchase_price) %></span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("inventory.products.stock_value") %></span>
+      <span class="stat-card__value"><%= format_currency(@display_stock_value) %></span>
+    </div>
+  </div>
 
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
     <dl class="detail-list">
       <div class="detail-list__row"><dt><%= t("inventory.products.sku") %></dt><dd><%= @product.sku %></dd></div>
-      <% if @product.child? %>
-        <div class="detail-list__row">
-          <dt><%= t("inventory.products.parent_product") %></dt>
-          <dd><%= link_to @product.parent_product.name, inventory_product_path(@product.parent_product), class: "link" %></dd>
-        </div>
-      <% end %>
       <% all_barcodes = @product.product_barcodes.loaded? ? @product.product_barcodes.to_a : @product.product_barcodes.ordered.to_a %>
       <% if all_barcodes.any? %>
         <% all_barcodes.group_by(&:barcode_type).each do |type, type_barcodes| %>
@@ -112,22 +85,15 @@
                   <li class="barcode-tag<%= " barcode-tag--primary" if pb.is_primary? %>">
                     <span class="barcode-tag__value"><%= pb.barcode %></span>
                     <% if pb.is_primary? %><span class="badge badge-neutral barcode-tag__badge"><%= t("inventory.products.barcode_primary") %></span><% end %>
-                    <% unless @product.parent? %>
-                      <%= link_to inventory_barcode_label_path(@product, barcode_id: pb.id),
-                            target: "_blank", rel: "noopener",
-                            class: "barcode-tag__print",
-                            title: t("inventory.barcode_labels.print_barcode") do %>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                      <% end %>
+                    <%= link_to inventory_barcode_label_path(@product, barcode_id: pb.id),
+                          target: "_blank", rel: "noopener",
+                          class: "barcode-tag__print",
+                          title: t("inventory.barcode_labels.print_barcode") do %>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                     <% end %>
                   </li>
                 <% end %>
               </ul>
-              <% if @product.parent? %>
-                <p class="form-hint" style="margin-top: var(--space-1);">
-                  <%= t("inventory.products.parent_barcodes_show_notice") %>
-                </p>
-              <% end %>
             </dd>
           </div>
         <% end %>
@@ -143,8 +109,6 @@
       <div class="detail-list__row"><dt><%= t("inventory.products.initial_cost_price") %></dt><dd><%= format_currency(@product.initial_cost_price) %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.products.selling_markup_percentage") %></dt><dd><%= number_to_percentage(@product.selling_markup_percentage, precision: 1) %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.products.selling_price") %></dt><dd><%= format_currency(@product.selling_price) %></dd></div>
-      <div class="detail-list__row"><dt><%= t("product_availability.legacy.low_stock_level") %></dt><dd><%= @product.low_stock_level.to_i %></dd></div>
-      <div class="detail-list__row"><dt><%= t("product_availability.legacy.reorder_quantity") %></dt><dd><%= @product.reorder_quantity.to_i %></dd></div>
       <div class="detail-list__row">
         <dt><%= t("inventory.products.track_inventory") %></dt>
         <dd>
@@ -155,219 +119,159 @@
           <% end %>
         </dd>
       </div>
-      <% if @product.track_inventory? %>
-        <div class="detail-list__row">
-          <dt><%= t("inventory.products.reorder_level") %></dt>
-          <dd><%= @product.reorder_level %></dd>
-        </div>
-        <div class="detail-list__row">
-          <dt><%= t("inventory.products.receive_low_stock_notification") %></dt>
-          <dd>
-            <% if @product.receive_low_stock_notification? %>
-              <span class="badge badge-success"><%= t("common.yes") %></span>
-            <% else %>
-              <span class="badge badge-neutral"><%= t("common.no") %></span>
-            <% end %>
-          </dd>
-        </div>
-      <% end %>
       <% if @product.notes.present? %>
         <div class="detail-list__row"><dt><%= t("inventory.products.notes") %></dt><dd><%= simple_format(@product.notes) %></dd></div>
       <% end %>
     </dl>
   </div>
 
-  <% if @product.parent? %>
-    <%# ── Child products table for parent products ───────────── %>
-    <h2 class="section-title"><%= t("inventory.products.child_products") %></h2>
-    <% if @product.child_products.empty? %>
-      <div class="empty-state empty-state--compact">
-        <p class="empty-state__text"><%= t("inventory.products.no_children_yet") %></p>
-      </div>
-    <% else %>
+  <%= render "inventory/products/warehouse_availability", product: @product, pairs: @availability_pairs,
+        manage_path: @availability_manage_path %>
+
+  <% unless @recent_goods_receipts.nil? %>
+    <%= render "inventory/products/recent_goods_receipts", rows: @recent_goods_receipts %>
+  <% end %>
+  <% unless @recent_stock_issues.nil? %>
+    <%= render "inventory/products/recent_stock_issues", rows: @recent_stock_issues, product: @product %>
+  <% end %>
+
+  <%# ── Purchase Information ─────────────────────────────── %>
+  <h2 class="section-title"><%= t("inventory.products.purchase_information") %></h2>
+  <% if @last_gr_item %>
+    <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+      <dl class="detail-list">
+        <div class="detail-list__row">
+          <dt><%= t("inventory.products.last_supplier") %></dt>
+          <dd>
+            <% if @last_gr_item.goods_receipt.supplier %>
+              <%= link_to @last_gr_item.goods_receipt.supplier.name,
+                    inventory_supplier_path(@last_gr_item.goods_receipt.supplier), class: "link" %>
+            <% else %>
+              —
+            <% end %>
+          </dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("inventory.products.last_purchase_date") %></dt>
+          <dd><%= local_date(@last_gr_item.goods_receipt.received_on) %></dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("inventory.products.last_purchase_unit_price") %></dt>
+          <dd><%= format_currency(@last_gr_item.unit_cost) %></dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("inventory.products.last_purchase_quantity") %></dt>
+          <dd><%= @last_gr_item.quantity.to_i %></dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("inventory.products.last_gr_reference") %></dt>
+          <dd>
+            <%= link_to @last_gr_item.goods_receipt.receipt_number,
+                  inventory_goods_receipt_path(@last_gr_item.goods_receipt), class: "link" %>
+          </dd>
+        </div>
+      </dl>
+    </div>
+
+    <%# ── Supplier Purchase History ────────────────────────── %>
+    <h2 class="section-title"><%= t("inventory.products.supplier_purchase_history") %></h2>
+    <% if @supplier_purchase_rows.any? %>
       <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-5);">
         <table>
           <thead><tr>
-            <th><%= t("inventory.products.name") %></th>
-            <th><%= t("inventory.products.sku") %></th>
-            <th style="text-align: end;"><%= t("inventory.products.current_stock") %></th>
-            <th style="text-align: end;"><%= t("inventory.products.avg_cost") %></th>
-            <th></th>
+            <th><%= t("inventory.products.supplier") %></th>
+            <th><%= t("inventory.products.last_purchase_date") %></th>
+            <th style="text-align: end;"><%= t("inventory.products.last_purchase_unit_price") %></th>
+            <th style="text-align: end;"><%= t("inventory.products.total_purchased_quantity") %></th>
+            <th style="text-align: end;"><%= t("inventory.products.purchase_count") %></th>
           </tr></thead>
           <tbody>
-            <% @product.child_products.ordered.with_attached_image.each do |child| %>
-              <% stock = @child_stock_totals[child.id] || 0 %>
+            <% @supplier_purchase_rows.each do |row| %>
               <tr>
-                <td><%= product_identity(child, link: inventory_product_path(child)) %></td>
-                <td class="td-secondary"><%= child.sku %></td>
-                <td style="text-align: end;">
-                  <% if child.track_inventory? && stock <= child.low_stock_level %>
-                    <span class="badge badge-warning"><%= stock.to_i %></span>
-                  <% else %>
-                    <%= stock.to_i %>
-                  <% end %>
-                </td>
-                <td style="text-align: end;"><%= format_currency(child.average_cost_price) %></td>
-                <td class="td-actions">
-                  <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>
-                    <%= link_to t("common.edit"), edit_inventory_product_path(child), class: "link-muted" %>
-                  <% end %>
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-    <% end %>
-  <% else %>
-    <%= render "inventory/products/warehouse_availability", product: @product, pairs: @availability_pairs,
-          manage_path: @availability_manage_path %>
-
-    <% unless @recent_goods_receipts.nil? %>
-      <%= render "inventory/products/recent_goods_receipts", rows: @recent_goods_receipts %>
-    <% end %>
-    <% unless @recent_stock_issues.nil? %>
-      <%= render "inventory/products/recent_stock_issues", rows: @recent_stock_issues, product: @product %>
-    <% end %>
-
-    <%# ── Purchase Information ─────────────────────────────── %>
-    <h2 class="section-title"><%= t("inventory.products.purchase_information") %></h2>
-    <% if @last_gr_item %>
-      <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
-        <dl class="detail-list">
-          <div class="detail-list__row">
-            <dt><%= t("inventory.products.last_supplier") %></dt>
-            <dd>
-              <% if @last_gr_item.goods_receipt.supplier %>
-                <%= link_to @last_gr_item.goods_receipt.supplier.name,
-                      inventory_supplier_path(@last_gr_item.goods_receipt.supplier), class: "link" %>
-              <% else %>
-                —
-              <% end %>
-            </dd>
-          </div>
-          <div class="detail-list__row">
-            <dt><%= t("inventory.products.last_purchase_date") %></dt>
-            <dd><%= local_date(@last_gr_item.goods_receipt.received_on) %></dd>
-          </div>
-          <div class="detail-list__row">
-            <dt><%= t("inventory.products.last_purchase_unit_price") %></dt>
-            <dd><%= format_currency(@last_gr_item.unit_cost) %></dd>
-          </div>
-          <div class="detail-list__row">
-            <dt><%= t("inventory.products.last_purchase_quantity") %></dt>
-            <dd><%= @last_gr_item.quantity.to_i %></dd>
-          </div>
-          <div class="detail-list__row">
-            <dt><%= t("inventory.products.last_gr_reference") %></dt>
-            <dd>
-              <%= link_to @last_gr_item.goods_receipt.receipt_number,
-                    inventory_goods_receipt_path(@last_gr_item.goods_receipt), class: "link" %>
-            </dd>
-          </div>
-        </dl>
-      </div>
-
-      <%# ── Supplier Purchase History ────────────────────────── %>
-      <h2 class="section-title"><%= t("inventory.products.supplier_purchase_history") %></h2>
-      <% if @supplier_purchase_rows.any? %>
-        <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-5);">
-          <table>
-            <thead><tr>
-              <th><%= t("inventory.products.supplier") %></th>
-              <th><%= t("inventory.products.last_purchase_date") %></th>
-              <th style="text-align: end;"><%= t("inventory.products.last_purchase_unit_price") %></th>
-              <th style="text-align: end;"><%= t("inventory.products.total_purchased_quantity") %></th>
-              <th style="text-align: end;"><%= t("inventory.products.purchase_count") %></th>
-            </tr></thead>
-            <tbody>
-              <% @supplier_purchase_rows.each do |row| %>
-                <tr>
-                  <td>
-                    <% if row[:supplier] %>
-                      <%= link_to row[:supplier].name,
-                            inventory_supplier_path(row[:supplier]), class: "link" %>
-                    <% else %>
-                      <span class="td-secondary">—</span>
-                    <% end %>
-                  </td>
-                  <td class="td-secondary"><%= local_date(row[:last_purchase_date]) %></td>
-                  <td style="text-align: end;"><%= format_currency(row[:last_purchase_price]) %></td>
-                  <td style="text-align: end;"><%= row[:total_quantity].to_i %></td>
-                  <td style="text-align: end;"><%= row[:purchase_count] %></td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      <% end %>
-
-      <%# ── Consumption Stats ────────────────────────────────── %>
-      <h2 class="section-title"><%= t("inventory.products.consumption_stats") %></h2>
-      <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
-        <dl class="detail-list">
-          <div class="detail-list__row">
-            <dt><%= t("inventory.products.last_used_in_service") %></dt>
-            <dd><%= @last_consumed_on ? local_date(@last_consumed_on) : "—" %></dd>
-          </div>
-          <div class="detail-list__row">
-            <dt><%= t("inventory.products.consumed_this_month") %></dt>
-            <dd><%= @consumed_this_month.to_i %></dd>
-          </div>
-          <div class="detail-list__row">
-            <dt><%= t("inventory.products.avg_monthly_consumption") %></dt>
-            <dd><%= @avg_monthly_consumption %></dd>
-          </div>
-          <div class="detail-list__row">
-            <dt><%= t("inventory.products.estimated_days_remaining") %></dt>
-            <dd>
-              <% if @estimated_days_remaining %>
-                <%= t("inventory.products.days_remaining_value", count: @estimated_days_remaining) %>
-              <% else %>
-                —
-              <% end %>
-            </dd>
-          </div>
-        </dl>
-      </div>
-    <% else %>
-      <div class="empty-state empty-state--compact" style="margin-bottom: var(--space-5);">
-        <p class="empty-state__text"><%= t("inventory.products.no_purchase_history") %></p>
-      </div>
-    <% end %>
-
-    <%# ── Recent movements ──────────────────────────────────── %>
-    <h2 class="section-title"><%= t("inventory.products.recent_movements") %></h2>
-    <% if @recent_movements.empty? %>
-      <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("inventory.dashboard.none_yet") %></p></div>
-    <% else %>
-      <div class="table-wrap table-wrap--cards">
-        <table>
-          <thead><tr>
-            <th><%= t("inventory.movements.date") %></th>
-            <th><%= t("inventory.movements.warehouse") %></th>
-            <th><%= t("inventory.movements.type") %></th>
-            <th style="text-align: end;"><%= t("inventory.movements.quantity") %></th>
-            <th><%= t("inventory.reports.fields.document_number") %></th>
-          </tr></thead>
-          <tbody>
-            <% @recent_movements.each do |m| %>
-              <tr>
-                <td class="td-secondary"><%= local_date(m.occurred_on) %></td>
-                <td class="td-secondary"><%= m.warehouse.name %></td>
                 <td>
-                  <span class="badge <%= m.direction_in? ? 'badge-success' : 'badge-neutral' %>">
-                    <%= t("inventory.movements.directions.#{m.direction}") %>
-                  </span>
-                  <span class="td-secondary"><%= inventory_movement_reason_label(m.reason, source: m.source) %></span>
+                  <% if row[:supplier] %>
+                    <%= link_to row[:supplier].name,
+                          inventory_supplier_path(row[:supplier]), class: "link" %>
+                  <% else %>
+                    <span class="td-secondary">—</span>
+                  <% end %>
                 </td>
-                <td style="text-align: end;"><%= m.direction_in? ? "+" : "−" %><%= m.quantity.to_i %></td>
-                <td><%= inventory_source_document_link(m.source, Inventory::Reports::Movements.document_number_for(m.source)) %></td>
+                <td class="td-secondary"><%= local_date(row[:last_purchase_date]) %></td>
+                <td style="text-align: end;"><%= format_currency(row[:last_purchase_price]) %></td>
+                <td style="text-align: end;"><%= row[:total_quantity].to_i %></td>
+                <td style="text-align: end;"><%= row[:purchase_count] %></td>
               </tr>
             <% end %>
           </tbody>
         </table>
       </div>
     <% end %>
+
+    <%# ── Consumption Stats ────────────────────────────────── %>
+    <h2 class="section-title"><%= t("inventory.products.consumption_stats") %></h2>
+    <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+      <dl class="detail-list">
+        <div class="detail-list__row">
+          <dt><%= t("inventory.products.last_used_in_service") %></dt>
+          <dd><%= @last_consumed_on ? local_date(@last_consumed_on) : "—" %></dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("inventory.products.consumed_this_month") %></dt>
+          <dd><%= @consumed_this_month.to_i %></dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("inventory.products.avg_monthly_consumption") %></dt>
+          <dd><%= @avg_monthly_consumption %></dd>
+        </div>
+        <div class="detail-list__row">
+          <dt><%= t("inventory.products.estimated_days_remaining") %></dt>
+          <dd>
+            <% if @estimated_days_remaining %>
+              <%= t("inventory.products.days_remaining_value", count: @estimated_days_remaining) %>
+            <% else %>
+              —
+            <% end %>
+          </dd>
+        </div>
+      </dl>
+    </div>
+  <% else %>
+    <div class="empty-state empty-state--compact" style="margin-bottom: var(--space-5);">
+      <p class="empty-state__text"><%= t("inventory.products.no_purchase_history") %></p>
+    </div>
+  <% end %>
+
+  <%# ── Recent movements ──────────────────────────────────── %>
+  <h2 class="section-title"><%= t("inventory.products.recent_movements") %></h2>
+  <% if @recent_movements.empty? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("inventory.dashboard.none_yet") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table>
+        <thead><tr>
+          <th><%= t("inventory.movements.date") %></th>
+          <th><%= t("inventory.movements.warehouse") %></th>
+          <th><%= t("inventory.movements.type") %></th>
+          <th style="text-align: end;"><%= t("inventory.movements.quantity") %></th>
+          <th><%= t("inventory.reports.fields.document_number") %></th>
+        </tr></thead>
+        <tbody>
+          <% @recent_movements.each do |m| %>
+            <tr>
+              <td class="td-secondary"><%= local_date(m.occurred_on) %></td>
+              <td class="td-secondary"><%= m.warehouse.name %></td>
+              <td>
+                <span class="badge <%= m.direction_in? ? 'badge-success' : 'badge-neutral' %>">
+                  <%= t("inventory.movements.directions.#{m.direction}") %>
+                </span>
+                <span class="td-secondary"><%= inventory_movement_reason_label(m.reason, source: m.source) %></span>
+              </td>
+              <td style="text-align: end;"><%= m.direction_in? ? "+" : "−" %><%= m.quantity.to_i %></td>
+              <td><%= inventory_source_document_link(m.source, Inventory::Reports::Movements.document_number_for(m.source)) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
   <% end %>
 </div>

@@ -1,0 +1,36 @@
+<%#
+  "Inventory Tracking, Notifications & Warehouse Availability" — one section:
+  the product-level "Track stock quantity" checkbox at the top, then (Edit
+  page) the warehouse availability cards with their own low-stock thresholds,
+  reorder quantities and notification settings.
+
+  On Edit the section sits OUTSIDE the product form (the warehouse cards have
+  their own forms, and forms cannot nest); the checkbox still belongs to the
+  product form through the HTML form attribute, like Notes and Save. Unticking
+  it hides the warehouse availability block (inventory_tracking_controller) —
+  visual only; nothing is written until the product is saved, and the server
+  still refuses to turn tracking off while stock or open documents remain.
+
+  locals: product, availability_section (rendered warehouse block, Edit only; nil on New)
+%>
+<% availability_section = local_assigns[:availability_section] %>
+<h2 class="section-title" id="inventory-tracking-title"><%= t("inventory.products.section_inventory_tracking") %></h2>
+<div class="inventory-tracking-section" data-controller="inventory-tracking" data-inventory-tracking-section-value="availability"
+     data-testid="inventory-tracking-section">
+  <div class="form-group">
+    <div class="form-check">
+      <%= check_box :product, :track_inventory, { object: product, form: "product-form", class: "form-check-input",
+                                                  data: { action: "change->inventory-tracking#toggle" } } %>
+      <%= label :product, :track_inventory, t("inventory.products.track_inventory"), class: "form-check-label" %>
+    </div>
+    <p class="form-hint"><%= t("inventory.products.track_inventory_hint") %></p>
+  </div>
+
+  <% if availability_section %>
+    <%= availability_section %>
+  <% else %>
+    <%# New: per-warehouse availability is managed on Edit once the product is
+        saved (Inventory::ProductAvailabilityManager, audited). %>
+    <p class="form-hint" data-testid="availability-managed-elsewhere"><%= t("product_availability.form.managed_after_create") %></p>
+  <% end %>
+</div>

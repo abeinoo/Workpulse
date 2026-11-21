@@ -358,7 +358,7 @@ Rails.application.routes.draw do
         end
       end
     end
-    # Read-only review of availability rows, legacy settings and stock before
+    # Read-only review of availability rows, per-warehouse settings and stock before
     # any future reconciliation (applies nothing).
     resource :availability_reconciliation, only: :show
     resources :suppliers
@@ -373,10 +373,8 @@ Rails.application.routes.draw do
       end
       member do
         post  :generate_barcode
-        get   :children
         patch :archive
         patch :restore
-        patch :archive_family
         # Product availability per warehouse, managed from the product: the
         # section of the Edit page, also standalone for users who manage
         # availability but not product details. One branch card per request

@@ -1,18 +1,13 @@
 module Inventory
-  # Computes low-stock alerts, evaluated PER WAREHOUSE.
+  # Computes low-stock alerts, evaluated PER WAREHOUSE only.
   #
-  # For each product:
-  #   - Every Active per-warehouse row (ProductWarehouseSetting) with a
-  #     threshold above 0 is checked independently against its own
-  #     low_stock_level — so a branch warehouse at zero stock alerts even when
-  #     another warehouse is well stocked. Threshold 0 = no alert there.
-  #   - The legacy total-stock alert (total stock <= products.reorder_level;
-  #     level 0 = out of stock) applies until the product's CENTRAL warehouse
-  #     has its own row — i.e. until its legacy values were transferred there
-  #     (Inventory::LegacyCentralSettingsBackfill) or set there by a user.
-  #     Branch rows do not end it. It is reported only when none of the
-  #     product's warehouse alerts fired (never two alerts for one product
-  #     from the two systems).
+  # Every Active per-warehouse row (ProductWarehouseSetting) with a threshold
+  # above 0 is checked independently against its own low_stock_level and
+  # suggests its own reorder_quantity — so a branch warehouse at zero stock
+  # alerts even when another warehouse is well stocked. Threshold 0 = no alert
+  # there. A product/warehouse pair without an Active row never alerts: there
+  # is no product-level threshold, reorder quantity or notification flag, and
+  # no fallback to one.
   #
   # Two aggregate queries only (movement levels grouped by product+warehouse,
   # plus the products with their settings) — no per-row N+1.
@@ -24,13 +19,9 @@ module Inventory
       :on_hand, :low_stock_level, :reorder_quantity, :notifiable,
       keyword_init: true
     ) do
-      # nil warehouse_id means the alert is on total (all-warehouse) stock.
-      def total? = warehouse_id.nil?
-
       # Detected alerts feed reports, KPIs, pickers and pages; only notifiable
-      # ones belong on notification (dashboard) surfaces. A per-warehouse alert
-      # follows that pair's receive_low_stock_notification; the legacy total
-      # alert is already limited to products with the product-level flag on.
+      # ones belong on notification (dashboard) surfaces: the pair's own
+      # receive_low_stock_notification.
       def notifiable? = notifiable != false
     end
 
@@ -43,12 +34,7 @@ module Inventory
 
     def alerts
       levels      = movement_levels                       # { [product_id, wh_id] => qty }
-      totals      = levels.each_with_object(Hash.new(0)) { |((pid, _), qty), h| h[pid] += qty }
       warehouses  = @business.warehouses.pluck(:id, :name).to_h
-      central_ids = @business.warehouses.kind_central.pluck(:id).to_set
-      # Products that actually move through the (restricted) warehouses — used so a
-      # scoped user isn't shown catalog products that don't belong to their warehouses.
-      present_ids = levels.keys.map(&:first).to_set
 
       results = []
 
@@ -72,27 +58,6 @@ module Inventory
           )
         end
         results.concat(warehouse_alerts)
-        next if warehouse_alerts.any?
-
-        # Legacy total alert: only while the central warehouse has no row of
-        # its own (any status; checked on every row, not only the viewer's).
-        next if product.product_warehouse_settings.any? { |s| central_ids.include?(s.warehouse_id) }
-        # When restricted to specific warehouses, only the products actually
-        # stocked there are eligible for the total-based fallback alert.
-        next if @warehouse_ids && !present_ids.include?(product.id)
-
-        total = totals[product.id] || 0
-        next unless total <= product.reorder_level
-
-        results << Alert.new(
-          product:          product,
-          warehouse_id:     nil,
-          warehouse_name:   nil,
-          on_hand:          total,
-          low_stock_level:  product.reorder_level,
-          reorder_quantity: product.reorder_quantity,
-          notifiable:       true
-        )
       end
 
       results.sort_by { |a| [ a.product.name, a.warehouse_name.to_s ] }
@@ -101,11 +66,7 @@ module Inventory
     private
 
     def products
-      @business.products
-               .active
-               .inventory_tracked
-               .where(receive_low_stock_notification: true)
-               .includes(:product_warehouse_settings, :parent_product, :default_supplier)
+      @business.products.active.inventory_tracked.includes(:product_warehouse_settings, :default_supplier)
     end
 
     def movement_levels

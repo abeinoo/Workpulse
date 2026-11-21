@@ -6,18 +6,17 @@ RSpec.describe "Inventory dashboard low-stock purchasing table", type: :request 
   let!(:wh)      { business.warehouses.create!(name: "Main") }
 
   let!(:priced_product) do
-    business.products.create!(name: "PricedItem", sku: "PRC-1", initial_cost_price: 150,
-                               average_cost_price: 150, low_stock_level: 5, reorder_level: 5,
-                               reorder_quantity: 12)
+    business.products.create!(name: "PricedItem", sku: "PRC-1", initial_cost_price: 150, average_cost_price: 150)
   end
 
   let!(:unpriced_product) do
-    business.products.create!(name: "UnpricedItem", sku: "UNP-1", initial_cost_price: 0,
-                               average_cost_price: 0, low_stock_level: 5, reorder_level: 5,
-                               reorder_quantity: 7)
+    business.products.create!(name: "UnpricedItem", sku: "UNP-1", initial_cost_price: 0, average_cost_price: 0)
   end
 
   before do
+    { priced_product => 12, unpriced_product => 7 }.each do |product, reorder|
+      ProductWarehouseSetting.create!(product: product, warehouse: wh, low_stock_level: 5, reorder_quantity: reorder)
+    end
     [ priced_product, unpriced_product ].each do |product|
       r = business.goods_receipts.build(warehouse: wh, received_on: Date.current)
       r.items.build(product: product, quantity: 1, unit_cost: product.average_cost_price)

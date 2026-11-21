@@ -16,11 +16,14 @@ RSpec.describe "Product thumbnails — image loading performance", type: :reques
 
   before { sign_in owner }
 
-  # n products sharing one uploaded image (fast fixtures), every one low on stock.
+  # n products sharing one uploaded image (fast fixtures), every one low on
+  # stock in the Main warehouse (threshold 5, nothing on hand).
   def products(count, from: 0)
     Array.new(count) do |i|
-      business.products.create!(name: "Product #{from + i}", sku: "SKU-#{from + i}", average_cost_price: 5,
-                                low_stock_level: 5, reorder_level: 5, reorder_quantity: 3).tap { |p| p.image.attach(blob) }
+      business.products.create!(name: "Product #{from + i}", sku: "SKU-#{from + i}", average_cost_price: 5).tap do |p|
+        p.image.attach(blob)
+        ProductWarehouseSetting.create!(product: p, warehouse: warehouse, low_stock_level: 5, reorder_quantity: 3)
+      end
     end
   end
 

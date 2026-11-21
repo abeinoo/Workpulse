@@ -2,11 +2,10 @@ require "rails_helper"
 
 # Browser behaviour of the Low Stock "إنشاء طلب شراء" review modal: rows are
 # grouped by destination WAREHOUSE (one request per warehouse, several
-# suppliers per request). A total-stock alert has no warehouse: it gets a
-# warehouse select, sits in the "warehouse not selected" group, and Confirm
-# stays disabled until every row has one (never guessed). Every row's
-# supplier stays editable and is the line's own; "بدون مورد" is a valid
-# choice that never blocks confirmation.
+# suppliers per request). Every alert comes from one warehouse's own setting,
+# so every row already has its warehouse (no picker) and suggests that
+# warehouse's own reorder quantity. Every row's supplier stays editable and is
+# the line's own; "بدون مورد" is a valid choice that never blocks confirmation.
 RSpec.describe "Low Stock purchase request review", type: :system do
   let(:business)    { create(:business) }
   let(:owner)       { create(:user, :super_admin, business: business) }
@@ -16,16 +15,15 @@ RSpec.describe "Low Stock purchase request review", type: :system do
   let!(:wh_2)       { business.warehouses.create!(name: "Second") }
   let!(:responsible) { purchaser_with_custody(business, first_name: "Rami") }
 
-  def low_product(name, sku, cost, supplier)
-    business.products.create!(name: name, sku: sku, initial_cost_price: cost, average_cost_price: cost,
-                              low_stock_level: 5, reorder_level: 5, reorder_quantity: 10,
-                              default_supplier: supplier)
+  # Low (threshold 5) in `warehouse`, with that warehouse's own reorder quantity.
+  def low_product(name, sku, cost, supplier, warehouse:, reorder: 10)
+    business.products.create!(name: name, sku: sku, initial_cost_price: cost, average_cost_price: cost, default_supplier: supplier)
+            .tap { |p| p.product_warehouse_settings.create!(warehouse: warehouse, low_stock_level: 5, reorder_quantity: reorder) }
   end
 
-  # No per-warehouse threshold: all three are TOTAL-stock alerts.
-  let!(:product_1) { low_product("Alpha Dye", "AL-1", 10, supplier_a) }
-  let!(:product_2) { low_product("Beta Oil", "BE-1", 20, supplier_a) }
-  let!(:product_3) { low_product("Gamma Gel", "GA-1", 30, nil) }
+  let!(:product_1) { low_product("Alpha Dye", "AL-1", 10, supplier_a, warehouse: wh) }
+  let!(:product_2) { low_product("Beta Oil", "BE-1", 20, supplier_a, warehouse: wh) }
+  let!(:product_3) { low_product("Gamma Gel", "GA-1", 30, nil, warehouse: wh_2, reorder: 7) }
 
   before do
     [ product_1, product_2, product_3 ].each do |product|
@@ -47,7 +45,6 @@ RSpec.describe "Low Stock purchase request review", type: :system do
   def group_for(title) = find(".review-group", text: title)
   def row_for(product) = find(".review-row", text: product.name)
   def supplier_select_for(product) = row_for(product).find("select[data-field='supplierId']")
-  def warehouse_select_for(product) = row_for(product).find("select[data-field='warehouseId']")
 
   def title_for(warehouse, locale: "en")
     if warehouse
@@ -59,31 +56,22 @@ RSpec.describe "Low Stock purchase request review", type: :system do
 
   def confirm_button(locale: "en") = I18n.t("inventory.dashboard.review_confirm", locale: locale)
 
-  it "requires a warehouse for every total-stock row, groups by warehouse and keeps line suppliers" do
+  it "groups every row under its own warehouse, with no warehouse picker, and keeps line suppliers" do
     open_review
 
-    # All rows start without a warehouse: one "not selected" group, Confirm off.
-    expect(all(".review-group").size).to eq(1)
-    expect(group_for(title_for(nil))).to have_text("Alpha Dye").and have_text("Beta Oil").and have_text("Gamma Gel")
-    expect(page).to have_text(I18n.t("inventory.dashboard.review_missing_warehouse"))
-    expect(page).to have_button(confirm_button, disabled: true)
-    expect(find("[data-low-stock-selection-target='reviewRequestCount']")).to have_text("0")
-    expect(warehouse_select_for(product_1).value).to eq("") # never preselected
+    expect(all("select[data-field='warehouseId']")).to be_empty
+    expect(page).to have_no_text(I18n.t("inventory.dashboard.review_missing_warehouse"))
+    expect(group_for(title_for(wh))).to have_text("Alpha Dye").and have_text("Beta Oil")
+    expect(group_for(title_for(wh_2))).to have_text("Gamma Gel")
+    expect(find("[data-low-stock-selection-target='reviewRequestCount']")).to have_text("2")
+    # Each row suggests its own warehouse's reorder quantity.
+    expect(row_for(product_3).find("input[data-field='quantity']").value.to_d).to eq(7)
+    expect(row_for(product_1).find("input[data-field='quantity']").value.to_d).to eq(10)
 
     # Default suppliers are suggested per line; all stay editable.
     expect(supplier_select_for(product_1).value).to eq(supplier_a.id.to_s)
     expect(supplier_select_for(product_3).value).to eq("")
     expect(all("select[data-field='supplierId'][disabled]")).to be_empty
-
-    warehouse_select_for(product_1).select("Main")
-    warehouse_select_for(product_2).select("Main")
-    expect(page).to have_button(confirm_button, disabled: true) # Gamma still missing
-    warehouse_select_for(product_3).select("Second")
-
-    expect(page).to have_no_text(I18n.t("inventory.dashboard.review_missing_warehouse"))
-    expect(group_for(title_for(wh))).to have_text("Alpha Dye").and have_text("Beta Oil")
-    expect(group_for(title_for(wh_2))).to have_text("Gamma Gel")
-    expect(find("[data-low-stock-selection-target='reviewRequestCount']")).to have_text("2")
 
     # Changing a supplier keeps the row in its warehouse group (no regrouping).
     supplier_select_for(product_2).select("Supplier B")
@@ -99,48 +87,37 @@ RSpec.describe "Low Stock purchase request review", type: :system do
     main = PurchaseRequest.find_by!(warehouse: wh)
     expect(main.items.map { |i| [ i.product, i.supplier ] })
       .to contain_exactly([ product_1, supplier_a ], [ product_2, supplier_b ])
-    expect(PurchaseRequest.find_by!(warehouse: wh_2).items.map { |i| [ i.product, i.supplier ] })
-      .to contain_exactly([ product_3, nil ])
+    expect(PurchaseRequest.find_by!(warehouse: wh_2).items.map { |i| [ i.product, i.supplier, i.quantity ] })
+      .to contain_exactly([ product_3, nil, 7 ])
     expect(PurchaseRequest.pluck(:supplier_id).uniq).to eq([ nil ])
     expect(PurchaseRequest.pluck(:responsible_employee_id).uniq).to eq([ responsible.id ]) # one for the batch
     expect(product_2.reload.default_supplier).to eq(supplier_a) # override never touches the product
   end
 
-  it "groups a warehouse-specific alert under its own warehouse, with no warehouse picker" do
-    product_1.product_warehouse_settings.create!(warehouse: wh, low_stock_level: 5, reorder_quantity: 4)
+  it "the same product low in two warehouses gives one row per warehouse, each with its own quantity" do
+    product_1.product_warehouse_settings.create!(warehouse: wh_2, low_stock_level: 3, reorder_quantity: 2)
     open_review
 
-    expect(row_for(product_1)).to have_no_css("select[data-field='warehouseId']")
     expect(group_for(title_for(wh))).to have_text("Alpha Dye")
-
-    warehouse_select_for(product_2).select("Main")
-    warehouse_select_for(product_3).select("Main")
-
-    expect {
-      find("#low-stock-responsible-employee").select(responsible.full_name)
-      click_button confirm_button
-      expect(page).to have_text(I18n.t("inventory.purchase_requests.just_created_title"))
-    }.to change(PurchaseRequest, :count).by(1)
-    expect(PurchaseRequest.last.warehouse).to eq(wh)
-    expect(PurchaseRequest.last.items.map(&:product)).to contain_exactly(product_1, product_2, product_3)
+    expect(group_for(title_for(wh_2))).to have_text("Alpha Dye")
+    quantities = all(".review-row", text: "Alpha Dye").map { |row| row.find("input[data-field='quantity']").value.to_d }
+    expect(quantities).to contain_exactly(10, 2)
   end
 
   it "AR: groups as \"طلب شراء — المستودع\", keeps \"بدون مورد\" valid and creates the request" do
     open_review(locale: "ar")
 
-    expect(page).to have_css(".review-group", text: title_for(nil, locale: "ar"))
+    expect(page).to have_css(".review-group", text: title_for(wh, locale: "ar"))
+    expect(page).to have_css(".review-group", text: title_for(wh_2, locale: "ar"))
     expect(page).to have_text("عدد الأصناف")
     expect(supplier_select_for(product_3).value).to eq("")
     expect(supplier_select_for(product_3)).to have_css("option", text: "بدون مورد")
-
-    [ product_1, product_2, product_3 ].each { |product| warehouse_select_for(product).select("Main") }
-    expect(page).to have_css(".review-group", text: title_for(wh, locale: "ar"))
 
     expect {
       find("#low-stock-responsible-employee").select(responsible.full_name)
       click_button confirm_button(locale: "ar")
       expect(page).to have_text(I18n.t("inventory.purchase_requests.just_created_title", locale: "ar"))
-    }.to change(PurchaseRequest, :count).by(1)
+    }.to change(PurchaseRequest, :count).by(2)
 
     # Alpha and Beta default to Supplier A, Gamma has none: one named supplier.
     expect(page).to have_text("Supplier A")
@@ -151,34 +128,31 @@ RSpec.describe "Low Stock purchase request review", type: :system do
   context "when no product has a supplier" do
     before do
       Product.where(id: [ product_1.id, product_2.id ]).update_all(default_supplier_id: nil)
-      # No reorder quantity configured — must not leave an invalid 0 line.
-      product_3.update!(reorder_quantity: 0)
+      # No reorder quantity configured there — must not leave an invalid 0 line.
+      product_3.product_warehouse_settings.sole.update!(reorder_quantity: 0)
     end
 
-    it "keeps Confirm enabled once warehouses are chosen and creates one request without suppliers" do
+    it "keeps Confirm enabled and creates one request per warehouse without suppliers" do
       open_review(locale: "ar")
 
       expect(find("[data-low-stock-selection-target='reviewItemCount']")).to have_text("3")
       expect(row_for(product_3).find("input[data-field='quantity']").value.to_d).to eq(1)
       expect(page).to have_no_css("[data-low-stock-selection-target='reviewInvalid']", visible: true)
-      [ product_1, product_2, product_3 ].each { |product| warehouse_select_for(product).select("Main") }
 
       expect(page).to have_button(confirm_button(locale: "ar"), disabled: false)
       expect {
         find("#low-stock-responsible-employee").select(responsible.full_name)
         click_button confirm_button(locale: "ar")
         expect(page).to have_text(I18n.t("inventory.purchase_requests.just_created_title", locale: "ar"))
-      }.to change(PurchaseRequest, :count).by(1).and change(PurchaseRequestItem, :count).by(3)
+      }.to change(PurchaseRequest, :count).by(2).and change(PurchaseRequestItem, :count).by(3)
 
-      request = PurchaseRequest.last
-      expect(request).to be_draft
-      expect(request.items.map(&:supplier_id)).to all(be_nil)
+      expect(PurchaseRequest.all).to all(be_draft)
+      expect(PurchaseRequestItem.pluck(:supplier_id)).to all(be_nil)
     end
   end
 
   it "disables Confirm for an invalid quantity/price too, and says why" do
     open_review
-    [ product_1, product_2, product_3 ].each { |product| warehouse_select_for(product).select("Main") }
 
     row_for(product_3).find("input[data-field='unitPrice']").fill_in(with: "0")
     expect(page).to have_text(I18n.t("inventory.dashboard.review_invalid_lines"))

@@ -30,9 +30,8 @@ module Inventory
       legacy_variants:         "product_variants"
     }.freeze
 
-    SNAPSHOT_ATTRIBUTES = %w[id name sku unit_of_measure parent_product_id brand_id product_category_id default_supplier_id
-                             track_inventory active archived_at low_stock_level reorder_level reorder_quantity
-                             receive_low_stock_notification initial_cost_price average_cost_price created_at].freeze
+    SNAPSHOT_ATTRIBUTES = %w[id name sku unit_of_measure brand_id product_category_id default_supplier_id
+                             track_inventory active archived_at initial_cost_price average_cost_price created_at].freeze
 
     def initialize(actor:)
       @actor = actor
@@ -51,7 +50,6 @@ module Inventory
         return Result.new(ok: false, record: product, error: :referenced, blockers: blockers) if blockers.any?
 
         snapshot = product.attributes.slice(*SNAPSHOT_ATTRIBUTES).transform_values { |v| v.is_a?(BigDecimal) ? v.to_s : v }
-        snapshot["child_product_ids"] = product.child_products.pluck(:id)
         product.destroy!
         log_audit!(actor: @actor, auditable: product, action: "destroy", metadata: { product: snapshot })
         Result.new(ok: true, record: product)

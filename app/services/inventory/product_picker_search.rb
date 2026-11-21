@@ -5,7 +5,7 @@ module Inventory
   # KIND, which mirrors the product list that picker always offered:
   #   transactable — inventory document lines, purchase requests, imports,
   #                  the dashboard search (Product.transactable);
-  #   tracked      — branch comparison (active, inventory-tracked, non-parent);
+  #   tracked      — branch comparison (active, inventory-tracked);
   #   all          — report filters that list every product (archived too).
   # Exact barcode / SKU matches come first, then names, alphabetically; at most
   # LIMIT rows, images and barcodes preloaded — the same few queries whatever
@@ -13,7 +13,7 @@ module Inventory
   class ProductPickerSearch
     KINDS = {
       "transactable" => ->(scope) { scope.transactable },
-      "tracked"      => ->(scope) { scope.active.inventory_tracked.non_parent },
+      "tracked"      => ->(scope) { scope.active.inventory_tracked },
       "all"          => ->(scope) { scope }
     }.freeze
     LIMIT = 20

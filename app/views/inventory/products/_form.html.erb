@@ -1,7 +1,8 @@
-<%# availability_section (Edit page only): the product's warehouse cards, rendered
-    right after Inventory tracking but OUTSIDE this form (they have their own
-    forms). The form then closes there; the notes field and Save / Cancel below
-    the section still belong to it through the HTML form attribute. %>
+<%# availability_section (Edit page only): the product's warehouse cards. The
+    form closes after the product details; the "Inventory Tracking,
+    Notifications & Warehouse Availability" section (checkbox + cards) follows
+    OUTSIDE it (the cards have their own forms), and the checkbox, the notes
+    field and Save / Cancel still belong to it through the HTML form attribute. %>
 <% availability_section = local_assigns[:availability_section] %>
 <%= form_with model: [:inventory, product], class: "form-card #{'form-card--split' if availability_section}", id: "product-form" do |f| %>
   <%= render "shared/error_messages", object: product %>
@@ -68,96 +69,41 @@
 
   <div class="divider"></div>
 
-  <%# ── Product Family ────────────────────────────────────── %>
-  <h2 class="section-title"><%= t("inventory.products.section_family") %></h2>
-  <p class="form-hint"><%= t("inventory.products.family_hint") %></p>
-
-  <% if product.parent? %>
-    <div class="alert alert-info" style="margin-bottom: var(--space-3);">
-      <%= t("inventory.products.parent_no_tracking_notice") %>
-    </div>
-  <% end %>
-
-  <% if product.persisted? && !product.parent? && product.inventory_movements.exists? %>
-    <div class="alert alert-warning" style="margin-bottom: var(--space-3);">
-      <%= t("inventory.products.parent_history_warning") %>
-    </div>
-  <% end %>
-
-  <div class="form-grid">
-    <div class="form-group">
-      <%= f.label :parent_product_id, t("inventory.products.parent_product"), class: "form-label" %>
-      <%= f.select :parent_product_id,
-            options_from_collection_for_select(@parent_product_options, :id, :name, product.parent_product_id),
-            { include_blank: "— #{t('inventory.products.no_parent_product')}" },
-            class: "form-control" %>
-      <p class="form-hint"><%= t("inventory.products.parent_product_hint") %></p>
-    </div>
-  </div>
-
-  <div class="divider"></div>
-
   <%# ── Barcodes ──────────────────────────────────────────── %>
-  <% if product.parent? %>
-    <%# Parent products: read-only barcode display with explanatory notice. %>
-    <%# Existing barcodes are preserved in the database but may not be scanned %>
-    <%# for transactions. Editing is blocked so no sequence numbers are wasted. %>
-    <div>
-      <h2 class="section-title"><%= t("inventory.products.barcodes") %></h2>
-      <div class="notice notice-info" style="margin-bottom: var(--space-3);">
-        <%= t("inventory.products.parent_barcodes_readonly_notice") %>
-      </div>
-      <% if product.product_barcodes.any? %>
-        <ul class="barcode-tag-list">
-          <% product.product_barcodes.each do |pb| %>
-            <li class="barcode-tag<%= " barcode-tag--primary" if pb.is_primary? %>">
-              <span class="barcode-tag__value"><%= pb.barcode %></span>
-              <% if pb.is_primary? %>
-                <span class="badge badge-neutral barcode-tag__badge"><%= t("inventory.products.barcode_primary") %></span>
-              <% end %>
-            </li>
-          <% end %>
-        </ul>
-      <% else %>
-        <p class="td-secondary"><%= t("inventory.products.no_barcodes") %></p>
+  <div data-controller="line-items barcode-list"
+       data-barcode-list-generate-url-value="<%= next_barcode_code_inventory_products_path(format: :json) %>"
+       <%= "data-barcode-list-generate-save-url-value=\"#{generate_barcode_inventory_product_path(product, format: :json)}\"".html_safe if product.persisted? %>>
+    <h2 class="section-title"><%= t("inventory.products.barcodes") %></h2>
+    <p class="form-hint"><%= t("inventory.products.barcodes_hint") %></p>
+
+    <div data-line-items-target="rows" class="barcode-list">
+      <%= f.fields_for :product_barcodes do |bc_f| %>
+        <%= render "barcode_fields", f: bc_f %>
       <% end %>
     </div>
-  <% else %>
-    <div data-controller="line-items barcode-list"
-         data-barcode-list-generate-url-value="<%= next_barcode_code_inventory_products_path(format: :json) %>"
-         <%= "data-barcode-list-generate-save-url-value=\"#{generate_barcode_inventory_product_path(product, format: :json)}\"".html_safe if product.persisted? %>>
-      <h2 class="section-title"><%= t("inventory.products.barcodes") %></h2>
-      <p class="form-hint"><%= t("inventory.products.barcodes_hint") %></p>
 
-      <div data-line-items-target="rows" class="barcode-list">
-        <%= f.fields_for :product_barcodes do |bc_f| %>
-          <%= render "barcode_fields", f: bc_f %>
-        <% end %>
-      </div>
+    <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if product.product_barcodes.any? %>>
+      <%= t("inventory.products.no_barcodes") %>
+    </p>
 
-      <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if product.product_barcodes.any? %>>
-        <%= t("inventory.products.no_barcodes") %>
-      </p>
-
-      <div class="flex items-center" style="gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
-        <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add">
-          + <%= t("inventory.products.add_barcode") %>
-        </button>
-        <button type="button" class="btn btn-secondary btn-sm" data-action="barcode-list#generate">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="3" y="3" width="4" height="18"/><rect x="9" y="3" width="2" height="18"/><rect x="13" y="3" width="4" height="18"/><rect x="19" y="3" width="2" height="9"/>
-          </svg>
-          <%= t("inventory.products.generate_barcode") %>
-        </button>
-      </div>
-
-      <template data-line-items-target="template">
-        <%= f.fields_for :product_barcodes, ProductBarcode.new, child_index: "NEW_INDEX" do |bc_f| %>
-          <%= render "barcode_fields", f: bc_f %>
-        <% end %>
-      </template>
+    <div class="flex items-center" style="gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
+      <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add">
+        + <%= t("inventory.products.add_barcode") %>
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" data-action="barcode-list#generate">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="4" height="18"/><rect x="9" y="3" width="2" height="18"/><rect x="13" y="3" width="4" height="18"/><rect x="19" y="3" width="2" height="9"/>
+        </svg>
+        <%= t("inventory.products.generate_barcode") %>
+      </button>
     </div>
-  <% end %>
+
+    <template data-line-items-target="template">
+      <%= f.fields_for :product_barcodes, ProductBarcode.new, child_index: "NEW_INDEX" do |bc_f| %>
+        <%= render "barcode_fields", f: bc_f %>
+      <% end %>
+    </template>
+  </div>
 
   <div class="divider"></div>
 
@@ -175,58 +121,11 @@
     </div>
   </div>
 
-  <div class="divider"></div>
-
-  <%# ── Inventory tracking & notifications ─────────────────── %>
-  <h2 class="section-title"><%= t("inventory.products.section_inventory_tracking") %></h2>
-  <div class="form-grid" data-controller="inventory-tracking">
-    <div class="form-group" style="grid-column: 1 / -1;">
-      <% if product.parent? %>
-        <div class="alert alert-info">
-          <%= t("inventory.products.parent_no_tracking_notice") %>
-        </div>
-      <% else %>
-        <div class="form-check">
-          <%= f.check_box :track_inventory, class: "form-check-input",
-                data: { action: "change->inventory-tracking#toggle" } %>
-          <%= f.label :track_inventory, t("inventory.products.track_inventory"), class: "form-check-label" %>
-        </div>
-        <p class="form-hint"><%= t("inventory.products.track_inventory_hint") %></p>
-      <% end %>
-    </div>
-
-    <%# The product-wide low-stock level, reorder quantity, alert and total-alert
-        fields were retired from this form (2026-11-20): low-stock and reorder
-        settings are per warehouse (Product Availability per Warehouse). Their
-        stored values are kept untouched for the legacy-to-central migration. %>
-
-    <%# TEMPORARY (2026-11-21, owner request): the legacy product-level Low Stock
-        Threshold and Reorder Quantity are shown again on Edit, read straight from
-        products.low_stock_level / products.reorder_quantity (never from warehouse
-        settings), so they can be read and typed into the Central warehouse card
-        by hand. Read-only and WITHOUT a name attribute: never submitted, so no
-        save (product form or warehouse card) can change them, and nothing is
-        copied anywhere. Remove once the central cards are entered and verified;
-        the legacy columns stay. %>
-    <% if product.persisted? && !product.parent? %>
-      <% [ [ :low_stock_level, "low-stock-level" ], [ :reorder_quantity, "reorder-quantity" ] ].each do |column, slug| %>
-        <div class="form-group" data-testid="legacy-<%= slug %>-group">
-          <%= label_tag "product_legacy_#{column}", t("inventory.products.legacy_#{column}"), class: "form-label" %>
-          <%= number_field_tag nil, availability_quantity(product.public_send(column) || 0), id: "product_legacy_#{column}", readonly: true,
-                class: "form-control", data: { testid: "legacy-#{slug}" }, form: "" %>
-          <p class="form-hint"><%= t("inventory.products.legacy_#{column}_hint") %></p>
-        </div>
-      <% end %>
-    <% end %>
-  </div>
-
-  <div class="divider"></div>
-
   <% unless availability_section %>
-    <%# ── Per-warehouse availability: written only by
-        Inventory::ProductAvailabilityManager (audited) — added on the Edit
-        page once the product is saved. %>
-    <p class="form-hint" data-testid="availability-managed-elsewhere"><%= t("product_availability.form.managed_after_create") %></p>
+    <div class="divider"></div>
+
+    <%# ── Inventory tracking, notifications & warehouse availability ── %>
+    <%= render "inventory/products/inventory_tracking_section", product: product %>
 
     <div class="divider"></div>
 
@@ -243,7 +142,10 @@
 <% end %>
 
 <% if availability_section %>
-  <%= availability_section %>
+  <%# One section, outside the product form (the warehouse cards have their own forms). %>
+  <section class="form-card form-card--split-mid" aria-labelledby="inventory-tracking-title">
+    <%= render "inventory/products/inventory_tracking_section", product: product, availability_section: availability_section %>
+  </section>
 
   <div class="form-card form-card--split-tail">
     <div class="form-group">

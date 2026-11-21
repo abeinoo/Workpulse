@@ -12,7 +12,6 @@ class GoodsReceiptItem < ApplicationRecord
 
   validates :quantity,  numericality: { greater_than: 0 }
   validates :unit_cost, numericality: { greater_than_or_equal_to: 0 }
-  validate  :product_is_transactable
   validate  :product_in_same_business, if: :will_save_change_to_product_id?
   validate  :product_matches_purchase_request_item
   validate  :purchase_request_item_consistent_with_receipt
@@ -20,11 +19,6 @@ class GoodsReceiptItem < ApplicationRecord
   # created/edited — not a substitute for GoodsReceiptPoster's locked check,
   # which is the only place that's actually race-safe.
   validate  :within_remaining_quantity
-
-  def product_is_transactable
-    return unless product
-    errors.add(:product_id, :parent_not_allowed) if Product.where(parent_product_id: product.id).exists?
-  end
 
   # Line product ids come straight from form params — never trust one that
   # belongs to another business (IP-1).

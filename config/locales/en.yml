@@ -4167,11 +4167,8 @@ en:
       suppliers: "Suppliers"
       stock_value: "Stock Value"
       warehouse: "Warehouse"
-      all_warehouses: "All warehouses"
       low_stock_title: "Low Stock Alerts"
       low_stock_empty: "No products are low on stock."
-      family_low_stock_title: "Product Families with Low Stock"
-      low_children_count: "Low-Stock Children"
       recent_receipts: "Recent Goods Receipts"
       recent_issues: "Recent Stock Issues"
       none_yet: "Nothing yet."
@@ -4849,7 +4846,6 @@ en:
       scan_label: "Scan barcode"
       scan_placeholder: "Scan or type a barcode, then press Enter"
       not_found: 'No product found for "%{code}"'
-      parent_product: '"%{name}" is a product family — scan a child product instead.'
       matched_by_sku: "Matched by SKU"
     camera_scanner:
       title: "Scan Barcode"
@@ -4906,7 +4902,6 @@ en:
       avg_cost: "Average Cost"
       current_stock: "Current Stock"
       stock_value: "Stock Value"
-      low_stock_level: "Low Stock Level"
       reorder_quantity: "Reorder Quantity"
       selling_markup_percentage: "Selling Markup (%)"
       selling_price: "Suggested Selling Price"
@@ -4914,17 +4909,9 @@ en:
       low_stock_badge: "Low stock"
       section_identity: "Product Details"
       section_pricing: "Pricing & Stock"
-      section_inventory_tracking: "Inventory Tracking & Notifications"
+      section_inventory_tracking: "Inventory Tracking, Notifications & Warehouse Availability"
       track_inventory: "Track stock quantity"
-      track_inventory_hint: "Untick for items whose quantity you don't track (chairs, equipment…): they get no stock counts, low-stock alerts or reorder settings. Refused while the product still has stock or open inventory documents."
-      legacy_low_stock_level: "Low Stock Threshold (legacy, read-only)"
-      legacy_low_stock_level_hint: "The old product-wide value, shown temporarily for reference. Enter it in the Central warehouse card below if needed; it is not copied or saved from here."
-      legacy_reorder_quantity: "Reorder Quantity (legacy, read-only)"
-      legacy_reorder_quantity_hint: "The old product-wide value, shown temporarily for reference. Enter it in the Central warehouse card below if needed; it is not copied or saved from here."
-      receive_low_stock_notification: "Receive Low Stock Notifications"
-      receive_low_stock_notification_hint: "Send a low stock alert when total stock reaches or falls below the reorder level."
-      reorder_level: "Reorder Level"
-      reorder_level_hint: "Alert fires when total stock is at or below this quantity."
+      track_inventory_hint: "Keep ticked for everything you count, including chairs and equipment: they stay in stock counts. Low-stock and reorder settings are optional and set per warehouse. Untick only for items whose quantity is never recorded: they get no stock counts, low-stock alerts or reorder settings. Refused while the product still has stock or open inventory documents."
       stock_by_warehouse: "Stock by Warehouse"
       no_stock_yet: "No stock recorded yet."
       warehouse: "Warehouse"
@@ -4984,28 +4971,6 @@ en:
       new_title: "New Product"
       created: "Product created."
       edit_title: "Edit Product"
-      section_family: "Product Family"
-      family_hint: "Assign this product to a parent to group related products (e.g. sizes or colours). The parent product acts as a container only and cannot carry stock itself."
-      parent_product: "Parent Product"
-      parent_product_hint: "Only root-level products can become parents."
-      no_parent_product: "None (standalone product)"
-      parent_no_tracking_notice: "This product is a parent container. Stock tracking and low-stock notifications are managed by its child products."
-      parent_history_warning: "This product already has stock movements. Assigning it a parent will not affect existing movements, but it will be excluded from new transactions."
-      parent_barcodes_readonly_notice: "Parent products cannot be used in transactions and barcodes cannot be scanned at the point of sale. Existing barcodes are preserved for historical reference. To add or edit barcodes, remove all child products first."
-      parent_barcodes_show_notice: "This barcode belongs to a parent product and cannot be scanned in transactions. Scan a child product instead."
-      expand_children: "Expand children"
-      children_count:
-        one: "%{count} child"
-        other: "%{count} children"
-      family_stock_label: "family total"
-      family_total_stock: "Family Total Stock"
-      child_products: "Child Products"
-      child_products_count: "Children"
-      no_children_yet: "No child products yet. Edit this product to assign child products."
-      filter_all: "All Products"
-      filter_root: "Parent Products"
-      filter_child: "Child Products"
-      filter_standalone: "Standalone Products"
       status_active: "Active"
       status_archived: "Archived"
       status_all: "All"
@@ -5013,19 +4978,15 @@ en:
       archived_notice: "This product was archived on %{date}. It is preserved for historical records but excluded from new transactions."
       archive: "Archive"
       archive_confirm: "Archive this product? It will be hidden from all transaction forms but its history is preserved."
-      archive_family: "Archive Family"
-      archive_family_confirm: "Archive this product and all its child products? They will be hidden from all transaction forms but history is preserved."
       restore: "Restore"
       archived: "Product archived successfully."
       restored: "Product restored successfully."
-      family_archived: "Product family archived successfully."
       delete_confirm: "Permanently delete this product? This cannot be undone."
       has_history_cannot_delete: "This product has historical inventory records and cannot be deleted. Archive it instead."
       destroyed: "Product deleted."
       delete_requires_archive: "Archive the product before deleting it."
       delete_referenced: "This product is still used — by a warehouse, a purchase request or another record — and cannot be deleted. Keep it archived instead."
       delete_audit_failed: "The product was not deleted because its audit record could not be saved. Please try again."
-      archive_has_active_children: "Cannot archive a parent product that has active child products. Archive the children first, or use Archive Family."
     movements:
       stock_count_reasons:
         adjustment: "Stock count adjustment"
@@ -6193,10 +6154,6 @@ en:
           attributes:
             base:
               has_history_cannot_delete: "This product has historical inventory records and cannot be deleted. Archive it instead."
-              archive_has_active_children: "Cannot archive a parent product that has active child products. Archive the children first, or use Archive Family."
-            parent_product_id:
-              too_deep: "cannot be a variant of another variant — parent products can only be one level deep"
-              circular: "cannot be set to the product itself"
         goods_receipt:
           attributes:
             base:
@@ -6230,7 +6187,6 @@ en:
         goods_receipt_item:
           attributes:
             product_id:
-              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
               invalid: "must match the purchase request line's product"
               on_purchase_request: "is on the purchase request — enter its quantity on that request line instead of adding it as an extra product"
             quantity:
@@ -6238,22 +6194,6 @@ en:
             purchase_request_item:
               invalid: "must belong to the linked purchase request"
               supplier_mismatch: "belongs to another supplier — receive it in a receipt for that line's supplier"
-        stock_issue_item:
-          attributes:
-            product_id:
-              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
-        stock_transfer_item:
-          attributes:
-            product_id:
-              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
-        stock_adjustment_item:
-          attributes:
-            product_id:
-              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
-        stock_count_item:
-          attributes:
-            product_id:
-              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
         shift_template_entry:
           attributes:
             ends_on:

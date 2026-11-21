@@ -22,11 +22,11 @@
 
   <%# ── Status tabs ──────────────────────────────────────────────────────── %>
   <div class="tab-bar" style="margin-bottom: var(--space-4);">
-    <%= link_to t("inventory.products.status_active"), inventory_products_path(params.permit(:q, :brand_id, :category_id, :family_type).merge(status: "active")),
+    <%= link_to t("inventory.products.status_active"), inventory_products_path(params.permit(:q, :brand_id, :category_id).merge(status: "active")),
           class: "tab-bar__tab #{"tab-bar__tab--active" if @status_filter.to_s == "active"}" %>
-    <%= link_to t("inventory.products.status_archived"), inventory_products_path(params.permit(:q, :brand_id, :category_id, :family_type).merge(status: "archived")),
+    <%= link_to t("inventory.products.status_archived"), inventory_products_path(params.permit(:q, :brand_id, :category_id).merge(status: "archived")),
           class: "tab-bar__tab #{"tab-bar__tab--active" if @status_filter.to_s == "archived"}" %>
-    <%= link_to t("inventory.products.status_all"), inventory_products_path(params.permit(:q, :brand_id, :category_id, :family_type).merge(status: "all")),
+    <%= link_to t("inventory.products.status_all"), inventory_products_path(params.permit(:q, :brand_id, :category_id).merge(status: "all")),
           class: "tab-bar__tab #{"tab-bar__tab--active" if @status_filter.to_s == "all"}" %>
   </div>
 
@@ -64,19 +64,11 @@
             { include_blank: t("inventory.products.all_brands") }, class: "form-control" %>
       <%= f.select :category_id, options_from_collection_for_select(@categories, :id, :name, params[:category_id]),
             { include_blank: t("inventory.products.all_categories") }, class: "form-control" %>
-      <%= f.select :family_type,
-            [
-              [ t("inventory.products.filter_all"),        "" ],
-              [ t("inventory.products.filter_root"),       "root" ],
-              [ t("inventory.products.filter_child"),      "child" ],
-              [ t("inventory.products.filter_standalone"), "standalone" ]
-            ],
-            { selected: params[:family_type] }, class: "form-control" %>
       <%= f.submit t("common.search"), class: "btn btn-secondary btn-sm" %>
     <% end %>
   </div>
 
-  <% if @root_products.empty? %>
+  <% if @products.empty? %>
     <div class="empty-state"><p class="empty-state__title"><%= t("inventory.products.empty") %></p></div>
   <% else %>
     <div class="table-wrap table-wrap--cards">
@@ -96,15 +88,9 @@
           <th></th>
         </tr></thead>
         <tbody>
-          <% @root_products.each do |product| %>
-            <%
-              child_count  = @child_counts[product.id] || 0
-              is_parent    = child_count > 0
-              display_stock = is_parent ?
-                (@family_stock_totals[product.id] || 0) :
-                (@stock_totals[product.id] || 0)
-            %>
-            <tr <%= "data-controller=product-family data-product-family-url-value=#{children_inventory_product_path(product)} data-product-id=#{product.id}".html_safe if is_parent %>>
+          <% @products.each do |product| %>
+            <% display_stock = @stock_totals[product.id] || 0 %>
+            <tr>
               <td>
                 <input type="checkbox"
                        data-product-select-target="checkbox"
@@ -113,41 +99,21 @@
                        aria-label="<%= product.name %>">
               </td>
               <td>
-                <% if is_parent %>
-                  <button type="button"
-                          class="btn btn-ghost btn-xs"
-                          style="padding: 0 var(--space-1); margin-inline-end: var(--space-1);"
-                          data-action="click->product-family#toggle"
-                          data-product-family-target="trigger"
-                          aria-expanded="false"
-                          aria-label="<%= t('inventory.products.expand_children') %>">▶</button>
-                <% end %>
                 <%= product_identity(product, link: inventory_product_path(product)) %>
                 <% if product.archived? %>
                   <span class="badge badge-neutral" style="margin-inline-start: var(--space-1);"><%= t("inventory.products.archived_badge") %></span>
-                <% end %>
-                <% if is_parent %>
-                  <span class="badge badge-neutral" style="margin-inline-start: var(--space-1);">
-                    <%= t("inventory.products.children_count", count: child_count) %>
-                  </span>
-                <% end %>
-                <% if product.child? %>
-                  <span class="td-secondary" style="display: block; font-size: 0.8em;">
-                    ↳ <%= product.parent_product.name %>
-                  </span>
                 <% end %>
               </td>
               <td class="td-secondary"><%= product.sku %></td>
               <td class="td-secondary"><%= product.brand&.name || "—" %></td>
               <td style="text-align: end;">
-                <% if !is_parent && product.track_inventory? && display_stock <= product.low_stock_level %>
+                <% if @low_stock_product_ids.include?(product.id) %>
                   <span class="badge badge-warning"><%= display_stock.to_i %></span>
                 <% else %>
                   <%= display_stock.to_i %>
-                  <% if is_parent %><span class="td-secondary" style="font-size: 0.8em;"> <%= t("inventory.products.family_stock_label") %></span><% end %>
                 <% end %>
               </td>
-              <td style="text-align: end;"><%= is_parent ? "—" : format_currency(product.average_cost_price) %></td>
+              <td style="text-align: end;"><%= format_currency(product.average_cost_price) %></td>
               <td class="td-actions">
                 <%= link_to inventory_barcode_label_path(product), target: "_blank", rel: "noopener",
                       class: "link-muted", title: t("inventory.barcode_labels.print_barcode") do %>
@@ -163,8 +129,6 @@
                 <% end %>
               </td>
             </tr>
-            <%# Children are lazy-loaded by product-family Stimulus controller.
-                Standalone products (no children) render as normal rows above. %>
           <% end %>
         </tbody>
       </table>

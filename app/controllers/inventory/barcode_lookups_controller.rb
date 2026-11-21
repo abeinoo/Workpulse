@@ -9,12 +9,8 @@ class Inventory::BarcodeLookupsController < Inventory::BaseController
     result = Inventory::BarcodeLookup.new(policy_scope(Product).active).find(params[:code])
     if result
       product = result.product
-      if product.parent?
-        render json: { error: "parent_product", name: product.name }, status: :unprocessable_entity
-      else
-        preload_product_images([ product ])
-        render json: product_picker_json(product).merge(matched_on: result.matched_on)
-      end
+      preload_product_images([ product ])
+      render json: product_picker_json(product).merge(matched_on: result.matched_on)
     else
       render json: { error: "not_found" }, status: :not_found
     end

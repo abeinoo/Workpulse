@@ -6,7 +6,7 @@ module Inventory
   # Configured. On-hand and reserved come from the ledger and the open stock
   # issues in two grouped queries for the whole set — never one per row.
   #
-  # Nothing here reads a product-level (legacy) threshold: a pair without an
+  # There is no product-level threshold to read: a pair without an
   # availability row shows no low-stock or reorder value at all.
   class AvailabilityFigures
     Pair = Struct.new(:product, :warehouse, :setting, :on_hand, :reserved, keyword_init: true) do

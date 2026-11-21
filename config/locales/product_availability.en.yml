@@ -142,10 +142,6 @@ en:
       title: Warehouse availability
       managed_after_create: After saving, open Edit to add the product to its warehouses in the Product Availability per Warehouse section.
       save_hint: Saves the product details above. Warehouse settings have their own Save buttons.
-    legacy:
-      low_stock_level: Legacy low-stock level (product-wide)
-      reorder_quantity: Legacy reorder quantity (product-wide)
-      hint: Older product-wide value, kept for the historical central warehouse and the legacy total alert. Per-warehouse settings are managed under Warehouse availability.
     flash:
       added:
         zero: No product was added to %{warehouse}.
@@ -168,7 +164,7 @@ en:
       no_items: Select at least one product to add.
       duplicate_product: A product was listed twice. Nothing was added.
       inactive_warehouse: "%{warehouse} is inactive. Nothing was changed."
-      invalid_product: One of the selected products can no longer be added (archived, deleted or a product family). Nothing was added.
+      invalid_product: One of the selected products can no longer be added (archived or deleted). Nothing was added.
       invalid_quantity: enter a low-stock level and reorder quantity of 0 or more. Nothing was added.
       untracked_product_settings: this product does not track inventory, so its low-stock level and reorder quantity must be 0.
       audit_failed: The change could not be recorded in the audit log, so nothing was changed. Please try again.
@@ -186,49 +182,16 @@ en:
       archived: archived
       truncated: Showing the first %{shown} of %{total}.
       central:
-        title: Historical central warehouse
+        title: Central warehouse
         list: 'Central warehouses (warehouse type “central”):'
-        target: The product-wide (legacy) low-stock values belong to %{warehouse}, the business's central warehouse. They are compared with its own rows only — never with branch warehouses.
-        none: No warehouse is classified as central, so the product-wide (legacy) values cannot be matched to a warehouse yet. Classify the historical central warehouse first.
-        several: Several warehouses are classified as central (%{warehouses}). Decide which one is the historical central warehouse before reconciling the product-wide values.
+        target: "%{warehouse} is the business's central warehouse. Its low-stock and reorder settings are its own — never shared with branch warehouses."
+        none: No warehouse is classified as central. Classify the central warehouse.
+        several: Several warehouses are classified as central (%{warehouses}). A business has exactly one central warehouse; decide which one it is.
         unclassified: 'Not yet classified: %{warehouses}. Classify these warehouses (central or branch) before reconciling.'
       warehouses:
         title: By warehouse
         unconfigured_with_stock: Stock, not added
         inactive_with_stock: Inactive, with stock
-      legacy:
-        title: Product-wide (legacy) low-stock values
-        hint: Products whose product-wide low-stock level, reorder quantity, total alert level or alert setting differs from the default — compared with the historical central warehouse's row.
-        transfer: Transfer to central
-        old_low: Old low-stock level
-        old_reorder: Old reorder quantity
-        central_low: Central threshold
-        central_reorder: Central reorder quantity
-        reason: Reason
-        transfers:
-          matching: Transferred successfully
-          to_create: Not transferred yet
-          differing: Existing central settings — preserved, needs review
-          archived: Archived
-          untracked: Untracked
-          unresolved_central: No unique active central warehouse
-          inactive_conflict: Other conflict
-          legacy_alert_only: Other conflict
-          not_applicable: Nothing to transfer
-        reasons:
-          to_create: The transfer will save these values as the central warehouse's settings.
-          differing: The central warehouse already has its own settings; they are never overwritten.
-          archived: Archived products are not transferred; the values are kept.
-          untracked: Stock quantity is not tracked; the values are kept.
-          unresolved_central: The business has no single active central warehouse; nothing is transferred.
-          inactive_conflict: The product is excluded from the central warehouse; that setting is never reactivated.
-          legacy_alert_only: No old low-stock level or reorder quantity to transfer; its stock-wide alert continues until central settings are saved.
-          not_applicable: Only a total-alert level or alert setting — never copied.
-        transfer_summary: 'Transfer to the central warehouse: %{transferred} transferred, %{pending} pending, %{exceptions} exceptions (not transferred; each needs its own review — a legacy stock-wide alert they still have is kept).'
-        total_alert_in_use:
-          zero: No product has a legacy total alert level set.
-          one: 1 product has a legacy total alert level set. It is kept, still drives the stock-wide alert while the product has no warehouse settings, and is never mapped to a warehouse threshold.
-          other: "%{count} products have a legacy total alert level set. It is kept, still drives the stock-wide alert while a product has no warehouse settings, and is never mapped to a warehouse threshold."
       branch_rows:
         title: Rows added explicitly in branch warehouses
         hint: Configured by users before or after the per-warehouse change. They stay as they are (Active unless someone deactivated them).
@@ -247,7 +210,6 @@ en:
           untracked_with_settings: Low-stock settings on a product that does not track inventory
           active_row_in_inactive_warehouse: Active in an inactive warehouse
           active_row_for_archived_product: Active row for an archived product
-          row_for_parent_product: Row for a product family (parent)
           row_in_unclassified_warehouse: Row in an unclassified warehouse
           negative_on_hand: Negative on-hand
     exclusion:

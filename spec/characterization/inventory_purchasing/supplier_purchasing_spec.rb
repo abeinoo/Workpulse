@@ -170,7 +170,8 @@ RSpec.describe "Characterization: Supplier in purchasing" do
     end
 
     it "the low-stock report shows each product's default supplier" do
-      product.update!(default_supplier: second_supplier, reorder_level: 100)
+      product.update!(default_supplier: second_supplier)
+      ProductWarehouseSetting.create!(product: product, warehouse: wh_a, low_stock_level: 100, reorder_quantity: 10)
       rows = Inventory::Reports::LowStock.new(business).rows
 
       expect(rows.map(&:supplier).uniq).to eq([ second_supplier ])

@@ -53,24 +53,22 @@ RSpec.describe "Inventory product search (pickers)", type: :request do
   describe "kinds: the list each picker always offered" do
     let!(:plain)    { product("Plain", "PL-1") }
     let!(:archived) { product("Archived", "AR-1", active: false) }
-    let!(:parent)   { product("Parent", "PA-1") }
-    let!(:child)    { product("Child", "CH-1", parent_product: parent) }
     let!(:untracked) { product("Untracked", "UN-1", track_inventory: false) }
 
-    it "transactable (document lines, requests, imports): active, never a parent" do
-      expect(names(kind: "transactable")).to contain_exactly("Plain", "Child", "Untracked")
+    it "transactable (document lines, requests, imports): every active product" do
+      expect(names(kind: "transactable")).to contain_exactly("Plain", "Untracked")
     end
 
-    it "tracked (branch comparison): active, inventory-tracked, never a parent" do
-      expect(names(kind: "tracked")).to contain_exactly("Plain", "Child")
+    it "tracked (branch comparison): active and inventory-tracked" do
+      expect(names(kind: "tracked")).to contain_exactly("Plain")
     end
 
-    it "all (report filters): every product, archived and parents included" do
-      expect(names(kind: "all")).to contain_exactly("Plain", "Archived", "Parent", "Child", "Untracked")
+    it "all (report filters): every product, archived included" do
+      expect(names(kind: "all")).to contain_exactly("Plain", "Archived", "Untracked")
     end
 
     it "defaults to transactable and refuses an unknown kind" do
-      expect(names).to contain_exactly("Plain", "Child", "Untracked")
+      expect(names).to contain_exactly("Plain", "Untracked")
       get inventory_product_search_path(kind: "everything")
       expect(response).to have_http_status(:bad_request)
     end

@@ -28,7 +28,7 @@ module Inventory
   #
   # A product whose stock quantity is not tracked gets no NEW availability row
   # (2026-11-20); rows it already has are kept as they are, with no low-stock
-  # settings (0 / 0). No legacy product-level value is read or written, and no
+  # settings (0 / 0). There is no product-level value to read or write, and no
   # pair is created anywhere but the requested warehouse.
   class ProductAvailabilityManager
     include AuditLoggable
@@ -245,8 +245,8 @@ module Inventory
 
     # Loads (business), locks (warehouse, then the pair's row) and authorizes
     # one product/warehouse pair; yields product, warehouse and the row (nil =
-    # no row). Any product of the business that is not a family parent; an
-    # archived product (already out of operations) gets no new row.
+    # no row). Any product of the business; an archived product (already out
+    # of operations) gets no new row.
     def with_pair(product_id, warehouse_id)
       return failure(:not_authorized) if @actor.nil?
 
@@ -254,7 +254,7 @@ module Inventory
         warehouse = Warehouse.where(business_id: @actor.business_id).lock.find_by(id: warehouse_id)
         return failure(:not_authorized, warehouse) unless warehouse && policy(warehouse).manage?
 
-        product = Product.where(business_id: @actor.business_id).non_parent.find_by(id: product_id)
+        product = Product.where(business_id: @actor.business_id).find_by(id: product_id)
         return failure(:invalid_product, warehouse) if product.nil?
 
         # The product page manages only warehouses that include products by

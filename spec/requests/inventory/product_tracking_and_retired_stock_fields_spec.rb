@@ -1,20 +1,26 @@
 require "rails_helper"
 
-# Product Edit, 2026-11-20: "Track stock quantity" stays (product-level);
-# the product-wide low-stock level / reorder quantity / alert / total-alert
-# fields are gone from the form (per-warehouse settings replace them) and
-# their stored legacy values are left untouched. Untracked products show no
-# warehouse cards and get no new availability rows; tracking cannot be turned
-# off while stock or open documents remain. Unclassified warehouses are not
-# included by default.
+# Product Edit: "Track stock quantity" stays (product-level). Low-stock
+# threshold, reorder quantity and the low-stock notification are per warehouse
+# only — the product has none: no field on the form (not even read-only), no
+# parameter accepted, and a warehouse without its own setting never falls back
+# to the stale values still stored in the retired product columns. Untracked
+# products show no warehouse cards and get no new availability rows; tracking
+# cannot be turned off while stock or open documents remain. Unclassified
+# warehouses are not included by default.
 RSpec.describe "Product tracking and retired product-wide fields", type: :request do
   let(:business) { create(:business) }
   let!(:owner)   { create(:user, :owner, business: business) }
   let!(:central) { business.warehouses.create!(name: "Central WH", kind: "central") }
   let!(:branch_wh) { business.warehouses.create!(name: "Nasr City", kind: "branch", branch: create(:branch, business: business)) }
+  # Stale values in the retired product-level columns, as existing databases still hold.
   let!(:product) do
-    business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 1, average_cost_price: 1,
-                              low_stock_level: 7, reorder_quantity: 30, reorder_level: 4, receive_low_stock_notification: false)
+    business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 1, average_cost_price: 1)
+            .tap { |p| write_retired_product_stock_columns!(p, low_stock_level: 7, reorder_quantity: 30, reorder_level: 4,
+                                                            receive_low_stock_notification: false) }
+  end
+  let(:stale_columns) do
+    { "low_stock_level" => 7, "reorder_quantity" => 30, "reorder_level" => 4, "receive_low_stock_notification" => false }
   end
   let(:manager) { Inventory::ProductAvailabilityManager.new(actor: owner) }
 
@@ -32,9 +38,10 @@ RSpec.describe "Product tracking and retired product-wide fields", type: :reques
   describe "the form" do
     it "keeps Track stock quantity and no longer shows the product-wide replenishment fields" do
       get edit_inventory_product_path(product)
-      form = doc.at_css("form#product-form")
-      expect(form.at_css("input[type='checkbox'][name='product[track_inventory]']")).to be_present
-      expect(form.text).to include("Track stock quantity")
+      # In the Inventory Tracking section (outside the <form> element), bound to the product form.
+      checkbox = doc.at_css("input[type='checkbox'][name='product[track_inventory]']")
+      expect(checkbox["form"]).to eq("product-form")
+      expect(doc.at_css("[data-testid='inventory-tracking-section']").text).to include("Track stock quantity")
       %w[low_stock_level reorder_quantity receive_low_stock_notification reorder_level].each do |field|
         expect(doc.css("[name='product[#{field}]']")).to be_empty
       end
@@ -47,129 +54,71 @@ RSpec.describe "Product tracking and retired product-wide fields", type: :reques
       expect(response.body).not_to include("translation missing")
     end
 
-    it "ignores crafted product-wide values: the legacy values stay exactly as stored" do
+    it "ignores crafted product-wide values: nothing is written to the retired columns or to any warehouse" do
       update_product(name: "Shampoo Pro", low_stock_level: 99, reorder_quantity: 99, reorder_level: 99, receive_low_stock_notification: "1")
       expect(response).to redirect_to(inventory_product_path(product))
-      expect(product.reload.attributes.values_at("name", "low_stock_level", "reorder_quantity", "reorder_level", "receive_low_stock_notification"))
-        .to eq([ "Shampoo Pro", 7, 30, 4, false ])
-    end
-  end
-
-  # TEMPORARY restoration (2026-11-21): the legacy product-level Low Stock
-  # Threshold and Reorder Quantity are shown read-only on Edit, straight from
-  # products.low_stock_level / products.reorder_quantity.
-  describe "temporary legacy Low Stock Threshold and Reorder Quantity fields" do
-    def legacy_field = doc.at_css("[data-testid='legacy-low-stock-level']")
-    def legacy_reorder_field = doc.at_css("[data-testid='legacy-reorder-quantity']")
-    def legacy_values = [ legacy_field["value"], legacy_reorder_field["value"] ]
-
-    def save_card(warehouse, low:, reorder:)
-      patch availability_settings_inventory_product_path(product), params: {
-        warehouse_id: warehouse.id, return_to: "product_edit",
-        product_warehouse_setting: { low_stock_level: low, reorder_quantity: reorder }
-      }
-    end
-
-    it "shows the stored legacy values, read-only and never submitted" do
-      get edit_inventory_product_path(product)
-      expect(legacy_values).to eq([ "7", "30" ])
-      [ legacy_field, legacy_reorder_field ].each do |field|
-        expect(field["readonly"]).to be_present
-        expect(field["name"]).to be_nil
-      end
-      expect(doc.css("[name='product[low_stock_level]'], [name='product[reorder_quantity]']")).to be_empty
-      expect(response.body).to include("Low Stock Threshold (legacy, read-only)", "Reorder Quantity (legacy, read-only)")
-      expect(ProductWarehouseSetting.count).to eq(0) # rendering copies nothing
-    end
-
-    it "in Arabic too" do
-      owner.update!(preferred_locale: "ar")
-      get edit_inventory_product_path(product)
-      expect(legacy_values).to eq([ "7", "30" ])
-      expect(response.body).to include("حد انخفاض المخزون (القيمة القديمة، للقراءة فقط)", "كمية إعادة الطلب (القيمة القديمة، للقراءة فقط)")
-      expect(response.body).not_to include("translation missing")
-    end
-
-    it "is independent of warehouse settings: the cards keep their own values, the field keeps the legacy one" do
-      manager.add_many(warehouse_id: central.id, items: [ { product_id: product.id, low_stock_level: 3, reorder_quantity: 11 } ], source: "spec")
-      manager.add_many(warehouse_id: branch_wh.id, items: [ { product_id: product.id, low_stock_level: 5, reorder_quantity: 2 } ], source: "spec")
-      get edit_inventory_product_path(product)
-      expect(legacy_values).to eq([ "7", "30" ])
-      expect(doc.at_css("#pws-#{central.id}-low")["value"]).to eq("3")
-      expect(doc.at_css("#pws-#{central.id}-reorder")["value"]).to eq("11")
-      expect(doc.at_css("#pws-#{branch_wh.id}-low")["value"]).to eq("5")
-    end
-
-    it "stays unchanged when warehouse cards are saved, and nothing is copied between them" do
-      save_card(central, low: "12", reorder: "40")
-      save_card(branch_wh, low: "0", reorder: "0")
-      expect(product.reload.attributes.values_at("low_stock_level", "reorder_quantity", "reorder_level")).to eq([ 7, 30, 4 ])
-      expect(ProductWarehouseSetting.find_by!(warehouse: central)).to have_attributes(low_stock_level: 12, reorder_quantity: 40)
-      expect(ProductWarehouseSetting.find_by!(warehouse: branch_wh)).to have_attributes(low_stock_level: 0, reorder_quantity: 0)
-
-      get edit_inventory_product_path(product)
-      expect(legacy_values).to eq([ "7", "30" ])
-      expect(doc.at_css("#pws-#{central.id}-low")["value"]).to eq("12")
-    end
-
-    it "stays unchanged when the product form is saved" do
-      update_product(name: "Shampoo Pro", low_stock_level: 99, reorder_quantity: 99)
-      expect(product.reload.attributes.values_at("name", "low_stock_level", "reorder_quantity")).to eq([ "Shampoo Pro", 7, 30 ])
+      expect(product.reload.name).to eq("Shampoo Pro")
+      expect(retired_product_stock_columns(product)).to eq(stale_columns)
       expect(ProductWarehouseSetting.count).to eq(0)
     end
 
-    it "is not shown on New or for parent products" do
-      get new_inventory_product_path
-      expect(legacy_field).to be_nil
-      expect(legacy_reorder_field).to be_nil
-      business.products.create!(name: "Shampoo 250ml", sku: "SH-1-250", initial_cost_price: 1, average_cost_price: 1, parent_product: product)
-      get edit_inventory_product_path(product)
-      expect(legacy_field).to be_nil
-      expect(legacy_reorder_field).to be_nil
+    it "shows no product-level Low Stock or Reorder field — editable or read-only — on Edit, New or Show" do
+      [ edit_inventory_product_path(product), new_inventory_product_path, inventory_product_path(product) ].each do |path|
+        get path
+        expect(response).to have_http_status(:ok)
+        expect(doc.css("[data-testid^='legacy-low-stock'], [data-testid^='legacy-reorder'], #product_legacy_low_stock_level, " \
+                       "#product_legacy_reorder_quantity")).to be_empty
+        expect(response.body).not_to include("(legacy, read-only)", "Reorder Level", "Receive Low Stock Notifications",
+                                             "Legacy low-stock level", "Legacy reorder quantity")
+      end
     end
   end
 
-  describe "legacy product-wide values" do
-    def no_transfer_ui!
-      expect(response.body).not_to include("pending-transfer", "legacy-total-alert-active", "legacy-values")
-      expect(response.body).not_to include(I18n.t("product_availability.reconciliation.legacy.transfers.to_create"))
-    end
-
-    it "Edit has no transfer UI: the central card is a normal editable card from its own settings (never legacy values)" do
-      product.update_columns(receive_low_stock_notification: true)
+  describe "no fallback to the retired product-level values" do
+    it "a warehouse without its own setting shows its defaults (0 / 0), never the stale product values" do
       get edit_inventory_product_path(product)
-      no_transfer_ui!
-      expect(doc.at_css("#pws-#{central.id}-low")["value"]).to eq("0") # no central row yet: its own (default) settings
+      expect(doc.at_css("#pws-#{central.id}-low")["value"]).to eq("0")
       expect(doc.at_css("#pws-#{central.id}-reorder")["value"]).to eq("0")
-      expect(doc.at_css("[data-testid='save-#{central.id}']")).to be_present
+      expect(doc.at_css("#pws-#{branch_wh.id}-low")["value"]).to eq("0")
       expect(ProductWarehouseSetting.count).to eq(0) # opening the page writes nothing
     end
 
-    it "after the backfill the central card shows the persisted 7 / 30 in its normal inputs" do
-      preview = Inventory::LegacyCentralSettingsBackfill.new(business).dry_run
-      Inventory::LegacyCentralSettingsBackfill.new(business, actor: owner)
-                                              .apply!(expected_central_id: preview.central.id, expected_count: preview.to_create_count)
-      expect(ProductWarehouseSetting.find_by!(warehouse: central)).to have_attributes(low_stock_level: 7, reorder_quantity: 30)
+    it "each warehouse shows and keeps its own values; saving one card changes nothing else" do
+      manager.add_many(warehouse_id: central.id, items: [ { product_id: product.id, low_stock_level: 3, reorder_quantity: 11 } ], source: "spec")
+      manager.add_many(warehouse_id: branch_wh.id, items: [ { product_id: product.id, low_stock_level: 5, reorder_quantity: 2 } ], source: "spec")
+      patch availability_settings_inventory_product_path(product), params: {
+        warehouse_id: central.id, return_to: "product_edit",
+        product_warehouse_setting: { low_stock_level: "12", reorder_quantity: "40" }
+      }
+
+      expect(ProductWarehouseSetting.find_by!(warehouse: central)).to have_attributes(low_stock_level: 12, reorder_quantity: 40)
+      expect(ProductWarehouseSetting.find_by!(warehouse: branch_wh)).to have_attributes(low_stock_level: 5, reorder_quantity: 2)
+      expect(retired_product_stock_columns(product)).to eq(stale_columns)
       get edit_inventory_product_path(product)
-      no_transfer_ui!
-      expect(doc.at_css("#pws-#{central.id}-low")["value"]).to eq("7")
-      expect(doc.at_css("#pws-#{central.id}-reorder")["value"]).to eq("30")
+      expect(doc.at_css("#pws-#{central.id}-low")["value"]).to eq("12")
+      expect(doc.at_css("#pws-#{branch_wh.id}-low")["value"]).to eq("5")
     end
 
-    it "the reconciliation report (not the Edit page) lists them with their transfer status" do
-      product.update_columns(track_inventory: false)
-      get inventory_availability_reconciliation_path
-      expect(doc.at_css("[data-testid='legacy-transfer-#{product.id}']").text)
-        .to include(I18n.t("product_availability.reconciliation.legacy.transfers.untracked"))
+    it "the product page's low-stock badge follows warehouse settings only" do
+      stock!(central, 3)
+      get inventory_product_path(product) # stale product threshold 7 ≥ 3 — ignored
+      expect(response.body).not_to include(I18n.t("inventory.products.low_stock_badge"))
 
-      product.update_columns(track_inventory: true)
-      get inventory_availability_reconciliation_path
-      expect(doc.at_css("[data-testid='legacy-transfer-#{product.id}']").text)
-        .to include(I18n.t("product_availability.reconciliation.legacy.transfers.to_create"))
-      expect(doc.at_css("[data-testid='transfer-summary']").text)
-        .to include(I18n.t("product_availability.reconciliation.legacy.transfer_summary", transferred: 0, pending: 1, exceptions: 0))
-      expect(ProductWarehouseSetting.count).to eq(0)
-      expect(product.reload.attributes.values_at("low_stock_level", "reorder_quantity", "reorder_level")).to eq([ 7, 30, 4 ])
+      manager.add_many(warehouse_id: central.id, items: [ { product_id: product.id, low_stock_level: 5, reorder_quantity: 0 } ], source: "spec")
+      get inventory_product_path(product)
+      expect(response.body).to include(I18n.t("inventory.products.low_stock_badge"))
+    end
+
+    it "the products list highlights stock as low only from a warehouse setting" do
+      stock!(central, 3)
+      get inventory_products_path
+      row = doc.css("tr").find { |tr| tr.text.include?("SH-1") }
+      expect(row.at_css(".badge-warning")).to be_nil
+
+      manager.add_many(warehouse_id: central.id, items: [ { product_id: product.id, low_stock_level: 5, reorder_quantity: 0 } ], source: "spec")
+      get inventory_products_path
+      row = doc.css("tr").find { |tr| tr.text.include?("SH-1") }
+      expect(row.at_css(".badge-warning")&.text&.strip).to eq("3")
     end
   end
 

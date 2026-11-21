@@ -14,8 +14,7 @@ RSpec.describe Inventory::ProductDeletion do
 
   # A product that may be deleted: archived, no barcode, no history, no references.
   def bare_product(sku = "SH-1")
-    business.products.create!(name: "Shampoo #{sku}", sku: sku, initial_cost_price: 5, average_cost_price: 5,
-                              low_stock_level: 10, reorder_level: 10, reorder_quantity: 20).tap do |p|
+    business.products.create!(name: "Shampoo #{sku}", sku: sku, initial_cost_price: 5, average_cost_price: 5).tap do |p|
       p.product_barcodes.delete_all
       p.update!(active: false, archived_at: Time.current)
     end
@@ -30,7 +29,8 @@ RSpec.describe Inventory::ProductDeletion do
     expect(result).to be_ok
     expect(Product.exists?(product.id)).to be(false)
     entry = AuditLog.where(action: "destroy", auditable_type: "Product", auditable_id: product.id).sole
-    expect(entry.metadata["product"]).to include("sku" => "SH-1", "low_stock_level" => "10.0", "reorder_level" => 10)
+    expect(entry.metadata["product"]).to include("sku" => "SH-1", "track_inventory" => true)
+    expect(entry.metadata["product"].keys & RetiredProductStockColumns::COLUMNS).to be_empty
   end
 
   it "refuses a product with ANY warehouse availability row and keeps every row (the BUG-063 data loss)" do

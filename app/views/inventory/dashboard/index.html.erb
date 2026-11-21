@@ -203,33 +203,6 @@
     </p>
   <% end %>
 
-  <% if @family_low_stock.any? %>
-    <section class="card inv-dash__section">
-      <div class="card__header flex items-center justify-between">
-        <h2 class="card__title" style="margin: 0;">
-          <%= t("inventory.dashboard.family_low_stock_title") %>
-          <span class="badge badge-warning"><%= @family_low_stock.values.sum(&:size) %></span>
-        </h2>
-      </div>
-      <div class="table-wrap table-wrap--cards">
-        <table>
-          <thead><tr>
-            <th><%= t("inventory.products.parent_product") %></th>
-            <th style="text-align: end;"><%= t("inventory.dashboard.low_children_count") %></th>
-          </tr></thead>
-          <tbody>
-            <% @family_low_stock.each do |parent, alerts| %>
-              <tr>
-                <td><%= product_identity(parent, link: inventory_product_path(parent)) %></td>
-                <td style="text-align: end;"><span class="badge badge-warning"><%= alerts.size %></span></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-    </section>
-  <% end %>
-
   <%# ── Most active products ──────────────────────────────────────────── %>
   <section class="card inv-dash__section" id="active-products">
     <div class="inv-dash__panel-head">

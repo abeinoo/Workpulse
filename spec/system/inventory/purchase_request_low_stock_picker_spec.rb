@@ -12,12 +12,14 @@ RSpec.describe "Purchase Request Low Stock picker", type: :system do
   let!(:main_wh)  { business.warehouses.create!(name: "Main WH") }
   let!(:other_wh) { business.warehouses.create!(name: "Other WH") }
 
-  def low_product(name, sku, reorder_quantity: 10)
-    business.products.create!(name: name, sku: sku, average_cost_price: 10,
-                              low_stock_level: 5, reorder_level: 5, reorder_quantity: reorder_quantity)
+  # Low (threshold 5) in `warehouse`, with that warehouse's own reorder quantity.
+  def low_product(name, sku, reorder_quantity: 10, warehouse: main_wh)
+    business.products.create!(name: name, sku: sku, average_cost_price: 10).tap do |p|
+      p.product_warehouse_settings.create!(warehouse: warehouse, low_stock_level: 5, reorder_quantity: reorder_quantity)
+    end
   end
 
-  # Total-stock alerts: Alpha 0 on hand (out of stock), Beta 1, Gamma 2.
+  # Main WH alerts: Alpha 0 on hand (out of stock), Beta 1, Gamma 2.
   let!(:alpha) { low_product("Alpha Dye", "AL-1") }
   let!(:beta)  { low_product("Beta Oil", "BE-1", reorder_quantity: 12) }
   let!(:gamma) { low_product("Gamma Gel", "GA-1") }
@@ -139,41 +141,42 @@ RSpec.describe "Purchase Request Low Stock picker", type: :system do
     expect(line_products).to contain_exactly(alpha.id.to_s, beta.id.to_s, gamma.id.to_s)
   end
 
-  it "keeps one warehouse per request: a warehouse-specific row sets it, rows of another warehouse are not offered" do
-    gamma.product_warehouse_settings.create!(warehouse: other_wh, low_stock_level: 5, reorder_quantity: 3)
-    open_picker
-    expect(row_for(gamma)["data-warehouse-id"]).to eq(other_wh.id.to_s)
-    check_for(gamma).check
-    add_button.click
-    expect(find("select[name='purchase_request[warehouse_id]']").value).to eq(other_wh.id.to_s)
+  context "with Gamma low only in Other WH" do
+    let!(:gamma) { low_product("Gamma Gel", "GA-1", reorder_quantity: 3, warehouse: other_wh) }
 
-    select "Main WH", from: "purchase_request[warehouse_id]"
-    click_button form(:add_from_low_stock)
-    # Gamma is on the request already; a Main WH request can't take Other WH rows either way.
-    expect(modal).to have_no_css("[data-low-stock-row][data-product-id='#{gamma.id}']", visible: true)
-    expect(row_for(alpha)).to be_visible # total-stock alerts fit any warehouse
-  end
-
-  it "shows no Warehouse column (the form chooses it), while the rows keep their warehouse for the one-warehouse rule" do
-    gamma.product_warehouse_settings.create!(warehouse: other_wh, low_stock_level: 5, reorder_quantity: 3)
-    %w[en ar].each do |locale|
-      open_picker(locale: locale)
-      headers = modal.all(".lsp__table thead th").map { |th| th.text.strip }
-      expect(headers.size).to eq(5) # checkbox, product, current stock, minimum, suggested quantity
-      expect(headers).not_to include(I18n.t("inventory.dashboard.warehouse", locale: locale).upcase,
-                                     I18n.t("inventory.dashboard.warehouse", locale: locale))
-      expect(modal.all(".lsp__table tbody tr:not([hidden])").map { |tr| tr.all("td").size }.uniq).to eq([ 5 ])
-      expect(modal).to have_no_text(I18n.t("inventory.dashboard.all_warehouses", locale: locale))
-      expect(modal).to have_no_text(other_wh.name)
+    it "keeps one warehouse per request: a warehouse-specific row sets it, rows of another warehouse are not offered" do
+      open_picker
       expect(row_for(gamma)["data-warehouse-id"]).to eq(other_wh.id.to_s)
-      modal.click_button I18n.t("common.cancel", locale: locale)
+      check_for(gamma).check
+      add_button.click
+      expect(find("select[name='purchase_request[warehouse_id]']").value).to eq(other_wh.id.to_s)
+
+      select "Main WH", from: "purchase_request[warehouse_id]"
+      click_button form(:add_from_low_stock)
+      # Gamma is on the request already; a Main WH request can't take Other WH rows either way.
+      expect(modal).to have_no_css("[data-low-stock-row][data-product-id='#{gamma.id}']", visible: true)
+      expect(row_for(alpha)).to be_visible # a Main WH row fits a Main WH request
     end
 
-    # The rule itself is unchanged: with Main WH chosen, the Other WH row is not offered.
-    select "Main WH", from: "purchase_request[warehouse_id]"
-    click_button form(:add_from_low_stock, locale: "ar")
-    expect(modal).to have_no_css("[data-low-stock-row][data-product-id='#{gamma.id}']", visible: true)
-    expect(modal).to have_text(form(:low_stock_hidden_rows, count: 1, locale: "ar"))
+    it "shows no Warehouse column (the form chooses it), while the rows keep their warehouse for the one-warehouse rule" do
+      %w[en ar].each do |locale|
+        open_picker(locale: locale)
+        headers = modal.all(".lsp__table thead th").map { |th| th.text.strip }
+        expect(headers.size).to eq(5) # checkbox, product, current stock, minimum, suggested quantity
+        expect(headers).not_to include(I18n.t("inventory.dashboard.warehouse", locale: locale).upcase,
+                                       I18n.t("inventory.dashboard.warehouse", locale: locale))
+        expect(modal.all(".lsp__table tbody tr:not([hidden])").map { |tr| tr.all("td").size }.uniq).to eq([ 5 ])
+        expect(modal).to have_no_text(other_wh.name)
+        expect(row_for(gamma)["data-warehouse-id"]).to eq(other_wh.id.to_s)
+        modal.click_button I18n.t("common.cancel", locale: locale)
+      end
+
+      # The rule itself is unchanged: with Main WH chosen, the Other WH row is not offered.
+      select "Main WH", from: "purchase_request[warehouse_id]"
+      click_button form(:add_from_low_stock, locale: "ar")
+      expect(modal).to have_no_css("[data-low-stock-row][data-product-id='#{gamma.id}']", visible: true)
+      expect(modal).to have_text(form(:low_stock_hidden_rows, count: 1, locale: "ar"))
+    end
   end
 
   it "highlights out-of-stock products" do

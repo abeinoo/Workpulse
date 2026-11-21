@@ -39,7 +39,7 @@ module Inventory
       def all_rows
         @all_rows ||= begin
           totals = StockLevels.totals_for(@business, warehouse_ids: @warehouse_ids)
-          @business.products.active.inventory_tracked.non_parent.ordered.includes(:brand).map do |product|
+          @business.products.active.inventory_tracked.ordered.includes(:brand).map do |product|
             on_hand = totals[product.id] || 0
             Row.new(
               product:     product,

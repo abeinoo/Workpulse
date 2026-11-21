@@ -29,30 +29,18 @@ RSpec.describe Inventory::Reports::AvailabilityReconciliation do
 
   def report(warehouse_ids: nil) = described_class.new(business, warehouse_ids: warehouse_ids)
 
-  it "compares legacy product-wide values with the central warehouse's row only" do
-    matching = product("Matching", "M-1", low_stock_level: 5, reorder_quantity: 10)
-    add!(matching, central, low_stock_level: 5, reorder_quantity: 10)
-    differing = product("Differing", "D-1", low_stock_level: 5)
-    add!(differing, central, low_stock_level: 2)
-    branch_only = product("Branch only", "B-1", reorder_level: 3)
-    add!(branch_only, branch_wh, low_stock_level: 9)
-    product("Defaults", "Z-1") # no legacy values, but relies on the legacy stock-wide alert: listed (legacy_alert_only)
-
-    rows = report.legacy.rows.to_h { |row| [ row.product.name, row.status ] }
-
+  it "names the central warehouse and has no product-level (legacy) section" do
     expect(report.central_target).to eq(central)
-    expect(rows).to eq("Matching" => "matches", "Differing" => "differs", "Branch only" => "no_central_row", "Defaults" => "no_central_row")
-    expect(report.legacy.rows.to_h { |row| [ row.product.name, row.transfer ] })
-      .to include("Defaults" => "legacy_alert_only", "Matching" => "matching", "Differing" => "differing")
+    %i[legacy transfer_preview transfer_visible? legacy_total_alert_count].each do |name|
+      expect(report).not_to respond_to(name)
+    end
   end
 
-  it "does not guess the historical central warehouse when there are several (or none)" do
+  it "does not guess the central warehouse when there are several (or none)" do
     business.warehouses.create!(name: "Old Central", kind: "central")
-    legacy = product("Legacy", "L-1", low_stock_level: 4)
 
     expect(report.central_target).to be_nil
     expect(report.central_candidates.map(&:name)).to contain_exactly("Main Warehouse", "Old Central")
-    expect(report.legacy.rows.find { |r| r.product == legacy }.status).to eq("no_central_target")
   end
 
   it "lists explicit branch rows, stock without a row, and Inactive pairs with stock" do
@@ -117,7 +105,7 @@ RSpec.describe Inventory::Reports::AvailabilityReconciliation do
   end
 
   it "writes nothing" do
-    shampoo = product("Shampoo", "SH-1", low_stock_level: 3)
+    shampoo = product("Shampoo", "SH-1")
     stock!(shampoo, branch_wh, 2)
     add!(shampoo, central)
 
@@ -126,7 +114,6 @@ RSpec.describe Inventory::Reports::AvailabilityReconciliation do
     ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
       r = report
       r.warehouse_rows
-      r.legacy
       r.branch_rows
       r.stock_without_row
       r.inactive_with_stock

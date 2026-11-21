@@ -110,12 +110,12 @@ module Inventory
       I18n.t("inventory.stock_issues.errors.stale_edit")
     end
 
-    # Line validations read each line's product and whether it's a family
-    # (StockIssueItem#product_is_transactable) — load both for all lines in
-    # two queries instead of two per line.
+    # Line validations read each line's product
+    # (StockIssueItem#product_in_same_business) — load them for all lines in one
+    # query instead of one per line.
     def preload_line_products
       lines = @issue.items.reject(&:marked_for_destruction?)
-      ActiveRecord::Associations::Preloader.new(records: lines, associations: { product: :child_products }).call
+      ActiveRecord::Associations::Preloader.new(records: lines, associations: :product).call
     end
 
     # Captured before anything changes: what the reopen invalidates.

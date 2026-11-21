@@ -7,7 +7,7 @@ RSpec.describe "Inventory overview dashboard services", type: :model do
   let(:outlet)   { business.warehouses.create!(name: "Outlet") }
   let(:nasr)     { business.branches.create!(name: "Nasr", active: true) }
   let(:shubra)   { business.branches.create!(name: "Shubra", active: true) }
-  let(:shampoo)  { business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10, reorder_level: 5, reorder_quantity: 20) }
+  let(:shampoo)  { business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10) }
   let(:wax)      { business.products.create!(name: "Wax", sku: "WX-1", initial_cost_price: 4, average_cost_price: 4) }
   let(:today)    { BusinessDay.current(context: business) }
 

@@ -55,7 +55,7 @@ export default class extends Controller {
 
     const product = await this.#lookupProduct(code)
     if (!product || product.error) {
-      product?.error === "parent_product" ? this.#parentProduct(code, product.name) : this.#notFound(code)
+      this.#notFound(code)
     } else {
       this.#addCountRow(product)
     }
@@ -124,7 +124,6 @@ export default class extends Controller {
   async #lookupRemote(code) {
     const result = await this.#lookupProduct(code)
     if (!result) return null
-    if (result.error === "parent_product") { this.#parentProduct(code, result.name); return null }
     return result.id ? result : null
   }
 
@@ -188,15 +187,6 @@ export default class extends Controller {
     if (this.hasFeedbackTarget) {
       const tpl = this.feedbackTarget.dataset.notFound || 'No product found for "%{code}"'
       this.feedbackTarget.textContent = tpl.replace("%{code}", code)
-      this.feedbackTarget.hidden = false
-    }
-    this.inputTarget.select()
-  }
-
-  #parentProduct(code, name) {
-    if (this.hasFeedbackTarget) {
-      const tpl = this.feedbackTarget.dataset.parentProduct || '"%{name}" is a product family — scan a child product instead.'
-      this.feedbackTarget.textContent = tpl.replace("%{name}", name || code)
       this.feedbackTarget.hidden = false
     }
     this.inputTarget.select()

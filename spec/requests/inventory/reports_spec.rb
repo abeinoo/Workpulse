@@ -108,7 +108,7 @@ RSpec.describe "Inventory::Reports", type: :request do
     end
 
     it "low stock offers the purchase-request action only with purchasing permission" do
-      product.update!(reorder_level: 20, reorder_quantity: 30)
+      ProductWarehouseSetting.create!(product: product, warehouse: wh_a, low_stock_level: 1000, reorder_quantity: 30)
       get inventory_low_stock_report_path
       expect(response.body).to include("Shampoo")
       expect(response.body).to include('data-low-stock-selection-target="createBtn"')
