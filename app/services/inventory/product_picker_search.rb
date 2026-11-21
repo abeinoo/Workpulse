@@ -26,7 +26,7 @@ module Inventory
 
     def call(query)
       q = query.to_s.strip
-      relation = @scope.includes(:product_barcodes).with_attached_image
+      relation = @scope.includes(:product_barcodes).with_primary_image
       return relation.order(:name, :id).limit(LIMIT).to_a if q.empty?
 
       like  = "%#{ActiveRecord::Base.sanitize_sql_like(q.downcase)}%"

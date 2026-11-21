@@ -51,7 +51,7 @@ class DashboardController < ApplicationController
     ).alerts.select(&:notifiable?).first(8)
     # Product thumbnails read preloaded images only (ProductThumbnailHelper).
     products = @inventory_low_stock.map(&:product).uniq(&:object_id)
-    ActiveRecord::Associations::Preloader.new(records: products, associations: { image_attachment: :blob }).call if products.any?
+    ActiveRecord::Associations::Preloader.new(records: products, associations: Product::IMAGE_PRELOAD).call if products.any?
   end
 
   # Team / branch management (roster, pending requests/adjustments): anyone who

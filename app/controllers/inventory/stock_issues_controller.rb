@@ -58,7 +58,7 @@ class Inventory::StockIssuesController < Inventory::BaseController
 
   def show
     @stock_issue = find_issue(includes: [ :submitted_by, :approved_by, :rejected_by, :issued_by, :cancelled_by, :voided_by,
-                                          { items: { product: { image_attachment: :blob } } } ])
+                                          { items: { product: Product::IMAGE_PRELOAD } } ])
     authorize @stock_issue
     @items           = @stock_issue.items
     # Physical / reserved-by-others / available / requested per product while

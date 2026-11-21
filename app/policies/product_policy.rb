@@ -5,6 +5,9 @@ class ProductPolicy < ApplicationPolicy
   def update?  = create?
   def archive? = create?
   def restore? = create?
+  # Upload, reorder, choose the primary image of, or remove product images
+  # (Inventory::ProductGalleryUpdater) — the product editors.
+  def manage_images? = create?
   def destroy? = create?
 
   class Scope < ApplicationPolicy::Scope

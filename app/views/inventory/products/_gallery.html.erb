@@ -1,0 +1,74 @@
+<%#
+  Product image gallery (New / Edit). Sits beside the product form, OUTSIDE it;
+  its hidden fields belong to the form through the HTML form attribute and are
+  applied only when the product is saved (Inventory::ProductGalleryUpdater):
+    product[gallery_present] = 1
+    product[gallery][]       = "image:<id>" | "upload:<signed id>", in order (first = primary)
+  Photos are uploaded (staged) as soon as they are chosen, with progress
+  (product_gallery_controller.js → Inventory::ProductImageUploadsController);
+  nothing is attached to the product until Save.
+
+  locals: product
+%>
+<% g = "inventory.products.gallery" %>
+<% items = product_gallery_items(product) %>
+<% max_mb = Attachable::DEFAULT_MAX_SIZE / 1.megabyte %>
+<section class="pgallery" aria-labelledby="pgallery-title" data-testid="product-gallery"
+         data-controller="product-gallery"
+         data-action="dragover->product-gallery#dragOverZone dragleave->product-gallery#dragLeaveZone drop->product-gallery#dropFiles"
+         data-product-gallery-upload-url-value="<%= inventory_product_image_uploads_path %>"
+         data-product-gallery-max-files-value="<%= ProductImage::MAX_PER_PRODUCT %>"
+         data-product-gallery-max-bytes-value="<%= Attachable::DEFAULT_MAX_SIZE %>"
+         data-product-gallery-types-value="<%= Attachable::IMAGE_CONTENT_TYPES.to_json %>"
+         data-product-gallery-messages-value="<%= {
+           remove_confirm: t("#{g}.remove_confirm"), uploading: t("#{g}.uploading"),
+           upload_failed: t("#{g}.upload_failed"), too_large: t("#{g}.errors.too_large", max: max_mb),
+           invalid_type: t("#{g}.errors.invalid_type"), too_many: t("#{g}.errors.too_many", max: ProductImage::MAX_PER_PRODUCT),
+           wait_for_uploads: t("#{g}.wait_for_uploads")
+         }.to_json %>">
+  <div class="pgallery__head">
+    <h2 class="section-title" id="pgallery-title"><%= t("#{g}.title") %></h2>
+    <span class="pgallery__count td-secondary" data-product-gallery-target="count" aria-live="polite">
+      <%= t("#{g}.count", count: items.size, max: ProductImage::MAX_PER_PRODUCT) %>
+    </span>
+  </div>
+
+  <input type="hidden" name="product[gallery_present]" value="1" form="product-form">
+  <div data-product-gallery-target="inputs">
+    <% items.each do |item| %>
+      <input type="hidden" name="product[gallery][]" value="<%= item.entry %>" form="product-form">
+    <% end %>
+  </div>
+
+  <%# The primary image, large. Empty: the drop zone itself. %>
+  <div class="pgallery__main" data-product-gallery-target="main" data-testid="gallery-main">
+    <% if (first = items.first) %>
+      <img src="<%= first.main_url %>" alt="<%= product.name %>" class="pgallery__main-img">
+      <span class="badge badge-accent pgallery__main-badge"><%= t("#{g}.primary") %></span>
+    <% else %>
+      <%= render "inventory/products/gallery_empty" %>
+    <% end %>
+  </div>
+
+  <ol class="pgallery__thumbs" data-product-gallery-target="list" aria-label="<%= t("#{g}.list_label") %>">
+    <% items.each_with_index do |item, index| %>
+      <%= render "inventory/products/gallery_item", item: item, primary: index.zero? %>
+    <% end %>
+  </ol>
+
+  <label class="pgallery__drop" data-product-gallery-target="dropzone" data-testid="gallery-dropzone">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    <span class="pgallery__drop-title"><%= t("#{g}.add_photos") %></span>
+    <span class="pgallery__drop-hint"><%= t("#{g}.drop_hint", max: max_mb) %></span>
+    <input type="file" multiple accept="<%= Attachable::IMAGE_CONTENT_TYPES.join(",") %>" class="pgallery__file"
+           data-product-gallery-target="fileInput" data-action="change->product-gallery#pickFiles" data-testid="gallery-file-input">
+  </label>
+
+  <p class="pgallery__hint td-secondary"><%= t("#{g}.reorder_hint") %></p>
+  <div class="pgallery__errors" role="alert" data-product-gallery-target="errors" data-testid="gallery-errors" hidden></div>
+
+  <template data-product-gallery-target="emptyTemplate"><%= render "inventory/products/gallery_empty" %></template>
+  <template data-product-gallery-target="itemTemplate">
+    <%= render "inventory/products/gallery_item", item: ProductGalleryHelper::GalleryItem.new(entry: "", thumb_url: "", main_url: "", label: ""), primary: false %>
+  </template>
+</section>

@@ -1,0 +1,29 @@
+en:
+  inventory:
+    products:
+      gallery:
+        title: Photos
+        count: "%{count} of %{max}"
+        primary: Primary
+        empty: No photos yet. Add photos below — the first one is the product's main image.
+        list_label: Product photos, in order (the first is the main image)
+        add_photos: Add photos
+        drop_hint: "Drag photos here or browse — JPEG, PNG or WebP, up to %{max} MB each"
+        reorder_hint: Drag photos to reorder them. The first photo is the main image wherever the product is shown. Changes apply when you save the product.
+        make_primary: Make main image
+        move_earlier: Move earlier
+        move_later: Move later
+        remove: Remove photo
+        remove_confirm: Remove this photo? It is deleted when you save the product.
+        uploading: Uploading…
+        upload_failed: Upload failed. Remove it and try again.
+        wait_for_uploads: Wait for the photos to finish uploading.
+        errors:
+          not_authorized: You are not allowed to change product photos.
+          no_file: Choose a photo to upload.
+          too_large: "Larger than %{max} MB"
+          invalid_type: Not a JPEG, PNG or WebP image
+          too_many: "A product can have at most %{max} photos."
+          duplicate: The same photo was submitted twice. Reload the page and try again.
+          invalid_image: A photo could not be saved. Reload the page and try again.
+          invalid_upload: An uploaded photo expired or is no longer available. Remove it and upload it again.

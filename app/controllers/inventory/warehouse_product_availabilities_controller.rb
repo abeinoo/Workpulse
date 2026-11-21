@@ -38,7 +38,7 @@ class Inventory::WarehouseProductAvailabilitiesController < Inventory::BaseContr
     @filtered_count = rows.count
     @total_pages = [ (@filtered_count.to_f / PER_PAGE).ceil, 1 ].max
     @page = params[:page].to_i.clamp(1, @total_pages)
-    settings = rows.includes(:status_changed_by, product: { image_attachment: :blob })
+    settings = rows.includes(:status_changed_by, product: Product::IMAGE_PRELOAD)
                    .order("products.name", :id).limit(PER_PAGE).offset((@page - 1) * PER_PAGE).to_a
     @pairs = Inventory::AvailabilityFigures.build(settings.map { |s| [ s.product, @warehouse, s ] })
     @unconfigured_with_stock_count = unconfigured_with_stock_ids.size
@@ -268,7 +268,7 @@ class Inventory::WarehouseProductAvailabilitiesController < Inventory::BaseContr
     @filtered_count = products.count
     @total_pages = [ (@filtered_count.to_f / PER_PAGE).ceil, 1 ].max
     @page = params[:page].to_i.clamp(1, @total_pages)
-    page = products.includes(image_attachment: :blob).order(:name, :id).limit(PER_PAGE).offset((@page - 1) * PER_PAGE).to_a
+    page = products.includes(Product::IMAGE_PRELOAD).order(:name, :id).limit(PER_PAGE).offset((@page - 1) * PER_PAGE).to_a
     settings = ProductWarehouseSetting.where(warehouse_id: @warehouse.id, product_id: page.map(&:id)).index_by(&:product_id)
     @candidates = Inventory::AvailabilityFigures.build(page.map { |p| [ p, @warehouse, settings[p.id] ] })
   end

@@ -1,6 +1,7 @@
 # One product identity everywhere a product is listed: a small, fixed-size
-# thumbnail (the product's Active Storage image, fitted — never cropped or
-# stretched) beside its name, with the SKU as secondary text when asked.
+# thumbnail (the product's PRIMARY gallery image — Product#primary_image, the
+# first of its ordered images — fitted, never cropped or stretched) beside its
+# name, with the SKU as secondary text when asked.
 #
 #   product_identity(product, link: inventory_product_path(product))
 #   product_identity(product, size: :md, sku: true)
@@ -11,7 +12,7 @@
 # application.js — a broken image is never shown.
 #
 # Performance: the image is read only when it was PRELOADED with the product
-# (Product.with_attached_image, or includes(product: { image_attachment: :blob })).
+# (Product.with_primary_image, or includes(product: Product::IMAGE_PRELOAD)).
 # URLs point at the tracked :thumb variant, generated lazily once per product;
 # building them runs no query. <img> is lazy-loaded and has fixed dimensions.
 # In the test environment a product whose image wasn't preloaded raises, so a
@@ -101,21 +102,38 @@ module ProductThumbnailHelper
   # whose image wasn't preloaded simply gets no URL, never a query.
   def product_thumbnail_url(product, variant: :thumb, preloaded_only: false)
     return nil if product.nil?
-    return nil if preloaded_only && !product.association(:image_attachment).loaded?
+    return nil if preloaded_only && !primary_image_preloaded?(product)
 
-    unless product.association(:image_attachment).loaded?
-      raise ImageNotPreloaded, "Product##{product.id} image not preloaded (use with_attached_image)" if Rails.env.test?
+    unless primary_image_preloaded?(product)
+      raise ImageNotPreloaded, "Product##{product.id} image not preloaded (use with_primary_image)" if Rails.env.test?
 
       Rails.logger.warn("[ProductThumbnailHelper] Product##{product.id} image not preloaded")
     end
-    image = product.image
-    return nil unless image.attached? && image.blob&.variable?
-
-    url_for(image.variant(AttachmentHelper::PRODUCT_IMAGE_VARIANTS.fetch(variant)))
+    product_image_variant_url(product.primary_image, variant)
   rescue ImageNotPreloaded
     raise
   rescue StandardError => e
     Rails.logger.warn("[ProductThumbnailHelper] thumbnail for Product##{product&.id} failed: #{e.message}")
     nil
+  end
+
+  # The URL of one gallery image's variant, or nil (no usable file).
+  def product_image_variant_url(product_image, variant)
+    file = product_image&.file
+    return nil unless file&.attached? && file.blob&.variable?
+
+    url_for(file.variant(AttachmentHelper::PRODUCT_IMAGE_VARIANTS.fetch(variant)))
+  end
+
+  private
+
+  # The primary image — and its file — were loaded with the product (or the
+  # product has no image at all: a loaded nil).
+  def primary_image_preloaded?(product)
+    association = product.association(:primary_image)
+    return false unless association.loaded?
+
+    image = association.target
+    image.nil? || image.association(:file_attachment).loaded?
   end
 end

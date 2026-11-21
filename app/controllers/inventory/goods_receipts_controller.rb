@@ -33,7 +33,7 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
                  { purchase_request: [ :supplier, { items: :supplier } ] } ]
     )
     authorize @goods_receipt
-    @items           = @goods_receipt.items.includes(product: { image_attachment: :blob })
+    @items           = @goods_receipt.items.includes(product: Product::IMAGE_PRELOAD)
     @settlements     = @goods_receipt.financial_settlements.chronological
                                      .includes(:created_by, :custody_transaction, :funding_source,
                                                { reversal: :created_by }, :reverses_settlement).to_a

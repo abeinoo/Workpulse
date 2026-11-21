@@ -59,7 +59,7 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
     @purchase_request = policy_scope(PurchaseRequest)
                         .includes(:supplier, :warehouse, :responsible_employee, :created_by, :submitted_by, :approved_by,
                                   :rejected_by, :cancelled_by,
-                                  items: [ { product: { image_attachment: :blob } }, :supplier, { goods_receipt_items: :goods_receipt } ],
+                                  items: [ { product: Product::IMAGE_PRELOAD }, :supplier, { goods_receipt_items: :goods_receipt } ],
                                   goods_receipts: :items)
                         .find(params[:id])
     authorize @purchase_request

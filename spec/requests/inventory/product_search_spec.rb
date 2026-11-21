@@ -95,7 +95,7 @@ RSpec.describe "Inventory product search (pickers)", type: :request do
   it "the payload: id, name, SKU, barcodes, default supplier and the thumbnail (or none)" do
     with_image = product("Argan Oil", "AO-1", default_supplier: supplier)
     with_image.product_barcodes.create!(barcode: "111", is_primary: true)
-    with_image.image.attach(io: File.open(Rails.root.join("spec/fixtures/files/test_image.png")), filename: "a.png", content_type: "image/png")
+    attach_product_image!(with_image)
     product("Argan Comb", "AO-2")
 
     by_name = search(q: "argan").index_by { |p| p["name"] }
@@ -109,7 +109,7 @@ RSpec.describe "Inventory product search (pickers)", type: :request do
   it "a large catalogue: the same queries for 3 or 300 products, never a row-by-row load" do
     blob = ActiveStorage::Blob.create_and_upload!(io: File.open(Rails.root.join("spec/fixtures/files/test_image.png")),
                                                   filename: "p.png", content_type: "image/png")
-    make = ->(range) { range.each { |i| product("Catalogue #{i}", "CT-#{i}").tap { |p| p.image.attach(blob); p.product_barcodes.create!(barcode: "B#{i}") } } }
+    make = ->(range) { range.each { |i| product("Catalogue #{i}", "CT-#{i}").tap { |p| attach_product_image!(p, blob); p.product_barcodes.create!(barcode: "B#{i}") } } }
     count = lambda do
       get inventory_product_search_path(q: "catalogue") # warm
       n = 0

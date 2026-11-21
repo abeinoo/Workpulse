@@ -50,7 +50,7 @@ module Inventory
         # product share one record, exactly as the cost update needs (it reads
         # the average the previous line just wrote).
         ActiveRecord::Associations::Preloader.new(
-          records: @receipt.items.to_a, associations: { product: [ :product_barcodes, { image_attachment: :blob } ] }
+          records: @receipt.items.to_a, associations: { product: [ :product_barcodes, Product::IMAGE_PRELOAD ] }
         ).call
         @receipt.items.each { |item| post_item(item) }
         audit_exceptions!(exception_lines)

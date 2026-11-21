@@ -21,7 +21,7 @@ RSpec.describe "Product thumbnails — image loading performance", type: :reques
   def products(count, from: 0)
     Array.new(count) do |i|
       business.products.create!(name: "Product #{from + i}", sku: "SKU-#{from + i}", average_cost_price: 5).tap do |p|
-        p.image.attach(blob)
+        attach_product_image!(p, blob)
         ProductWarehouseSetting.create!(product: p, warehouse: warehouse, low_stock_level: 5, reorder_quantity: 3)
       end
     end

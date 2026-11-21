@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1523,6 +1523,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_100000) do
     t.index ["product_id"], name: "index_product_variants_on_product_id"
   end
 
+  create_table "product_images", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "product_id", null: false
+    t.integer "position", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_product_images_on_business_id"
+    t.index ["product_id", "position"], name: "index_product_images_on_product_id_and_position"
+    t.check_constraint "\"position\" > 0", name: "product_images_position_positive"
+  end
+
   create_table "product_warehouse_settings", force: :cascade do |t|
     t.bigint "product_id", null: false
     t.bigint "warehouse_id", null: false
@@ -2883,6 +2894,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_100000) do
   add_foreign_key "product_barcodes", "products"
   add_foreign_key "product_categories", "businesses"
   add_foreign_key "product_variants", "products"
+  add_foreign_key "product_images", "businesses"
+  add_foreign_key "product_images", "products"
   add_foreign_key "product_warehouse_settings", "businesses"
   add_foreign_key "product_warehouse_settings", "products"
   add_foreign_key "product_warehouse_settings", "users", column: "created_by_id"

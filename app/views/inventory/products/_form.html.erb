@@ -10,31 +10,6 @@
     <%= hidden_field_tag :return_to_import_row_id, return_to_import_row_id %>
   <% end %>
 
-  <%# ── Image ─────────────────────────────────────────────── %>
-  <div class="form-group">
-    <%= f.label :image, t("inventory.products.image"), class: "form-label" %>
-    <div class="upload-field" data-controller="image-upload">
-      <div class="upload-field__preview">
-        <% img_src = product.image.attached? ? url_for(product.image.variant(resize_to_limit: [120, 120])) : nil %>
-        <img src="<%= img_src %>" class="logo-img logo-img--thumb" alt=""
-             data-image-upload-target="img" <%= "hidden" unless img_src %>>
-        <div class="avatar avatar-placeholder" data-image-upload-target="placeholder" <%= "hidden" if img_src %>>
-          <%= (product.name.presence || "?").first(2).upcase %>
-        </div>
-        <div class="upload-field__controls">
-          <label class="btn btn-ghost btn-sm upload-field__choose">
-            <%= t("forms.choose_image") %>
-            <%= f.file_field :image, accept: "image/png,image/jpeg,image/webp",
-                  class: "upload-field__input",
-                  data: { "image-upload-target": "input", action: "change->image-upload#change" } %>
-          </label>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="divider"></div>
-
   <%# ── Identity ──────────────────────────────────────────── %>
   <h2 class="section-title"><%= t("inventory.products.section_identity") %></h2>
   <div class="form-grid">

@@ -1,0 +1,31 @@
+<%# One gallery thumbnail (also the JS template). locals: item (ProductGalleryHelper::GalleryItem), primary %>
+<% g = "inventory.products.gallery" %>
+<li class="pgallery__item<%= ' is-primary' if primary %>" draggable="true"
+    data-product-gallery-target="item" data-entry="<%= item.entry %>" data-main-url="<%= item.main_url %>"
+    data-action="dragstart->product-gallery#dragStart dragover->product-gallery#dragOver drop->product-gallery#dropItem dragend->product-gallery#dragEnd"
+    data-testid="gallery-item">
+  <div class="pgallery__thumb">
+    <img src="<%= item.thumb_url %>" alt="<%= item.label %>" class="pgallery__thumb-img" data-role="thumb" loading="lazy">
+    <span class="badge badge-accent pgallery__badge" data-role="primary-badge"><%= t("#{g}.primary") %></span>
+    <div class="pgallery__progress" data-role="progress" hidden><span data-role="progress-bar"></span></div>
+    <p class="pgallery__item-error" data-role="error" hidden></p>
+  </div>
+  <div class="pgallery__actions">
+    <button type="button" class="pgallery__action" data-role="make-primary" data-action="product-gallery#makePrimary"
+            title="<%= t("#{g}.make_primary") %>" aria-label="<%= t("#{g}.make_primary") %>">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+    </button>
+    <button type="button" class="pgallery__action" data-action="product-gallery#moveEarlier"
+            title="<%= t("#{g}.move_earlier") %>" aria-label="<%= t("#{g}.move_earlier") %>">
+      <svg class="pgallery__dir" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <button type="button" class="pgallery__action" data-action="product-gallery#moveLater"
+            title="<%= t("#{g}.move_later") %>" aria-label="<%= t("#{g}.move_later") %>">
+      <svg class="pgallery__dir" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <button type="button" class="pgallery__action pgallery__action--danger" data-action="product-gallery#remove"
+            title="<%= t("#{g}.remove") %>" aria-label="<%= t("#{g}.remove") %>" data-testid="gallery-remove">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    </button>
+  </div>
+</li>

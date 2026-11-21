@@ -42,13 +42,13 @@ class Inventory::BaseController < ApplicationController
   end
 
   # Product thumbnails (ProductThumbnailHelper) read only preloaded images:
-  # preload them for exactly the products a page is about to list — two
-  # queries, whatever the count. Report services stay untouched.
+  # preload them for exactly the products a page is about to list — three
+  # queries, whatever the count (images, attachments, blobs). Report services stay untouched.
   def preload_product_images(products)
     # By object, not id: the same product may come as separate objects from
     # different reports, and each one must be marked loaded.
     records = Array(products).compact.uniq(&:object_id)
-    ActiveRecord::Associations::Preloader.new(records: records, associations: { image_attachment: :blob }).call if records.any?
+    ActiveRecord::Associations::Preloader.new(records: records, associations: Product::IMAGE_PRELOAD).call if records.any?
     products
   end
 
@@ -60,7 +60,7 @@ class Inventory::BaseController < ApplicationController
     return if records.empty?
 
     ActiveRecord::Associations::Preloader.new(
-      records: records, associations: { product: [ :product_barcodes, { image_attachment: :blob } ] }
+      records: records, associations: { product: [ :product_barcodes, Product::IMAGE_PRELOAD ] }
     ).call
   end
 

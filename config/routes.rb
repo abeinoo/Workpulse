@@ -476,6 +476,9 @@ Rails.application.routes.draw do
 
     # Shared barcode → product lookup for scanner-enabled document forms.
     get "barcode_lookup", to: "barcode_lookups#show", as: :barcode_lookup
+    # Product image gallery: stage one photo (unattached blob, signed id) while
+    # the product is edited; the gallery itself is applied when it is saved.
+    post "product_image_uploads", to: "product_image_uploads#create", as: :product_image_uploads
     # Searchable product pickers (product-combobox): name / SKU / barcode.
     get "product_search", to: "product_searches#index", as: :product_search
 

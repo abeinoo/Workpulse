@@ -7,7 +7,7 @@ class Inventory::StockAdjustmentsController < Inventory::BaseController
   def show
     @stock_adjustment = find_adjustment
     authorize @stock_adjustment
-    @items = @stock_adjustment.items.includes(product: { image_attachment: :blob })
+    @items = @stock_adjustment.items.includes(product: Product::IMAGE_PRELOAD)
 
     # For stock-count adjustments, surface the originating count so the page can
     # link back and show the System/Counted/Difference behind each line.

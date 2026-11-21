@@ -1,6 +1,6 @@
 <% content_for :title, t("inventory.products.edit_title") %>
 
-<div class="form-page <%= 'product-edit' if @availability %>">
+<div class="form-page product-editor-page <%= 'product-edit' if @availability %>">
   <%= link_to inventory_product_path(@product), class: "back-link" do %>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
     <%= t("forms.back") %>
@@ -9,6 +9,14 @@
 
   <%# The warehouse cards sit inside the page flow, right after Inventory
       tracking — outside the product form (their own forms, never nested). %>
-  <%= render "form", product: @product,
-        availability_section: (render("availability_section", product: @product, availability: @availability, return_to: "product_edit") if @availability) %>
+  <%# Two columns: the product details (and, outside the product form, the
+      warehouse cards with their own forms) and, beside them, the image gallery
+      (its fields join the product form through the form attribute). %>
+  <div class="product-editor">
+    <aside class="product-editor__aside"><%= render "gallery", product: @product %></aside>
+    <div class="product-editor__main">
+      <%= render "form", product: @product,
+            availability_section: (render("availability_section", product: @product, availability: @availability, return_to: "product_edit") if @availability) %>
+    </div>
+  </div>
 </div>

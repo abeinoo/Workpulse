@@ -209,7 +209,7 @@ class Inventory::ReportsController < Inventory::BaseController
   # searches the catalogue on demand.
   def load_filter_product
     @filter_product = if params[:product_id].present?
-                        policy_scope(Product).includes(:product_barcodes).with_attached_image.find_by(id: params[:product_id])
+                        policy_scope(Product).includes(:product_barcodes).with_primary_image.find_by(id: params[:product_id])
     end
   end
 

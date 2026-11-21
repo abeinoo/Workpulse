@@ -151,7 +151,7 @@ module ArchitectureTools
       [ %r{\Aapp/services/(inventory|laundry)/}, IP ],
       [ %r{\Aapp/controllers/(inventory|laundry)/}, IP ],
       [ %r{\Aapp/views/(inventory|laundry)/}, IP ],
-      [ %r{\Aapp/helpers/(inventory|laundry|product_thumbnail)_helper\.rb\z}, IP ],
+      [ %r{\Aapp/helpers/(inventory|laundry|product_thumbnail|product_gallery)_helper\.rb\z}, IP ],
 
       # Finance & Sales (§8).
       [ %r{\Aapp/models/finance_sales/}, FS ],
@@ -180,7 +180,7 @@ module ArchitectureTools
                SalaryProfile PayrollPeriod PayrollEntry PayrollLineItem PayrollAdjustment PayrollAdjustmentEdit
                PayrollAuditLog PayrollSnapshot PayrollPeriodBranchReview Advance EmployeeObligation ObligationDeduction
                ObligationPostponement SalaryPaymentHold SalaryPaymentWithholding],
-      IP => %w[Warehouse WarehouseAssignment WarehouseBranchSupply Product ProductBarcode ProductCategory Brand
+      IP => %w[Warehouse WarehouseAssignment WarehouseBranchSupply Product ProductBarcode ProductImage ProductCategory Brand
                ProductWarehouseSetting InventoryMovement StockIssue StockIssueItem StockIssueImportBatch
                StockIssueImportRow StockTransfer StockTransferItem StockAdjustment StockAdjustmentItem StockCount
                StockCountItem Supplier PurchaseRequest PurchaseRequestItem PurchaseRequestAdvance GoodsReceipt

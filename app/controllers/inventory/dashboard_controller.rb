@@ -105,6 +105,6 @@ class Inventory::DashboardController < Inventory::BaseController
     # The quick search is a product-combobox (searched on demand): only the chosen product is loaded.
     return if params[:product_id].blank?
 
-    @quick_product = policy_scope(Product).transactable.includes(:product_barcodes).with_attached_image.find_by(id: params[:product_id])
+    @quick_product = policy_scope(Product).transactable.includes(:product_barcodes).with_primary_image.find_by(id: params[:product_id])
   end
 end

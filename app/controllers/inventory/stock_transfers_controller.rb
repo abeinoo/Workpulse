@@ -8,7 +8,7 @@ class Inventory::StockTransfersController < Inventory::BaseController
   def show
     @stock_transfer = find_transfer
     authorize @stock_transfer
-    @items = @stock_transfer.items.includes(product: { image_attachment: :blob })
+    @items = @stock_transfer.items.includes(product: Product::IMAGE_PRELOAD)
   end
 
   def new

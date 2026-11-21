@@ -11,7 +11,7 @@ RSpec.describe "Product thumbnails", type: :system do
   let!(:warehouse) { business.warehouses.create!(name: "Main") }
   let!(:with_image) do
     business.products.create!(name: "Argan Oil", sku: "AO-1", average_cost_price: 5).tap do |p|
-      p.image.attach(io: File.open(Rails.root.join("spec/fixtures/files/test_image.png")), filename: "a.png", content_type: "image/png")
+      attach_product_image!(p)
     end
   end
   let!(:without_image) { business.products.create!(name: "Comb", sku: "CB-1", average_cost_price: 2) }
@@ -63,7 +63,8 @@ RSpec.describe "Product thumbnails", type: :system do
     # here — not re-raised into the test), and the page must cope.
     original = Capybara.raise_server_errors
     Capybara.raise_server_errors = false
-    with_image.image.blob.service.delete(with_image.image.blob.key)
+    blob = with_image.primary_image.file.blob
+    blob.service.delete(blob.key)
     sign_in owner
     visit inventory_products_path
 

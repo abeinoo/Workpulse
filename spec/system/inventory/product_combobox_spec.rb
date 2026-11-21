@@ -12,7 +12,7 @@ RSpec.describe "Searchable product picker", type: :system do
   let!(:acme)      { business.suppliers.create!(name: "Acme") }
   let!(:argan) do
     business.products.create!(name: "Argan Oil", sku: "AO-100", average_cost_price: 12, default_supplier: acme).tap do |p|
-      p.image.attach(io: File.open(Rails.root.join("spec/fixtures/files/test_image.png")), filename: "a.png", content_type: "image/png")
+      attach_product_image!(p)
     end
   end
   let!(:mask) do

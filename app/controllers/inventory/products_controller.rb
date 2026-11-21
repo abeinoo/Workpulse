@@ -3,7 +3,7 @@ class Inventory::ProductsController < Inventory::BaseController
     authorize Product
     wh_ids    = accessible_warehouse_ids
     @products = policy_scope(Product).ordered
-                  .includes(:brand, :product_category, image_attachment: :blob)
+                  .includes(:brand, :product_category, Product::IMAGE_PRELOAD)
 
     # ── Status filter (active / archived / all) — default: active ──────────
     @status_filter = params[:status].presence&.inquiry || "active"
@@ -38,7 +38,7 @@ class Inventory::ProductsController < Inventory::BaseController
 
   def show
     @product = policy_scope(Product)
-                 .includes(:product_barcodes, image_attachment: :blob)
+                 .includes(:product_barcodes, Product::IMAGE_PRELOAD)
                  .find(params[:id])
     authorize @product
     wh_ids      = accessible_warehouse_ids
@@ -80,7 +80,7 @@ class Inventory::ProductsController < Inventory::BaseController
     @product.average_cost_price = @product.initial_cost_price if @product.average_cost_price.to_d.zero?
     authorize @product
 
-    if @product.save
+    if save_with_gallery { @product.save }
       if params[:return_to_import_row_id].present?
         resolve_import_row_and_respond
       else
@@ -117,7 +117,7 @@ class Inventory::ProductsController < Inventory::BaseController
     @product = find_product
     authorize @product
     refuse_nested_warehouse_settings!
-    if @product.update(product_params)
+    if save_with_gallery { @product.update(product_params) }
       redirect_to inventory_product_path(@product), notice: t("inventory.products.updated")
     else
       load_options
@@ -331,6 +331,32 @@ class Inventory::ProductsController < Inventory::BaseController
     Inventory::LowStockQuery.new(current_user.business, warehouse_ids: warehouse_ids).alerts.to_set { |alert| alert.product.id }
   end
 
+  # Saves the product (the block) and, when the form sent its image gallery,
+  # applies it in the same transaction (Inventory::ProductGalleryUpdater):
+  # both or neither. A form without the gallery leaves every image as it is.
+  def save_with_gallery
+    saved = false
+    Product.transaction do
+      raise ActiveRecord::Rollback unless yield
+
+      if gallery_submitted?
+        result = Inventory::ProductGalleryUpdater.new(actor: current_user, product_id: @product.id, entries: gallery_entries).call
+        unless result.ok?
+          @product.errors.add(:base, t("inventory.products.gallery.errors.#{result.error}", max: Attachable::DEFAULT_MAX_SIZE / 1.megabyte))
+          raise ActiveRecord::Rollback
+        end
+      end
+      saved = true
+    end
+    saved
+  end
+
+  def gallery_submitted? = params.dig(:product, :gallery_present) == "1"
+
+  # ["image:<id>" | "upload:<signed id>", …] in display order (first = primary).
+  def gallery_entries = Array(params.dig(:product, :gallery)).map(&:to_s)
+  helper_method :gallery_entries, :gallery_submitted?
+
   # The product page's read-only Warehouse availability summary: every
   # reachable warehouse where this product has an availability row or stock,
   # with its state, on-hand, reserved and that warehouse's OWN settings (a
@@ -406,7 +432,7 @@ class Inventory::ProductsController < Inventory::BaseController
       # No low-stock / reorder fields: those are per warehouse only
       # (Inventory::ProductAvailabilityManager), never on the product.
       :initial_cost_price, :track_inventory,
-      :selling_markup_percentage, :notes, :image,
+      :selling_markup_percentage, :notes,
       product_barcodes_attributes:           [ :id, :barcode, :barcode_type, :is_primary, :_destroy ]
     )
   end

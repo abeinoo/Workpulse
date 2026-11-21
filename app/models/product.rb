@@ -12,11 +12,14 @@ class Product < ApplicationRecord
   # its own. The column stays until a reviewed migration drops it.
   self.ignored_columns += %w[parent_product_id]
 
-  has_one_attached :image
-
-  validates_attachment :image,
-    content_types: Attachable::IMAGE_CONTENT_TYPES,
-    max_size:      Attachable::DEFAULT_MAX_SIZE
+  # The image gallery (Inventory::ProductGalleryUpdater): ordered images, the
+  # first being the primary image used wherever the product's image is shown.
+  # Preload with IMAGE_PRELOAD / with_primary_image (ProductThumbnailHelper
+  # refuses an image that was not preloaded in tests — no N+1 on long lists).
+  has_many :images, -> { order(:position, :id) }, class_name: "ProductImage",
+                                                  inverse_of: :product, dependent: :destroy
+  has_one  :primary_image, -> { order(:position, :id) }, class_name: "ProductImage"
+  IMAGE_PRELOAD = { primary_image: { file_attachment: :blob } }.freeze
 
   belongs_to :business
   belongs_to :brand,            optional: true
@@ -91,6 +94,7 @@ class Product < ApplicationRecord
   after_create :auto_generate_barcode
 
   scope :for_business,       ->(business) { where(business: business) }
+  scope :with_primary_image, -> { includes(IMAGE_PRELOAD) }
   scope :ordered,            -> { order(:name) }
   scope :active,             -> { where(active: true) }
   scope :archived,           -> { where(active: false) }

@@ -23,7 +23,9 @@ module AttachmentHelper
   # tracks the variant and serves it from then on.
   PRODUCT_IMAGE_VARIANTS = {
     thumb: { resize_to_limit: [ 96, 96 ],   format: :webp, saver: { quality: 80 } }, # up to 48 px at 2x
-    large: { resize_to_limit: [ 192, 192 ], format: :webp, saver: { quality: 85 } }  # the product page
+    large: { resize_to_limit: [ 192, 192 ], format: :webp, saver: { quality: 85 } }, # the product page
+    gallery_thumb: { resize_to_limit: [ 240, 240 ], format: :webp, saver: { quality: 82 } }, # gallery thumbnails
+    gallery: { resize_to_limit: [ 1200, 1200 ], format: :webp, saver: { quality: 86 } }       # the gallery's main image
   }.freeze
 
   NATIONAL_ID_VARIANTS = {
