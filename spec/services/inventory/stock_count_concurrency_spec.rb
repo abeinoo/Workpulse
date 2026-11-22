@@ -3,7 +3,7 @@ require "rails_helper"
 # Stock count approval / reopen under real concurrency — TWO database
 # connections (a second connection is the only thing a row lock can block).
 # The first operation is paused (blocking Queue handshake, no sleeps) inside its
-# transaction on its first ProductCostRecalculator#recompute! — i.e. after its
+# transaction on its first Inventory::Packaging::Session#apply! — i.e. after its
 # movements are written, before commit, while it holds the count and product
 # row locks — and the competing operation is started and observed waiting on a
 # lock (pg_stat_activity). Each example asserts the SAFE outcome.
@@ -94,19 +94,19 @@ RSpec.describe "Stock count concurrency (two connections)" do
     end
   end
 
-  # Pauses the first cost recompute (inside the first operation's transaction,
-  # after its movements) until released.
+  # Pauses the first packaging step (inside the first operation's transaction,
+  # after its locks and first movement) until released.
   def pause_first_recompute
     reached = Queue.new
     release = Queue.new
     calls   = 0
-    allow_any_instance_of(Inventory::ProductCostRecalculator).to receive(:recompute!).and_wrap_original do |original, *args|
+    allow_any_instance_of(Inventory::Packaging::Session).to receive(:apply!).and_wrap_original do |original, *args, **kwargs, &block|
       calls += 1
       if calls == 1
         reached << true
         release.pop
       end
-      original.call(*args)
+      original.call(*args, **kwargs, &block)
     end
     @releases = (@releases || []) << release
     [ reached, release ]
@@ -180,24 +180,22 @@ RSpec.describe "Stock count concurrency (two connections)" do
     expect(count.reload).to be_in_progress
   end
 
-  it "an approval racing a stock issue confirmation never oversells", :aggregate_failures do
+  # Reservation protection (docs/inventory/multi_unit_nested_packaging_design.md §10): a count
+  # approval may not leave on-hand below what approved issues reserve — it is
+  # refused (naming the issue), stock is unchanged, and the issue still posts.
+  it "an approval that would leave less than the approved reservations is refused; the issue still posts", :aggregate_failures do
     receive!(10)
     issue = approved_issue(9)                          # reserved 9 of 10
-    count = completed_count(8)                         # shortage −2 → 8 left
-    reached, release = pause_first_recompute
+    count = completed_count(8)                         # shortage −2 → 8 < 9
 
-    approval = on_other_connection { approve(count, approver) }
-    wait_for(reached)                                  # holds the product lock
-    confirmation = on_other_connection do
-      Inventory::StockIssueConfirmationService.new(stock_issue_id: issue.id, actor: approver2).call
-    end
-    expect(wait_until_lock_waits("products")).to be_present
+    result = approve(count, approver)
+    expect(result.ok?).to be(false)
+    expect(result.error).to include(issue.issue_number)
+    expect(stock).to eq(10)
+    expect(count.reload).to be_completed
 
-    release << true
-    expect(result_of(approval).ok?).to be(true)
-    expect(result_of(confirmation).ok?).to be(false)   # reads the committed 8 < 9
-    expect(stock).to eq(8)
-    expect(issue.reload).to be_approved
+    expect(Inventory::StockIssueConfirmationService.new(stock_issue_id: issue.id, actor: approver2).call.ok?).to be(true)
+    expect(stock).to eq(1)
   end
 
   it "an approval racing a receipt keeps the receipt (counted − baseline, not live stock)", :aggregate_failures do
@@ -221,23 +219,16 @@ RSpec.describe "Stock count concurrency (two connections)" do
     expect(stock).to eq(17)                            # 10 − 3 + 10: the receipt is not "counted away"
   end
 
-  it "a reopen reversal racing a stock issue confirmation never oversells", :aggregate_failures do
+  it "a reopen whose reversal would leave less than the approved reservations is refused", :aggregate_failures do
     receive!(10)
     count = completed_count(15)                        # overage +5 → 15
     expect(approve(count, approver).ok?).to be(true)
     issue = approved_issue(12)                         # reserved 12 of 15
-    reached, release = pause_first_recompute
 
-    reopening = on_other_connection { reopen(count, approver) }
-    wait_for(reached)                                  # reversal OUT 5 written, holds the product lock
-    confirmation = on_other_connection do
-      Inventory::StockIssueConfirmationService.new(stock_issue_id: issue.id, actor: approver2).call
-    end
-    expect(wait_until_lock_waits("products")).to be_present
-
-    release << true
-    expect(result_of(reopening).ok?).to be(true)
-    expect(result_of(confirmation).ok?).to be(false)   # 10 left < 12
-    expect(stock).to eq(10)
+    result = reopen(count, approver)
+    expect(result.ok?).to be(false)                    # reversing −5 would leave 10 < 12
+    expect(result.error).to include(issue.issue_number)
+    expect(stock).to eq(15)
+    expect(count.reload).to be_approved
   end
 end

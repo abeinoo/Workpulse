@@ -41,6 +41,9 @@ module Inventory
         value_items
         return Result.new(ok: false, issue: @issue) unless availability_ok?
 
+        @packaging = Packaging::Session.new(business: @issue.business, product_ids: @issue.items.map(&:product_id),
+                                            warehouse_ids: [ @issue.warehouse_id ])
+
         # approved -> issued consumes this issue's reservation in the same
         # write that posts its OUT movements: the quantity stops counting as
         # reserved exactly when it starts counting as deducted.
@@ -52,6 +55,12 @@ module Inventory
         return Result.new(ok: true, issue: @issue)
       end
 
+      Result.new(ok: false, issue: @issue)
+    rescue Packaging::Refused => e
+      # Strict packages are authoritative at posting (Decision 6): the issue
+      # stays approved and keeps its reservation; nothing was posted.
+      @issue.status = :approved
+      @issue.errors.add(:base, :packaging_refused, message: e.message)
       Result.new(ok: false, issue: @issue)
     end
 
@@ -75,8 +84,11 @@ module Inventory
       end
     end
 
+    # A package line takes full packages of its level (strict: never loose
+    # content); a base line takes loose content first, then opens the fewest
+    # packages (docs/inventory/multi_unit_nested_packaging_design.md §6).
     def post_item(item)
-      @issue.inventory_movements.create!(
+      movement = @issue.inventory_movements.create!(
         business:    @issue.business,
         product:     item.product,
         warehouse:   @issue.warehouse,
@@ -87,6 +99,10 @@ module Inventory
         unit_cost:   item.unit_cost,
         occurred_on: @issue.issued_on
       )
+      @packaging.apply!(product: item.product, warehouse_id: @issue.warehouse_id, source: @issue,
+                        occurred_on: @issue.issued_on, movement: movement) do |plan|
+        item.package_line? ? plan.take_packages(item.packaging_level.position, item.entered_quantity) : plan.take_base(item.quantity)
+      end
     end
   end
 end

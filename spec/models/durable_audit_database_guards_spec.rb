@@ -140,6 +140,10 @@ RSpec.describe "Durable audit database guards" do
     expect(ActiveRecord::Base.connection.select_values("SELECT tgname FROM pg_trigger WHERE NOT tgisinternal"))
       .to contain_exactly("durable_audit_receipts_append_only", "pending_audit_event_attempts_append_only",
                           "pending_audit_events_guard",
-                          "employee_attendance_requirements_append_only") # R3.2 G1 (OD-15 T2)
+                          "employee_attendance_requirements_append_only", # R3.2 G1 (OD-15 T2)
+                          # Multi-unit packaging (db/migrate/20261123091000, 20261123092000).
+                          "inventory_packaging_entries_append_only", "inventory_average_cost_changes_append_only",
+                          "product_packaging_levels_immutable", "product_packaging_levels_check_structure",
+                          "products_check_packaging_structure")
   end
 end

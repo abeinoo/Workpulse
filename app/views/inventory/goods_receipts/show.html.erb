@@ -150,8 +150,8 @@
           <tr>
             <td><%= product_identity(item.product, link: inventory_product_path(item.product)) %></td>
             <td class="td-secondary"><%= item.product.sku %></td>
-            <td style="text-align: end;"><%= with_measure(inventory_quantity(item.quantity), item.product) %></td>
-            <td style="text-align: end;"><%= format_currency(item.unit_cost) %></td>
+            <td style="text-align: end;" data-testid="line-quantity"><%= packaged_line_quantity(item) %></td>
+            <td style="text-align: end;"><%= format_unit_cost_currency(item.unit_cost_per_entered_unit) %></td>
             <td style="text-align: end;"><%= format_currency(item.total_cost) %></td>
           </tr>
         <% end %>
@@ -164,6 +164,7 @@
       </tfoot>
     </table>
   </div>
+  <%= render "inventory/shared/packaging_effects", entries: @packaging_entries %>
 
   <%# 9. Financial details: settlements and supplier invoices %>
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">

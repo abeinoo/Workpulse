@@ -8,6 +8,8 @@ class ProductPolicy < ApplicationPolicy
   # Upload, reorder, choose the primary image of, or remove product images
   # (Inventory::ProductGalleryUpdater) — the product editors.
   def manage_images? = create?
+  # Define / change the product's packaging levels (Inventory::Packaging::Configurator).
+  def configure_packaging? = create?
   def destroy? = create?
 
   class Scope < ApplicationPolicy::Scope

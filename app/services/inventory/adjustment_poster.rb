@@ -9,6 +9,15 @@ module Inventory
   #     and blend into the moving average via the recompute.
   #   * every other reason is valued at the product's current average cost and
   #     leaves the average unchanged (a pure quantity correction).
+  #   The average moves at posting time only (W2, Inventory::AverageCost,
+  #   audited); nothing is replayed from history.
+  #
+  # Packaging: a decrease takes loose content first, then opens the fewest
+  # packages; an increase arrives loose. A stock-count line carries the
+  # counted packaging difference (packaging_differences: { level id => Δ }):
+  # its count_correction entries replace the recorded packaging, and a line
+  # whose base difference is zero posts no movement at all (Decision 4).
+  # Removals protect approved reservations (on-hand − removal >= reserved).
   #
   # Concurrency: the products are row-locked (StockAvailability.lock_products!,
   # the same FOR UPDATE lock stock issues and transfers take) BEFORE the
@@ -36,25 +45,34 @@ module Inventory
     end
 
     def call
-      value_items
       return failure if foreign_references?
 
       result = ActiveRecord::Base.transaction do
         StockAvailability.lock_products!(@adjustment.items.reject(&:marked_for_destruction?).map(&:product_id))
+        value_items
         next failure unless opening_balance_allowed?
         next failure unless availability_ok?
+        next failure unless reservations_protected?
+
+        @packaging = Packaging::Session.new(business: @adjustment.business, product_ids: @adjustment.items.map(&:product_id),
+                                            warehouse_ids: [ @adjustment.warehouse_id ])
 
         @adjustment.adjustment_number = NumberSequencer.new(@adjustment.business, :stock_adjustment).next_number if @adjustment.adjustment_number.blank?
 
         raise ActiveRecord::Rollback unless @adjustment.save
 
         @adjustment.items.each { |item| post_item(item) }
-        @adjustment.items.map(&:product).uniq.each { |product| ProductCostRecalculator.new(product).recompute! }
         audit_posting
         Result.new(ok: true, adjustment: @adjustment)
       end
 
       result || failure
+    rescue AuditLoggable::AuditWriteFailed
+      @adjustment.errors.add(:base, :average_cost_audit_failed)
+      failure
+    rescue Packaging::Refused => e
+      @adjustment.errors.add(:base, :packaging_refused, message: e.message)
+      failure
     end
 
     private
@@ -74,12 +92,16 @@ module Inventory
           warehouse_id:      @adjustment.warehouse_id,
           stock_count_id:    @adjustment.stock_count_id,
           stock_count_number: @adjustment.stock_count&.count_number,
-          lines: @adjustment.items.map { |i| { product_id: i.product_id, quantity_difference: i.quantity_difference.to_s } }
+          lines: @adjustment.items.map do |i|
+            { product_id: i.product_id, quantity_difference: i.quantity_difference.to_s,
+              packaging_differences: i.packaging_differences.presence }.compact
+          end
         }.compact
       )
     end
 
     def value_items
+      averages = StockAvailability.locked_averages(@adjustment.items.map(&:product_id))
       @adjustment.items.each do |item|
         next if item.product.nil?
 
@@ -90,8 +112,16 @@ module Inventory
           next
         end
 
-        item.unit_cost = item.product.average_cost_price
+        item.unit_cost = averages.fetch(item.product_id, item.product.average_cost_price)
       end
+    end
+
+    def reservations_protected?
+      removals = @adjustment.items.reject(&:marked_for_destruction?)
+                            .select { |item| item.product_id && item.quantity_difference.to_d.negative? }
+                            .group_by(&:product_id)
+                            .transform_values { |items| items.sum { |item| item.quantity_difference.to_d.abs } }
+      StockAvailability.protect_reservations!(@adjustment, warehouse: @adjustment.warehouse, removals: removals)
     end
 
     # A warehouse or product of another business is refused before availability
@@ -132,7 +162,8 @@ module Inventory
         ok = false
         @adjustment.errors.add(:base, :insufficient_stock,
                                product: product.name, sku: product.sku,
-                               available: available.to_s, requested: requested.to_s)
+                               available: StockAvailability.format_quantity(available),
+                               requested: StockAvailability.format_quantity(requested))
       end
       ok
     end
@@ -141,16 +172,39 @@ module Inventory
       diff      = item.quantity_difference.to_d
       direction = diff.positive? ? :in : :out
       reason    = (@adjustment.cost_bearing? && diff.positive?) ? :opening_balance : :adjustment
+      on_hand_before = item.product.current_stock if reason == :opening_balance
 
-      @adjustment.inventory_movements.create!(
-        business:    @adjustment.business,
-        product:     item.product,
-        warehouse:   @adjustment.warehouse,
-        direction:   direction,
-        reason:      reason,
-        quantity:    diff.abs,
-        unit_cost:   item.unit_cost,
-        occurred_on: @adjustment.adjusted_on
+      movement = if diff.nonzero?
+        @adjustment.inventory_movements.create!(
+          business:    @adjustment.business,
+          product:     item.product,
+          warehouse:   @adjustment.warehouse,
+          direction:   direction,
+          reason:      reason,
+          quantity:    diff.abs,
+          unit_cost:   item.unit_cost,
+          occurred_on: @adjustment.adjusted_on
+        )
+      end
+
+      @packaging.apply!(product: item.product, warehouse_id: @adjustment.warehouse_id, source: @adjustment,
+                        occurred_on: @adjustment.adjusted_on, movement: movement) do |plan|
+        corrections = item.packaging_level_differences
+        if corrections.any?
+          plan.adjust_total(diff)
+          corrections.each { |level_id, delta| plan.correct(plan.structure.level(level_id)&.position || -1, delta) }
+        elsif diff.positive?
+          plan.add_base(diff)
+        else
+          plan.take_base(diff.abs)
+        end
+      end
+
+      return unless reason == :opening_balance
+
+      AverageCost.new(item.product, actor: @adjustment.created_by).apply_inflow!(
+        quantity: diff, unit_cost: item.unit_cost, on_hand_before: on_hand_before,
+        trigger: "opening_balance_posted", source: @adjustment, movement: movement
       )
     end
   end

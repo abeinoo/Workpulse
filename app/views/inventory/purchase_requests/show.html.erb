@@ -261,10 +261,10 @@
               <td><%= product_identity(item.product, link: inventory_product_path(item.product)) %></td>
               <td class="td-secondary"><%= item.product.sku %></td>
               <td><%= item.supplier&.name || @purchase_request.supplier&.name || t("inventory.purchase_requests.no_supplier") %></td>
-              <td style="text-align: end;"><%= with_measure(inventory_quantity(item.quantity), item.product) %></td>
-              <td style="text-align: end;"><%= with_measure(inventory_quantity(item.received_quantity), item.product) %></td>
-              <td style="text-align: end;"><%= with_measure(inventory_quantity(item.remaining_quantity), item.product) %></td>
-              <td style="text-align: end;"><%= format_currency(item.unit_price) %></td>
+              <td style="text-align: end;" data-testid="line-quantity"><%= purchase_unit_quantity(item, item.quantity) %></td>
+              <td style="text-align: end;"><%= purchase_unit_quantity(item, item.received_quantity) %></td>
+              <td style="text-align: end;" data-testid="line-remaining"><%= purchase_unit_quantity(item, item.remaining_quantity) %></td>
+              <td style="text-align: end;"><%= format_unit_cost_currency(item.unit_price_per_entered_unit) %></td>
               <td style="text-align: end;"><%= format_currency(item.total_cost) %></td>
               <% if edit_items %>
                 <td class="col-actions">
@@ -276,8 +276,11 @@
                             data-product-name="<%= item.product.name %>" data-sku="<%= item.product.sku %>"
                             data-default-supplier-id="<%= item.product.default_supplier_id %>"
                             data-thumb="<%= product_thumbnail_url(item.product, preloaded_only: true) %>"
-                            data-quantity="<%= item.quantity.to_d.then { |v| v.frac.zero? ? v.to_i : v } %>"
-                            data-unit-price="<%= item.unit_price.to_d.then { |v| v.frac.zero? ? v.to_i : v } %>"
+                            data-quantity="<%= inventory_quantity(item.unit_quantity) %>"
+                            data-unit-price="<%= CostFormat.unit(item.unit_price_per_entered_unit) %>"
+                            data-packaging-level-id="<%= item.packaging_level_id %>"
+                            data-measure="<%= measure_short(item.product) %>"
+                            data-units="<%= packaging_units_json(item.product) %>"
                             data-line-total="<%= item.total_cost.to_d %>"
                             aria-label="<%= t("inventory.purchase_requests.actions.edit_item_for", product: item.product.name) %>">
                       <%= t("inventory.purchase_requests.actions.edit_item") %>

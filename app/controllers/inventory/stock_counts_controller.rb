@@ -17,7 +17,7 @@ class Inventory::StockCountsController < Inventory::BaseController
     # primary/first rule as Product#barcode).
     ActiveRecord::Associations::Preloader.new(
       records: [ @stock_count ],
-      associations: [ { items: { product: Product::IMAGE_PRELOAD } }, { stock_adjustments: [ :created_by, :voided_by ] }, :cancelled_by ]
+      associations: [ { items: { product: [ :active_packaging_levels, Product::IMAGE_PRELOAD ] } }, { stock_adjustments: [ :created_by, :voided_by ] }, :cancelled_by ]
     ).call
     @items             = @stock_count.items
     @product_barcodes  = Product.barcode_lookup(@items.map(&:product_id))
@@ -189,7 +189,7 @@ class Inventory::StockCountsController < Inventory::BaseController
     @products = current_user.business.products.transactable.ordered
     # Every barcode of every row (scan-to-count matches any of them), in bulk.
     ActiveRecord::Associations::Preloader.new(records: [ @stock_count ],
-                                              associations: { items: { product: [ :product_barcodes, Product::IMAGE_PRELOAD ] } }).call
+                                              associations: { items: { product: [ :product_barcodes, :active_packaging_levels, Product::IMAGE_PRELOAD ] } }).call
     @live_on_hand = Inventory::StockAvailability
                       .on_hand_by(warehouse_ids: @stock_count.warehouse_id, product_ids: @stock_count.items.map(&:product_id))
                       .transform_keys(&:last)
@@ -207,7 +207,10 @@ class Inventory::StockCountsController < Inventory::BaseController
   # (always a fresh physical count). A system quantity is never taken from the
   # client — the recorder reads the ledger.
   def count_entries
-    attrs = params.require(:stock_count).permit(items_attributes: [ :id, :product_id, :counted_quantity, :original_counted_quantity, :entered ])
+    # counted_breakdown: a packaged product counted per level ({ level id =>
+    # full packages, "loose" => base units }); the recorder derives the total.
+    attrs = params.require(:stock_count).permit(items_attributes: [ :id, :product_id, :counted_quantity, :original_counted_quantity, :entered,
+                                                                    { counted_breakdown: {} } ])
     (attrs[:items_attributes] || {}).to_h.values.map(&:symbolize_keys)
   end
 end

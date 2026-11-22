@@ -23,6 +23,11 @@
     </div>
     <%# Amount + Measure, side by side ("355" + "Millilitres (ml)"): the product's
         size / packaging. Amount is optional; Measure always has a value. %>
+    <%# Once stock has moved the Measure (base unit) is locked (Decision 2); with
+        packaging the Amount is the innermost package's content, set by the
+        packaging editor (Decision 1). Disabled fields are not submitted. %>
+    <% unit_locked = product.base_unit_locked?
+       amount_by_packaging = product.persisted? && product.active_packaging_levels.any? %>
     <div class="form-group" data-testid="product-measurement">
       <div class="measure-pair">
         <div class="measure-pair__amount">
@@ -30,6 +35,7 @@
           <%= f.number_field :measure_amount, step: "any", min: 0, inputmode: "decimal", placeholder: "0.00",
                 value: (product.measure_amount && inventory_quantity(product.measure_amount)),
                 class: "form-control #{'is-error' if product.errors[:measure_amount].any?}",
+                disabled: amount_by_packaging,
                 data: { testid: "product-measure-amount" } %>
         </div>
         <div class="measure-pair__unit">
@@ -37,10 +43,20 @@
           <%= f.select :unit_of_measure, measure_options,
                 { selected: product.unit_of_measure.presence || Product::DEFAULT_UNIT_OF_MEASURE },
                 class: "form-control #{'is-error' if product.errors[:unit_of_measure].any?}",
+                disabled: unit_locked,
                 data: { testid: "product-measure" } %>
         </div>
       </div>
       <p class="form-hint"><%= t("inventory.measures.hint") %></p>
+      <% if unit_locked %>
+        <p class="form-hint" data-testid="base-unit-locked"><%= t("inventory.packaging.locked_base_unit") %></p>
+      <% end %>
+      <% if amount_by_packaging %>
+        <p class="form-hint"><%= t("activerecord.errors.messages.managed_by_packaging").upcase_first %>.</p>
+      <% end %>
+      <% if product.errors[:unit_of_measure].any? %>
+        <p class="form-hint text-danger"><%= product.errors.full_messages_for(:unit_of_measure).to_sentence %></p>
+      <% end %>
     </div>
     <div class="form-group">
       <%= f.label :brand_id, t("inventory.products.brand"), class: "form-label" %>

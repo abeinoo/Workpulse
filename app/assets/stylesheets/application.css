@@ -13020,6 +13020,20 @@ tr.bulk-row--locked { background: rgba(217, 119, 6, 0.08); }
 /* Product form: Amount beside Measure (mirrors in RTL with the grid). */
 .measure-pair { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(0, 2fr); gap: var(--space-2); align-items: end; }
 .qty-with-unit .qty-unit:empty { display: none; }
+/* Multi-unit lines (inventory/shared/_line_quantity): the unit selector beside
+   the amount, and the live "= 30 pcs" base-unit hint under it. */
+.qty-with-unit .qty-unit-select { flex: 0 1 auto; min-width: 8rem; width: auto; }
+.qty-unit-select[hidden], .qty-with-unit .qty-unit[hidden] { display: none; }
+.qty-unit-hint { display: block; margin-top: var(--space-1); font-size: var(--text-xs); }
+.qty-unit-hint:empty { display: none; }
+.qty-base-equivalent { white-space: nowrap; }
+/* Stocktake row counted per packaging level. */
+.count-breakdown { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); align-items: end; }
+.count-breakdown__part { display: flex; flex-direction: column; gap: 2px; font-size: var(--text-xs); color: var(--text-2); }
+.count-breakdown__part .form-control { width: 6.5rem; min-width: 0; }
+.count-breakdown__hint { flex-basis: 100%; }
+/* Product page: packaging chain, outermost first. */
+.packaging-chain { list-style: none; margin: var(--space-3) 0; padding: 0; display: grid; gap: var(--space-1); }
 
 .barcode-list__input-wrap {
   flex: 1;

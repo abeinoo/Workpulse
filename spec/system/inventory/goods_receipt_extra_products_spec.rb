@@ -59,8 +59,8 @@ RSpec.describe "Goods receipt from a Purchase Request — extra products (browse
         expect(page).to have_text(gr("outside_request_badge"))
         find("[data-product-combobox-target='input']").fill_in(with: "كريم")
         find(".pcombo__option", text: /كريم شعر/).click
-        find("input[name$='[quantity]']").fill_in(with: "3")
-        find("input[name$='[unit_cost]']").fill_in(with: "15")
+        find("input[name$='[entered_quantity]']").fill_in(with: "3")
+        find("input[name$='[entered_unit_cost]']").fill_in(with: "15")
       end
       screenshot("gr_extra_products_#{width}")
 

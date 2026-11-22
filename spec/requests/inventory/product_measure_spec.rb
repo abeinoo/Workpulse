@@ -134,11 +134,19 @@ RSpec.describe "Product measure", type: :request do
       expect(response.parsed_body["measure"]).to eq("ml")
     end
 
-    it "changing a product's measure converts nothing: stock, movements and cost stay exactly as they were" do
+    # Decision 2 (docs/inventory/multi_unit_nested_packaging_design.md §4.6): once stock has moved
+    # the Measure is the unit of every recorded quantity and is locked; before
+    # that it may change freely. Nothing is ever converted.
+    it "the measure changes freely before any movement, and is refused once stock has moved — converting nothing" do
+      patch inventory_product_path(shampoo), params: { product: { name: "Shampoo", sku: "SH-1", unit_of_measure: "l" } }
+      expect(shampoo.reload.unit_of_measure).to eq("l")
+      shampoo.update!(unit_of_measure: "ml")
+
       receive!(shampoo, 500)
       before = [ InventoryMovement.order(:id).map(&:attributes), Inventory::StockLevels.new(shampoo).by_warehouse, shampoo.reload.average_cost_price ]
       patch inventory_product_path(shampoo), params: { product: { name: "Shampoo", sku: "SH-1", unit_of_measure: "l" } }
-      expect(shampoo.reload.unit_of_measure).to eq("l")
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(shampoo.reload.unit_of_measure).to eq("ml")
       expect([ InventoryMovement.order(:id).map(&:attributes), Inventory::StockLevels.new(shampoo).by_warehouse, shampoo.average_cost_price ]).to eq(before)
     end
   end

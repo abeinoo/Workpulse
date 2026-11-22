@@ -20,8 +20,11 @@ module Inventory
   class StockIssueApproval
     include AuditLoggable
 
-    Result = Struct.new(:ok, :issue, :error, keyword_init: true) do
+    # warnings: packaging the approval could not satisfy right now (Decision 6):
+    # the issue is approved and reserved anyway; posting enforces the packages.
+    Result = Struct.new(:ok, :issue, :error, :warnings, keyword_init: true) do
       def ok? = ok
+      def warnings = self[:warnings] || []
     end
 
     def initialize(stock_issue_id:, actor:)
@@ -34,9 +37,12 @@ module Inventory
       return self_approval_error if self_approval?
 
       # Metadata is built after the lock (lazily), from the lines actually approved.
-      transition(to: "approved", action: "approve", metadata: -> { { reserved: reserved_quantities } }) do
+      transition(to: "approved", action: "approve",
+                 metadata: -> { { reserved: reserved_quantities, packaging_warnings: @warnings.presence }.compact }) do
         StockAvailability.lock_products!(issue.items.map(&:product_id))
         next issue.errors.full_messages.to_sentence unless StockAvailability.validate!(issue)
+
+        @warnings = packaging_warnings
 
         issue.approved_by = @actor
         issue.approved_at = Time.current
@@ -73,6 +79,19 @@ module Inventory
     # issue returns it to draft under this same row lock
     # (Inventory::StockIssueEditor), so once the lock is held and the status
     # re-checked, the lines are final.
+    # A read-only plan of the issue's lines on today's packaging: full-package
+    # lines the warehouse cannot satisfy now become non-blocking warnings.
+    def packaging_warnings
+      items = issue.items.reject(&:marked_for_destruction?).select(&:product)
+      session = Packaging::Session.new(business: issue.business, product_ids: items.map(&:product_id),
+                                       warehouse_ids: [ issue.warehouse_id ])
+      items.filter_map do |item|
+        session.try(product: item.product, warehouse_id: issue.warehouse_id) do |plan|
+          item.package_line? ? plan.take_packages(item.packaging_level.position, item.entered_quantity) : plan.take_base(item.quantity)
+        end
+      end
+    end
+
     def reserved_quantities
       issue.items.group_by(&:product_id).transform_values { |items| items.sum { |i| i.quantity.to_d }.to_s }
     end
@@ -126,7 +145,7 @@ module Inventory
       end
       return Result.new(ok: false, issue: issue, error: error) if error
 
-      Result.new(ok: true, issue: issue)
+      Result.new(ok: true, issue: issue, warnings: @warnings)
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, issue: issue, error: e.record.errors.full_messages.to_sentence)
     end

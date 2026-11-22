@@ -85,7 +85,7 @@ RSpec.describe "Inventory::StockIssues edit performance", type: :request do
 
     get edit_inventory_stock_issue_path(issue)
     doc = Nokogiri::HTML(response.body)
-    rows = doc.css("tbody[data-line-items-target='rows'] select")
+    rows = doc.css("tbody[data-line-items-target='rows'] select[name$='[product_id]']")
     expect(rows.map { |s| s.at_css("option[selected]")&.[]("value") }).to eq(issue.items.order(:id).map { |i| i.product_id.to_s })
     option = rows.first.at_css("option[value='#{products.first.id}']")
     expect(option["data-barcode"]).to eq(primary)

@@ -95,7 +95,7 @@ RSpec.describe "Purchase Request Low Stock picker", type: :system do
     expect(page).to have_no_css("[data-purchase-request-form-target='lowStockModal'] [data-low-stock-row]", visible: true)
     expect(line_products).to contain_exactly(beta.id.to_s, gamma.id.to_s)
     beta_line = lines.find { |tr| tr.find("select[name*='[product_id]']", visible: :all).value == beta.id.to_s }
-    expect(beta_line.find("input[name*='[quantity]']").value).to eq("7")
+    expect(beta_line.find("input[name*='[entered_quantity]']").value).to eq("7")
   end
 
   it "blocks invalid quantities and stays open; Cancel and Escape close it, a click outside does not" do

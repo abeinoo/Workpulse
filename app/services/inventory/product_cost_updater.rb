@@ -1,6 +1,5 @@
 module Inventory
-  # Recomputes a product's costing after a goods receipt, using the moving
-  # weighted-average method at the product level (across all warehouses):
+  # Kept for callers that blend a receipt into the moving average:
   #
   #   new_avg = (on_hand * avg + received_qty * unit_cost) / (on_hand + received_qty)
   #
@@ -9,32 +8,21 @@ module Inventory
   #   after #2: on_hand 10 -> avg = (10*100 + 10*120) / 20 = 110
   #
   # `last_purchase_price` always tracks the most recent receipt's unit cost.
-  # Must run AFTER the IN movement is persisted so `current_stock` includes it;
-  # callers pass the pre-receipt on-hand explicitly to avoid that ordering trap.
+  # The write, its 8-dp rounding and its audit record live in
+  # Inventory::AverageCost.
   class ProductCostUpdater
-    def initialize(product)
-      @product = product
+    def initialize(product, actor: nil, owner: :lookup, current_average: nil)
+      @product         = product
+      @actor           = actor
+      @owner           = owner
+      @current_average = current_average
     end
 
     # on_hand_before: product's total on-hand *before* this receipt quantity.
-    def apply_receipt(quantity:, unit_cost:, on_hand_before:)
-      quantity  = quantity.to_d
-      unit_cost = unit_cost.to_d
-      return if quantity.zero?
-
-      prior_qty = on_hand_before.to_d
-      prior_avg = @product.average_cost_price.to_d
-      new_total = prior_qty + quantity
-
-      new_avg = if new_total.positive?
-        ((prior_qty * prior_avg) + (quantity * unit_cost)) / new_total
-      else
-        prior_avg
-      end
-
-      @product.update!(
-        average_cost_price:  new_avg,
-        last_purchase_price: unit_cost
+    def apply_receipt(quantity:, unit_cost:, on_hand_before:, source: nil, movement: nil)
+      AverageCost.new(@product, actor: @actor, owner: @owner, current_average: @current_average).apply_inflow!(
+        quantity: quantity, unit_cost: unit_cost, on_hand_before: on_hand_before,
+        trigger: "receipt_posted", source: source, movement: movement, last_purchase: true
       )
     end
   end

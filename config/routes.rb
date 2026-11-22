@@ -374,6 +374,10 @@ Rails.application.routes.draw do
       member do
         patch :archive
         patch :restore
+        # Nested packaging (Inventory::Packaging::Configurator): up to four
+        # levels, innermost first.
+        get   :packaging, to: "product_packagings#edit"
+        patch :packaging, to: "product_packagings#update"
         # Product availability per warehouse, managed from the product: the
         # section of the Edit page, also standalone for users who manage
         # availability but not product details. One branch card per request

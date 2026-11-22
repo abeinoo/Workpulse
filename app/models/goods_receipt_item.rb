@@ -1,4 +1,6 @@
 class GoodsReceiptItem < ApplicationRecord
+  include PackagedLine
+
   belongs_to :goods_receipt
   belongs_to :product
   # Optional: which Purchase Request line this receipt line fulfils. Set only
@@ -28,13 +30,36 @@ class GoodsReceiptItem < ApplicationRecord
     errors.add(:product_id, :other_business) if product.business_id != goods_receipt.business_id
   end
 
+  # A price entered per the chosen unit (e.g. 120.00 a carton) is stored per
+  # base unit at 8 dp (unit_cost); the line total keeps the entered figures.
+  before_validation :derive_base_unit_cost
   before_validation :compute_total_cost
 
   private
 
-  def compute_total_cost
-    self.total_cost = quantity.to_d * unit_cost.to_d if quantity && unit_cost
+  def derive_base_unit_cost
+    return if entered_unit_cost.blank?
+
+    factor = packaging_level ? packaging_level.base_quantity.to_d : 1.to_d
+    self.unit_cost = (entered_unit_cost.to_d / factor).round(8)
   end
+
+  def compute_total_cost
+    if entered_unit_cost.present? && entered_quantity.present?
+      self.total_cost = (entered_quantity.to_d * entered_unit_cost.to_d).round(4)
+    elsif quantity && unit_cost
+      self.total_cost = quantity.to_d * unit_cost.to_d
+    end
+  end
+
+  public
+
+  # The price per the unit the user entered (base lines: the base price).
+  def unit_cost_per_entered_unit
+    entered_unit_cost.presence || unit_cost
+  end
+
+  private
 
   def product_matches_purchase_request_item
     return if purchase_request_item.nil? || product.nil?

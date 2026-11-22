@@ -8,7 +8,8 @@ class Inventory::StockTransfersController < Inventory::BaseController
   def show
     @stock_transfer = find_transfer
     authorize @stock_transfer
-    @items = @stock_transfer.items.includes(product: Product::IMAGE_PRELOAD)
+    @items = @stock_transfer.items.includes(:packaging_level, product: Product::IMAGE_PRELOAD)
+    @packaging_entries = packaging_entries_of(@stock_transfer)
   end
 
   def new
@@ -61,7 +62,7 @@ class Inventory::StockTransfersController < Inventory::BaseController
   def transfer_params
     params.require(:stock_transfer).permit(
       :source_warehouse_id, :destination_warehouse_id, :transferred_on, :notes,
-      items_attributes: [ :id, :product_id, :quantity, :_destroy ]
+      items_attributes: [ :id, :product_id, :quantity, :entered_quantity, :packaging_level_id, :_destroy ]
     )
   end
 end

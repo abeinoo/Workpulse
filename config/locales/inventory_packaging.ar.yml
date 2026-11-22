@@ -1,0 +1,113 @@
+ar:
+  activerecord:
+    errors:
+      messages:
+        packaging_refused: "%{message}"
+        average_cost_audit_failed: "تعذّر تسجيل تغيّر متوسط التكلفة في سجل التدقيق، لذلك لم يُرحَّل شيء. حاول مرة أخرى؛ وإن تكرر ذلك فتواصل مع الدعم."
+        reserved_stock_conflict: "%{product} (%{sku}) في %{warehouse}: سحب %{removal} سيترك أقل من %{reserved} المحجوزة لأذونات الصرف المعتمدة %{issues} (المتوفر: %{on_hand}). اصرف تلك الأذونات أو ألغها أولًا، أو اسحب كمية أقل."
+        not_whole_packages: "يجب أن يكون عددًا صحيحًا من العبوات"
+        retired: "لم يعد جزءًا من تعبئة المنتج"
+        locked_after_movements: "لا يمكن تغييرها بعد حركة المخزون — كل الكميات المسجلة بهذه الوحدة. استخدم تحويل الوحدات لتغييرها."
+        managed_by_packaging: "تُحدَّد من تعبئة المنتج (محتوى العبوة الداخلية)"
+        stock_count_only: "لا يسجلها إلا الجرد"
+  inventory:
+    packaging:
+      title: "التعبئة"
+      units:
+        bottle:
+          one: "%{count} زجاجة"
+          other: "%{count} زجاجة"
+          name: "زجاجة"
+        can:
+          one: "%{count} عبوة معدنية"
+          other: "%{count} عبوة معدنية"
+          name: "عبوة معدنية"
+        jar:
+          one: "%{count} برطمان"
+          other: "%{count} برطمان"
+          name: "برطمان"
+        tube:
+          one: "%{count} أنبوب"
+          other: "%{count} أنبوب"
+          name: "أنبوب"
+        bag:
+          one: "%{count} كيس"
+          other: "%{count} كيس"
+          name: "كيس"
+        sachet:
+          one: "%{count} ظرف"
+          other: "%{count} ظرف"
+          name: "ظرف"
+        box:
+          one: "%{count} علبة"
+          other: "%{count} علبة"
+          name: "علبة"
+        pack:
+          one: "%{count} حزمة"
+          other: "%{count} حزمة"
+          name: "حزمة"
+        carton:
+          one: "%{count} كرتونة"
+          other: "%{count} كرتونة"
+          name: "كرتونة"
+        case:
+          one: "%{count} صندوق"
+          other: "%{count} صندوق"
+          name: "صندوق"
+        pallet:
+          one: "%{count} منصة"
+          other: "%{count} منصة"
+          name: "منصة"
+      base_unit: "الوحدة الأساسية"
+      hint: "حدّد طريقة تعبئة المنتج بدءًا من العبوة الداخلية: مثلًا 1 علبة = 10 قطع، 1 كرتونة = 12 علبة. يُحفظ المخزون دائمًا بالوحدة الأساسية، والتعبئة تصفه فقط."
+      none: "لا توجد تعبئة — يُعدّ المنتج بوحدته الأساسية فقط."
+      level_contains: "1 %{package} = %{contains}"
+      level_equals: "= %{base}"
+      add_level: "إضافة مستوى خارجي"
+      remove_level: "حذف"
+      save: "حفظ التعبئة"
+      saved: "تم حفظ التعبئة."
+      edit: "تعديل التعبئة"
+      package_unit: "العبوة"
+      contains: "تحتوي على"
+      contains_hint_inner: "بوحدة %{measure}"
+      contains_hint_outer: "× من المستوى الأدنى"
+      max_levels: "حتى %{count} مستويات."
+      add_unit_row: "+ وحدة أخرى"
+      unit_select_label: "الوحدة"
+      equals_base: "= %{base}"
+      sealed: "مغلقة"
+      loose: "سائبة"
+      on_hand_packaging: "التعبئة المتوفرة"
+      locked_base_unit: "الوحدة الأساسية مقفلة لأن المخزون تحرّك."
+      count_levels_hint: "عدّ العبوات الكاملة خارج العبوات الأكبر، ثم المحتوى السائب."
+      warning_title: "تنبيه التعبئة"
+      approval_warning: "%{message} تم اعتماد الإذن وحجز مخزونه؛ ويمكن ترحيله عند توفر العبوات (أو عدّل السطر إلى الوحدة الأساسية)."
+      steps:
+        opened: "يفتح %{packages}"
+        taken: "يأخذ %{packages} مغلقة"
+        added: "يضيف %{packages} مغلقة"
+        counted_out: "الجرد −%{packages}"
+        counted_in: "الجرد +%{packages}"
+      preview_title: "التعبئة عند الترحيل"
+      preview_hint: "ما سيحدث للعبوات المغلقة عند الترحيل وفق مخزون اليوم. يُعاد التحقق من سطور العبوات الكاملة عند الترحيل."
+      preview_none: "محتوى سائب فقط — لا تُفتح أي عبوة"
+      effects_title: "أثر التعبئة"
+      effects_hint: "العبوات المغلقة التي نقلها هذا المستند أو فتحها (فتح العبوة لا يغيّر الإجمالي أبدًا)."
+      errors:
+        too_many_levels: "يمكن أن يكون للمنتج %{max} مستويات تعبئة على الأكثر."
+        duplicate_unit: "يُستخدم كل نوع عبوة مرة واحدة فقط في تعبئة المنتج."
+        unknown_unit: "اختر نوع العبوة لكل مستوى."
+        contains_positive: "أدخل ما تحتويه %{unit} واحدة (أكثر من صفر)."
+        contains_precision: "يمكن أن يحتوي %{unit} على 3 منازل عشرية على الأكثر."
+        contains_whole: "يجب أن تحتوي %{unit} على عدد صحيح."
+        contains_more_than_one: "يجب أن تحتوي %{unit} الخارجية على 2 على الأقل من المستوى الأدنى."
+        level_in_stock: "مستوى %{unit} ما زال يضم عبوات مغلقة في أحد المستودعات. أخرجها بالجرد قبل تغييره."
+        level_on_open_document: "مستوى %{unit} مستخدم في طلب شراء أو استلام أو إذن صرف مفتوح. أكمله أو ألغه أولًا."
+        structure_invalid: "التعبئة غير متسقة (يجب أن تتتابع المستويات من الداخلية، وأن يساوي المقدار محتوى العبوة الداخلية)."
+        audit_failed: "تعذّر تسجيل التغيير في سجل التدقيق، لذلك لم يُحفظ شيء."
+      refusals:
+        insufficient_packages: "يحتاج %{product} (%{sku}) إلى %{needed} عبوات كاملة؛ المتوفر: %{available}. لا يحل المحتوى السائب محل عبوة كاملة — عدّل السطر إلى الوحدة الأساسية أو انتظر المخزون."
+        insufficient_stock: "لا يكفي %{product} (%{sku}): المطلوب %{needed}؛ المتوفر: %{available}."
+        not_whole_packages: "%{product}: لا تُنقل العبوات إلا كاملة."
+        packaging_changed: "%{product} (%{sku}): تغيّرت التعبئة المسجلة ولا يمكن تطبيق ذلك (المتوفر: %{available}). أعد جرد المنتج."

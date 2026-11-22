@@ -80,7 +80,7 @@ module Inventory
     # Uncounted (blank) rows are left untouched — never treated as a zero
     # count. A perfect count approves with no adjustment.
     def post_adjustment!
-      diff_items = @count.items.select { |item| item.counted? && item.difference.to_d.nonzero? }
+      diff_items = @count.items.select { |item| item.counted? && (item.difference.to_d.nonzero? || item.packaging_differences.any?) }
       return nil if diff_items.empty?
 
       adjustment = @count.business.stock_adjustments.build(
@@ -92,7 +92,8 @@ module Inventory
         notes:       I18n.t("inventory.stock_counts.adjustment_note", number: @count.count_number)
       )
       diff_items.each do |item|
-        adjustment.items.build(product: item.product, quantity_difference: item.difference)
+        adjustment.items.build(product: item.product, quantity_difference: item.difference,
+                               packaging_differences: item.packaging_differences.presence)
       end
 
       result = AdjustmentPoster.new(adjustment).call
@@ -109,7 +110,7 @@ module Inventory
         adjustment_number:   adjustment&.adjustment_number,
         owner_self_approval: owner_exception,
         self_approval_exception: (owner_exception ? "business_owner" : nil),
-        lines: adjustment ? adjustment.items.map { |i| { product_id: i.product_id, quantity_difference: quantity_string(i.quantity_difference) } } : []
+        lines: adjustment ? adjustment.items.map { |i| { product_id: i.product_id, quantity_difference: quantity_string(i.quantity_difference), packaging_differences: i.packaging_differences.presence }.compact } : []
       }.compact
     end
   end

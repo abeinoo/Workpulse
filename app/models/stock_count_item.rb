@@ -46,6 +46,17 @@ class StockCountItem < ApplicationRecord
     !counted_quantity.nil?
   end
 
+  # { level id => counted − recorded packages } for a line counted per
+  # packaging level (zero differences dropped). Empty for base-unit counts.
+  def packaging_differences
+    return {} if counted_breakdown.blank? || system_breakdown.blank?
+
+    (counted_breakdown.keys | system_breakdown.keys).excluding("loose").filter_map do |level_id|
+      delta = counted_breakdown[level_id].to_i - system_breakdown[level_id].to_i
+      [ level_id, delta ] if delta.nonzero?
+    end.to_h
+  end
+
   def physical? = quantity_source == "physical"
   def system_derived? = quantity_source == "system"
 

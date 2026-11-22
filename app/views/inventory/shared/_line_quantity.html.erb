@@ -1,0 +1,35 @@
+<%#
+  A document line's quantity in the unit the user chooses
+  (docs/inventory/multi_unit_nested_packaging_design.md §7): the amount (entered_quantity), the unit
+  (packaging_level_id: blank = the product's base unit, else a packaging
+  level) and a live "= 30 pcs" hint (lib/packaging_units.js). The server
+  derives the base quantity (PackagedLine). A product without packaging shows
+  only its measure, exactly as before.
+
+  locals: f, default_level_id (optional: the unit pre-selected on a new line,
+          e.g. the purchase request line's unit), input_class, input_data,
+          aria_label, max (base-unit products only)
+%>
+<% item     = f.object
+   product  = item.product
+   units    = packaging_units(product)
+   packaged = units.size > 1
+   selected = item.packaging_level_id || (item.new_record? && item.entered_quantity.nil? ? local_assigns[:default_level_id] : nil)
+   level    = units.find { |u| u[:id].present? && u[:id] == selected }
+   amount   = item.entered_quantity.presence || item.quantity
+   data     = { quantity_field: true }.merge(local_assigns[:input_data] || {}) %>
+<div class="qty-with-unit">
+  <%= f.number_field :entered_quantity, value: inventory_quantity(amount), step: "0.001", min: 0,
+        max: (packaged ? nil : local_assigns[:max]),
+        class: "form-control #{local_assigns[:input_class]} #{'is-error' if item.errors[:quantity].any? || item.errors[:entered_quantity].any?}",
+        placeholder: "0", inputmode: "decimal", data: data,
+        "aria-label": local_assigns[:aria_label] || t("inventory.packaging.unit_select_label") %>
+  <%= f.hidden_field :packaging_level_id, value: "", id: nil %>
+  <%= f.select :packaging_level_id,
+        options_for_select(units.map { |u| [ u[:label], u[:id].to_s, { "data-base" => u[:base] } ] }, selected.to_s),
+        {}, class: "form-control qty-unit-select", hidden: !packaged, disabled: !packaged,
+        "aria-label": t("inventory.packaging.unit_select_label"), data: { unit_select: true } %>
+  <span class="qty-unit" data-measure-label <%= "hidden" if packaged %>><%= product ? measure_short(product) : "" %></span>
+</div>
+<span class="form-hint qty-unit-hint" data-unit-hint data-template="<%= t("inventory.packaging.equals_base", base: "%{base}") %>"><%=
+  t("inventory.packaging.equals_base", base: "#{inventory_quantity(amount.to_d * level[:base].to_d)} #{measure_short(product)}") if level && amount.present? %></span>

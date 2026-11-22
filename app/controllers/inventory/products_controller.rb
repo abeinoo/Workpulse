@@ -49,6 +49,7 @@ class Inventory::ProductsController < Inventory::BaseController
 
     load_warehouse_availability
     @low_stock_warehouse = @availability_pairs.any?(&:low_stock?)
+    load_packaging
 
     @display_stock       = @stock_by_warehouse.values.sum
     @display_stock_value = @display_stock * @product.average_cost_price
@@ -205,6 +206,18 @@ class Inventory::ProductsController < Inventory::BaseController
   end
 
   private
+
+  # The product's packaging chain and, per warehouse with stock, its sealed
+  # packages and loose content (two queries; none without packaging).
+  def load_packaging
+    @packaging_structure = Inventory::Packaging::Structure.for(@product)
+    @packaging_balances  = if @packaging_structure.packaged?
+      Inventory::Packaging::Balance.load(structures: { @product.id => @packaging_structure },
+                                         warehouse_ids: @stock_by_warehouse.keys)
+    else
+      {}
+    end
+  end
 
   def load_purchase_history
     # Single query: all non-voided GR items for this product, newest first —

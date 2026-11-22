@@ -59,7 +59,7 @@
     </div>
     <div class="stat-card">
       <span class="stat-card__label"><%= t("inventory.products.avg_cost") %></span>
-      <span class="stat-card__value"><%= format_currency(@product.average_cost_price) %></span>
+      <span class="stat-card__value" data-testid="product-average-cost"><%= format_unit_cost_currency(@product.average_cost_price) %></span>
     </div>
     <div class="stat-card">
       <span class="stat-card__label"><%= t("inventory.products.last_purchase_price") %></span>
@@ -125,6 +125,9 @@
       <% end %>
     </dl>
   </div>
+
+  <%= render "inventory/products/packaging_card", product: @product, structure: @packaging_structure, balances: @packaging_balances,
+        stock_by_warehouse: @stock_by_warehouse, warehouses: @warehouses %>
 
   <%= render "inventory/products/warehouse_availability", product: @product, pairs: @availability_pairs,
         manage_path: @availability_manage_path %>

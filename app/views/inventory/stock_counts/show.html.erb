@@ -161,6 +161,9 @@
               <span class="badge <%= diff_class %>">
                 <%= item.counted? ? with_measure(inventory_signed_quantity(diff), item.product) : "—" %>
               </span>
+              <% if (packaging = packaging_differences_text(item.product, item.packaging_differences)) %>
+                <div class="form-hint" data-testid="count-packaging-difference"><%= t("inventory.packaging.title") %>: <%= packaging %></div>
+              <% end %>
             </td>
             <td><%= render "quantity_source", item: item %></td>
           </tr>

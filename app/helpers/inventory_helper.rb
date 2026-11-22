@@ -134,6 +134,103 @@ module InventoryHelper
   end
   def inventory_signed_quantity(value) = Inventory::QuantityFormat.signed(value)
 
+  # ── Packaging (ProductPackagingLevel; docs/inventory/multi_unit_nested_packaging_design.md) ──
+
+  # The units a document line can be entered in: the base unit, then every
+  # active packaging level innermost first —
+  #   [{ id: nil, label: "pcs", base: "1" }, { id: 7, label: "Box (10 pcs)", unit: "box", base: "10" }, …]
+  # Read by the line unit selector (packaging_unit_controller.js).
+  # preloaded_only: long option lists never query per product — a product
+  # whose levels weren't preloaded simply offers its base unit there.
+  def packaging_units(product, preloaded_only: false)
+    return [] if product.nil?
+
+    loaded = product.association(:active_packaging_levels).loaded?
+    return [ { id: nil, label: measure_short(product), base: "1" } ] if preloaded_only && !loaded
+
+    levels = loaded ? product.active_packaging_levels : product.active_packaging_levels.to_a
+    [ { id: nil, label: measure_short(product), base: "1" } ] + levels.map do |level|
+      { id: level.id, unit: level.package_unit, base: inventory_quantity(level.base_quantity),
+        label: "#{t("inventory.packaging.units.#{level.package_unit}.name")} (#{inventory_quantity(level.base_quantity)} #{measure_short(product)})" }
+    end
+  end
+
+  # nil for a product without packaging (no selector needed).
+  def packaging_units_json(product, preloaded_only: false)
+    units = packaging_units(product, preloaded_only: preloaded_only)
+    units.size > 1 ? units.to_json : nil
+  end
+
+  # A purchase request line's quantity (ordered / received / remaining) in its
+  # purchase unit: "0.5 carton" with the base equivalent beside it
+  # ("60 pcs"); "0.941 carton" for 113 of 120 pcs (truncated, never
+  # overstated). Base-unit lines: "60 pcs".
+  def purchase_unit_quantity(line, base_quantity)
+    product = line.product
+    base    = with_measure(inventory_quantity(base_quantity), product)
+    level   = line.packaging_level
+    return base if level.nil?
+
+    amount = Inventory::Packaging::Format.in_purchase_unit(base_quantity, level)
+    safe_join([ Inventory::Packaging::Format.packages(level.package_unit, amount), " ",
+                content_tag(:span, base, class: "td-secondary qty-base-equivalent") ])
+  end
+
+  # "3 boxes (30 pcs)" for a package line, "30 pcs" for a base line.
+  def packaged_line_quantity(item)
+    product = item.product
+    return with_measure(inventory_quantity(item.quantity), product) if product.nil? || item.packaging_level.nil?
+
+    Inventory::Packaging::Format.line(product, quantity: item.quantity, entered_quantity: item.entered_quantity, level: item.packaging_level)
+  end
+
+  # A stocktake packaging difference ({ level id => Δ packages }) as text:
+  # "−1 bottle · +11 boxes". Nil when there is none.
+  def packaging_differences_text(product, differences)
+    return nil if differences.blank?
+
+    levels = product.packaging_levels.index_by(&:id)
+    differences.filter_map do |level_id, delta|
+      level = levels[level_id.to_i]
+      next unless level
+
+      sign = delta.to_i.positive? ? "+" : "−"
+      "#{sign}#{Inventory::Packaging::Format.packages(level.package_unit, delta.to_i.abs)}"
+    end.join(" · ").presence
+  end
+
+  # A posting preview line ("opens 1 carton · takes 3 boxes sealed"), or its
+  # refusal message.
+  def packaging_preview_text(item, preview)
+    return preview.error if preview.error
+
+    structure = Inventory::Packaging::Structure.for(item.product)
+    Inventory::Packaging::Format.steps(Inventory::Packaging::IssuePreview.step_data(preview, structure)) ||
+      t("inventory.packaging.preview_none")
+  end
+
+  # Recorded packaging entries of a document, per warehouse and product:
+  # [[warehouse, product, "opens 1 carton · takes 3 boxes sealed"], …].
+  def packaging_effect_rows(entries)
+    entries.group_by { |e| [ e.warehouse, e.product ] }.filter_map do |(warehouse, product), list|
+      text = Inventory::Packaging::Format.steps(list.map { |e| [ e.kind, e.packaging_level.package_unit, e.package_delta ] })
+      [ warehouse, product, text ] if text
+    end
+  end
+
+  # A product's packaging in one warehouse: "1 carton · 2 boxes · 5 pcs (145 pcs)".
+  def packaging_balance_text(product, balance)
+    return nil if balance.nil?
+
+    Inventory::Packaging::Format.balance(product, balance)
+  end
+
+  # Unit cost for display (Decisions 11, 18): up to 8 dp, trailing zeros and
+  # point removed, never scientific — 25.00000000 → "25", 0.70400000 → "0.704".
+  def format_unit_cost(value)
+    CostFormat.unit(value)
+  end
+
   def stock_count_status_class(status)
     STOCK_COUNT_STATUS_BADGES.fetch(status.to_s, "badge-neutral")
   end
@@ -380,7 +477,8 @@ module InventoryHelper
           "data-barcodes"            => all.join("|"),
           "data-sku"                 => p.sku,
           "data-measure"             => measure_short(p),
-          "data-default-supplier-id" => p.default_supplier_id
+          "data-default-supplier-id" => p.default_supplier_id,
+          "data-units"               => packaging_units_json(p, preloaded_only: true)
         } ]
       }
     )
@@ -415,7 +513,8 @@ module InventoryHelper
           "data-barcodes"            => all_barcodes.join("|"),
           "data-sku"                 => p.sku,
           "data-measure"             => measure_short(p),
-          "data-default-supplier-id" => p.default_supplier_id
+          "data-default-supplier-id" => p.default_supplier_id,
+          "data-units"               => packaging_units_json(p, preloaded_only: true)
         } ]
       },
       selected_id

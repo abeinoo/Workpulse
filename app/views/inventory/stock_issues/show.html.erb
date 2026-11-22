@@ -223,11 +223,18 @@
           <tr>
             <td><%= product_identity(item.product, link: inventory_product_path(item.product)) %></td>
             <td class="td-secondary"><%= item.product.sku %></td>
-            <td style="text-align: end;"><%= with_measure(inventory_quantity(item.quantity), item.product) %></td>
+            <td style="text-align: end;" data-testid="line-quantity">
+              <%= packaged_line_quantity(item) %>
+              <% if (preview = @packaging_preview[item.id]) %>
+                <div class="form-hint <%= 'text-danger' if preview.error %>" data-testid="packaging-preview">
+                  <%= t("inventory.packaging.preview_title") %>: <%= packaging_preview_text(item, preview) %>
+                </div>
+              <% end %>
+            </td>
             <% if item.cost_unavailable? %>
               <td colspan="2" style="text-align: end;"><span class="badge badge-warning"><%= t("inventory.stock_issues.cost_unavailable") %></span></td>
             <% else %>
-              <td style="text-align: end;"><%= format_currency(item.effective_unit_cost) %></td>
+              <td style="text-align: end;"><%= format_unit_cost_currency(item.effective_unit_cost) %></td>
               <td style="text-align: end;"><%= format_currency(item.effective_total_cost) %></td>
             <% end %>
           </tr>
@@ -244,9 +251,13 @@
         <% if @stock_issue.cost_unavailable? %>
           <tr><td colspan="5" class="td-secondary" style="text-align: start; font-size: var(--text-xs);"><%= t("inventory.stock_issues.cost_unavailable_hint") %></td></tr>
         <% end %>
+        <% if @packaging_preview.any? %>
+          <tr><td colspan="5" class="td-secondary" style="text-align: start; font-size: var(--text-xs);"><%= t("inventory.packaging.preview_hint") %></td></tr>
+        <% end %>
       </tfoot>
     </table>
   </div>
+  <%= render "inventory/shared/packaging_effects", entries: @packaging_entries %>
 
   <div class="card" style="margin-top: var(--space-5);">
     <div class="card-header">

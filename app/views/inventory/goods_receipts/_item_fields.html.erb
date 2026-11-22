@@ -15,18 +15,15 @@
   <td>
     <% pri = f.object.purchase_request_item %>
     <%= f.hidden_field :purchase_request_item_id if pri %>
-    <div class="qty-with-unit">
-      <%= f.number_field :quantity, step: "0.001", min: 0, max: pri&.remaining_quantity,
-            class: "form-control", placeholder: "0", data: { quantity_field: true } %>
-      <%= measure_label_tag(f.object.product) %>
-    </div>
+    <%= render "inventory/shared/line_quantity", f: f, max: pri&.remaining_quantity, default_level_id: pri&.packaging_level_id %>
     <% if pri %>
       <p class="form-hint"><%= t("inventory.goods_receipts.quantity_hint_remaining", remaining: pri.remaining_quantity) %></p>
     <% end %>
   </td>
   <td>
-    <%= f.number_field :unit_cost, step: "0.0001", min: 0, class: "form-control", placeholder: "0.00",
-          data: { cost_field: true } %>
+    <%# The cost per the line's unit (per carton for a carton line); stored per base unit. %>
+    <%= f.number_field :entered_unit_cost, value: f.object.unit_cost_per_entered_unit, step: "any", min: 0,
+          class: "form-control", placeholder: "0.00", data: { cost_field: true } %>
   </td>
   <td class="line-items-table__total" data-line-total aria-live="off">—</td>
   <td class="td-actions">

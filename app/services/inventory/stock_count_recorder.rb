@@ -91,12 +91,18 @@ module Inventory
       by_id      = @count.items.index_by(&:id)
       by_product = @count.items.index_by(&:product_id)
       resolved   = @entries.reject { |entry| unchanged_on_screen?(entry) }
-                           .map { |entry| [ resolve_item(entry, by_id, by_product), parse(entry[:counted_quantity]), entered?(entry) ] }
-      on_hand    = on_hand_for(resolved.map { |item, *| item.product_id }.compact)
+                           .map { |entry| [ resolve_item(entry, by_id, by_product), entry ] }
+      product_ids = resolved.map { |item, _| item.product_id }.compact
+      on_hand    = on_hand_for(product_ids)
+      packaging  = packaging_for(product_ids)
       now        = Time.current
 
-      changes = resolved.filter_map do |item, quantity, entered|
-        change = apply(item, quantity, on_hand[item.product_id].to_d, now, entered: entered)
+      changes = resolved.filter_map do |item, entry|
+        breakdown = parse_breakdown(entry[:counted_breakdown], packaging[:structures][item.product_id])
+        quantity  = breakdown ? breakdown_total(breakdown, packaging[:structures][item.product_id]) : parse(entry[:counted_quantity])
+        @system_breakdown = breakdown && system_breakdown(packaging, item.product_id)
+        @counted_breakdown = breakdown
+        change = apply(item, quantity, on_hand[item.product_id].to_d, now, entered: entered?(entry))
         next unless change
 
         item.save!
@@ -132,7 +138,8 @@ module Inventory
         return nil if item.legacy_unverified? || item.system_derived? || !item.counted?
 
         change = audit_change(item, nil)
-        item.assign_attributes(counted_quantity: nil, counted_at: nil, baseline_at: nil, quantity_source: nil)
+        item.assign_attributes(counted_quantity: nil, counted_at: nil, baseline_at: nil, quantity_source: nil,
+                               counted_breakdown: nil, system_breakdown: nil)
         return change
       end
 
@@ -143,8 +150,10 @@ module Inventory
       change = audit_change(item, quantity)
       item.legacy_counted_quantity = item.counted_quantity if item.legacy_unverified?
       item.assign_attributes(counted_quantity: quantity, counted_at: now, baseline_at: now,
-                             system_quantity: on_hand, quantity_source: "physical")
-      change.merge(system_quantity: quantity_string(on_hand))
+                             system_quantity: on_hand, quantity_source: "physical",
+                             counted_breakdown: @counted_breakdown, system_breakdown: @system_breakdown)
+      change = change.merge(system_quantity: quantity_string(on_hand))
+      @counted_breakdown ? change.merge(counted_breakdown: @counted_breakdown) : change
     end
 
     def audit_change(item, quantity)
@@ -161,6 +170,45 @@ module Inventory
       @count.started_at = Time.current
       @count.created_by ||= @actor
       true
+    end
+
+    # Packaged products counted per level (docs/inventory/multi_unit_nested_packaging_design.md §8.1):
+    # full packages outside larger packages, plus loose base units. The
+    # recorded state at entry (system_breakdown) is the baseline the
+    # approval compares the counted packaging with.
+    def packaging_for(product_ids)
+      structures = Packaging::Structure.for_products(product_ids)
+      { structures: structures, balances: Packaging::Balance.load(structures: structures, warehouse_ids: [ @count.warehouse_id ]) }
+    end
+
+    def parse_breakdown(raw, structure)
+      return nil if raw.blank? || structure.nil? || !structure.packaged?
+
+      raw = raw.respond_to?(:to_unsafe_h) ? raw.to_unsafe_h : raw.to_h
+      return nil if raw.values.all? { |v| v.to_s.strip.empty? }
+
+      counts = structure.levels.to_h do |level|
+        value = parse(raw[level.id.to_s]) || 0.to_d
+        raise InvalidEntry, t_error("invalid_quantity", value: value.to_s("F")) if value.negative? || value != value.truncate
+
+        [ level.id.to_s, value.to_i ]
+      end
+      loose = parse(raw["loose"]) || 0.to_d
+      raise InvalidEntry, t_error("invalid_quantity", value: loose.to_s("F")) if loose.negative?
+
+      counts.merge("loose" => Inventory::QuantityFormat.plain(loose))
+    end
+
+    def breakdown_total(breakdown, structure)
+      structure.levels.sum(0.to_d) { |level| breakdown[level.id.to_s].to_i * level.base_quantity } + breakdown["loose"].to_d
+    end
+
+    def system_breakdown(packaging, product_id)
+      balance = packaging[:balances][[ @count.warehouse_id, product_id ]]
+      return nil if balance.nil?
+
+      balance.structure.levels.to_h { |level| [ level.id.to_s, balance.free[level.position] ] }
+             .merge("loose" => Inventory::QuantityFormat.plain(balance.loose))
     end
 
     def parse(value)

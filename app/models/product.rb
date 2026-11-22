@@ -37,6 +37,12 @@ class Product < ApplicationRecord
   has_many :product_warehouse_settings, dependent: :restrict_with_error
   has_many :configured_warehouses, through: :product_warehouse_settings, source: :warehouse
   has_many :product_barcodes,   dependent: :destroy, inverse_of: :product
+  # Nested packaging (Inventory::Packaging::Configurator is the only writer):
+  # one linear chain, innermost first, at most four active levels.
+  has_many :packaging_levels, -> { order(:position, :id) }, class_name: "ProductPackagingLevel",
+                                                            inverse_of: :product, dependent: :delete_all
+  has_many :active_packaging_levels, -> { where(status: "active").order(:position) },
+           class_name: "ProductPackagingLevel", inverse_of: :product
 
   # A NEW row left empty is ignored (the form's spare row). An existing row is
   # never ignored: its _destroy deletes it, and emptying its value is refused
@@ -81,6 +87,14 @@ class Product < ApplicationRecord
   # "1 kg", "0.5 kg"). Optional (blank = none); positive when given. Display
   # only: never multiplies or converts a stock quantity.
   validates :measure_amount, numericality: { greater_than: 0 }, allow_nil: true
+  # Once stock has moved, the base unit (the Measure) is locked: every
+  # historical quantity is in it. A future change goes through the audited
+  # Unit Conversion document, never an ordinary edit (Decision 2).
+  validate :base_unit_locked_once_moved, on: :update
+  # With packaging, the Amount is the innermost package's content (Decision 1)
+  # and only the Configurator changes it (a database trigger backs this up).
+  validate :measure_amount_follows_packaging, on: :update
+  attr_accessor :configuring_packaging
   # "Track stock quantity" stays on while the product still holds stock or is
   # on an open inventory document (Inventory::TrackingDependencies): an
   # untracked product drops out of counts, alerts and reorder settings, so
@@ -175,6 +189,24 @@ class Product < ApplicationRecord
       stock_adjustment_items.exists? ||
       stock_count_items.exists? ||
       product_barcodes.exists?
+  end
+
+  def base_unit_locked?
+    persisted? && inventory_movements.exists?
+  end
+
+  def base_unit_locked_once_moved
+    return unless will_save_change_to_unit_of_measure?
+    return unless inventory_movements.exists?
+
+    errors.add(:unit_of_measure, :locked_after_movements)
+  end
+
+  def measure_amount_follows_packaging
+    return if configuring_packaging || !will_save_change_to_measure_amount?
+    return unless active_packaging_levels.exists?
+
+    errors.add(:measure_amount, :managed_by_packaging)
   end
 
   def tracking_kept_while_stock_or_documents

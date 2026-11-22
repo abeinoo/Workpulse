@@ -94,7 +94,8 @@ module ProductThumbnailHelper
     barcodes = product.association(:product_barcodes).loaded? ? product.product_barcodes.map(&:barcode) : []
     { data: { name: product.name, sku: product.sku, barcode: product.association(:product_barcodes).loaded? ? product.barcode : nil,
               barcodes: barcodes.join("|").presence, default_supplier_id: product.default_supplier_id,
-              measure: measure_short(product), thumb: product_thumbnail_url(product, preloaded_only: true) }.compact }
+              measure: measure_short(product), thumb: product_thumbnail_url(product, preloaded_only: true),
+              units: packaging_units_json(product) }.compact }
   end
 
   # The variant URL, or nil without a (usable) image. No query when preloaded.

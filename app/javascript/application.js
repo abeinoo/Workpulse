@@ -1,5 +1,6 @@
 import "@hotwired/turbo-rails"
 import "controllers"
+import { installPackagingUnits } from "lib/packaging_units"
 
 // Turbo replaces <body> but never touches <html lang> or <html dir>.
 // Read the server-set meta tags on every page load and apply them so that
@@ -78,3 +79,7 @@ document.addEventListener("change", (event) => {
   const label = select.closest("[data-line-row]")?.querySelector("[data-measure-label]")
   if (label) label.textContent = select.selectedOptions[0]?.dataset.measure || ""
 })
+
+// A document line's unit selector (base unit or a packaging level) follows the
+// line's product, with a live "= 30 pcs" hint (lib/packaging_units.js).
+installPackagingUnits()

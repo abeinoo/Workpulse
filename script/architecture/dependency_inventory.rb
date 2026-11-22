@@ -86,11 +86,13 @@ module ArchitectureTools
       [ %r{\Aapp/controllers/api/v1/biometric_base_controller\.rb\z}, AP ],          # device-token base of the punch API (Pilot 1)
 
       # Shared Kernel (§15) and Infrastructure (§16).
-      [ %r{\Aapp/lib/business_day\.rb\z}, SHARED ],
+      [ %r{\Aapp/lib/(business_day|cost_format)\.rb\z}, SHARED ],
       # Phone-number login-identifier primitive: every caller is Organization & Access (User, API sessions, registration).
       [ %r{\Aapp/lib/phone_number\.rb\z}, OA ],
       [ %r{\Aapp/models/concerns/(voidable|immutable_document)\.rb\z}, SHARED ],
       [ %r{\Aapp/models/concerns/settleable\.rb\z}, FS ],
+      # Document lines entered in a packaging unit (inventory line items only).
+      [ %r{\Aapp/models/concerns/packaged_line\.rb\z}, IP ],
       [ %r{\Aapp/models/concerns/}, INFRA ],
       [ %r{\Aapp/models/(application_record|audit_log)\.rb\z}, INFRA ],
       [ %r{\Aapp/lib/api/}, INFRA ],
@@ -181,6 +183,7 @@ module ArchitectureTools
                PayrollAuditLog PayrollSnapshot PayrollPeriodBranchReview Advance EmployeeObligation ObligationDeduction
                ObligationPostponement SalaryPaymentHold SalaryPaymentWithholding],
       IP => %w[Warehouse WarehouseAssignment WarehouseBranchSupply Product ProductBarcode ProductImage ProductCategory Brand
+               ProductPackagingLevel InventoryPackagingEntry InventoryAverageCostChange
                ProductWarehouseSetting InventoryMovement StockIssue StockIssueItem StockIssueImportBatch
                StockIssueImportRow StockTransfer StockTransferItem StockAdjustment StockAdjustmentItem StockCount
                StockCountItem Supplier PurchaseRequest PurchaseRequestItem PurchaseRequestAdvance GoodsReceipt

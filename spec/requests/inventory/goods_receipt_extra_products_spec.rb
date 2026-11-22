@@ -203,12 +203,12 @@ RSpec.describe "Goods receipt from a Purchase Request — extra products", type:
       request_rows = doc.css("tr.line-items-row--request")
       expect(request_rows.size).to eq(2)
       # Each request line's product is fixed to that line's product.
-      expect(request_rows.map { |r| r.css("select option").map { |o| o["value"].to_i } })
+      expect(request_rows.map { |r| r.css("select[name$='[product_id]'] option").map { |o| o["value"].to_i } })
         .to contain_exactly([ shampoo.id ], [ mask.id ])
       # Ordered / received / remaining in their own columns.
       expect(doc.css("table[data-testid='gr-items-table'] thead th").map { |th| th.text.squish })
         .to include("المطلوب", "المستلم", "المتبقي", "المستلم الآن")
-      shampoo_row = request_rows.find { |r| r.at_css("select option")["value"].to_i == shampoo.id }
+      shampoo_row = request_rows.find { |r| r.at_css("select[name$='[product_id]'] option")["value"].to_i == shampoo.id }
       expect(%w[ordered received remaining].map { |c| shampoo_row.at_css("[data-testid='gr-line-#{c}']").text.squish })
         .to eq([ "10 قطعة", "0 قطعة", "10 قطعة" ]) # each with the product's measure (a whole product)
 

@@ -1,4 +1,6 @@
 class StockTransferItem < ApplicationRecord
+  include PackagedLine
+
   belongs_to :stock_transfer
   belongs_to :product
 

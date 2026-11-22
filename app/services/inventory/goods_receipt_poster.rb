@@ -45,6 +45,14 @@ module Inventory
         exception_lines = incoming_availability_exceptions
         raise ActiveRecord::Rollback if exception_lines.nil?
 
+        # BUG-071: the products are locked (after the request-line locks, the
+        # one order every receipt takes) before on-hand and the average are
+        # read, so two receipts of one product both blend into the average.
+        @averages = (StockAvailability.lock_products!(@receipt.items.map(&:product_id)) || []).to_h { |p| [ p.id, p.average_cost_price ] }
+        @owner    = @actor ? nil : @receipt.business.owner
+        @packaging = Packaging::Session.new(business: @receipt.business, product_ids: @receipt.items.map(&:product_id),
+                                            warehouse_ids: [ @receipt.warehouse_id ])
+
         # Each line's product, with the barcodes and image its cost update
         # validates, in one go — validations still run; lines of the same
         # product share one record, exactly as the cost update needs (it reads
@@ -58,6 +66,9 @@ module Inventory
         return Result.new(ok: true, receipt: @receipt)
       end
 
+      Result.new(ok: false, receipt: @receipt)
+    rescue Packaging::Refused => e
+      @receipt.errors.add(:base, :packaging_refused, message: e.message)
       Result.new(ok: false, receipt: @receipt)
     end
 
@@ -137,10 +148,11 @@ module Inventory
 
     def post_item(item)
       product = item.product
-      # Read on-hand *before* this movement so the moving average is correct.
+      # Read on-hand *before* this movement (under the product lock) so the
+      # moving average is correct.
       on_hand_before = product.current_stock
 
-      @receipt.inventory_movements.create!(
+      movement = @receipt.inventory_movements.create!(
         business:    @receipt.business,
         product:     product,
         warehouse:   @receipt.warehouse,
@@ -151,11 +163,20 @@ module Inventory
         occurred_on: @receipt.received_on
       )
 
-      ProductCostUpdater.new(product).apply_receipt(
+      # Packages arrive sealed at the entered level; base units arrive loose.
+      @packaging.apply!(product: product, warehouse_id: @receipt.warehouse_id, source: @receipt,
+                        occurred_on: @receipt.received_on, movement: movement) do |plan|
+        item.package_line? ? plan.add_packages(item.packaging_level.position, item.entered_quantity) : plan.add_base(item.quantity)
+      end
+
+      outcome = ProductCostUpdater.new(product, actor: @actor, owner: @owner, current_average: @averages[product.id]).apply_receipt(
         quantity:       item.quantity,
         unit_cost:      item.unit_cost,
-        on_hand_before: on_hand_before
+        on_hand_before: on_hand_before,
+        source:         @receipt,
+        movement:       movement
       )
+      @averages[product.id] = outcome.average
     end
   end
 end

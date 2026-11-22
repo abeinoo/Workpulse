@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -851,14 +851,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.bigint "goods_receipt_id", null: false
     t.bigint "product_id", null: false
     t.decimal "quantity", precision: 12, scale: 3, null: false
-    t.decimal "unit_cost", precision: 12, scale: 4, null: false
+    t.decimal "unit_cost", precision: 16, scale: 8, null: false
     t.decimal "total_cost", precision: 14, scale: 4, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "purchase_request_item_id"
+    t.decimal "entered_quantity", precision: 12, scale: 3
+    t.bigint "packaging_level_id"
+    t.decimal "entered_unit_cost", precision: 16, scale: 8
     t.index ["goods_receipt_id"], name: "index_goods_receipt_items_on_goods_receipt_id"
+    t.index ["packaging_level_id"], name: "index_goods_receipt_items_on_packaging_level_id"
     t.index ["product_id"], name: "index_goods_receipt_items_on_product_id"
     t.index ["purchase_request_item_id"], name: "index_goods_receipt_items_on_purchase_request_item_id"
+    t.check_constraint "entered_quantity IS NULL OR entered_quantity > 0::numeric", name: "goods_receipt_items_entered_quantity_positive"
   end
 
   create_table "goods_receipts", force: :cascade do |t|
@@ -910,6 +915,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.check_constraint "kind::text = ANY (ARRAY['public'::character varying, 'company'::character varying]::text[])", name: "holidays_kind_known"
   end
 
+  create_table "inventory_average_cost_changes", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "product_id", null: false
+    t.decimal "previous_average_cost", precision: 16, scale: 8, null: false
+    t.decimal "new_average_cost", precision: 16, scale: 8, null: false
+    t.decimal "on_hand_before", precision: 14, scale: 3
+    t.decimal "quantity", precision: 14, scale: 3
+    t.decimal "unit_cost", precision: 16, scale: 8
+    t.string "trigger", null: false
+    t.string "source_type"
+    t.bigint "source_id"
+    t.bigint "inventory_movement_id"
+    t.string "operation_ref"
+    t.bigint "actor_id"
+    t.boolean "system", default: false, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.index ["actor_id"], name: "index_inventory_average_cost_changes_on_actor_id"
+    t.index ["business_id"], name: "index_inventory_average_cost_changes_on_business_id"
+    t.index ["inventory_movement_id"], name: "index_inventory_average_cost_changes_on_inventory_movement_id"
+    t.index ["operation_ref"], name: "index_inventory_average_cost_changes_on_operation_ref"
+    t.index ["product_id"], name: "index_inventory_average_cost_changes_on_product_id"
+    t.index ["source_type", "source_id"], name: "index_inventory_average_cost_changes_on_source"
+    t.check_constraint "actor_id IS NOT NULL OR system", name: "inventory_average_cost_changes_actor_or_system"
+    t.check_constraint "trigger::text = ANY (ARRAY['receipt_posted'::character varying, 'opening_balance_posted'::character varying, 'document_voided'::character varying, 'manual_recalculation'::character varying, 'batch_replay'::character varying]::text[])", name: "inventory_average_cost_changes_trigger_check"
+  end
+
   create_table "inventory_movements", force: :cascade do |t|
     t.bigint "business_id", null: false
     t.bigint "product_id", null: false
@@ -917,7 +949,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.string "direction", null: false
     t.string "reason", null: false
     t.decimal "quantity", precision: 12, scale: 3, null: false
-    t.decimal "unit_cost", precision: 12, scale: 4, default: "0.0", null: false
+    t.decimal "unit_cost", precision: 16, scale: 8, default: "0.0", null: false
     t.string "source_type"
     t.bigint "source_id"
     t.date "occurred_on", null: false
@@ -931,6 +963,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.index ["product_id"], name: "index_inventory_movements_on_product_id"
     t.index ["source_type", "source_id"], name: "index_inventory_movements_on_source"
     t.index ["warehouse_id"], name: "index_inventory_movements_on_warehouse_id"
+  end
+
+  create_table "inventory_packaging_entries", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "product_id", null: false
+    t.bigint "warehouse_id", null: false
+    t.bigint "packaging_level_id", null: false
+    t.integer "package_delta", null: false
+    t.string "kind", null: false
+    t.bigint "inventory_movement_id"
+    t.string "source_type"
+    t.bigint "source_id"
+    t.date "occurred_on", null: false
+    t.datetime "created_at", null: false
+    t.index ["business_id"], name: "index_inventory_packaging_entries_on_business_id"
+    t.index ["inventory_movement_id"], name: "index_inventory_packaging_entries_on_inventory_movement_id"
+    t.index ["product_id", "warehouse_id", "packaging_level_id"], name: "index_inventory_packaging_entries_balance"
+    t.index ["source_type", "source_id"], name: "index_inventory_packaging_entries_on_source"
+    t.check_constraint "kind::text = ANY (ARRAY['moved'::character varying, 'breakdown'::character varying, 'count_correction'::character varying, 'conversion'::character varying]::text[])", name: "inventory_packaging_entries_kind_check"
+    t.check_constraint "package_delta <> 0", name: "inventory_packaging_entries_delta_nonzero"
   end
 
   create_table "job_titles", force: :cascade do |t|
@@ -948,7 +1000,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.bigint "product_id", null: false
     t.bigint "inventory_movement_id", null: false
     t.decimal "quantity", precision: 12, scale: 3, null: false
-    t.decimal "unit_cost_snapshot", precision: 12, scale: 4, default: "0.0", null: false
+    t.decimal "unit_cost_snapshot", precision: 16, scale: 8, default: "0.0", null: false
     t.decimal "total_cost_snapshot", precision: 14, scale: 4, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -1511,6 +1563,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.index ["business_id"], name: "index_product_categories_on_business_id"
   end
 
+  create_table "product_images", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "product_id", null: false
+    t.integer "position", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_product_images_on_business_id"
+    t.index ["product_id", "position"], name: "index_product_images_on_product_id_and_position"
+    t.check_constraint "\"position\" > 0", name: "product_images_position_positive"
+  end
+
+  create_table "product_packaging_levels", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "product_id", null: false
+    t.integer "position", null: false
+    t.string "package_unit", null: false
+    t.decimal "contains_quantity", precision: 12, scale: 3, null: false
+    t.decimal "base_quantity", precision: 16, scale: 3, null: false
+    t.string "status", default: "active", null: false
+    t.datetime "retired_at"
+    t.bigint "retired_by_id"
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_product_packaging_levels_on_business_id"
+    t.index ["created_by_id"], name: "index_product_packaging_levels_on_created_by_id"
+    t.index ["id", "product_id"], name: "index_product_packaging_levels_on_id_and_product", unique: true
+    t.index ["product_id", "package_unit"], name: "index_product_packaging_levels_active_unit", unique: true, where: "((status)::text = 'active'::text)"
+    t.index ["product_id", "position"], name: "index_product_packaging_levels_active_position", unique: true, where: "((status)::text = 'active'::text)"
+    t.index ["retired_by_id"], name: "index_product_packaging_levels_on_retired_by_id"
+    t.check_constraint "(status::text = 'retired'::text) = (retired_at IS NOT NULL)", name: "product_packaging_levels_retired_at"
+    t.check_constraint "\"position\" = 1 OR contains_quantity = trunc(contains_quantity)", name: "product_packaging_levels_outer_whole"
+    t.check_constraint "\"position\" >= 1 AND \"position\" <= 4", name: "product_packaging_levels_position_range"
+    t.check_constraint "base_quantity > 0::numeric", name: "product_packaging_levels_base_positive"
+    t.check_constraint "contains_quantity > 0::numeric", name: "product_packaging_levels_contains_positive"
+    t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'retired'::character varying]::text[])", name: "product_packaging_levels_status_check"
+  end
+
   create_table "product_variants", force: :cascade do |t|
     t.bigint "product_id", null: false
     t.string "name", null: false
@@ -1521,17 +1611,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.datetime "updated_at", null: false
     t.index ["product_id", "position"], name: "index_product_variants_on_product_id_and_position"
     t.index ["product_id"], name: "index_product_variants_on_product_id"
-  end
-
-  create_table "product_images", force: :cascade do |t|
-    t.bigint "business_id", null: false
-    t.bigint "product_id", null: false
-    t.integer "position", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["business_id"], name: "index_product_images_on_business_id"
-    t.index ["product_id", "position"], name: "index_product_images_on_product_id_and_position"
-    t.check_constraint "\"position\" > 0", name: "product_images_position_positive"
   end
 
   create_table "product_warehouse_settings", force: :cascade do |t|
@@ -1565,9 +1644,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.string "name", null: false
     t.string "sku", null: false
     t.string "barcode"
-    t.decimal "initial_cost_price", precision: 12, scale: 4, default: "0.0", null: false
-    t.decimal "last_purchase_price", precision: 12, scale: 4
-    t.decimal "average_cost_price", precision: 12, scale: 4, default: "0.0", null: false
+    t.decimal "initial_cost_price", precision: 16, scale: 8, default: "0.0", null: false
+    t.decimal "last_purchase_price", precision: 16, scale: 8
+    t.decimal "average_cost_price", precision: 16, scale: 8, default: "0.0", null: false
     t.decimal "low_stock_level", precision: 12, scale: 3, default: "0.0", null: false
     t.decimal "reorder_quantity", precision: 12, scale: 3, default: "0.0", null: false
     t.decimal "selling_markup_percentage", precision: 8, scale: 2, default: "0.0", null: false
@@ -1642,17 +1721,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.bigint "purchase_request_id", null: false
     t.bigint "product_id", null: false
     t.decimal "quantity", precision: 12, scale: 3, null: false
-    t.decimal "unit_price", precision: 12, scale: 4, null: false
+    t.decimal "unit_price", precision: 16, scale: 8, null: false
     t.decimal "total_cost", precision: 14, scale: 4, default: "0.0", null: false
     t.bigint "source_warehouse_id"
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "supplier_id"
+    t.decimal "entered_quantity", precision: 12, scale: 3
+    t.bigint "packaging_level_id"
+    t.decimal "entered_unit_price", precision: 16, scale: 8
+    t.index ["packaging_level_id"], name: "index_purchase_request_items_on_packaging_level_id"
     t.index ["product_id"], name: "index_purchase_request_items_on_product_id"
     t.index ["purchase_request_id"], name: "index_purchase_request_items_on_purchase_request_id"
     t.index ["source_warehouse_id"], name: "index_purchase_request_items_on_source_warehouse_id"
     t.index ["supplier_id"], name: "index_purchase_request_items_on_supplier_id"
+    t.check_constraint "entered_quantity IS NULL OR entered_quantity > 0::numeric", name: "purchase_request_items_entered_quantity_positive"
   end
 
   create_table "purchase_requests", force: :cascade do |t|
@@ -2149,10 +2233,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.bigint "stock_adjustment_id", null: false
     t.bigint "product_id", null: false
     t.decimal "quantity_difference", precision: 12, scale: 3, null: false
-    t.decimal "unit_cost", precision: 12, scale: 4, default: "0.0", null: false
+    t.decimal "unit_cost", precision: 16, scale: 8, default: "0.0", null: false
     t.decimal "total_cost", precision: 14, scale: 4, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "packaging_differences"
     t.index ["product_id"], name: "index_stock_adjustment_items_on_product_id"
     t.index ["stock_adjustment_id"], name: "index_stock_adjustment_items_on_stock_adjustment_id"
   end
@@ -2192,6 +2277,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.datetime "baseline_at"
     t.string "quantity_source"
     t.decimal "legacy_counted_quantity", precision: 12, scale: 3
+    t.jsonb "counted_breakdown"
+    t.jsonb "system_breakdown"
     t.index ["product_id"], name: "index_stock_count_items_on_product_id"
     t.index ["stock_count_id", "product_id"], name: "index_stock_count_items_on_stock_count_id_and_product_id", unique: true
     t.index ["stock_count_id"], name: "index_stock_count_items_on_stock_count_id"
@@ -2266,12 +2353,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.bigint "stock_issue_id", null: false
     t.bigint "product_id", null: false
     t.decimal "quantity", precision: 12, scale: 3, null: false
-    t.decimal "unit_cost", precision: 12, scale: 4, default: "0.0", null: false
+    t.decimal "unit_cost", precision: 16, scale: 8, default: "0.0", null: false
     t.decimal "total_cost", precision: 14, scale: 4, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "entered_quantity", precision: 12, scale: 3
+    t.bigint "packaging_level_id"
+    t.index ["packaging_level_id"], name: "index_stock_issue_items_on_packaging_level_id"
     t.index ["product_id"], name: "index_stock_issue_items_on_product_id"
     t.index ["stock_issue_id"], name: "index_stock_issue_items_on_stock_issue_id"
+    t.check_constraint "entered_quantity IS NULL OR entered_quantity > 0::numeric", name: "stock_issue_items_entered_quantity_positive"
   end
 
   create_table "stock_issues", force: :cascade do |t|
@@ -2318,12 +2409,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     t.bigint "stock_transfer_id", null: false
     t.bigint "product_id", null: false
     t.decimal "quantity", precision: 12, scale: 3, null: false
-    t.decimal "unit_cost", precision: 12, scale: 4, default: "0.0", null: false
+    t.decimal "unit_cost", precision: 16, scale: 8, default: "0.0", null: false
     t.decimal "total_cost", precision: 14, scale: 4, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "entered_quantity", precision: 12, scale: 3
+    t.bigint "packaging_level_id"
+    t.index ["packaging_level_id"], name: "index_stock_transfer_items_on_packaging_level_id"
     t.index ["product_id"], name: "index_stock_transfer_items_on_product_id"
     t.index ["stock_transfer_id"], name: "index_stock_transfer_items_on_stock_transfer_id"
+    t.check_constraint "entered_quantity IS NULL OR entered_quantity > 0::numeric", name: "stock_transfer_items_entered_quantity_positive"
   end
 
   create_table "stock_transfers", force: :cascade do |t|
@@ -2800,6 +2895,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
   add_foreign_key "financial_settlements", "financial_settlements", column: "reverses_settlement_id"
   add_foreign_key "financial_settlements", "users", column: "created_by_id"
   add_foreign_key "goods_receipt_items", "goods_receipts"
+  add_foreign_key "goods_receipt_items", "product_packaging_levels", column: ["packaging_level_id", "product_id"], primary_key: ["id", "product_id"], name: "fk_goods_receipt_items_packaging_level_same_product"
   add_foreign_key "goods_receipt_items", "products"
   add_foreign_key "goods_receipt_items", "purchase_request_items"
   add_foreign_key "goods_receipts", "businesses"
@@ -2812,10 +2908,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
   add_foreign_key "goods_receipts", "warehouses"
   add_foreign_key "holidays", "businesses"
   add_foreign_key "holidays", "users", column: "created_by_id"
+  add_foreign_key "inventory_average_cost_changes", "businesses"
+  add_foreign_key "inventory_average_cost_changes", "inventory_movements"
+  add_foreign_key "inventory_average_cost_changes", "products"
+  add_foreign_key "inventory_average_cost_changes", "users", column: "actor_id"
   add_foreign_key "inventory_movements", "branches"
   add_foreign_key "inventory_movements", "businesses"
   add_foreign_key "inventory_movements", "products"
   add_foreign_key "inventory_movements", "warehouses"
+  add_foreign_key "inventory_packaging_entries", "businesses"
+  add_foreign_key "inventory_packaging_entries", "inventory_movements"
+  add_foreign_key "inventory_packaging_entries", "product_packaging_levels", column: ["packaging_level_id", "product_id"], primary_key: ["id", "product_id"], name: "fk_inventory_packaging_entries_level_same_product"
+  add_foreign_key "inventory_packaging_entries", "products"
+  add_foreign_key "inventory_packaging_entries", "warehouses"
   add_foreign_key "job_titles", "businesses"
   add_foreign_key "laundry_batch_consumptions", "branches", column: "laundry_branch_id"
   add_foreign_key "laundry_batch_consumptions", "inventory_movements"
@@ -2895,9 +3000,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
   add_foreign_key "product_barcodes", "product_variants", column: "variant_id"
   add_foreign_key "product_barcodes", "products"
   add_foreign_key "product_categories", "businesses"
-  add_foreign_key "product_variants", "products"
   add_foreign_key "product_images", "businesses"
   add_foreign_key "product_images", "products"
+  add_foreign_key "product_packaging_levels", "businesses"
+  add_foreign_key "product_packaging_levels", "products"
+  add_foreign_key "product_packaging_levels", "users", column: "created_by_id"
+  add_foreign_key "product_packaging_levels", "users", column: "retired_by_id"
+  add_foreign_key "product_variants", "products"
   add_foreign_key "product_warehouse_settings", "businesses"
   add_foreign_key "product_warehouse_settings", "products"
   add_foreign_key "product_warehouse_settings", "users", column: "created_by_id"
@@ -2920,6 +3029,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
   add_foreign_key "purchase_request_advances", "users", column: "confirmed_by_id"
   add_foreign_key "purchase_request_advances", "users", column: "created_by_id"
   add_foreign_key "purchase_request_advances", "users", column: "reversed_by_id"
+  add_foreign_key "purchase_request_items", "product_packaging_levels", column: ["packaging_level_id", "product_id"], primary_key: ["id", "product_id"], name: "fk_purchase_request_items_packaging_level_same_product"
   add_foreign_key "purchase_request_items", "products"
   add_foreign_key "purchase_request_items", "purchase_requests"
   add_foreign_key "purchase_request_items", "suppliers"
@@ -3017,6 +3127,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
   add_foreign_key "stock_issue_import_rows", "products"
   add_foreign_key "stock_issue_import_rows", "stock_issue_import_batches", column: "batch_id"
   add_foreign_key "stock_issue_import_rows", "stock_issue_items"
+  add_foreign_key "stock_issue_items", "product_packaging_levels", column: ["packaging_level_id", "product_id"], primary_key: ["id", "product_id"], name: "fk_stock_issue_items_packaging_level_same_product"
   add_foreign_key "stock_issue_items", "products"
   add_foreign_key "stock_issue_items", "stock_issues"
   add_foreign_key "stock_issues", "branches"
@@ -3029,6 +3140,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
   add_foreign_key "stock_issues", "users", column: "submitted_by_id"
   add_foreign_key "stock_issues", "users", column: "voided_by_id"
   add_foreign_key "stock_issues", "warehouses"
+  add_foreign_key "stock_transfer_items", "product_packaging_levels", column: ["packaging_level_id", "product_id"], primary_key: ["id", "product_id"], name: "fk_stock_transfer_items_packaging_level_same_product"
   add_foreign_key "stock_transfer_items", "products"
   add_foreign_key "stock_transfer_items", "stock_transfers"
   add_foreign_key "stock_transfers", "businesses"
@@ -3117,6 +3229,58 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     $function$
   SQL
   execute <<~'SQL'
+    CREATE OR REPLACE FUNCTION public.inventory_average_cost_changes_append_only()
+     RETURNS trigger
+     LANGUAGE plpgsql
+    AS $function$
+    BEGIN
+      RAISE EXCEPTION 'inventory_average_cost_changes is append-only (% refused)', TG_OP
+        USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_average_cost_changes_append_only';
+    END
+    $function$
+  SQL
+  execute <<~'SQL'
+    CREATE OR REPLACE FUNCTION public.inventory_check_packaging_structure(p_product_id bigint)
+     RETURNS void
+     LANGUAGE plpgsql
+    AS $function$
+    DECLARE
+      level_count integer;
+      max_position integer;
+      inner_content numeric;
+      amount numeric;
+    BEGIN
+      SELECT count(*), max(position) INTO level_count, max_position
+        FROM product_packaging_levels WHERE product_id = p_product_id AND status = 'active';
+      IF level_count = 0 THEN
+        RETURN;
+      END IF;
+      IF max_position <> level_count THEN
+        RAISE EXCEPTION 'packaging levels of product % must be contiguous from 1', p_product_id
+          USING ERRCODE = 'check_violation', CONSTRAINT = 'product_packaging_levels_contiguous';
+      END IF;
+      SELECT contains_quantity INTO inner_content
+        FROM product_packaging_levels WHERE product_id = p_product_id AND status = 'active' AND position = 1;
+      SELECT measure_amount INTO amount FROM products WHERE id = p_product_id;
+      IF amount IS NULL OR amount <> inner_content THEN
+        RAISE EXCEPTION 'measure_amount of product % must equal its innermost packaging content', p_product_id
+          USING ERRCODE = 'check_violation', CONSTRAINT = 'products_measure_amount_matches_innermost_level';
+      END IF;
+    END
+    $function$
+  SQL
+  execute <<~'SQL'
+    CREATE OR REPLACE FUNCTION public.inventory_packaging_entries_append_only()
+     RETURNS trigger
+     LANGUAGE plpgsql
+    AS $function$
+    BEGIN
+      RAISE EXCEPTION 'inventory_packaging_entries is append-only (% refused)', TG_OP
+        USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_packaging_entries_append_only';
+    END
+    $function$
+  SQL
+  execute <<~'SQL'
     CREATE OR REPLACE FUNCTION public.pending_audit_events_guard()
      RETURNS trigger
      LANGUAGE plpgsql
@@ -3146,15 +3310,74 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
     $function$
   SQL
   execute <<~'SQL'
+    CREATE OR REPLACE FUNCTION public.product_packaging_levels_check_structure()
+     RETURNS trigger
+     LANGUAGE plpgsql
+    AS $function$
+    BEGIN
+      PERFORM inventory_check_packaging_structure(NEW.product_id);
+      RETURN NULL;
+    END
+    $function$
+  SQL
+  execute <<~'SQL'
+    CREATE OR REPLACE FUNCTION public.product_packaging_levels_immutable()
+     RETURNS trigger
+     LANGUAGE plpgsql
+    AS $function$
+    BEGIN
+      IF NEW.product_id <> OLD.product_id OR NEW.business_id <> OLD.business_id OR NEW.position <> OLD.position
+         OR NEW.package_unit <> OLD.package_unit OR NEW.contains_quantity <> OLD.contains_quantity
+         OR NEW.base_quantity <> OLD.base_quantity THEN
+        RAISE EXCEPTION 'a packaging level is never edited; retire it and add a new one'
+          USING ERRCODE = 'check_violation', CONSTRAINT = 'product_packaging_levels_immutable';
+      END IF;
+      IF OLD.status = 'retired' AND NEW.status <> 'retired' THEN
+        RAISE EXCEPTION 'a retired packaging level stays retired'
+          USING ERRCODE = 'check_violation', CONSTRAINT = 'product_packaging_levels_immutable';
+      END IF;
+      RETURN NEW;
+    END
+    $function$
+  SQL
+  execute <<~'SQL'
+    CREATE OR REPLACE FUNCTION public.products_check_packaging_structure()
+     RETURNS trigger
+     LANGUAGE plpgsql
+    AS $function$
+    BEGIN
+      IF NEW.measure_amount IS DISTINCT FROM OLD.measure_amount THEN
+        PERFORM inventory_check_packaging_structure(NEW.id);
+      END IF;
+      RETURN NULL;
+    END
+    $function$
+  SQL
+  execute <<~'SQL'
     CREATE TRIGGER durable_audit_receipts_append_only BEFORE DELETE OR UPDATE ON public.durable_audit_receipts FOR EACH ROW EXECUTE FUNCTION audit_append_only_guard();
   SQL
   execute <<~'SQL'
     CREATE TRIGGER employee_attendance_requirements_append_only BEFORE DELETE OR UPDATE ON public.employee_attendance_requirements FOR EACH ROW EXECUTE FUNCTION employee_attendance_requirements_append_only();
   SQL
   execute <<~'SQL'
+    CREATE TRIGGER inventory_average_cost_changes_append_only BEFORE DELETE OR UPDATE ON public.inventory_average_cost_changes FOR EACH ROW EXECUTE FUNCTION inventory_average_cost_changes_append_only();
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER inventory_packaging_entries_append_only BEFORE DELETE OR UPDATE ON public.inventory_packaging_entries FOR EACH ROW EXECUTE FUNCTION inventory_packaging_entries_append_only();
+  SQL
+  execute <<~'SQL'
     CREATE TRIGGER pending_audit_event_attempts_append_only BEFORE DELETE OR UPDATE ON public.pending_audit_event_attempts FOR EACH ROW EXECUTE FUNCTION audit_append_only_guard();
   SQL
   execute <<~'SQL'
     CREATE TRIGGER pending_audit_events_guard BEFORE DELETE OR UPDATE ON public.pending_audit_events FOR EACH ROW EXECUTE FUNCTION pending_audit_events_guard();
+  SQL
+  execute <<~'SQL'
+    CREATE CONSTRAINT TRIGGER product_packaging_levels_check_structure AFTER INSERT OR UPDATE ON public.product_packaging_levels DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION product_packaging_levels_check_structure();
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER product_packaging_levels_immutable BEFORE UPDATE ON public.product_packaging_levels FOR EACH ROW EXECUTE FUNCTION product_packaging_levels_immutable();
+  SQL
+  execute <<~'SQL'
+    CREATE CONSTRAINT TRIGGER products_check_packaging_structure AFTER UPDATE OF measure_amount ON public.products DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION products_check_packaging_structure();
   SQL
 end

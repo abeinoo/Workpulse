@@ -44,7 +44,8 @@ RSpec.describe "Inventory::StockIssues costing display", type: :request do
         expect(response).to have_http_status(:ok)
         expect(response.body).to include(%(dir="#{locale == 'ar' ? 'rtl' : 'ltr'}"))
         text = items_table
-        expect(text).to include("31.00")
+        # Unit cost without decimal zeros (Decision 18); money totals keep 2 dp.
+        expect(text).to match(/(SAR 31|31 ر\.س)(?!\.)/)
         expect(text).to include("62.00")
         expect(text).to include(I18n.t("inventory.stock_issues.cost_estimated_hint", locale: locale))
         expect(text).not_to include("46.50") # selling price (31 * 1.5)

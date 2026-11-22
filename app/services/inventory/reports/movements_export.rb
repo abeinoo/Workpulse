@@ -24,7 +24,7 @@ module Inventory
       def to_csv
         BOM + CSV.generate do |csv|
           csv << headers
-          @report.each_row { |row| csv << values(row) }
+          @report.each_row { |row| csv << csv_values(row) }
         end
       end
 
@@ -62,6 +62,13 @@ module Inventory
           source_label(row),
           row.stock_count ? "#{row.stock_count.count_number} / #{row.document_number}" : row.document_number
         ]
+      end
+
+      # BUG-072: a BigDecimal written to CSV as-is becomes "0.704e-1". CSV
+      # cells get fixed-point text (CostFormat: up to 8 dp, trailing
+      # zeros removed); XLSX keeps numeric cells.
+      def csv_values(row)
+        values(row).map { |value| value.is_a?(BigDecimal) || value.is_a?(Float) ? CostFormat.csv(value) : value }
       end
 
       def source_label(row)

@@ -67,8 +67,11 @@
               <span class="badge <%= positive ? 'badge-success' : 'badge-warning' %>">
                 <%= with_measure(inventory_signed_quantity(item.quantity_difference), item.product) %>
               </span>
+              <% if (packaging = packaging_differences_text(item.product, item.packaging_differences)) %>
+                <div class="form-hint" data-testid="adjustment-packaging-difference"><%= t("inventory.packaging.title") %>: <%= packaging %></div>
+              <% end %>
             </td>
-            <td style="text-align: end;"><%= format_currency(item.unit_cost) %></td>
+            <td style="text-align: end;"><%= format_unit_cost_currency(item.unit_cost) %></td>
             <td style="text-align: end;"><%= format_currency(@stock_adjustment.line_value(item)) %></td>
           </tr>
         <% end %>

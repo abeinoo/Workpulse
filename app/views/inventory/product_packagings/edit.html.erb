@@ -1,0 +1,47 @@
+<% content_for :title, "#{t("inventory.packaging.edit")} — #{@product.name}" %>
+<%# The product's packaging chain, innermost first (Inventory::Packaging::Configurator).
+    Level 1 contains base units; every outer level a whole number of the level
+    below. Each row shows what one package equals in base units as you type. %>
+<div class="form-page">
+  <%= link_to inventory_product_path(@product), class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+  <h1 class="page-title mb-6"><%= t("inventory.packaging.edit") %> — <%= @product.name %></h1>
+
+  <%= form_with url: packaging_inventory_product_path(@product), method: :patch, scope: :packaging,
+        class: "form-card", data: { controller: "line-items packaging-editor",
+                                    packaging_editor_measure_value: measure_short(@product),
+                                    packaging_editor_max_value: ProductPackagingLevel::MAX_LEVELS } do %>
+    <p class="form-hint"><%= t("inventory.packaging.hint") %> <%= t("inventory.packaging.max_levels", count: ProductPackagingLevel::MAX_LEVELS) %></p>
+
+    <div class="table-wrap table-wrap--form-cards">
+      <table class="line-items-table" data-testid="packaging-levels">
+        <thead><tr>
+          <th style="width: 6ch;">#</th>
+          <th><%= t("inventory.packaging.package_unit") %></th>
+          <th><%= t("inventory.packaging.contains") %></th>
+          <th style="text-align: end;"><%= t("inventory.packaging.base_unit") %></th>
+          <th></th>
+        </tr></thead>
+        <tbody data-line-items-target="rows">
+          <% @levels.each_with_index do |level, index| %>
+            <%= render "level_row", index: index, level: level %>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <p class="form-hint" data-line-items-target="emptyState" <%= "hidden" if @levels.any? %>><%= t("inventory.packaging.none") %></p>
+
+    <template data-line-items-target="template">
+      <%= render "level_row", index: "NEW_INDEX", level: ProductPackagingLevel.new %>
+    </template>
+
+    <div class="form-actions">
+      <button type="button" class="btn btn-secondary" data-action="line-items#add packaging-editor#refresh"
+              data-packaging-editor-target="addButton"><%= t("inventory.packaging.add_level") %></button>
+      <%= submit_tag t("inventory.packaging.save"), class: "btn btn-primary", data: { testid: "packaging-save" } %>
+      <%= link_to t("common.cancel"), inventory_product_path(@product), class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+</div>

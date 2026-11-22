@@ -109,6 +109,11 @@ module Inventory
           product_id:           item[:product_id],
           quantity:             item[:quantity],
           unit_price:           item[:unit_price],
+          # The purchase unit (a packaging level, blank = base unit) and the
+          # amount / price per that unit; quantity is derived in base units.
+          entered_quantity:     item[:entered_quantity].presence,
+          packaging_level_id:   item[:packaging_level_id].presence,
+          entered_unit_price:   item[:entered_unit_price].presence,
           supplier_id:          item[:supplier_id].presence,
           notes:                item[:notes]
         )

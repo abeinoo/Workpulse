@@ -60,8 +60,14 @@ class Inventory::BaseController < ApplicationController
     return if records.empty?
 
     ActiveRecord::Associations::Preloader.new(
-      records: records, associations: { product: [ :product_barcodes, Product::IMAGE_PRELOAD ] }
+      records: records, associations: { product: [ :product_barcodes, :active_packaging_levels, Product::IMAGE_PRELOAD ] }
     ).call
+  end
+
+  # A posted document's packaging entries for its show page (one query; none
+  # for documents of products without packaging).
+  def packaging_entries_of(document)
+    InventoryPackagingEntry.where(source: document).includes(:packaging_level, :warehouse, :product).order(:id).to_a
   end
 
   # The one product payload of the searchable product pickers and the barcode
@@ -72,7 +78,8 @@ class Inventory::BaseController < ApplicationController
     barcodes = product.product_barcodes.map(&:barcode)
     { id: product.id, name: product.name, sku: product.sku, barcode: product.barcode, barcodes: barcodes,
       default_supplier_id: product.default_supplier_id, measure: helpers.measure_short(product),
-      thumb: helpers.product_thumbnail_url(product, preloaded_only: true) }
+      thumb: helpers.product_thumbnail_url(product, preloaded_only: true),
+      units: helpers.packaging_units(product) }
   end
 
   # Eligible Purchase Request responsible employees (purchasing permission +

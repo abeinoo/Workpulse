@@ -58,9 +58,12 @@ class Inventory::StockIssuesController < Inventory::BaseController
 
   def show
     @stock_issue = find_issue(includes: [ :submitted_by, :approved_by, :rejected_by, :issued_by, :cancelled_by, :voided_by,
-                                          { items: { product: Product::IMAGE_PRELOAD } } ])
+                                          { items: [ :packaging_level, { product: Product::IMAGE_PRELOAD } ] } ])
     authorize @stock_issue
     @items           = @stock_issue.items
+    @packaging_entries = packaging_entries_of(@stock_issue)
+    # Before posting: what posting would do to the sealed packages (Decision 6).
+    @packaging_preview = @stock_issue.approved? || @stock_issue.pending_approval? ? Inventory::Packaging::IssuePreview.call(@stock_issue) : {}
     # Physical / reserved-by-others / available / requested per product while
     # the issue can still be approved or confirmed; the same figures the
     # approval and confirmation services enforce under lock.
@@ -267,6 +270,10 @@ class Inventory::StockIssuesController < Inventory::BaseController
 
   def redirect_with_result(result, ok_message:)
     if result.ok?
+      # Decision 6: packaging the warehouse can't supply yet never blocks the
+      # approval; it is shown so the line can be changed before posting.
+      warnings = result.respond_to?(:warnings) ? result.warnings : []
+      flash[:warning] = warnings.map { |w| t("inventory.packaging.approval_warning", message: w) }.join(" ") if warnings.any?
       redirect_to inventory_stock_issue_path(@stock_issue), notice: ok_message
     else
       redirect_to inventory_stock_issue_path(@stock_issue), alert: result.error
@@ -336,7 +343,7 @@ class Inventory::StockIssuesController < Inventory::BaseController
   def issue_params
     params.require(:stock_issue).permit(
       :warehouse_id, :branch_id, :issued_on, :notes,
-      items_attributes: [ :id, :product_id, :quantity, :_destroy ]
+      items_attributes: [ :id, :product_id, :quantity, :entered_quantity, :packaging_level_id, :_destroy ]
     )
   end
 

@@ -1,0 +1,22 @@
+<tr data-line-row data-packaging-level-row>
+  <td class="td-secondary" data-level-position></td>
+  <td>
+    <%= select_tag "packaging[levels][#{index}][package_unit]",
+          options_for_select(ProductPackagingLevel::PACKAGE_UNITS.map { |code| [ t("inventory.packaging.units.#{code}.name"), code ] }, level.package_unit),
+          include_blank: "—", class: "form-control", "aria-label": t("inventory.packaging.package_unit"),
+          data: { action: "change->packaging-editor#refresh", package_unit_field: true } %>
+  </td>
+  <td>
+    <div class="qty-with-unit">
+      <%= number_field_tag "packaging[levels][#{index}][contains_quantity]", level.contains_quantity && inventory_quantity(level.contains_quantity),
+            step: "0.001", min: 0, class: "form-control", "aria-label": t("inventory.packaging.contains"),
+            data: { action: "input->packaging-editor#refresh", contains_field: true } %>
+      <span class="qty-unit" data-contains-unit></span>
+    </div>
+  </td>
+  <td style="text-align: end;" data-level-base></td>
+  <td class="td-actions">
+    <button type="button" class="btn btn-ghost btn-sm text-danger" data-action="line-items#remove packaging-editor#refresh"
+            aria-label="<%= t('inventory.packaging.remove_level') %>">×</button>
+  </td>
+</tr>

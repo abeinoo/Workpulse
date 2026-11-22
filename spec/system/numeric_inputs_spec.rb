@@ -50,8 +50,8 @@ RSpec.describe "Numeric inputs (RTL, browser)", type: :system do
   before { sign_in owner }
 
   describe "Goods Receipt quantity / unit cost" do
-    def qty   = first("input[name$='[quantity]']")
-    def cost  = first("input[name$='[unit_cost]']")
+    def qty   = first("input[name$='[entered_quantity]']")
+    def cost  = first("input[name$='[entered_unit_cost]']")
     def total = first("[data-line-total]")
 
     # The line's product is chosen in its searchable picker (product-combobox),
