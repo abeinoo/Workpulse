@@ -18,15 +18,18 @@
           inventory_product_options_html([ f.object.product ].compact, barcodes: barcodes), f.object.product_id),
           {}, class: "form-control", data: { action: "change->receipt-supplier#productChanged" } %>
   </td>
-  <td class="gr-num" data-testid="gr-line-ordered"><%= qty.(pri.quantity) %></td>
-  <td class="gr-num" data-testid="gr-line-received"><%= qty.(pri.received_quantity) %></td>
-  <td class="gr-num gr-num--strong" data-testid="gr-line-remaining"><%= qty.(pri.remaining_quantity) %></td>
+  <td class="gr-num" data-testid="gr-line-ordered"><%= with_measure(qty.(pri.quantity), f.object.product) %></td>
+  <td class="gr-num" data-testid="gr-line-received"><%= with_measure(qty.(pri.received_quantity), f.object.product) %></td>
+  <td class="gr-num gr-num--strong" data-testid="gr-line-remaining"><%= with_measure(qty.(pri.remaining_quantity), f.object.product) %></td>
   <td>
     <%= f.hidden_field :purchase_request_item_id %>
-    <%= f.number_field :quantity, step: "0.001", min: 0, max: pri.remaining_quantity,
-          class: "form-control gr-qty-input #{'is-error' if f.object.errors[:quantity].any?}", placeholder: "0",
-          inputmode: "decimal", data: { quantity_field: true },
-          "aria-label": t("inventory.goods_receipts.form.receive_now_for", product: f.object.product&.name) %>
+    <div class="qty-with-unit">
+      <%= f.number_field :quantity, step: "0.001", min: 0, max: pri.remaining_quantity,
+            class: "form-control gr-qty-input #{'is-error' if f.object.errors[:quantity].any?}", placeholder: "0",
+            inputmode: "decimal", data: { quantity_field: true },
+            "aria-label": t("inventory.goods_receipts.form.receive_now_for", product: f.object.product&.name) %>
+      <%= measure_label_tag(f.object.product) %>
+    </div>
     <% if f.object.errors[:quantity].any? %>
       <p class="form-hint text-danger" style="margin: 0;"><%= f.object.errors[:quantity].first %></p>
     <% end %>

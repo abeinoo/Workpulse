@@ -100,6 +100,38 @@ module InventoryHelper
 
   # Inventory quantities exactly as stored (4.004 stays 4.004; 7.000 shows 7).
   def inventory_quantity(value) = Inventory::QuantityFormat.plain(value)
+
+  # ── Measure (Product#unit_of_measure) ─────────────────────────────────────
+  # "Millilitres (ml)" — the dropdown label.
+  def measure_name(code) = t("inventory.measures.#{code.presence || Product::DEFAULT_UNIT_OF_MEASURE}.name")
+  # "ml" / "مل" — shown beside a quantity.
+  def measure_short(product_or_code)
+    code = product_or_code.respond_to?(:unit_of_measure) ? product_or_code.unit_of_measure : product_or_code
+    t("inventory.measures.#{code.presence || Product::DEFAULT_UNIT_OF_MEASURE}.short")
+  end
+
+  def measure_options = Product::UNITS_OF_MEASURE.map { |code| [ measure_name(code), code ] }
+
+  # The product's size / packaging: Amount + Measure ("355 ml", "0.5 kg"), or
+  # nil without an amount.
+  def product_measurement(product)
+    return nil if product&.measure_amount.blank?
+
+    "#{inventory_quantity(product.measure_amount)} #{measure_short(product)}"
+  end
+
+  # A displayed quantity followed by its product's measure: "250 ml".
+  def with_measure(quantity, product)
+    return quantity if product.nil?
+
+    safe_join([ quantity, " ", content_tag(:span, measure_short(product), class: "qty-unit") ])
+  end
+
+  # The measure beside a quantity INPUT; updated in the browser when the line's
+  # product changes (data-measure-label, application.js).
+  def measure_label_tag(product)
+    content_tag(:span, product ? measure_short(product) : "", class: "qty-unit", data: { measure_label: true })
+  end
   def inventory_signed_quantity(value) = Inventory::QuantityFormat.signed(value)
 
   def stock_count_status_class(status)
@@ -340,10 +372,14 @@ module InventoryHelper
     options_for_select(
       products.map { |p|
         barcode = barcodes[p.id]
+        # Every barcode of the product when they were loaded (scanning any of
+        # them matches this line), else the one from the bulk lookup.
+        all = p.association(:product_barcodes).loaded? ? p.product_barcodes.map(&:barcode) : [ barcode ].compact
         [ "#{p.name} (#{p.sku})", p.id, {
           "data-barcode"             => barcode,
-          "data-barcodes"            => barcode.to_s,
+          "data-barcodes"            => all.join("|"),
           "data-sku"                 => p.sku,
+          "data-measure"             => measure_short(p),
           "data-default-supplier-id" => p.default_supplier_id
         } ]
       }
@@ -378,6 +414,7 @@ module InventoryHelper
           "data-barcode"             => all_barcodes.first,
           "data-barcodes"            => all_barcodes.join("|"),
           "data-sku"                 => p.sku,
+          "data-measure"             => measure_short(p),
           "data-default-supplier-id" => p.default_supplier_id
         } ]
       },

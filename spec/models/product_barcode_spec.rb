@@ -92,13 +92,14 @@ RSpec.describe ProductBarcode, type: :model do
       expect(product.product_barcodes.reload.where(is_primary: true).count).to eq(1)
     end
 
-    it "auto-promotes the first barcode to primary when none are marked primary" do
+    it "never promotes a barcode to primary on its own (barcodes and a primary are optional)" do
       product.update!(
         product_barcodes_attributes: [
           { barcode: "ONLY-ONE", barcode_type: "manufacturer", is_primary: false }
         ]
       )
-      expect(product.product_barcodes.reload.where(is_primary: true).count).to eq(1)
+      expect(product.product_barcodes.reload.where(is_primary: true).count).to eq(0)
+      expect(product.barcode).to eq("ONLY-ONE") # Product#barcode falls back to the first
     end
 
   end

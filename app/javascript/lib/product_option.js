@@ -18,6 +18,7 @@ export function ensureProductOption(select, product) {
   setData(option, "barcode", product.barcode)
   setData(option, "barcodes", (product.barcodes || (product.barcode ? [ product.barcode ] : [])).join("|"))
   setData(option, "defaultSupplierId", product.default_supplier_id ?? product.defaultSupplierId)
+  setData(option, "measure", product.measure)
   setData(option, "thumb", product.thumb)
   return option
 }

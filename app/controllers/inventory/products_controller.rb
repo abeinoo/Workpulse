@@ -22,7 +22,7 @@ class Inventory::ProductsController < Inventory::BaseController
       @products = @products.where(
         "LOWER(products.name) LIKE :t OR LOWER(products.sku) LIKE :t OR " \
         "EXISTS (SELECT 1 FROM product_barcodes pb2 WHERE pb2.product_id = products.id AND LOWER(pb2.barcode) LIKE :t)",
-        t: "%#{params[:q].strip.downcase}%"
+        t: "%#{ProductBarcode.normalize(params[:q]).to_s.downcase}%"
       )
     end
 
@@ -97,7 +97,8 @@ class Inventory::ProductsController < Inventory::BaseController
                  .includes(:product_barcodes)
                  .find(params[:id])
     authorize @product
-    @product.product_barcodes.build if @product.product_barcodes.empty?
+    # Barcodes are optional: a product without any shows the empty state (and
+    # "Add barcode"), never a spare blank row that looks like a barcode.
     load_options
     # The availability section below the form (its own forms and actions —
     # never part of the product form submission).
@@ -167,39 +168,6 @@ class Inventory::ProductsController < Inventory::BaseController
   def next_barcode_code
     authorize Product, :index?
     render json: { code: Inventory::BarcodeGenerator.next_code }
-  end
-
-  # POST /inventory/products/:id/generate_barcode
-  def generate_barcode
-    @product = find_product
-    authorize @product, :update?
-
-    barcode = nil
-    5.times do
-      code = Inventory::BarcodeGenerator.next_code
-      pb   = @product.product_barcodes.build(
-        barcode:      code,
-        barcode_type: "internal",
-        is_primary:   !@product.product_barcodes.where(is_primary: true).exists?
-      )
-      if pb.save
-        barcode = pb
-        break
-      end
-      break unless pb.errors[:barcode].any? { |msg| msg.match?(/taken/i) }
-    end
-
-    if barcode&.persisted?
-      render json: {
-        id:           barcode.id,
-        barcode:      barcode.barcode,
-        barcode_type: barcode.barcode_type,
-        is_primary:   barcode.is_primary
-      }
-    else
-      render json: { error: t("inventory.products.generate_barcode_failed") },
-             status: :unprocessable_entity
-    end
   end
 
   def run_import
@@ -349,6 +317,15 @@ class Inventory::ProductsController < Inventory::BaseController
       saved = true
     end
     saved
+  rescue ActiveRecord::RecordNotUnique => e
+    # A concurrent save took the same barcode (or SKU) after validation: the
+    # unique index refused it and the whole save was rolled back.
+    if e.message.include?("product_barcodes")
+      @product.errors.add(:base, :barcode_taken)
+    else
+      @product.errors.add(:sku, :taken)
+    end
+    false
   end
 
   def gallery_submitted? = params.dig(:product, :gallery_present) == "1"
@@ -428,7 +405,7 @@ class Inventory::ProductsController < Inventory::BaseController
 
   def product_params
     params.require(:product).permit(
-      :name, :sku, :brand_id, :product_category_id, :default_supplier_id,
+      :name, :sku, :measure_amount, :unit_of_measure, :brand_id, :product_category_id, :default_supplier_id,
       # No low-stock / reorder fields: those are per warehouse only
       # (Inventory::ProductAvailabilityManager), never on the product.
       :initial_cost_price, :track_inventory,

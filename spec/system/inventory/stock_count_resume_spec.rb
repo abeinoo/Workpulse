@@ -94,7 +94,7 @@ RSpec.describe "Stock count — resuming and completing (browser)", type: :syste
     it "shows the previous unverified quantity, the accepted system quantity and the input as distinct values" do
       visit inventory_stock_count_path(count)
       cells = find("tr", text: "GKM-84978").all("td").map { |td| td.text.squish }
-      expect(cells[2..4]).to eq([ "4.004", "4.004", "0" ])                       # system · accepted · difference
+      expect(cells[2..4]).to eq([ "4.004 pcs", "4.004 pcs", "0 pcs" ])           # system · accepted · difference (with the measure)
       expect(cells[5]).to include(I18n.t("inventory.stock_counts.sources.previous_unverified", quantity: "3"))
 
       visit edit_inventory_stock_count_path(count)

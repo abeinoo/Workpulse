@@ -155,11 +155,11 @@
           <tr>
             <td><%= product_identity(item.product, sku: true, link: inventory_product_path(item.product)) %></td>
             <td class="td-secondary"><%= @product_barcodes[item.product_id].presence || "—" %></td>
-            <td style="text-align: end;"><%= inventory_quantity(item.system_quantity) %></td>
-            <td style="text-align: end;"><%= item.counted? ? inventory_quantity(item.counted_quantity) : "—" %></td>
+            <td style="text-align: end;"><%= with_measure(inventory_quantity(item.system_quantity), item.product) %></td>
+            <td style="text-align: end;"><%= item.counted? ? with_measure(inventory_quantity(item.counted_quantity), item.product) : "—" %></td>
             <td style="text-align: end;">
               <span class="badge <%= diff_class %>">
-                <%= item.counted? ? inventory_signed_quantity(diff) : "—" %>
+                <%= item.counted? ? with_measure(inventory_signed_quantity(diff), item.product) : "—" %>
               </span>
             </td>
             <td><%= render "quantity_source", item: item %></td>

@@ -13006,6 +13006,20 @@ tr.bulk-row--locked { background: rgba(217, 119, 6, 0.08); }
 }
 
 .barcode-list__row:last-child { border-bottom: none; }
+/* A removed line (the × of a saved barcode or document line: line_items_controller
+   sets [hidden] and _destroy=1) must really disappear: the row's own display
+   (flex here, block/grid in card tables) would otherwise override [hidden]. */
+[data-line-row][hidden] { display: none !important; }
+
+/* A quantity and its product's measure (InventoryHelper#with_measure /
+   measure_label_tag): "250 ml", or an input followed by its unit. */
+.qty-unit { color: var(--text-2); font-size: 0.85em; white-space: nowrap; }
+.qty-with-unit { display: flex; align-items: center; gap: var(--space-2); }
+.qty-with-unit .form-control { flex: 1 1 auto; min-width: 7rem; }
+.badge .qty-unit { color: inherit; text-transform: none; }
+/* Product form: Amount beside Measure (mirrors in RTL with the grid). */
+.measure-pair { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(0, 2fr); gap: var(--space-2); align-items: end; }
+.qty-with-unit .qty-unit:empty { display: none; }
 
 .barcode-list__input-wrap {
   flex: 1;

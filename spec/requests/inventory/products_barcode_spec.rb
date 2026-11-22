@@ -31,63 +31,18 @@ RSpec.describe "Inventory products barcode endpoints", type: :request do
     end
   end
 
-  describe "POST /inventory/products/:id/generate_barcode" do
-    it "creates and returns an internal barcode" do
-      post generate_barcode_inventory_product_path(product), as: :json
-      expect(response).to have_http_status(:ok)
-      body = JSON.parse(response.body)
-      expect(body["barcode"]).to eq("10000001")
-      expect(body["barcode_type"]).to eq("internal")
-      expect(body["id"]).to be_present
+  # Generating a barcode on the product form never writes: the code fills an
+  # ordinary unsaved row, inserted (or discarded) with the product's Save. The
+  # former immediate-save endpoint (generate_barcode) left a barcode behind
+  # when its row was removed before saving — it no longer exists.
+  describe "generating never writes before Save" do
+    it "asking for the next code creates no barcode" do
+      expect { get next_barcode_code_inventory_products_path, as: :json }.not_to change(ProductBarcode, :count)
     end
 
-    it "saves the barcode to the database" do
-      expect {
-        post generate_barcode_inventory_product_path(product), as: :json
-      }.to change { product.product_barcodes.where(barcode_type: "internal").count }.by(1)
-    end
-
-    it "marks the barcode as primary when the product has no primary barcode" do
-      # A new product gets an auto-generated primary barcode (Product#auto_generate_barcode),
-      # so remove it to reach the scenario under test: a product with no barcodes at all.
-      product.product_barcodes.delete_all
-      expect(product.product_barcodes.reload).to be_empty
-
-      post generate_barcode_inventory_product_path(product), as: :json
-      body = JSON.parse(response.body)
-      expect(body["is_primary"]).to be true
-      expect(product.product_barcodes.reload.where(is_primary: true).pluck(:id)).to eq([ body["id"] ])
-    end
-
-    it "does not make the new barcode primary when a primary already exists" do
-      product.product_barcodes.create!(barcode: "6291041500213", barcode_type: "manufacturer", is_primary: true)
-      post generate_barcode_inventory_product_path(product), as: :json
-      body = JSON.parse(response.body)
-      expect(body["is_primary"]).to be false
-    end
-
-    it "generates sequential codes on successive calls" do
-      post generate_barcode_inventory_product_path(product), as: :json
-      first_code = JSON.parse(response.body)["barcode"]
-
-      post generate_barcode_inventory_product_path(product), as: :json
-      second_code = JSON.parse(response.body)["barcode"]
-
-      expect(second_code.to_i).to eq(first_code.to_i + 1)
-    end
-
-    it "returns 404 for a product from another business" do
-      other = create(:business)
-      other_product = other.products.create!(name: "Foreign", sku: "FO-1",
-                                             initial_cost_price: 1, average_cost_price: 1)
-      post generate_barcode_inventory_product_path(other_product), as: :json
-      expect(response).to have_http_status(:not_found)
-    end
-
-    it "requires authentication" do
-      sign_out owner
-      post generate_barcode_inventory_product_path(product), as: :json
-      expect(response).to have_http_status(:unauthorized)
+    it "the immediate-save endpoint is gone" do
+      expect { Rails.application.routes.recognize_path("/inventory/products/#{product.id}/generate_barcode", method: :post) }
+        .to raise_error(ActionController::RoutingError)
     end
   end
 end

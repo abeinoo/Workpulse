@@ -21,8 +21,11 @@
     <p class="form-hint" data-supplier-kept-note hidden><%= t("inventory.purchase_requests.form.supplier_kept_note") %></p>
   </td>
   <td>
-    <%= f.number_field :quantity, step: "0.001", min: 0.001, class: "form-control", placeholder: "0",
-          data: { quantity_field: true, action: "input->purchase-request-form#recalculate" } %>
+    <div class="qty-with-unit">
+      <%= f.number_field :quantity, step: "0.001", min: 0.001, class: "form-control", placeholder: "0",
+            data: { quantity_field: true, action: "input->purchase-request-form#recalculate" } %>
+      <%= measure_label_tag(f.object.product) %>
+    </div>
   </td>
   <td>
     <%= f.number_field :unit_price, step: "0.0001", min: 0.0001, class: "form-control", placeholder: "0.00",

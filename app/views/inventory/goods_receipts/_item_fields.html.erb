@@ -15,8 +15,11 @@
   <td>
     <% pri = f.object.purchase_request_item %>
     <%= f.hidden_field :purchase_request_item_id if pri %>
-    <%= f.number_field :quantity, step: "0.001", min: 0, max: pri&.remaining_quantity,
-          class: "form-control", placeholder: "0", data: { quantity_field: true } %>
+    <div class="qty-with-unit">
+      <%= f.number_field :quantity, step: "0.001", min: 0, max: pri&.remaining_quantity,
+            class: "form-control", placeholder: "0", data: { quantity_field: true } %>
+      <%= measure_label_tag(f.object.product) %>
+    </div>
     <% if pri %>
       <p class="form-hint"><%= t("inventory.goods_receipts.quantity_hint_remaining", remaining: pri.remaining_quantity) %></p>
     <% end %>

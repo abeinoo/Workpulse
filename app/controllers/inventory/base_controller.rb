@@ -71,7 +71,7 @@ class Inventory::BaseController < ApplicationController
   def product_picker_json(product)
     barcodes = product.product_barcodes.map(&:barcode)
     { id: product.id, name: product.name, sku: product.sku, barcode: product.barcode, barcodes: barcodes,
-      default_supplier_id: product.default_supplier_id,
+      default_supplier_id: product.default_supplier_id, measure: helpers.measure_short(product),
       thumb: helpers.product_thumbnail_url(product, preloaded_only: true) }
   end
 

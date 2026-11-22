@@ -45,7 +45,7 @@
           <tr>
             <td><%= product_identity(item.product, link: inventory_product_path(item.product)) %></td>
             <td class="td-secondary"><%= item.product.sku %></td>
-            <td style="text-align: end;"><%= item.quantity.to_i %></td>
+            <td style="text-align: end;"><%= with_measure(inventory_quantity(item.quantity), item.product) %></td>
             <td style="text-align: end;"><%= format_currency(item.unit_cost) %></td>
             <td style="text-align: end;"><%= format_currency(item.total_cost) %></td>
           </tr>

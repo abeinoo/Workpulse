@@ -43,7 +43,7 @@
                 <% if pair.inactive? %><div class="td-secondary"><bdi><%= setting.status_reason %></bdi></div><% end %>
               </td>
               <td style="text-align: end;" data-label="<%= t("product_availability.columns.on_hand") %>">
-                <%= availability_quantity(pair.on_hand) %>
+                <%= with_measure(availability_quantity(pair.on_hand), pair.product) %>
                 <div class="td-secondary" style="white-space: nowrap;" data-testid="reserved"><%= t("product_availability.reserved_line", quantity: availability_quantity(pair.reserved)) %></div>
               </td>
               <% if !pair.configured? %>

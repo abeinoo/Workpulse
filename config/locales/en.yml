@@ -4832,6 +4832,7 @@ en:
         unknown_sku: "No product matches this SKU"
         insufficient_stock: "Not enough stock available"
         invalid_stock_settings: "Invalid Low Stock Level or Reorder Quantity (a number of 0 or more)"
+        invalid_measure: "unknown Measure (use ml, l, fl oz, g, kg, gal, oz, lb, cm, ft, in or piece)"
     barcode_labels:
       title: "Barcode Labels"
       print: "Print Labels"
@@ -4883,7 +4884,6 @@ en:
       barcode_primary_label: "Primary barcode"
       generate_barcode: "Generate Barcode"
       generate_barcode_hint: "Generates a unique internal barcode (10000001, 10000002, …)"
-      generate_barcode_failed: "Could not generate a unique barcode. Please try again."
       barcode_types:
         manufacturer: "Manufacturer"
         internal: "Internal"
@@ -4970,6 +4970,7 @@ en:
       default_threshold: "default"
       new_title: "New Product"
       created: "Product created."
+      updated: "Product updated."
       edit_title: "Edit Product"
       status_active: "Active"
       status_archived: "Archived"
@@ -6154,6 +6155,8 @@ en:
           attributes:
             base:
               has_history_cannot_delete: "This product has historical inventory records and cannot be deleted. Archive it instead."
+              duplicate_barcodes: "Each barcode can be used only once: %{barcodes} is entered more than once."
+              barcode_taken: "A barcode is already used by another product of this business. Choose a different barcode."
         goods_receipt:
           attributes:
             base:

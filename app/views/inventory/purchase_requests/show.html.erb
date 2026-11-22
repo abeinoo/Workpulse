@@ -261,9 +261,9 @@
               <td><%= product_identity(item.product, link: inventory_product_path(item.product)) %></td>
               <td class="td-secondary"><%= item.product.sku %></td>
               <td><%= item.supplier&.name || @purchase_request.supplier&.name || t("inventory.purchase_requests.no_supplier") %></td>
-              <td style="text-align: end;"><%= item.quantity.to_i %></td>
-              <td style="text-align: end;"><%= item.received_quantity.to_i %></td>
-              <td style="text-align: end;"><%= item.remaining_quantity.to_i %></td>
+              <td style="text-align: end;"><%= with_measure(inventory_quantity(item.quantity), item.product) %></td>
+              <td style="text-align: end;"><%= with_measure(inventory_quantity(item.received_quantity), item.product) %></td>
+              <td style="text-align: end;"><%= with_measure(inventory_quantity(item.remaining_quantity), item.product) %></td>
               <td style="text-align: end;"><%= format_currency(item.unit_price) %></td>
               <td style="text-align: end;"><%= format_currency(item.total_cost) %></td>
               <% if edit_items %>

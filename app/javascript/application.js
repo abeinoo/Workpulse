@@ -67,3 +67,14 @@ document.addEventListener("error", (event) => {
   img.parentElement?.classList.add("pthumb--empty")
   img.remove()
 }, true)
+
+// A document line's measure label (data-measure-label, InventoryHelper#
+// measure_label_tag) follows the product chosen on that line: every picker
+// fires "change" on its <select data-product-field> with the chosen <option>
+// carrying data-measure (lib/product_option.js, product_option_data).
+document.addEventListener("change", (event) => {
+  const select = event.target
+  if (!(select instanceof HTMLSelectElement) || !select.matches("select[data-product-field]")) return
+  const label = select.closest("[data-line-row]")?.querySelector("[data-measure-label]")
+  if (label) label.textContent = select.selectedOptions[0]?.dataset.measure || ""
+})

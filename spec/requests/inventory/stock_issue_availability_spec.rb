@@ -56,7 +56,7 @@ RSpec.describe "Inventory::StockIssues stock availability", type: :request do
     page = Nokogiri::HTML(response.body)
     row  = page.at_css("#stock-availability tr[data-product-id='#{sugar.id}']")
     expect(row.css("td").map { |td| td.text.strip }).to eq(
-      [ "Sugar", "2", "2", "0", "1", I18n.t("inventory.stock_issues.availability.insufficient") ]
+      [ "Sugar", "2 pcs", "2 pcs", "0 pcs", "1 pcs", I18n.t("inventory.stock_issues.availability.insufficient") ]
     )
     expect(page.at_css("#stock-shortage-alert").text).to include(I18n.t("inventory.stock_issues.availability.cannot_approve"))
     expect(page.at_css("#stock-shortage-alert").text).to include(I18n.t("inventory.stock_issues.availability.shortage_reserved"))

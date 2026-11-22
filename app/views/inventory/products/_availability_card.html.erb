@@ -74,7 +74,7 @@
   <% end %>
 
   <dl class="availability-figures">
-    <div><dt><%= t("product_availability.columns.on_hand") %></dt><dd><%= availability_quantity(pair.on_hand) %></dd></div>
+    <div><dt><%= t("product_availability.columns.on_hand") %></dt><dd><%= with_measure(availability_quantity(pair.on_hand), pair.product) %></dd></div>
     <div><dt><%= t("product_availability.dependencies.reserved_short") %></dt><dd><%= availability_quantity(pair.reserved) %></dd></div>
     <% if tracked %>
       <% low     = typed.fetch("low_stock_level", availability_quantity(setting&.low_stock_level || 0)) %>

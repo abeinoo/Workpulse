@@ -25,7 +25,7 @@ module Inventory
     end
 
     def call(query)
-      q = query.to_s.strip
+      q = ProductBarcode.normalize(query).to_s # same trimming as stored / scanned barcodes
       relation = @scope.includes(:product_barcodes).with_primary_image
       return relation.order(:name, :id).limit(LIMIT).to_a if q.empty?
 

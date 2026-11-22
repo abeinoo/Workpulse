@@ -1,0 +1,18 @@
+en:
+  inventory:
+    measures:
+      field: Measure
+      amount: Amount
+      hint: "Amount and Measure together describe the product's size or packaging (e.g. 355 ml, 1 kg). Amount is optional. The Measure is also the unit its stock quantity is counted in; changing either never converts existing quantities."
+      ml:     { name: Millilitres (ml), short: ml }
+      l:      { name: Litres (l), short: l }
+      fl_oz:  { name: Fluid ounces (fl oz), short: fl oz }
+      g:      { name: Grams (g), short: g }
+      kg:     { name: Kilograms (kg), short: kg }
+      gal:    { name: Gallons (gal), short: gal }
+      oz:     { name: Ounces (oz), short: oz }
+      lb:     { name: Pounds (lb), short: lb }
+      cm:     { name: Centimetres (cm), short: cm }
+      ft:     { name: Feet (ft), short: ft }
+      in:     { name: Inches (in), short: in }
+      pieces: { name: A whole product (piece), short: pcs }

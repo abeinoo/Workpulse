@@ -3,16 +3,13 @@ import { Controller } from "@hotwired/stimulus"
 // Manages the barcode section on the product form.
 // Works alongside the line-items controller (add/remove rows) and adds:
 //   • setPrimary  — enforces single-primary checkbox behaviour per product
-//   • generate    — creates/fills an internal barcode row
+//   • generate    — fetches the next internal code and fills a NEW form row
 //
-// Two generation modes (selected automatically by which value is present):
-//   • generateSaveUrl  (POST) — edit page: atomically creates the barcode
-//     on the server, then adds a pre-filled row with the saved id so the
-//     subsequent form submit does an UPDATE, not a duplicate INSERT.
-//   • generateUrl      (GET)  — new-product page: fetches the next code
-//     and fills a form row; the barcode is saved when the product is saved.
+// Nothing is written before the product is saved (New and Edit alike): the
+// generated barcode is an ordinary unsaved row, so removing it (×) before
+// saving leaves no record, and Save inserts it with the rest of the product.
 export default class extends Controller {
-  static values = { generateUrl: String, generateSaveUrl: String }
+  static values = { generateUrl: String }
 
   setPrimary(event) {
     if (!event.target.checked) return
@@ -28,27 +25,9 @@ export default class extends Controller {
     btn.disabled = true
 
     try {
-      const useSave = this.hasGenerateSaveUrlValue && this.generateSaveUrlValue.length > 0
-      let code, savedId, isPrimary
-
-      if (useSave) {
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.content
-        const res = await fetch(this.generateSaveUrlValue, {
-          method:  "POST",
-          headers: { Accept: "application/json", "X-CSRF-Token": csrf }
-        })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const data = await res.json()
-        if (data.error) throw new Error(data.error)
-        code      = data.barcode
-        savedId   = data.id
-        isPrimary = data.is_primary
-      } else {
-        const res = await fetch(this.generateUrlValue, { headers: { Accept: "application/json" } })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const data = await res.json()
-        code = data.code
-      }
+      const res = await fetch(this.generateUrlValue, { headers: { Accept: "application/json" } })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const code = (await res.json()).code
 
       // Clone the template row
       const template = this.element.querySelector('[data-line-items-target="template"]')
@@ -68,20 +47,9 @@ export default class extends Controller {
       const typeSelect = newRow.querySelector("select")
       if (typeSelect) typeSelect.value = "internal"
 
-      if (savedId) {
-        // Barcode already persisted — inject hidden id so the form submit
-        // does UPDATE on this record, not a second INSERT.
-        const idField = document.createElement("input")
-        idField.type  = "hidden"
-        idField.name  = (input?.name || "").replace(/\[barcode\]$/, "[id]")
-        idField.value = savedId
-        if (idField.name) newRow.prepend(idField)
-      }
-
-      // Auto-mark primary and demote any sibling primary.
-      const noPrimaryYet  = !this.element.querySelector("input[data-primary-cb]:checked")
-      const shouldBePrimary = savedId ? isPrimary : noPrimaryYet
-      if (shouldBePrimary) {
+      // Primary when no visible row is primary yet.
+      const noPrimaryYet = !this.element.querySelector("[data-line-row]:not([hidden]) input[data-primary-cb]:checked")
+      if (noPrimaryYet) {
         const cb = newRow.querySelector("input[data-primary-cb]")
         if (cb) {
           cb.checked = true

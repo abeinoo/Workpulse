@@ -100,6 +100,9 @@
               </td>
               <td>
                 <%= product_identity(product, link: inventory_product_path(product)) %>
+                <% if (measurement = product_measurement(product)) %>
+                  <span class="td-secondary" data-testid="product-measurement" dir="auto">· <%= measurement %></span>
+                <% end %>
                 <% if product.archived? %>
                   <span class="badge badge-neutral" style="margin-inline-start: var(--space-1);"><%= t("inventory.products.archived_badge") %></span>
                 <% end %>

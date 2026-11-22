@@ -13,7 +13,10 @@ RSpec.describe "Inventory::StockIssues edit performance", type: :request do
   def products!(count, offset: 0)
     Array.new(count) do |i|
       business.products.create!(name: "P#{offset + i}", sku: "SKU-#{offset + i}", initial_cost_price: 10, average_cost_price: 10)
-              .tap { |p| p.product_barcodes.create!(barcode: "EXTRA-#{offset + i}", is_primary: false) }
+              .tap do |p|
+                p.product_barcodes.create!(barcode: "PRIMARY-#{offset + i}", is_primary: true) # barcodes are optional: give one
+                p.product_barcodes.create!(barcode: "EXTRA-#{offset + i}", is_primary: false)
+              end
     end
   end
 

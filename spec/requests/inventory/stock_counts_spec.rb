@@ -509,7 +509,7 @@ RSpec.describe "Inventory::StockCounts", type: :request do
         get inventory_stock_count_path(count)
         row = Nokogiri::HTML(response.body).css("tr").find { |tr| tr.text.include?("GKM-84978") }
         cells = row.css("td").map { |td| td.text.squish }
-        expect(cells[2..4]).to eq([ "4.004", "4.004", "0" ])
+        expect(cells[2..4]).to eq([ "4.004 pcs", "4.004 pcs", "0 pcs" ]) # with the product's measure
         expect(cells[5]).to include(I18n.t("inventory.stock_counts.sources.system"))
       end
 
@@ -524,7 +524,7 @@ RSpec.describe "Inventory::StockCounts", type: :request do
         doc  = Nokogiri::HTML(response.body)
         row  = doc.css("tr[data-line-row]").find { |tr| tr["data-sku"] == "GKM-84978" }
         expect(row["data-system-quantity"]).to eq("4.004")
-        expect(row.css("td")[2].text.squish).to eq("4.004")
+        expect(row.css("td")[2].text.squish).to eq("4.004 pcs")
         expect(row.at_css("input[data-quantity-field]")["value"]).to eq("3")          # the person's entry, not 4.004
         expect(row.text).to include(I18n.t("inventory.stock_counts.sources.system_hint", quantity: "4.004", previous: "3"))
 

@@ -36,11 +36,28 @@ class Product < ApplicationRecord
   # never deleted (Inventory::ProductDeletion refuses; this is the backstop).
   has_many :product_warehouse_settings, dependent: :restrict_with_error
   has_many :configured_warehouses, through: :product_warehouse_settings, source: :warehouse
-  has_many :product_barcodes,   dependent: :destroy
+  has_many :product_barcodes,   dependent: :destroy, inverse_of: :product
 
+  # A NEW row left empty is ignored (the form's spare row). An existing row is
+  # never ignored: its _destroy deletes it, and emptying its value is refused
+  # (presence) instead of silently keeping the old barcode.
   accepts_nested_attributes_for :product_barcodes,
                                 allow_destroy: true,
-                                reject_if:     ->(attrs) { attrs[:barcode].blank? }
+                                reject_if:     ->(attrs) { attrs[:id].blank? && attrs[:barcode].blank? }
+
+  # Barcodes are optional. An existing row submitted with its value emptied is
+  # a removal (the same as its × / _destroy), never a validation error. A new
+  # row left empty is ignored (reject_if above).
+  def product_barcodes_attributes=(attributes)
+    rows = attributes.respond_to?(:to_unsafe_h) ? attributes.to_unsafe_h : attributes
+    # { "0" => {…}, "1700…" => {…} } (form indexes) or [ {…}, … ]
+    rows = rows.values if rows.is_a?(Hash) && rows.values.all? { |value| value.is_a?(Hash) }
+    super(Array.wrap(rows).map do |row|
+      row = row.to_h.with_indifferent_access
+      blanked = row[:id].present? && row.key?(:barcode) && ProductBarcode.normalize(row[:barcode]).nil?
+      blanked ? row.merge(_destroy: "1") : row
+    end)
+  end
 
   validates :name, presence: true, length: { maximum: 200 }
   validates :sku,  presence: true, length: { maximum: 80 }
@@ -51,11 +68,19 @@ class Product < ApplicationRecord
             numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :selling_markup_percentage,
             numericality: { greater_than_or_equal_to: 0 }
-  # Display-only — no conversion math anywhere in the app. A product's
-  # quantities (receipts, issues, transfers, laundry consumption) are always
-  # in this one unit; never mix e.g. kg and g on the same product.
-  UNITS_OF_MEASURE = %w[pieces kg g l ml].freeze
+  # The Measure: the unit the product's quantity is counted in (stable codes,
+  # labels in inventory.measures.*). Display-only — no conversion math anywhere
+  # in the app. A product's quantities (receipts, issues, transfers, counts,
+  # laundry consumption) are always in this one unit; never mix e.g. kg and g
+  # on the same product, and changing it never converts existing quantities.
+  # "pieces" (a whole product) is the default.
+  UNITS_OF_MEASURE = %w[ml l fl_oz g kg gal oz lb cm ft in pieces].freeze
+  DEFAULT_UNIT_OF_MEASURE = "pieces"
   validates :unit_of_measure, inclusion: { in: UNITS_OF_MEASURE }
+  # The Amount, with the Measure the product's size / packaging ("355 ml",
+  # "1 kg", "0.5 kg"). Optional (blank = none); positive when given. Display
+  # only: never multiplies or converts a stock quantity.
+  validates :measure_amount, numericality: { greater_than: 0 }, allow_nil: true
   # "Track stock quantity" stays on while the product still holds stock or is
   # on an open inventory document (Inventory::TrackingDependencies): an
   # untracked product drops out of counts, alerts and reorder settings, so
@@ -87,11 +112,19 @@ class Product < ApplicationRecord
     errors.add(:product_category, :invalid) if product_category.business_id != business_id
   end
 
-  before_save :ensure_single_primary_barcode
+  validate :barcodes_unique_in_form
 
-  # Auto-generate a primary barcode when the product is created with no barcodes.
-  # Fires after nested product_barcodes are already saved, so the check is accurate.
-  after_create :auto_generate_barcode
+  before_save :ensure_single_primary_barcode
+  # Runs before the barcode rows are saved (autosave runs after this product's
+  # own save): frees the old values of rows this save changes or deletes, so
+  # swapping two barcodes, or deleting one and adding its value to another row,
+  # never trips the business-wide unique index halfway through. One UPDATE,
+  # inside this save's transaction; the rows then save their final values.
+  before_save :release_changing_barcode_values
+
+  # Barcodes are optional from creation onward: nothing is generated for a new
+  # product. A barcode is generated only when the user clicks Generate Barcode
+  # (an unsaved row, saved with the product form).
 
   scope :for_business,       ->(business) { where(business: business) }
   scope :with_primary_image, -> { includes(IMAGE_PRELOAD) }
@@ -198,27 +231,31 @@ class Product < ApplicationRecord
 
   private
 
-  # Ensures at most one barcode is marked primary before the nested records save.
-  # If multiple are checked (e.g., JS disabled), keeps the last one. Auto-promotes
-  # Generates a primary barcode via the business sequence when the product was
-  # created without any barcodes. The DB check (exists?) is authoritative because
-  # nested product_barcodes are committed before after_create fires.
-  def auto_generate_barcode
-    return if product_barcodes.exists?
-    Inventory::BusinessBarcodeGenerator.new(business).call(self)
+  # The rows of one save must not repeat a value (the unique index would
+  # refuse the second one with a database error instead of a message).
+  def barcodes_unique_in_form
+    keys = in_memory_barcodes.reject(&:marked_for_destruction?).filter_map { |pb| ProductBarcode.comparison_key(pb.barcode) }
+    duplicates = keys.tally.select { |_, count| count > 1 }.keys
+    errors.add(:base, :duplicate_barcodes, barcodes: duplicates.join(", ")) if duplicates.any?
   end
 
-  # Enforces a single primary barcode per product.
-  # If multiple are marked primary, keep the first; if none, promote the oldest.
-  def ensure_single_primary_barcode
-    active = product_barcodes.reject(&:marked_for_destruction?)
-    return if active.empty?
+  def release_changing_barcode_values
+    ids = in_memory_barcodes.select { |pb| pb.persisted? && (pb.marked_for_destruction? || pb.will_save_change_to_barcode?) }.map(&:id)
+    # A temporary value no real barcode can have (control characters are
+    # refused by ProductBarcode validation), unique per row.
+    ProductBarcode.where(id: ids).update_all([ "barcode = ? || id::text", ProductBarcode::RELEASING_PREFIX ]) if ids.any?
+  end
 
-    primaries = active.select(&:is_primary?)
-    if primaries.size > 1
-      primaries[0..-2].each { |pb| pb.is_primary = false }
-    elsif primaries.empty?
-      active.min_by { |pb| pb.id || Float::INFINITY }.is_primary = true
-    end
+  # The barcode rows of this save as held in memory (nested attributes load
+  # only the submitted rows, without marking the association loaded).
+  def in_memory_barcodes = association(:product_barcodes).target
+
+  # At most one primary barcode: if several rows are marked primary, the last
+  # one wins (the form's single-primary checkbox). None is fine — barcodes are
+  # optional, and deleting the primary never promotes another one; the user
+  # chooses a new primary explicitly (Product#barcode falls back to the first).
+  def ensure_single_primary_barcode
+    primaries = product_barcodes.reject(&:marked_for_destruction?).select(&:is_primary?)
+    primaries[0..-2].each { |pb| pb.is_primary = false } if primaries.size > 1
   end
 end

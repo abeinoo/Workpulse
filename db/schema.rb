@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1582,6 +1582,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_150000) do
     t.boolean "active", default: true, null: false
     t.datetime "archived_at"
     t.string "unit_of_measure", default: "pieces", null: false
+    t.decimal "measure_amount", precision: 12, scale: 3
     t.index "business_id, lower((barcode)::text)", name: "index_products_on_business_id_and_lower_barcode", unique: true, where: "((barcode IS NOT NULL) AND ((barcode)::text <> ''::text))"
     t.index "business_id, lower((sku)::text)", name: "index_products_on_business_id_and_lower_sku", unique: true
     t.index ["brand_id"], name: "index_products_on_brand_id"
@@ -1591,6 +1592,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_150000) do
     t.index ["default_supplier_id"], name: "index_products_on_default_supplier_id"
     t.index ["parent_product_id"], name: "index_products_on_parent_product_id"
     t.index ["product_category_id"], name: "index_products_on_product_category_id"
+    t.check_constraint "measure_amount IS NULL OR measure_amount > 0::numeric", name: "products_measure_amount_positive"
   end
 
   create_table "purchase_request_advances", force: :cascade do |t|

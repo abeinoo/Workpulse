@@ -55,7 +55,7 @@
   <div class="stats-grid" style="margin-bottom: var(--space-6);">
     <div class="stat-card <%= 'stat-card--warning' if @low_stock_warehouse %>">
       <span class="stat-card__label"><%= t("inventory.products.current_stock") %></span>
-      <span class="stat-card__value"><%= @display_stock.to_i %></span>
+      <span class="stat-card__value"><%= with_measure(inventory_quantity(@display_stock), @product) %></span>
     </div>
     <div class="stat-card">
       <span class="stat-card__label"><%= t("inventory.products.avg_cost") %></span>
@@ -74,6 +74,7 @@
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
     <dl class="detail-list">
       <div class="detail-list__row"><dt><%= t("inventory.products.sku") %></dt><dd><%= @product.sku %></dd></div>
+      <div class="detail-list__row" data-testid="product-measure"><dt><%= t("inventory.measures.field") %></dt><dd><%= product_measurement(@product) || measure_name(@product.unit_of_measure) %></dd></div>
       <% all_barcodes = @product.product_barcodes.loaded? ? @product.product_barcodes.to_a : @product.product_barcodes.ordered.to_a %>
       <% if all_barcodes.any? %>
         <% all_barcodes.group_by(&:barcode_type).each do |type, type_barcodes| %>

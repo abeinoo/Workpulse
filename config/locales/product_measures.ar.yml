@@ -1,0 +1,18 @@
+ar:
+  inventory:
+    measures:
+      field: وحدة القياس
+      amount: المقدار
+      hint: "المقدار مع وحدة القياس يصفان حجم المنتج أو عبوته (مثل 355 مل، 1 كغ). المقدار اختياري. وحدة القياس هي أيضاً الوحدة التي تُحسب بها كمية المخزون؛ وتغيير أيٍّ منهما لا يحوّل الكميات الحالية."
+      ml:     { name: مليلتر (مل), short: مل }
+      l:      { name: لتر (ل), short: ل }
+      fl_oz:  { name: أونصة سائلة (fl oz), short: أونصة سائلة }
+      g:      { name: غرام (غ), short: غ }
+      kg:     { name: كيلوغرام (كغ), short: كغ }
+      gal:    { name: غالون (gal), short: غالون }
+      oz:     { name: أونصة (oz), short: أونصة }
+      lb:     { name: رطل (lb), short: رطل }
+      cm:     { name: سنتيمتر (سم), short: سم }
+      ft:     { name: قدم (ft), short: قدم }
+      in:     { name: بوصة (in), short: بوصة }
+      pieces: { name: منتج كامل (قطعة), short: قطعة }

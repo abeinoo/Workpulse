@@ -56,9 +56,13 @@ export default class extends Controller {
     const product = await this.#lookupProduct(code)
     if (!product || product.error) {
       this.#notFound(code)
-    } else {
-      this.#addCountRow(product)
+      return
     }
+    // The server resolves every barcode of a product: a code this sheet's row
+    // doesn't carry may still be a product already on it — focus that row.
+    const onSheet = this.#rowsContainer().querySelector(`[data-line-row][data-product-id="${CSS.escape(String(product.id))}"]`)
+    if (onSheet) { this.#focusRow(onSheet); this.#reset(); return }
+    this.#addCountRow(product)
   }
 
   // Match across all rows (even those hidden by an active filter) so a scan never
@@ -95,6 +99,7 @@ export default class extends Controller {
       .replace(/__SKU__/g, this.#escape(product.sku))
       .replace(/__BARCODE__/g, this.#escape(product.barcode || ""))
       .replace(/__BARCODES__/g, this.#escape(allBarcodes.join("|")))
+      .replace(/__MEASURE__/g, this.#escape(product.measure || ""))
     this.#rowsContainer().insertAdjacentHTML("beforeend", html)
     this.#focusRow(this.#rowsContainer().lastElementChild)
     this.#reset()

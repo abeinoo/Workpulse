@@ -210,7 +210,7 @@ RSpec.describe "Goods receipt from a Purchase Request — extra products", type:
         .to include("المطلوب", "المستلم", "المتبقي", "المستلم الآن")
       shampoo_row = request_rows.find { |r| r.at_css("select option")["value"].to_i == shampoo.id }
       expect(%w[ordered received remaining].map { |c| shampoo_row.at_css("[data-testid='gr-line-#{c}']").text.squish })
-        .to eq(%w[10 0 10])
+        .to eq([ "10 قطعة", "0 قطعة", "10 قطعة" ]) # each with the product's measure (a whole product)
 
       expect(doc.at_css("button[data-action='line-items#add']").text.squish).to eq("+ إضافة منتج")
       # New rows search the whole transactable catalog on demand (product-combobox)

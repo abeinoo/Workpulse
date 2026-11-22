@@ -372,7 +372,6 @@ Rails.application.routes.draw do
         get  :next_barcode_code
       end
       member do
-        post  :generate_barcode
         patch :archive
         patch :restore
         # Product availability per warehouse, managed from the product: the

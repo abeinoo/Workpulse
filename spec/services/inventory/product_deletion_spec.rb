@@ -74,6 +74,7 @@ RSpec.describe Inventory::ProductDeletion do
 
   it "refuses a product with inventory history (a barcode counts)" do
     product = business.products.create!(name: "Kept", sku: "KP-1", initial_cost_price: 5, average_cost_price: 5)
+    product.product_barcodes.create!(barcode: "KP-1-BC", barcode_type: "manufacturer", is_primary: true)
     product.update!(active: false, archived_at: Time.current)
     expect(product.product_barcodes).to exist
     expect(delete(product).error).to eq(:has_history)

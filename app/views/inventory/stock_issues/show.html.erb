@@ -190,10 +190,10 @@
             <% @availability_lines.each do |line| %>
               <tr data-product-id="<%= line.product.id %>">
                 <td data-label="<%= t('inventory.stock_issues.product') %>"><%= product_identity(line.product) %></td>
-                <td data-label="<%= t('inventory.stock_issues.availability.on_hand') %>" style="text-align: end;"><%= stock_quantity(line.on_hand) %></td>
-                <td data-label="<%= t('inventory.stock_issues.availability.reserved') %>" style="text-align: end;"><%= stock_quantity(line.reserved) %></td>
-                <td data-label="<%= t('inventory.stock_issues.availability.available') %>" style="text-align: end; font-weight: 600;"><%= stock_quantity(line.available) %></td>
-                <td data-label="<%= t('inventory.stock_issues.availability.requested') %>" style="text-align: end;"><%= stock_quantity(line.requested) %></td>
+                <td data-label="<%= t('inventory.stock_issues.availability.on_hand') %>" style="text-align: end;"><%= with_measure(stock_quantity(line.on_hand), line.product) %></td>
+                <td data-label="<%= t('inventory.stock_issues.availability.reserved') %>" style="text-align: end;"><%= with_measure(stock_quantity(line.reserved), line.product) %></td>
+                <td data-label="<%= t('inventory.stock_issues.availability.available') %>" style="text-align: end; font-weight: 600;"><%= with_measure(stock_quantity(line.available), line.product) %></td>
+                <td data-label="<%= t('inventory.stock_issues.availability.requested') %>" style="text-align: end;"><%= with_measure(stock_quantity(line.requested), line.product) %></td>
                 <td data-label="<%= t('inventory.stock_issues.availability.status') %>">
                   <% if line.shortfall? %>
                     <span class="badge badge-danger"><%= t("inventory.stock_issues.availability.insufficient") %></span>
@@ -223,7 +223,7 @@
           <tr>
             <td><%= product_identity(item.product, link: inventory_product_path(item.product)) %></td>
             <td class="td-secondary"><%= item.product.sku %></td>
-            <td style="text-align: end;"><%= item.quantity.to_i %></td>
+            <td style="text-align: end;"><%= with_measure(inventory_quantity(item.quantity), item.product) %></td>
             <% if item.cost_unavailable? %>
               <td colspan="2" style="text-align: end;"><span class="badge badge-warning"><%= t("inventory.stock_issues.cost_unavailable") %></span></td>
             <% else %>

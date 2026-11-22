@@ -4893,6 +4893,7 @@ ar:
         unknown_sku: "لا يوجد منتج مطابق لرمز SKU هذا"
         insufficient_stock: "لا توجد كمية كافية في المخزون"
         invalid_stock_settings: "حد انخفاض المخزون أو كمية إعادة الطلب غير صالح (رقم صفر أو أكثر)"
+        invalid_measure: "وحدة قياس غير معروفة (استخدم ml أو l أو fl oz أو g أو kg أو gal أو oz أو lb أو cm أو ft أو in أو piece)"
     barcode_labels:
       title: "ملصقات الباركود"
       print: "طباعة الملصقات"
@@ -4944,7 +4945,6 @@ ar:
       barcode_primary_label: "الباركود الرئيسي"
       generate_barcode: "توليد باركود"
       generate_barcode_hint: "يولد باركوداً داخلياً فريداً (10000001، 10000002، …)"
-      generate_barcode_failed: "تعذّر توليد باركود فريد. يرجى المحاولة مرة أخرى."
       barcode_types:
         manufacturer: "المصنّع"
         internal: "داخلي"
@@ -5031,6 +5031,7 @@ ar:
       default_threshold: "افتراضي"
       new_title: "منتج جديد"
       created: "تم إنشاء المنتج."
+      updated: "تم تحديث المنتج."
       edit_title: "تعديل المنتج"
       status_active: "النشطة"
       status_archived: "المؤرشفة"
@@ -6239,6 +6240,8 @@ ar:
           attributes:
             base:
               has_history_cannot_delete: "هذا المنتج له سجلات مخزون تاريخية ولا يمكن حذفه. قم بأرشفته بدلاً من ذلك."
+              duplicate_barcodes: "لا يمكن استخدام الباركود إلا مرة واحدة: %{barcodes} مُدخل أكثر من مرة."
+              barcode_taken: "أحد الباركودات مستخدم بالفعل لمنتج آخر في هذا النشاط. اختر باركوداً مختلفاً."
         goods_receipt:
           attributes:
             base:

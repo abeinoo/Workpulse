@@ -3,8 +3,13 @@ require "csv"
 module Inventory
   module Imports
     # Imports products from a CSV. Columns (header row, case-insensitive):
-    #   Product Name, SKU, Barcode, Brand, Category, Initial Cost,
+    #   Product Name, SKU, Barcode, Brand, Category, Measure, Initial Cost,
     #   Current Stock, Low Stock Level, Reorder Quantity
+    #
+    # "Measure" (optional; older files without it still import): the code
+    # (ml, l, fl_oz, g, kg, gal, oz, lb, cm, ft, in, pieces), its English or
+    # Arabic short label or full name, case-insensitive. Blank = a whole
+    # product (pieces); an unknown value skips the row (:invalid_measure).
     #
     # Each row creates one product.
     #
@@ -39,6 +44,7 @@ module Inventory
         Column.new(header: "Barcode",          required: false, example: "6291000000017"),
         Column.new(header: "Brand",            required: false, example: "Acme"),
         Column.new(header: "Category",         required: false, example: "Hardware"),
+        Column.new(header: "Measure",          required: false, example: "ml"),
         Column.new(header: "Initial Cost",     required: false, example: "12.50"),
         Column.new(header: "Current Stock",    required: false, example: "100"),
         Column.new(header: "Low Stock Level",  required: false, example: "10"),
@@ -107,7 +113,7 @@ module Inventory
         ActiveRecord::Base.transaction do
           table.each.with_index(2) do |row, line| # header is line 1
             sku     = row["sku"].to_s.strip
-            barcode = row["barcode"].to_s.strip.presence
+            barcode = ProductBarcode.normalize(row["barcode"])
             name    = row["product name"].to_s.strip
 
             if name.blank? || sku.blank?
@@ -116,10 +122,14 @@ module Inventory
             if seen_skus[sku.downcase] || @business.products.where("LOWER(sku) = ?", sku.downcase).exists?
               skipped << Skip.new(row_number: line, sku: sku, reason: :duplicate_sku); next
             end
-            if barcode && (seen_barcodes[barcode.downcase] ||
-                           ProductBarcode.joins(:product).where(product: { business: @business })
-                                         .where("LOWER(product_barcodes.barcode) = ?", barcode.downcase).exists?)
+            if barcode && (seen_barcodes[ProductBarcode.comparison_key(barcode)] ||
+                           ProductBarcode.where(business_id: @business.id).matching(barcode).exists?)
               skipped << Skip.new(row_number: line, sku: sku, reason: :duplicate_barcode); next
+            end
+
+            measure = measure_for(row["measure"])
+            if measure.nil?
+              skipped << Skip.new(row_number: line, sku: sku, reason: :invalid_measure); next
             end
 
             stock_settings = stock_settings_for(row)
@@ -134,6 +144,7 @@ module Inventory
               barcode:            barcode,
               brand:              find_or_create(@business.brands, row["brand"]),
               product_category:   find_or_create(@business.product_categories, row["category"]),
+              unit_of_measure:    measure,
               initial_cost_price: initial_cost,
               average_cost_price: initial_cost
             )
@@ -143,7 +154,7 @@ module Inventory
             end
 
             seen_skus[sku.downcase] = true
-            seen_barcodes[barcode.downcase] = true if barcode
+            seen_barcodes[ProductBarcode.comparison_key(barcode)] = true if barcode
             created << product
             settings << stock_settings.merge(product_id: product.id) if stock_settings
 
@@ -186,6 +197,25 @@ module Inventory
           raw_line:    @csv_data.lines[e.line_number - 1].to_s.strip,
           message:     e.message
         )
+      end
+
+      # A Measure cell → its code (blank = pieces), or nil when unknown.
+      def measure_for(value)
+        text = value.to_s.strip.downcase
+        return Product::DEFAULT_UNIT_OF_MEASURE if text.empty?
+
+        self.class.measure_aliases[text]
+      end
+
+      # { "ml" => "ml", "millilitres (ml)" => "ml", "مل" => "ml", "piece" => "pieces", … }
+      def self.measure_aliases
+        @measure_aliases ||= Product::UNITS_OF_MEASURE.each_with_object({ "piece" => "pieces", "pcs" => "pieces" }) do |code, map|
+          map[code] = code
+          map[code.tr("_", " ")] = code
+          %i[en ar].each do |locale|
+            %w[name short].each { |key| map[I18n.t("inventory.measures.#{code}.#{key}", locale: locale).downcase] = code }
+          end
+        end
       end
 
       def headers_valid?(table)

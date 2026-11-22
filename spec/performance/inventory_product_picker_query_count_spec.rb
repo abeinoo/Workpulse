@@ -39,7 +39,8 @@ RSpec.describe "Inventory product pickers — query count scaling", type: :reque
 
   # The markup the original per-product helper renders for one row.
   def reference_options(products, selected_id)
-    ApplicationController.helpers.inventory_product_options(Product.where(id: products.map(&:id)).order(:name).to_a, selected_id)
+    # Barcodes loaded like the page's lines: every barcode of the product is listed.
+    ApplicationController.helpers.inventory_product_options(Product.where(id: products.map(&:id)).includes(:product_barcodes).order(:name).to_a, selected_id)
   end
 
   def transactable

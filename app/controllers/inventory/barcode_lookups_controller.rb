@@ -6,7 +6,7 @@ class Inventory::BarcodeLookupsController < Inventory::BaseController
   def show
     authorize Product, :index?
 
-    result = Inventory::BarcodeLookup.new(policy_scope(Product).active).find(params[:code])
+    result = Inventory::BarcodeLookup.new(policy_scope(Product).active, business_id: current_user.business_id).find(params[:code])
     if result
       product = result.product
       preload_product_images([ product ])
