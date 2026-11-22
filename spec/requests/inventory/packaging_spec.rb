@@ -37,6 +37,85 @@ RSpec.describe "Multi-unit inventory screens", type: :request do
       expect(chain).to include("1 case = 12 bottles", "(4260 ml)", "1 bottle = 355 ml")
     end
 
+    def save_packaging(product, unit:, levels:)
+      params = { levels: levels.each_with_index.to_h { |(package, contains), i| [ i.to_s, { package_unit: package, contains_quantity: contains.to_s } ] } }
+      params[:unit_of_measure] = unit if unit
+      patch packaging_inventory_product_path(product), params: { packaging: params }
+    end
+
+    it "liquid: the owner chooses ml as the base unit, 1 bottle = 250 ml, 1 carton = 10 bottles" do
+      liquid = business.products.create!(name: "Toner", sku: "TN-1", initial_cost_price: 0, average_cost_price: 0) # default Measure: pieces
+      get packaging_inventory_product_path(liquid)
+      base = doc.at_css("select[name='packaging[unit_of_measure]']")
+      expect(base["disabled"]).to be_nil
+      expect(base.css("option").map { |o| o["value"] }).to eq(Product::UNITS_OF_MEASURE)
+
+      save_packaging(liquid, unit: "ml", levels: [ [ "bottle", 250 ], [ "carton", 10 ] ])
+      expect(response).to redirect_to(inventory_product_path(liquid))
+      liquid.reload
+      expect(liquid.unit_of_measure).to eq("ml")
+      expect(liquid.measure_amount).to eq(250)
+      expect(liquid.active_packaging_levels.map { |l| [ l.package_unit, l.contains_quantity.to_i, l.base_quantity.to_i ] })
+        .to eq([ [ "bottle", 250, 250 ], [ "carton", 10, 2500 ] ])
+      expect(AuditLog.where(auditable: liquid, action: "packaging_configured").sole.changes_json["unit_of_measure"]).to eq(%w[pieces ml])
+
+      get inventory_product_path(liquid)
+      chain = doc.at_css("[data-testid='packaging-chain']").text.squish
+      expect(chain).to include("1 carton = 10 bottles (2500 ml)", "1 bottle = 250 ml")
+      expect(chain).not_to include("pcs")
+
+      owner.update!(preferred_locale: "ar")
+      get packaging_inventory_product_path(liquid)
+      expect(doc.at_css("select[name='packaging[unit_of_measure]'] option[selected]")["value"]).to eq("ml")
+      get inventory_product_path(liquid)
+      ar_chain = doc.at_css("[data-testid='packaging-chain']").text
+      expect(ar_chain).to include("مل")
+      expect(ar_chain).not_to include("قطعة")
+    end
+
+    it "countable: pieces, 1 box = 10 pieces, 1 carton = 12 boxes; a fractional piece content is refused" do
+      countable = business.products.create!(name: "Razor 2", sku: "RZ-2", initial_cost_price: 0, average_cost_price: 0, unit_of_measure: "ml")
+      save_packaging(countable, unit: "pieces", levels: [ [ "box", 10.5 ] ])
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("whole number")
+      expect(countable.reload.unit_of_measure).to eq("ml") # nothing saved
+
+      save_packaging(countable, unit: "pieces", levels: [ [ "box", 10 ], [ "carton", 12 ] ])
+      expect(countable.reload.unit_of_measure).to eq("pieces")
+      expect(countable.active_packaging_levels.map { |l| [ l.package_unit, l.base_quantity.to_i ] }).to eq([ [ "box", 10 ], [ "carton", 120 ] ])
+    end
+
+    it "edits an existing configuration: the form shows it, an outer level is added, kept levels are untouched" do
+      configure_packaging!(plain, owner, [ "bottle", 355 ])
+      kept = plain.active_packaging_levels.sole
+      get packaging_inventory_product_path(plain)
+      expect(doc.at_css("select[name='packaging[levels][0][package_unit]'] option[selected]")["value"]).to eq("bottle")
+      expect(doc.at_css("input[name='packaging[levels][0][contains_quantity]']")["value"]).to eq("355")
+      expect(doc.at_css("select[name='packaging[unit_of_measure]'] option[selected]")["value"]).to eq("ml")
+
+      save_packaging(plain, unit: "ml", levels: [ [ "bottle", 355 ], [ "case", 12 ] ])
+      expect(plain.reload.active_packaging_levels.map { |l| [ l.id == kept.id, l.package_unit, l.base_quantity.to_i ] })
+        .to eq([ [ true, "bottle", 355 ], [ false, "case", 4260 ] ])
+    end
+
+    it "once stock has moved the base unit is locked: the field is disabled and a forced change is refused, factors and stock unchanged" do
+      receive_units!(product: razor, warehouse: main, lines: [ [ "carton", 1, 120 ] ])
+      levels_before = razor.active_packaging_levels.map(&:attributes)
+      get packaging_inventory_product_path(razor)
+      expect(doc.at_css("select[name='packaging[unit_of_measure]']")["disabled"]).to be_present
+
+      save_packaging(razor, unit: "ml", levels: [ [ "box", 10 ], [ "carton", 12 ] ])
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include("base unit can&#39;t be changed once stock has moved")
+      expect(razor.reload.unit_of_measure).to eq("pieces")
+      expect(razor.active_packaging_levels.map(&:attributes)).to eq(levels_before)
+      expect(packaging_state(razor, main)).to eq("carton" => 1, "box" => 0, loose: 0, total: 120)
+
+      save_packaging(razor, unit: nil, levels: [ [ "box", 10 ], [ "carton", 12 ] ]) # the disabled field is not sent: nothing changes
+      expect(response).to redirect_to(inventory_product_path(razor))
+      expect(razor.reload.active_packaging_levels.map(&:attributes)).to eq(levels_before)
+    end
+
     it "refuses a fifth level with a clear message and keeps the product unchanged" do
       levels = %w[box carton case pallet pack].each_with_index.to_h { |unit, i| [ i.to_s, { package_unit: unit, contains_quantity: "2" } ] }
       patch packaging_inventory_product_path(plain), params: { packaging: { levels: levels } }

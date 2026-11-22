@@ -13032,6 +13032,10 @@ tr.bulk-row--locked { background: rgba(217, 119, 6, 0.08); }
 .count-breakdown__part { display: flex; flex-direction: column; gap: 2px; font-size: var(--text-xs); color: var(--text-2); }
 .count-breakdown__part .form-control { width: 6.5rem; min-width: 0; }
 .count-breakdown__hint { flex-basis: 100%; }
+/* Packaging editor: room for the longest package name; the base unit set apart. */
+.packaging-unit-select { min-width: 9.5rem; }
+.packaging-base-unit { margin-top: var(--space-4); }
+.packaging-chain-preview { margin-top: var(--space-4); }
 /* Product page: packaging chain, outermost first. */
 .packaging-chain { list-style: none; margin: var(--space-3) 0; padding: 0; display: grid; gap: var(--space-1); }
 

@@ -26,10 +26,15 @@ module Inventory
       LevelSpec = Data.define(:package_unit, :contains_quantity)
       DEFERRED_TRIGGERS = "product_packaging_levels_check_structure, products_check_packaging_structure".freeze
 
-      def initialize(product_id:, actor:, levels:)
-        @product_id = product_id
-        @actor      = actor
-        @specs      = normalize(levels)
+      # unit_of_measure: the base unit (one of Product::UNITS_OF_MEASURE — the
+      # product's Measure) the innermost level is counted in. Optional; when
+      # given and different it is changed in the same transaction, only while
+      # the product has no inventory movement (Decision 2: locked afterwards).
+      def initialize(product_id:, actor:, levels:, unit_of_measure: nil)
+        @product_id      = product_id
+        @actor           = actor
+        @specs           = normalize(levels)
+        @unit_of_measure = unit_of_measure.presence
       end
 
       def call
@@ -40,6 +45,8 @@ module Inventory
           ActiveRecord::Base.connection.execute("SET CONSTRAINTS #{DEFERRED_TRIGGERS} DEFERRED")
           @product = Product.where(business_id: @actor.business_id).lock.find(@product_id)
           before   = describe(@product.active_packaging_levels.to_a)
+          @unit_before = @product.unit_of_measure
+          apply_base_unit!
           validate_specs!
           apply!
           @product.reload
@@ -49,9 +56,10 @@ module Inventory
           ActiveRecord::Base.connection.execute("SET CONSTRAINTS #{DEFERRED_TRIGGERS} IMMEDIATE")
           ActiveRecord::Base.connection.execute("SET CONSTRAINTS #{DEFERRED_TRIGGERS} DEFERRED")
           after = describe(@product.active_packaging_levels.to_a)
-          if before != after
-            log_audit!(actor: @actor, auditable: @product, action: "packaging_configured",
-                       changes: { packaging: [ before, after ], measure_amount: [ @measure_before&.to_s, @product.measure_amount&.to_s ] },
+          if before != after || @unit_before != @product.unit_of_measure
+            changes = { packaging: [ before, after ], measure_amount: [ @measure_before&.to_s, @product.measure_amount&.to_s ] }
+            changes[:unit_of_measure] = [ @unit_before, @product.unit_of_measure ] if @unit_before != @product.unit_of_measure
+            log_audit!(actor: @actor, auditable: @product, action: "packaging_configured", changes: changes,
                        metadata: { product_sku: @product.sku, unit_of_measure: @product.unit_of_measure })
           end
           Result.new(ok: true, product: @product)
@@ -81,6 +89,15 @@ module Inventory
         BigDecimal(value.to_s)
       rescue ArgumentError, TypeError
         nil
+      end
+
+      def apply_base_unit!
+        return if @unit_of_measure.nil? || @unit_of_measure == @product.unit_of_measure
+
+        fail!(:unknown_base_unit) unless Product::UNITS_OF_MEASURE.include?(@unit_of_measure)
+        fail!(:base_unit_locked) if @product.base_unit_locked?
+
+        @product.update!(unit_of_measure: @unit_of_measure)
       end
 
       def validate_specs!

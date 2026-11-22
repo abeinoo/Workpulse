@@ -6,16 +6,19 @@ module Inventory
       @product = find_product
       authorize @product, :configure_packaging?
       @levels = @product.active_packaging_levels.to_a
+      @base_unit = @product.unit_of_measure
     end
 
     def update
       @product = find_product
       authorize @product, :configure_packaging?
-      result = Inventory::Packaging::Configurator.new(product_id: @product.id, actor: current_user, levels: level_params).call
+      result = Inventory::Packaging::Configurator.new(product_id: @product.id, actor: current_user, levels: level_params,
+                                                      unit_of_measure: base_unit_param).call
       if result.ok?
         redirect_to inventory_product_path(@product), notice: t("inventory.packaging.saved")
       else
         @levels = submitted_levels
+        @base_unit = base_unit_param || @product.reload.unit_of_measure
         flash.now[:alert] = result.error
         render :edit, status: :unprocessable_entity
       end
@@ -25,6 +28,11 @@ module Inventory
 
     def find_product
       policy_scope(Product).find(params[:id])
+    end
+
+    # The base unit chosen on the form (absent when the field is locked).
+    def base_unit_param
+      params.dig(:packaging, :unit_of_measure).presence
     end
 
     def level_params

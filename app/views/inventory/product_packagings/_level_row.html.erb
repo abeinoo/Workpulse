@@ -2,8 +2,11 @@
   <td class="td-secondary" data-level-position></td>
   <td>
     <%= select_tag "packaging[levels][#{index}][package_unit]",
-          options_for_select(ProductPackagingLevel::PACKAGE_UNITS.map { |code| [ t("inventory.packaging.units.#{code}.name"), code ] }, level.package_unit),
-          include_blank: "—", class: "form-control", "aria-label": t("inventory.packaging.package_unit"),
+          options_for_select(ProductPackagingLevel::PACKAGE_UNITS.map { |code|
+            [ t("inventory.packaging.units.#{code}.name"), code,
+              { "data-one" => t("inventory.packaging.units.#{code}.one"), "data-other" => t("inventory.packaging.units.#{code}.other") } ]
+          }, level.package_unit),
+          include_blank: "—", class: "form-control packaging-unit-select", "aria-label": t("inventory.packaging.package_unit"),
           data: { action: "change->packaging-editor#refresh", package_unit_field: true } %>
   </td>
   <td>

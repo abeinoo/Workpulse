@@ -19,23 +19,75 @@ RSpec.describe "Multi-unit packaging (browser)", type: :system do
     find(".pcombo__listbox", visible: true).find(".pcombo__option", text: name).click
   end
 
-  it "configures packaging innermost first, showing what each package equals" do
+  def fill_level(row, unit_name, contains)
+    row.find("select[data-package-unit-field]").select(unit_name)
+    row.find("[data-contains-field]").fill_in(with: contains)
+  end
+
+  def levels = all("[data-packaging-level-row]")
+  def chain_lines = find("[data-packaging-editor-target='chain']").all("li").map(&:text)
+
+  { "en" => { ml: "ml", bottle: "Bottle", carton: "Carton", chain: [ "1 carton = 10 bottles = 2500 ml", "1 bottle = 250 ml" ] },
+    "ar" => { ml: "مل", bottle: "زجاجة", carton: "كرتونة", chain: [ "1 كرتونة = 10 زجاجة = 2500 مل", "1 زجاجة = 250 مل" ] } }.each do |locale, l|
+    it "liquid product: the owner picks ml as the base unit; every label, total and the chain follow it (#{locale})" do
+      liquid = business.products.create!(name: "Toner", sku: "TN-1", initial_cost_price: 0, average_cost_price: 0) # Measure still "pieces"
+      owner.update!(preferred_locale: locale)
+      sign_in owner
+      visit packaging_inventory_product_path(liquid)
+      find("#packaging_unit_of_measure").select(I18n.t("inventory.measures.ml.name", locale: locale))
+      2.times { click_button I18n.t("inventory.packaging.add_level", locale: locale) }
+      fill_level(levels[0], l[:bottle], "250")
+      fill_level(levels[1], l[:carton], "10")
+
+      expect(levels[0]).to have_css("[data-contains-unit]", exact_text: l[:ml])
+      expect(levels[1]).to have_css("[data-contains-unit]", exact_text: l[:bottle])
+      expect(levels[1]).to have_css("[data-level-base]", exact_text: "= 2500 #{l[:ml]}")
+      expect(page).to have_css("[data-packaging-editor-target='chain'] li", count: 2)
+      expect(chain_lines).to eq(l[:chain])
+      expect(find("[data-testid='packaging-levels']").text + chain_lines.join).not_to include(I18n.t("inventory.measures.pieces.short", locale: locale))
+
+      find("[data-testid='packaging-save']").click
+      expect(page).to have_text(I18n.t("inventory.packaging.saved", locale: locale))
+      liquid.reload
+      expect([ liquid.unit_of_measure, liquid.measure_amount ]).to eq([ "ml", 250 ])
+      expect(liquid.active_packaging_levels.map { |lv| [ lv.package_unit, lv.base_quantity.to_i ] }).to eq([ [ "bottle", 250 ], [ "carton", 2500 ] ])
+    end
+  end
+
+  it "countable product: pieces, 1 box = 10 pieces, 1 carton = 12 boxes; then edited to 1 carton = 24 boxes" do
     sign_in owner
     visit inventory_product_path(razor)
     find("[data-testid='edit-packaging']").click
-    click_button I18n.t("inventory.packaging.add_level")
-    click_button I18n.t("inventory.packaging.add_level")
-    levels = all("[data-packaging-level-row]")
-    levels[0].find("select").select("Box")
-    levels[0].find("input[type='number']").fill_in(with: "10")
-    levels[1].find("select").select("Carton")
-    levels[1].find("input[type='number']").fill_in(with: "12")
-    expect(levels[1]).to have_css("[data-level-base]", text: "= 120 pcs")
+    expect(find("#packaging_unit_of_measure").value).to eq("pieces")
+    2.times { click_button I18n.t("inventory.packaging.add_level") }
+    fill_level(levels[0], "Box", "10")
+    fill_level(levels[1], "Carton", "12")
+    expect(levels[0]).to have_css("[data-contains-unit]", exact_text: "pcs")
+    expect(chain_lines).to eq([ "1 carton = 12 boxes = 120 pcs", "1 box = 10 pcs" ])
     find("[data-testid='packaging-save']").click
-
     expect(page).to have_text(I18n.t("inventory.packaging.saved"))
     expect(find("[data-testid='packaging-chain']")).to have_text("1 carton = 12 boxes")
-    expect(razor.reload.active_packaging_levels.pluck(:package_unit)).to eq(%w[box carton])
+
+    # Editing the saved configuration: it is shown as saved, and changing the
+    # outer level replaces only that level (no stock yet, so it may change).
+    find("[data-testid='edit-packaging']").click
+    expect(chain_lines).to eq([ "1 carton = 12 boxes = 120 pcs", "1 box = 10 pcs" ])
+    box_id = level_of(razor, "box").id
+    levels[1].find("[data-contains-field]").fill_in(with: "24")
+    expect(chain_lines.first).to eq("1 carton = 24 boxes = 240 pcs")
+    find("[data-testid='packaging-save']").click
+    expect(page).to have_text(I18n.t("inventory.packaging.saved"))
+    expect(razor.reload.active_packaging_levels.map { |lv| [ lv.package_unit, lv.base_quantity.to_i ] }).to eq([ [ "box", 10 ], [ "carton", 240 ] ])
+    expect(level_of(razor, "box").id).to eq(box_id) # the unchanged inner level is kept, not recreated
+  end
+
+  it "the base unit is locked in the editor once stock has moved" do
+    configure_packaging!(razor, owner, [ "box", 10 ])
+    receive_units!(product: razor, warehouse: main, lines: [ [ "box", 2, 10 ] ])
+    sign_in owner
+    visit packaging_inventory_product_path(razor)
+    expect(find("#packaging_unit_of_measure")).to be_disabled
+    expect(page).to have_text(I18n.t("inventory.packaging.locked_base_unit"))
   end
 
   it "a transfer line offers the product's units and shows the base equivalent before posting" do
