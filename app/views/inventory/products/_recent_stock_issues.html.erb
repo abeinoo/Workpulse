@@ -12,7 +12,7 @@
     <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("inventory.products.no_recent_stock_issues") %></p></div>
   <% else %>
     <% columns = %w[number date warehouse quantity requested_by status].index_with { |c| t("inventory.products.recent_documents.#{c}") } %>
-    <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-5);">
+    <div class="table-wrap table-wrap--cards">
       <table>
         <thead><tr>
           <% columns.each do |key, label| %>

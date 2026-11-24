@@ -62,8 +62,10 @@ class Inventory::ProductsController < Inventory::BaseController
   end
 
   def show
+    # The whole gallery (ordered images and their files) for the page's photo
+    # viewer, plus the primary image for the header thumbnail: no query per image.
     @product = policy_scope(Product)
-                 .includes(:product_barcodes, Product::IMAGE_PRELOAD)
+                 .includes(:product_barcodes, Product::IMAGE_PRELOAD, images: { file_attachment: :blob })
                  .find(params[:id])
     authorize @product
     wh_ids      = accessible_warehouse_ids
@@ -275,17 +277,25 @@ class Inventory::ProductsController < Inventory::BaseController
     end.sort_by { |r| r[:last_purchase_date] }.reverse
   end
 
-  # Latest goods receipts / stock issues carrying this product. Policy-scoped
-  # (business + accessible warehouses) so every linked document is one the
-  # viewer can open; nil hides a section the viewer may not list at all.
+  # Latest goods receipts / stock issues / stock transfers carrying this
+  # product. Policy-scoped (business + accessible warehouses; a transfer when
+  # either end is reachable — StockTransferPolicy::Scope) so every linked
+  # document is one the viewer can open; nil hides a section the viewer may
+  # not list at all.
   def load_recent_documents
     recent = Inventory::ProductRecentDocuments.new(
       @product,
-      goods_receipts: policy_scope(GoodsReceipt),
-      stock_issues:   policy_scope(StockIssue).excluding_incomplete_imports
+      goods_receipts:       policy_scope(GoodsReceipt),
+      stock_issues:         policy_scope(StockIssue).excluding_incomplete_imports,
+      stock_transfers:      policy_scope(StockTransfer),
+      viewer_warehouse_ids: accessible_warehouse_ids
     )
     @recent_goods_receipts = policy(GoodsReceipt).index? ? recent.goods_receipts : nil
     @recent_stock_issues   = policy(StockIssue).index?   ? recent.stock_issues   : nil
+    if policy(StockTransfer).index?
+      @recent_stock_transfers  = recent.stock_transfers
+      @stock_transfer_summary  = recent.stock_transfer_summary
+    end
   end
 
   def load_consumption_stats

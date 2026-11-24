@@ -238,11 +238,14 @@ RSpec.describe "Product Edit — availability per warehouse (browser)", type: :s
     expect(page).to have_css("#exclusion-panel-#{nasr.id} [data-testid='dependency-summary']")
   end
 
-  it "the Show page summary links to the Edit page's section" do
+  # No Manage Availability action on the Show page (owner decision, Nov 2026):
+  # the Edit page's section is reached through Edit.
+  it "the Show page offers no Manage Availability action; Edit still holds the section" do
     manager.save_settings(product_id: product.id, warehouse_id: nasr.id, low_stock_level: 2, reorder_quantity: 0)
     as("en", 1440)
     visit inventory_product_path(product)
-    click_link "Manage availability"
+    expect(page).to have_no_link("Manage availability")
+    find(".pshow-header__actions").click_link(I18n.t("common.edit"))
     expect(page).to have_css("#availability [data-testid='availability-card-#{nasr.id}']")
   end
 end

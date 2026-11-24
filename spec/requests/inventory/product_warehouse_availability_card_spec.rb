@@ -60,12 +60,14 @@ RSpec.describe "Product page — Warehouse Availability card", type: :request do
       expect(card_row(central).css("form, button")).to be_empty
     end
 
-    it "is read-only and links to the Edit page's availability section" do
+    # No Manage Availability action on the product page (owner decision,
+    # Nov 2026): availability is managed from Edit and the warehouse pages.
+    it "is read-only and offers no Manage Availability action" do
       add!(central)
       get inventory_product_path(product)
       section = Nokogiri::HTML(response.body).at_css(%([data-testid="warehouse-availability"]))
       expect(section.css("form")).to be_empty
-      expect(section.at_css(%([data-testid="manage-availability"]))["href"]).to eq(edit_inventory_product_path(product, anchor: "availability"))
+      expect(section.at_css(%([data-testid="manage-availability"]))).to be_nil
     end
 
     it "renders in Arabic" do

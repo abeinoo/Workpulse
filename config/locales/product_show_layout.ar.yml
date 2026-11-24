@@ -1,0 +1,40 @@
+# Product Show page layout: section titles and the read-only photo gallery.
+# Presentation only.
+ar:
+  inventory:
+    products:
+      show_layout:
+        section_details: "تفاصيل المنتج"
+        group_inventory: "المخزون"
+        group_purchasing: "المشتريات والاستهلاك"
+        group_activity: "حركة المخزون"
+        no_photos: "لا توجد صور لهذا المنتج بعد."
+        add_photos_in_edit: "إضافة صور"
+        thumbs_label: "صور المنتج"
+        photo_alt: "%{name} — الصورة %{index} من %{count}"
+        photo_position: "%{index} من %{count}"
+        show_photo: "عرض الصورة %{index} من %{count}"
+        enlarge: "عرض بحجم أكبر"
+        image_unavailable: "الصورة غير متاحة"
+        previous: "السابقة"
+        next: "التالية"
+        previous_photo: "الصورة السابقة"
+        next_photo: "الصورة التالية"
+        close: "إغلاق"
+        transfers:
+          title: "التحويلات بين الفروع"
+          hint: "تحويلات المخزون التي نقلت هذا المنتج بين المستودعات. يُرحَّل التحويل عند إنشائه، وإلغاؤه يعيد الكمية إلى مستودع المصدر."
+          empty: "لم يُحوَّل هذا المنتج بين المستودعات بعد."
+          total: "إجمالي التحويلات"
+          from: "من"
+          to: "إلى"
+          direction: "الاتجاه"
+          created_by: "أنشأه"
+          directions:
+            outgoing: "صادر"
+            incoming: "وارد"
+            internal: "بين مستودعاتك"
+          stock_effects:
+            posted: "نُقلت بين المستودعات"
+            reversed: "عُكست (ملغى)"
+          showing_latest: "عرض أحدث %{shown} من أصل %{total} تحويل."

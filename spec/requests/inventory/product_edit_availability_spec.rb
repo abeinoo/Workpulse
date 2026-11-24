@@ -426,8 +426,10 @@ RSpec.describe "Product Edit — availability per warehouse (included by default
     it "an availability manager who cannot edit products manages it on the standalone page" do
       user = user_with_stock_permissions(business, :view_inventory, :manage_product_availability, name: "Availability only")
       sign_in user
+      # The product page offers no Manage Availability action (owner decision,
+      # Nov 2026); the standalone page itself is unchanged.
       get inventory_product_path(product)
-      expect(doc.at_css("[data-testid='manage-availability']")["href"]).to eq(availability_inventory_product_path(product))
+      expect(doc.at_css("[data-testid='manage-availability']")).to be_nil
       get availability_inventory_product_path(product)
       expect(state(nasr)).to eq("included")
 
