@@ -45,8 +45,19 @@ module Inventory
       # Access configuration still blocks: removing a user's only assignment
       # would widen them to every warehouse (User#inventory_warehouse_ids).
       warehouse_assignments:      ->(id) { WarehouseAssignment.where(warehouse_id: id) },
-      warehouse_branch_supplies:  ->(id) { WarehouseBranchSupply.where(warehouse_id: id) }
+      warehouse_branch_supplies:  ->(id) { WarehouseBranchSupply.where(warehouse_id: id) },
+      # Retired packaging / unit-conversion history: the tables (and their
+      # foreign keys to warehouses) are kept as history with no model, so they
+      # are checked directly — a warehouse they reference is never deletable.
+      inventory_packaging_entries:     ->(id) { retained_history("inventory_packaging_entries", id) },
+      inventory_unit_conversion_lines: ->(id) { retained_history("inventory_unit_conversion_lines", id) }
     }.freeze
+
+    # Rows of a model-less history table that reference warehouse `id`.
+    def self.retained_history(table_name, id)
+      table = Arel::Table.new(table_name)
+      Warehouse.unscoped.from(table).where(table[:warehouse_id].eq(id))
+    end
 
     UPDATABLE = %i[name description status].freeze
     PROVISIONING_SOURCES = %w[branch_provisioning branch_backfill].freeze

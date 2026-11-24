@@ -76,6 +76,23 @@ module OrganizationAccess
       def revoke_branch_warehouse(user_id:, branch_id:, actor:)
         handler.revoke_branch_warehouse(user_id: user_id, branch_id: branch_id, actor: actor)
       end
+
+      # THE rule for who may change an employee's warehouse access — used by
+      # UserPolicy#manage_warehouse_access? (the screens) and by the handler
+      # (Inventory::UserWarehouseAssignments), so the two can never disagree:
+      # manage_warehouse_access, never one's own access, and — for an existing
+      # employee — one the actor manages (owner, or within the actor's
+      # manage_employees / view_employees scope) whose permissions the actor's
+      # own cover (PermissionGrants). A user not yet saved is the actor's new hire.
+      def manageable?(actor:, user:)
+        return false if actor.nil? || user.nil?
+        return false unless actor.can?(:manage_warehouse_access) && actor != user
+        return true if user.new_record?
+
+        in_scope = actor.owner? ||
+                   EmployeeScope.new(actor).for_permissions(:manage_employees, :view_employees).exists?(user.id)
+        in_scope && PermissionGrants.covers?(actor, user)
+      end
     end
   end
 end

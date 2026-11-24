@@ -56,12 +56,9 @@ class UserPolicy < ApplicationPolicy
   # actor's own authority covers (OrganizationAccess::PermissionGrants.covers?
   # — no granting into a higher-privileged account). The owner manages everyone
   # but themself.
-  def manage_warehouse_access?
-    return false unless can?(:manage_warehouse_access) && !own_record?
-    return true if record.new_record?
-
-    in_management_scope? && OrganizationAccess::PermissionGrants.covers?(user, record)
-  end
+  # The rule lives in Organization & Access (shared with the warehouse-access
+  # handler in Inventory & Purchasing).
+  def manage_warehouse_access? = OrganizationAccess::UserWarehouseAccess.manageable?(actor: user, user: record)
 
   def export?          = can?(:export_employees) && index?
   def export_identity? = export? && can?(:export_employee_identity)

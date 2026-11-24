@@ -35,8 +35,8 @@ RSpec.describe "Product measure", type: :request do
       expect(options.map(&:text)).to include("Millilitres (ml)", "Fluid ounces (fl oz)", "A whole product (piece)")
       expect(measure_select.at_css("option[selected]")["value"]).to eq("pieces")
       expect(options.map { |o| o["value"] }).not_to include("") # always a measure (no empty choice)
-      # In the Basic Info grid, beside name / SKU / brand.
-      expect(measure_select.ancestors(".form-grid").first.at_css("input[name='product[sku]']")).to be_present
+      # In the Basic Info grid (the product editor's .pe-grid), beside name / SKU / brand.
+      expect(measure_select.ancestors(".pe-grid").first.at_css("input[name='product[sku]']")).to be_present
     end
 
     it "creates and edits a product with each measure, showing the saved one on Edit" do

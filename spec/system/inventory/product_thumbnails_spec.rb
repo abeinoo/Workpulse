@@ -43,16 +43,18 @@ RSpec.describe "Product thumbnails", type: :system do
     image_box = "tr:has(a[href='/inventory/products/#{with_image.id}']) .pthumb"
     wait_until { box_metrics(image_box)["loaded"] } # the variant is processed on first request
     metrics = box_metrics(image_box)
-    expect(metrics).to include("w" => 36, "h" => 36, "empty" => false, "loaded" => true, "fit" => "contain")
+    # The Products index row thumbnail: a fixed 60px box on desktop
+    # (.products-table .product-cell .pthumb; 48px under the mobile breakpoint).
+    expect(metrics).to include("w" => 60, "h" => 60, "empty" => false, "loaded" => true, "fit" => "contain")
 
     placeholder = box_metrics("tr:has(a[href='/inventory/products/#{without_image.id}']) .pthumb")
-    expect(placeholder).to include("w" => 36, "h" => 36, "empty" => true, "loaded" => false)
+    expect(placeholder).to include("w" => 60, "h" => 60, "empty" => true, "loaded" => false)
 
     # RTL: the thumbnail sits to the right of (before) the name.
     rtl = page.evaluate_script(<<~JS)
       (function() {
-        const ident = document.querySelector("tr:has(a[href='/inventory/products/#{with_image.id}']) .pident");
-        return ident.querySelector(".pthumb").getBoundingClientRect().left > ident.querySelector(".pident__name").getBoundingClientRect().left;
+        const cell = document.querySelector("tr:has(a[href='/inventory/products/#{with_image.id}']) .product-cell");
+        return cell.querySelector(".pthumb").getBoundingClientRect().left > cell.querySelector(".product-cell__name").getBoundingClientRect().left;
       })()
     JS
     expect(rtl).to be(true)

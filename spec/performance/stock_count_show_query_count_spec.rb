@@ -89,9 +89,10 @@ RSpec.describe "Stock count show — query count and figures", type: :request do
     end
     expected = fresh.items.map do |item|
       diff = item.difference.to_d
-      pcs = " #{I18n.t('inventory.measures.pieces.short')}" # each quantity with the product's measure
-      [ "#{item.product.name} (#{item.product.sku})", item.product.barcode.presence || "—", "#{item.system_quantity.to_i}#{pcs}",
-        item.counted? ? "#{item.counted_quantity.to_i}#{pcs}" : "—", item.counted? ? "#{diff.positive? ? '+' : ''}#{diff.to_i}#{pcs}" : "—" ]
+      # Plain numbers of inventory units — quantities are never labelled with
+      # the product's measure (packaging removal decision, product_measure_spec).
+      [ "#{item.product.name} (#{item.product.sku})", item.product.barcode.presence || "—", item.system_quantity.to_i.to_s,
+        item.counted? ? item.counted_quantity.to_i.to_s : "—", item.counted? ? "#{diff.positive? ? '+' : ''}#{diff.to_i}" : "—" ]
     end
     expect(rows).to eq(expected)
     expect(expected.map(&:second)).to include("—") # covers products with no barcode

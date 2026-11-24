@@ -140,7 +140,7 @@ module ArchitectureTools
       [ %r{\Aapp/services/(branch_membership\.rb|dashboard/birthdays\.rb)\z}, WF ],
       [ %r{\Aapp/controllers/(shifts|shift_assignments|employee_requests|employee_data_requests|birthday_celebrations|holidays)_controller\.rb\z}, WF ],
       [ %r{\Aapp/controllers/performance/}, WF ],
-      [ %r{\Aapp/controllers/admin/(users|user_stock_issue_branches|employee_insurance_profiles|departments|job_titles|evaluation_templates|shifts|shift_templates|shift_rule_profiles)_controller\.rb\z}, WF ],
+      [ %r{\Aapp/controllers/admin/(users|employee_insurance_profiles|departments|job_titles|evaluation_templates|shifts|shift_templates|shift_rule_profiles)_controller\.rb\z}, WF ],
       [ %r{\Aapp/controllers/api/v1/(shifts|shift_assignments|employee_requests)_controller\.rb\z}, WF ],
       [ %r{\Aapp/views/(shifts|shift_assignments|employee_requests|employee_data_requests|performance|holidays)/}, WF ],
       [ %r{\Aapp/views/admin/(users|employee_insurance_profiles|departments|job_titles|evaluation_templates|shifts|shift_templates|shift_rule_profiles)/}, WF ],
@@ -151,7 +151,7 @@ module ArchitectureTools
       [ %r{\Aapp/services/(inventory|laundry)/}, IP ],
       [ %r{\Aapp/controllers/(inventory|laundry)/}, IP ],
       [ %r{\Aapp/views/(inventory|laundry)/}, IP ],
-      [ %r{\Aapp/helpers/(inventory|laundry|product_thumbnail|product_gallery)_helper\.rb\z}, IP ],
+      [ %r{\Aapp/helpers/(inventory|laundry|product_thumbnail|product_gallery|products_index)_helper\.rb\z}, IP ],
 
       # Finance & Sales (§8).
       [ %r{\Aapp/models/finance_sales/}, FS ],
@@ -171,7 +171,7 @@ module ArchitectureTools
     # Top-level models (app/models/*.rb) → owner, from module-boundaries.md §10
     # (constants, not files: a model file maps through its constant).
     MODEL_OWNERS = {
-      OA => %w[Business Branch User UserAuditLog PermissionRole StockIssueBranchAssignment],
+      OA => %w[Business Branch User UserAuditLog PermissionRole],
       WF => %w[EmployeeDataRequest EmployeeDataRequestEvent EmployeeDataRequestRevision EmployeeInsuranceProfile Department
                JobTitle Shift ShiftAssignment ShiftTemplate ShiftTemplateEntry ShiftRuleProfile EmployeeRequest
                EvaluationTemplate EvaluationCriterion PerformanceReview PerformanceReviewScore PerformanceObservation
@@ -516,7 +516,11 @@ module ArchitectureTools
     # model tables from MODEL_OWNERS (Rails' tableize), plus the documented
     # legacy and infrastructure tables (module-boundaries.md §11, §20.1).
     NON_MODEL_TABLES = {
-      "notifications" => INFRA, "product_variants" => IP, "schema_migrations" => INFRA, "ar_internal_metadata" => INFRA
+      "notifications" => INFRA, "product_variants" => IP, "schema_migrations" => INFRA, "ar_internal_metadata" => INFRA,
+      # Retired packaging / unit-conversion history (models removed; tables kept
+      # as history; still guarded by Inventory::WarehouseManager::REFERENCES).
+      "product_packaging_levels" => IP, "inventory_packaging_entries" => IP,
+      "inventory_unit_conversions" => IP, "inventory_unit_conversion_lines" => IP
     }.freeze
     INFRA_TABLE_PREFIXES = %w[solid_queue_ solid_cache_ solid_cable_ active_storage_ action_text_ action_mailbox_].freeze
 

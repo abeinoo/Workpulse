@@ -48,7 +48,7 @@ RSpec.describe "Product measure editing (Unit of Measure + Amount)", type: :requ
       product = create_product("CH-1", "pieces", "")
       expect([ product.unit_of_measure, product.measure_amount ]).to eq([ "pieces", nil ])
       get edit_inventory_product_path(product)
-      expect(amount_group["hidden"]).to be_present
+      expect(amount_group.has_attribute?("hidden")).to be(true) # a bare boolean attribute (empty value)
       expect(amount_input["disabled"]).to be_present
       expect(amount_blank["disabled"]).to be_nil
       get inventory_product_path(product)

@@ -4702,6 +4702,8 @@ ar:
         product_warehouse_settings: "حدود مخزون المنتجات"
         warehouse_assignments: "صلاحيات وصول المستخدمين للمستودع"
         warehouse_branch_supplies: "روابط توريد الفروع"
+        inventory_packaging_entries: "سجل التعبئة"
+        inventory_unit_conversion_lines: "سجل تحويل الوحدات"
         other_records: "سجلات أخرى"
     suppliers:
       title: "الموردون"

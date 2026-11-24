@@ -54,7 +54,7 @@ RSpec.describe "Goods Receipt — supplier receiving (browser)", type: :system d
       expect(page).to have_css("[data-testid='gr-selected-supplier-name']", text: "Acme")
       expect(line_products).to eq([ "Soap (SO-1)" ])
       within("[data-testid='gr-request-line']") do
-        expect(find("[data-testid='gr-line-remaining']").text).to eq("10 #{I18n.t('inventory.measures.pieces.short', locale: locale)}")
+        expect(find("[data-testid='gr-line-remaining']").text).to eq("10") # plain inventory units, no measure label
         find("input[name$='[quantity]']").fill_in(with: "4")
         find("input[name$='[unit_cost]']").fill_in(with: "5")
       end

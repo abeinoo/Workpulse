@@ -80,7 +80,7 @@ RSpec.describe "Product Family removed", type: :request do
       end
 
       get inventory_products_path
-      rows = doc.css("tbody tr").map { |tr| tr.at_css("td:nth-child(3)")&.text&.strip }
+      rows = doc.css("tbody tr [data-testid='product-sku'] bdi").map { |sku| sku.text.strip } # each row's SKU
       expect(rows).to include("FAM", "FAM-1L") # both listed as ordinary rows
     end
 

@@ -66,7 +66,8 @@ module ArchitectureSpecs
       "app/models/inventory_purchasing/product_category.rb" => "the model itself (folder collapsed: top-level constant, M7)",
       "app/models/product.rb"                               => "IP: brand / category references (same-business validated, SEC-P6-4/5)",
       "app/policies/brand_policy.rb"                        => "IP: brand authorization",
-      "app/policies/product_category_policy.rb"             => "IP: category authorization"
+      "app/policies/product_category_policy.rb"             => "IP: category authorization",
+      "app/helpers/products_index_helper.rb"                => "IP: the Products index brand / category filter chips (read only)"
     }.freeze
 
     # Classified exceptions outside the domain, each limited to its exact line.

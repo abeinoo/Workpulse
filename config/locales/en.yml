@@ -4648,6 +4648,8 @@ en:
         product_warehouse_settings: "product stock thresholds"
         warehouse_assignments: "user warehouse access"
         warehouse_branch_supplies: "branch supply links"
+        inventory_packaging_entries: "packaging history"
+        inventory_unit_conversion_lines: "unit conversion history"
         other_records: "other records"
     suppliers:
       title: "Suppliers"

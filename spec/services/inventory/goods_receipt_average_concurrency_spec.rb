@@ -87,17 +87,21 @@ RSpec.describe "Goods receipt average cost under concurrency (BUG-071, two conne
   def wait_for(queue) = Timeout.timeout(10) { queue.pop }
   def result_of(thread) = thread.join(10)&.value || raise("operation did not finish")
 
-  def wait_until_lock_waits(pattern)
+  # Waits until another backend is blocked (pg_blocking_pids) on a lock while
+  # running a statement matching one of `patterns`; returns that statement.
+  def wait_until_lock_waits(*patterns)
+    conn     = ActiveRecord::Base.connection
+    matching = patterns.map { |pattern| "query ILIKE #{conn.quote(pattern)}" }.join(" OR ")
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10
     loop do
-      query = ActiveRecord::Base.connection.select_value(<<~SQL)
+      query = conn.select_value(<<~SQL)
         SELECT query FROM pg_stat_activity
         WHERE datname = current_database() AND pid <> pg_backend_pid()
-          AND wait_event_type = 'Lock' AND query ILIKE #{ActiveRecord::Base.connection.quote(pattern)}
+          AND wait_event_type = 'Lock' AND cardinality(pg_blocking_pids(pid)) > 0 AND (#{matching})
         LIMIT 1
       SQL
       return query if query
-      raise "no backend waited on a lock for #{pattern} within 10 s" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+      raise "no backend waited on a lock for #{patterns.join(' / ')} within 10 s" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
 
       Thread.pass
     end
@@ -140,7 +144,11 @@ RSpec.describe "Goods receipt average cost under concurrency (BUG-071, two conne
     first = on_other_connection { Inventory::GoodsReceiptPoster.new(receipt_of(razor, 120, 1, "GRN-T1"), actor: owner).call }
     wait_for(reached)                                       # product locked, movement written, average not yet blended
     second = on_other_connection { Inventory::GoodsReceiptPoster.new(receipt_of(razor, 120, 2, "GRN-T2"), actor: owner).call }
-    expect(wait_until_lock_waits("%products%FOR UPDATE%")).to be_present
+    # The second receipt waits on the product row the first holds FOR UPDATE —
+    # at the first statement that touches it: its own goods_receipt_items
+    # INSERT (the FK check's FOR KEY SHARE conflicts with FOR UPDATE), or the
+    # explicit product lock. Without the BUG-071 lock nothing would block here.
+    expect(wait_until_lock_waits('%INSERT INTO "goods_receipt_items"%', "%products%FOR UPDATE%")).to be_present
 
     release << true
     expect([ result_of(first).ok?, result_of(second).ok? ]).to eq([ true, true ])

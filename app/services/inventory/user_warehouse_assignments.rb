@@ -13,7 +13,7 @@ module Inventory
   # Authorization (Warehouse Access hardening, Phase 2) is enforced HERE, not
   # only by the form, so no caller can bypass it:
   #   * the actor holds manage_warehouse_access, is not changing their own
-  #     access, and controls the user (UserPolicy#manage_warehouse_access? —
+  #     access, and controls the user (OrganizationAccess::UserWarehouseAccess.manageable? —
   #     management scope + PermissionGrants.covers?);
   #   * the actor may only add or remove warehouses they can reach themselves
   #     (User#inventory_warehouse_ids; nil = every warehouse of the business),
@@ -97,7 +97,7 @@ module Inventory
     def authorize!(actor, user)
       raise Refused, :own_access if actor.id == user.id && user.persisted?
       raise Refused, :not_permitted unless actor.can?(:manage_warehouse_access)
-      raise Refused, :not_in_scope unless UserPolicy.new(actor, user).manage_warehouse_access?
+      raise Refused, :not_in_scope unless OrganizationAccess::UserWarehouseAccess.manageable?(actor: actor, user: user)
     end
 
     # Another business's warehouse keeps its historical error (RecordInvalid
