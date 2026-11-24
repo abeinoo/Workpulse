@@ -1,7 +1,7 @@
 <%# Warehouse Availability card (product page). Each row is one reachable
     warehouse where the product has an availability row or stock; its
     thresholds are that warehouse's OWN settings — a Not Configured warehouse
-    shows none (never the product-level legacy values).
+    shows none (products have no stock settings of their own).
     Read-only: availability is managed in the product Edit page's section
     (manage_path; nil when the user manages it in none of their warehouses).
     locals: product, pairs (Inventory::AvailabilityFigures::Pair), manage_path %>

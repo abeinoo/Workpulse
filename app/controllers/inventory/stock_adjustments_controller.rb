@@ -7,7 +7,7 @@ class Inventory::StockAdjustmentsController < Inventory::BaseController
   def show
     @stock_adjustment = find_adjustment
     authorize @stock_adjustment
-    @items = @stock_adjustment.items.includes(product: { image_attachment: :blob })
+    @items = @stock_adjustment.items.includes(product: Product::IMAGE_PRELOAD)
 
     # For stock-count adjustments, surface the originating count so the page can
     # link back and show the System/Counted/Difference behind each line.
@@ -30,7 +30,7 @@ class Inventory::StockAdjustmentsController < Inventory::BaseController
     authorize @stock_adjustment
     ensure_warehouses_accessible!(@stock_adjustment.warehouse_id)
 
-    result = Inventory::AdjustmentPoster.new(@stock_adjustment).call
+    result = Inventory::AdjustmentPoster.new(@stock_adjustment, actor: current_user).call
     if result.ok?
       redirect_to inventory_stock_adjustment_path(@stock_adjustment), notice: t("inventory.stock_adjustments.created")
     else

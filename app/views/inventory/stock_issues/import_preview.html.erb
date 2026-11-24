@@ -34,7 +34,6 @@
         <div class="detail-list__row"><dt><%= t("inventory.imports.file") %></dt><dd><bdi><%= @file_name %></bdi></dd></div>
       <% end %>
       <div class="detail-list__row"><dt><%= t("inventory.imports.warehouse") %></dt><dd><%= @warehouse.name %></dd></div>
-      <div class="detail-list__row"><dt><%= t("inventory.stock_issues.branch") %></dt><dd><%= @branch.name %></dd></div>
       <% if params[:notes].present? %>
         <div class="detail-list__row" id="preview-issue-notes">
           <dt><%= t("inventory.imports.stock_issues.issue_notes_label") %></dt>
@@ -53,7 +52,6 @@
     <%= hidden_field_tag :csv_payload, @mapper.payload %>
     <%= hidden_field_tag :file_name, @file_name %>
     <%= hidden_field_tag :warehouse_id, @warehouse.id %>
-    <%= hidden_field_tag :branch_id, @branch.id %>
     <%= hidden_field_tag :notes, params[:notes] %>
 
     <%# ── Step 2: Match Columns ─────────────────────────────────────────── %>

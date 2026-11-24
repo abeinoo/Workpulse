@@ -23,16 +23,18 @@
   <td class="gr-num gr-num--strong" data-testid="gr-line-remaining"><%= qty.(pri.remaining_quantity) %></td>
   <td>
     <%= f.hidden_field :purchase_request_item_id %>
-    <%= f.number_field :quantity, step: "0.001", min: 0, max: pri.remaining_quantity,
-          class: "form-control gr-qty-input #{'is-error' if f.object.errors[:quantity].any?}", placeholder: "0",
-          inputmode: "decimal", data: { quantity_field: true },
-          "aria-label": t("inventory.goods_receipts.form.receive_now_for", product: f.object.product&.name) %>
+    <div class="qty-with-unit">
+      <%= f.number_field :quantity, step: "0.001", min: 0, max: pri.remaining_quantity,
+            class: "form-control gr-qty-input #{'is-error' if f.object.errors[:quantity].any?}", placeholder: "0",
+            inputmode: "decimal", data: { quantity_field: true },
+            "aria-label": t("inventory.goods_receipts.form.receive_now_for", product: f.object.product&.name) %>
+    </div>
     <% if f.object.errors[:quantity].any? %>
       <p class="form-hint text-danger" style="margin: 0;"><%= f.object.errors[:quantity].first %></p>
     <% end %>
   </td>
   <td>
-    <%= f.number_field :unit_cost, step: "0.0001", min: 0, class: "form-control", placeholder: "0.00",
+    <%= f.number_field :unit_cost, step: "any", min: 0, class: "form-control", placeholder: "0.00",
           inputmode: "decimal", data: { cost_field: true } %>
   </td>
   <td class="line-items-table__total" data-line-total aria-live="off">—</td>

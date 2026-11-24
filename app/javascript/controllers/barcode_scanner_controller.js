@@ -55,10 +55,14 @@ export default class extends Controller {
 
     const product = await this.#lookupProduct(code)
     if (!product || product.error) {
-      product?.error === "parent_product" ? this.#parentProduct(code, product.name) : this.#notFound(code)
-    } else {
-      this.#addCountRow(product)
+      this.#notFound(code)
+      return
     }
+    // The server resolves every barcode of a product: a code this sheet's row
+    // doesn't carry may still be a product already on it — focus that row.
+    const onSheet = this.#rowsContainer().querySelector(`[data-line-row][data-product-id="${CSS.escape(String(product.id))}"]`)
+    if (onSheet) { this.#focusRow(onSheet); this.#reset(); return }
+    this.#addCountRow(product)
   }
 
   // Match across all rows (even those hidden by an active filter) so a scan never
@@ -124,7 +128,6 @@ export default class extends Controller {
   async #lookupRemote(code) {
     const result = await this.#lookupProduct(code)
     if (!result) return null
-    if (result.error === "parent_product") { this.#parentProduct(code, result.name); return null }
     return result.id ? result : null
   }
 
@@ -188,15 +191,6 @@ export default class extends Controller {
     if (this.hasFeedbackTarget) {
       const tpl = this.feedbackTarget.dataset.notFound || 'No product found for "%{code}"'
       this.feedbackTarget.textContent = tpl.replace("%{code}", code)
-      this.feedbackTarget.hidden = false
-    }
-    this.inputTarget.select()
-  }
-
-  #parentProduct(code, name) {
-    if (this.hasFeedbackTarget) {
-      const tpl = this.feedbackTarget.dataset.parentProduct || '"%{name}" is a product family — scan a child product instead.'
-      this.feedbackTarget.textContent = tpl.replace("%{name}", name || code)
       this.feedbackTarget.hidden = false
     }
     this.inputTarget.select()

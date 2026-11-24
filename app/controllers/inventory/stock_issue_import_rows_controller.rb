@@ -2,7 +2,7 @@ class Inventory::StockIssueImportRowsController < Inventory::BaseController
   def resolve
     @batch = find_batch
     result = Inventory::Imports::StockIssueImportRowResolver.new(
-      current_user.business, params[:id],
+      current_user.business, params[:id], user: current_user,
       product_id: row_params[:product_id].presence,
       sku:        row_params[:sku].presence,
       quantity:   row_params[:quantity].presence
@@ -14,13 +14,15 @@ class Inventory::StockIssueImportRowsController < Inventory::BaseController
   def skip
     @batch = find_batch
     result = Inventory::Imports::StockIssueImportRowResolver.new(
-      current_user.business, params[:id], skip: true
+      current_user.business, params[:id], user: current_user, skip: true
     ).call
     @row = result.row
     render_row_update
   end
 
   private
+
+  def admitted_without_inventory_view? = current_user.can?(:view_stock_issues)
 
   def render_row_update
     @batch.reload

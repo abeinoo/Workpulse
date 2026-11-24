@@ -1,15 +1,25 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Shows/hides the notification fields when "Track Inventory" is toggled.
-// Prevents sending notification settings for untracked products.
+// Product Edit: while "Track stock quantity" is unticked, the whole
+// "Product availability in warehouses" section (#availability, outside the
+// product form) is hidden — every warehouse card, on-hand / reserved figure,
+// threshold and reorder quantity. Purely visual: nothing is submitted or
+// changed; ticking the box again shows the same cards. Whether tracking may
+// be turned off is decided by the server when the product is saved.
 export default class extends Controller {
-  static targets = ["notificationFields"]
+  static values = { section: String }
+
+  connect() {
+    const checkbox = this.element.querySelector("input[type='checkbox'][name='product[track_inventory]']")
+    if (checkbox) this.apply(checkbox.checked)
+  }
 
   toggle(event) {
-    const show = event.target.checked
-    this.notificationFieldsTargets.forEach(el => {
-      el.hidden = !show
-      el.querySelectorAll("input").forEach(input => { input.disabled = !show })
-    })
+    this.apply(event.target.checked)
+  }
+
+  apply(tracked) {
+    const section = this.sectionValue && document.getElementById(this.sectionValue)
+    if (section) section.hidden = !tracked
   }
 }

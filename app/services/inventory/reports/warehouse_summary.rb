@@ -24,8 +24,8 @@ module Inventory
           on_hand  = InventoryMovement.where(business_id: @business.id, warehouse_id: ids)
                                       .group(:warehouse_id, :product_id)
                                       .sum(Arel.sql(StockLevels::SIGNED))
-          costs    = @business.products.active.inventory_tracked.non_parent.pluck(:id, :average_cost_price).to_h
-          low      = @low_stock_alerts.reject(&:total?).group_by(&:warehouse_id).transform_values(&:size)
+          costs    = @business.products.active.inventory_tracked.pluck(:id, :average_cost_price).to_h
+          low      = @low_stock_alerts.group_by(&:warehouse_id).transform_values(&:size)
           moves    = @movement_summary.counts_by_warehouse
 
           @warehouses.map do |warehouse|

@@ -1,14 +1,29 @@
 <% content_for :title, t("inventory.products.edit_title") %>
 
-<div class="form-page <%= 'product-edit' if @availability %>">
-  <%= link_to inventory_product_path(@product), class: "back-link" do %>
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-    <%= t("forms.back") %>
-  <% end %>
-  <h1 class="page-title mb-6"><%= t("inventory.products.edit_title") %></h1>
+<%# ONE form, ONE Save (Inventory::ProductEditor, one transaction): the
+    product details, the warehouse availability cards and, beside them, the
+    image gallery. Sections laid out outside the <form> element join it
+    through the HTML form attribute. Layout: header; main column (details,
+    inventory, notes) | side column (gallery, summary); the action bar with
+    the one Save stays at the bottom of the screen. %>
+<div class="form-page product-editor-page <%= 'product-edit' if @availability %>"
+     data-controller="unsaved-changes" data-unsaved-changes-form-value="product-form">
+  <%= render "editor_header", product: @product, back_path: inventory_product_path(@product) %>
 
-  <%# The warehouse cards sit inside the page flow, right after Inventory
-      tracking — outside the product form (their own forms, never nested). %>
-  <%= render "form", product: @product,
-        availability_section: (render("availability_section", product: @product, availability: @availability, return_to: "product_edit") if @availability) %>
+  <div class="product-editor">
+    <aside class="product-editor__aside">
+      <%= render "gallery", product: @product %>
+      <%= render "editor_summary", product: @product %>
+    </aside>
+    <div class="product-editor__main">
+      <%= render "form", product: @product,
+            availability_section: (render("availability_section", product: @product, availability: @availability,
+                                          return_to: "product_edit", **@availability_view) if @availability) %>
+    </div>
+  </div>
+
+  <% if @availability %>
+    <%= render "editor_actions", label: t("inventory.products.save_all"), cancel_path: inventory_product_path(@product),
+          hint: t("inventory.products.save_all_hint"), outside_form: true %>
+  <% end %>
 </div>

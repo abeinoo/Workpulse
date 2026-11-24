@@ -418,6 +418,20 @@ module ApplicationHelper
     I18n.locale.to_s == "ar" ? "#{num} #{info[:symbol]}" : "#{info[:symbol_en]} #{num}"
   end
 
+  # A UNIT cost / price (Decisions 11 and 18): the currency symbol of
+  # #format_currency with up to 8 decimals, trailing zeros removed, never
+  # scientific notation — "SAR 25", "SAR 25.5", "SAR 0.07042254". Money
+  # totals keep #format_currency (2 dp).
+  def format_unit_cost_currency(amount)
+    return "—" if amount.nil?
+    business = current_user&.business
+    code     = business&.currency.presence || "SAR"
+    info     = Business::CURRENCIES[code] || Business::CURRENCIES["SAR"]
+    whole, fraction = CostFormat.unit(amount).split(".")
+    num = [ number_with_delimiter(whole, delimiter: ","), fraction ].compact.join(".")
+    I18n.locale.to_s == "ar" ? "#{num} #{info[:symbol]}" : "#{info[:symbol_en]} #{num}"
+  end
+
   # Same figures as format_currency, split so a caller can stack them (small
   # currency code above/below a large bold amount) instead of one inline string.
   # Returns [currency_symbol, formatted_amount].

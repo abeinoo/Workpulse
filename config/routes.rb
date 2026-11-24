@@ -358,7 +358,7 @@ Rails.application.routes.draw do
         end
       end
     end
-    # Read-only review of availability rows, legacy settings and stock before
+    # Read-only review of availability rows, per-warehouse settings and stock before
     # any future reconciliation (applies nothing).
     resource :availability_reconciliation, only: :show
     resources :suppliers
@@ -372,11 +372,8 @@ Rails.application.routes.draw do
         get  :next_barcode_code
       end
       member do
-        post  :generate_barcode
-        get   :children
         patch :archive
         patch :restore
-        patch :archive_family
         # Product availability per warehouse, managed from the product: the
         # section of the Edit page, also standalone for users who manage
         # availability but not product details. One branch card per request
@@ -388,6 +385,13 @@ Rails.application.routes.draw do
         post  :availability_inclusion, to: "warehouse_product_availabilities#include_from_product"
       end
     end
+    # Quick Issue (Inventory::StockIssueQuickIssue) — a single-product popup
+    # in the global modal from every entry point: ?product_id= opens it for
+    # that product; without one, a product-selection step opens it.
+    resource :quick_issue, only: %i[new create]
+    # Stock Issue workflow settings (owner-only; the audited
+    # OrganizationAccess::StockIssueWorkflowSettings).
+    resource :stock_issue_workflow_settings, only: %i[show update]
     resources :barcode_labels, only: [ :index, :show ]
     resources :purchase_requests, only: [ :index, :show, :new, :create, :edit, :update, :destroy ] do
       collection do
@@ -478,6 +482,9 @@ Rails.application.routes.draw do
 
     # Shared barcode → product lookup for scanner-enabled document forms.
     get "barcode_lookup", to: "barcode_lookups#show", as: :barcode_lookup
+    # Product image gallery: stage one photo (unattached blob, signed id) while
+    # the product is edited; the gallery itself is applied when it is saved.
+    post "product_image_uploads", to: "product_image_uploads#create", as: :product_image_uploads
     # Searchable product pickers (product-combobox): name / SKU / barcode.
     get "product_search", to: "product_searches#index", as: :product_search
 

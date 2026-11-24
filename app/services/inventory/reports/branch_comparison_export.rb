@@ -30,6 +30,7 @@ module Inventory
           csv << []
           csv << headers(BRANCH_COLUMNS)
           @report.branch_rows.each { |row| csv << branch_values(row) }
+          csv << unallocated_values(@report.unallocated_row) if @report.unallocated_row
           csv << []
           csv << headers(WAREHOUSE_COLUMNS)
           @report.warehouse_rows.each { |row| csv << warehouse_values(row) }
@@ -42,6 +43,7 @@ module Inventory
         package.workbook.add_worksheet(name: t("branches_sheet")) do |sheet|
           sheet.add_row headers(BRANCH_COLUMNS), style: bold
           @report.branch_rows.each { |row| sheet.add_row branch_values(row) }
+          sheet.add_row unallocated_values(@report.unallocated_row) if @report.unallocated_row
         end
         package.workbook.add_worksheet(name: t("warehouses_sheet")) do |sheet|
           sheet.add_row headers(WAREHOUSE_COLUMNS), style: bold
@@ -64,6 +66,14 @@ module Inventory
           row.shared? ? t("yes") : t("no"), num(row.warehouse_stock),
           num(row.issued), num(row.reversed), num(row.net_consumption), num(row.consumption_value),
           num(row.share), num(row.avg_daily_consumption), num(row.coverage_days), row.last_consumed_on&.iso8601 ]
+      end
+
+      # Central-warehouse consumption (no branch) — the same columns, no
+      # warehouse / stock / coverage.
+      def unallocated_values(row)
+        [ I18n.t("inventory.reports.unallocated"), nil, nil, nil, nil,
+          num(row.issued), num(row.reversed), num(row.net_consumption), num(row.consumption_value),
+          num(row.share), num(row.avg_daily_consumption), nil, row.last_consumed_on&.iso8601 ]
       end
 
       def warehouse_values(row)

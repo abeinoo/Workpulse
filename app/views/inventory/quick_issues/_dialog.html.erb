@@ -1,0 +1,154 @@
+<%# The single-product Quick Issue popup, top to bottom:
+      1. the product it was opened for — fixed: shown, submitted as a hidden
+         field and re-validated by the service; it cannot be changed here;
+      2. "Issue from": the warehouse — the only one the user may use (shown, not
+         selectable) or a selector of exactly the warehouses they may use
+         (Inventory::IssueWarehouseReach) — with the quantity available there,
+         shown before any quantity is entered and switched with the warehouse
+         from the figures the controller computed (quick_issue_form_controller.js);
+      3. quantity and reason, side by side (stacked on small screens);
+      4. Notes — the only free text: optional, required (and explained) for "Other";
+      5. Cancel / Confirm Issue.
+    Submits to Inventory::StockIssueQuickIssue, which re-checks everything
+    (warehouse access, availability again under lock, Notes for "Other") and
+    posts the issue in one transaction or nothing. %>
+<% scope     = "inventory.quick_issue" %>
+<% product   = @product %>
+<% selected  = @warehouses.find { |w| w.id.to_s == @form[:warehouse_id].to_s } %>
+<% available = @availability[selected.id] if selected %>
+<% unit      = t("#{scope}.units") %>
+<% blocked   = available.nil? || !available.positive? %>
+<% other     = @form[:issue_reason] == "other" %>
+<div class="qi" data-testid="quick-issue-dialog" data-modal-placement="center" role="dialog" aria-modal="<%= in_modal %>" aria-labelledby="quick-issue-title">
+  <%= render "header", in_modal: in_modal %>
+
+  <% if @error.present? %>
+    <div class="flash flash--alert" role="alert" data-testid="quick-issue-error"><%= @error %></div>
+  <% end %>
+
+  <%# 1. Product %>
+  <div class="qi__product" data-testid="quick-issue-product">
+    <%= product_thumbnail(product, size: :md) %>
+    <div class="qi__product-text">
+      <span class="qi__product-name"><%= product.name %></span>
+      <span class="qi__product-meta">
+        <% if product.sku.present? %><span dir="ltr"><%= product.sku %></span><% end %>
+        <% if (measurement = product_measurement(product)) %>
+          <span><%= t("#{scope}.per_unit", measurement: measurement) %></span>
+        <% end %>
+      </span>
+    </div>
+  </div>
+  <% if @field_errors[:product].present? %>
+    <p class="qi__field-error" role="alert" data-testid="quick-issue-product-error"><%= @field_errors[:product] %></p>
+  <% end %>
+
+  <%= form_with url: inventory_quick_issue_path, scope: :quick_issue, method: :post, class: "qi__form",
+        data: { controller: "quick-issue-form", testid: "quick-issue-form",
+                quick_issue_form_units_value: unit,
+                quick_issue_form_available_in_value: t("#{scope}.available_in", warehouse: "%{warehouse}") } do |f| %>
+    <%= f.hidden_field :product_id, value: product.id, id: nil, data: { testid: "quick-issue-product-id" } %>
+    <%= hidden_field_tag :return_to, @return_to, id: nil %>
+
+    <%# 2. Issue from: warehouse + available quantity %>
+    <section class="qi__section" data-testid="quick-issue-warehouse" aria-labelledby="quick-issue-source-title">
+      <h3 class="qi__section-title" id="quick-issue-source-title"><%= t("#{scope}.section_source") %></h3>
+
+      <% if @warehouses.size == 1 %>
+        <div class="qi__fixed">
+          <span class="qi__fixed-label"><%= t("#{scope}.warehouse") %></span>
+          <span class="qi__fixed-value" data-testid="quick-issue-warehouse-name"><%= @warehouses.first.name %></span>
+        </div>
+        <%= f.hidden_field :warehouse_id, value: @warehouses.first.id, id: nil %>
+      <% elsif @warehouses.any? %>
+        <div class="form-group">
+          <%= f.label :warehouse_id, t("#{scope}.warehouse"), class: "form-label form-label--required" %>
+          <%= f.select :warehouse_id,
+                options_for_select(
+                  @warehouses.map do |warehouse|
+                    [ warehouse.name, warehouse.id,
+                      { "data-available" => @availability.fetch(warehouse.id).to_s("F"),
+                        "data-available-label" => stock_quantity(@availability.fetch(warehouse.id)) } ]
+                  end, @form[:warehouse_id]
+                ),
+                { include_blank: t("#{scope}.select_warehouse") },
+                class: "form-control #{'is-invalid' if @field_errors[:warehouse].present?}", required: true,
+                aria: { describedby: "quick-issue-warehouse-hint" },
+                data: { quick_issue_form_target: "warehouse", action: "quick-issue-form#warehouseChanged" } %>
+          <p class="form-hint" id="quick-issue-warehouse-hint"><%= t("#{scope}.warehouse_hint") %></p>
+        </div>
+      <% else %>
+        <div class="flash flash--alert" role="alert" data-testid="quick-issue-no-warehouse"><%= @warehouse_message %></div>
+      <% end %>
+      <% if @field_errors[:warehouse].present? %>
+        <p class="qi__field-error" role="alert" data-testid="quick-issue-warehouse-error"><%= @field_errors[:warehouse] %></p>
+      <% end %>
+
+      <div class="qi__availability <%= 'qi__availability--empty' if selected && blocked %>"
+           data-quick-issue-form-target="availability" data-testid="quick-issue-availability" aria-live="polite"
+           <%= "hidden" unless selected %>>
+        <span class="qi__availability-label"><%= t("#{scope}.available") %></span>
+        <span class="qi__availability-value" dir="ltr" data-quick-issue-form-target="availableText" data-testid="quick-issue-available">
+          <%= "#{stock_quantity(available)} #{unit}" if selected %>
+        </span>
+        <span class="qi__availability-source" data-quick-issue-form-target="sourceText" data-testid="quick-issue-source">
+          <%= t("#{scope}.available_in", warehouse: selected.name) if selected %>
+        </span>
+      </div>
+    </section>
+
+    <%# 3. Quantity + reason %>
+    <div class="qi__row">
+      <div class="form-group">
+        <%= f.label :quantity, t("#{scope}.quantity"), class: "form-label form-label--required" %>
+        <div class="input-with-suffix">
+          <%= f.number_field :quantity, value: @form[:quantity], step: "0.001", min: "0.001",
+                max: (available.to_s("F") unless blocked),
+                class: "form-control #{'is-invalid' if @field_errors[:quantity].present?}", required: true,
+                inputmode: "decimal", dir: "ltr", placeholder: "0", autofocus: true,
+                aria: { invalid: @field_errors[:quantity].present? },
+                data: { quick_issue_form_target: "quantity", testid: "quick-issue-quantity" } %>
+          <span class="input-suffix"><%= unit %></span>
+        </div>
+        <% if @field_errors[:quantity].present? %>
+          <p class="qi__field-error" role="alert" data-testid="quick-issue-quantity-error"><%= @field_errors[:quantity] %></p>
+        <% end %>
+      </div>
+
+      <div class="form-group">
+        <%= f.label :issue_reason, t("#{scope}.reason"), class: "form-label form-label--required" %>
+        <%= f.select :issue_reason,
+              StockIssue::QUICK_ISSUE_REASONS.map { |key| [ t("inventory.stock_issues.reasons.#{key}"), key ] },
+              { include_blank: t("#{scope}.select_reason"), selected: @form[:issue_reason] },
+              class: "form-control", required: true,
+              data: { quick_issue_form_target: "reason", action: "quick-issue-form#reasonChanged" } %>
+      </div>
+    </div>
+
+    <%# 4. Notes — the only free-text field; required (and explained) for "Other" %>
+    <div class="form-group">
+      <%= f.label :notes, t("#{scope}.notes"), class: "form-label #{'form-label--required' if other}",
+            data: { quick_issue_form_target: "noteLabel" } %>
+      <%= f.text_area :notes, value: @form[:notes], rows: 2, class: "form-control #{'is-invalid' if @field_errors[:notes].present?}",
+            dir: "auto", placeholder: t("#{scope}.notes_placeholder"), required: other,
+            aria: { describedby: "quick-issue-notes-hint", invalid: @field_errors[:notes].present? },
+            data: { quick_issue_form_target: "note", testid: "quick-issue-notes" } %>
+      <p class="form-hint <%= 'form-hint--info' if other %>" id="quick-issue-notes-hint"
+         data-quick-issue-form-target="noteHint" data-testid="quick-issue-notes-hint"
+         data-optional-text="<%= t("#{scope}.notes_hint") %>" data-other-text="<%= t("#{scope}.notes_other_hint") %>">
+        <%= other ? t("#{scope}.notes_other_hint") : t("#{scope}.notes_hint") %>
+      </p>
+      <% if @field_errors[:notes].present? %>
+        <p class="qi__field-error" role="alert" data-testid="quick-issue-notes-error"><%= @field_errors[:notes] %></p>
+      <% end %>
+    </div>
+
+    <%# 5. Actions %>
+    <div class="qi__actions">
+      <%= render "cancel", in_modal: in_modal %>
+      <%= f.button t("#{scope}.confirm"), type: "submit", class: "btn btn-primary qi__confirm", disabled: @warehouses.empty? || blocked,
+            data: { turbo_submits_with: t("#{scope}.submitting"), quick_issue_form_target: "submit",
+                    testid: "quick-issue-submit" } %>
+    </div>
+  <% end %>
+</div>

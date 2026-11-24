@@ -17,7 +17,7 @@ class Inventory::StockCountsController < Inventory::BaseController
     # primary/first rule as Product#barcode).
     ActiveRecord::Associations::Preloader.new(
       records: [ @stock_count ],
-      associations: [ { items: { product: { image_attachment: :blob } } }, { stock_adjustments: [ :created_by, :voided_by ] }, :cancelled_by ]
+      associations: [ { items: { product: Product::IMAGE_PRELOAD } }, { stock_adjustments: [ :created_by, :voided_by ] }, :cancelled_by ]
     ).call
     @items             = @stock_count.items
     @product_barcodes  = Product.barcode_lookup(@items.map(&:product_id))
@@ -187,8 +187,9 @@ class Inventory::StockCountsController < Inventory::BaseController
 
   def load_counting_screen
     @products = current_user.business.products.transactable.ordered
+    # Every barcode of every row (scan-to-count matches any of them), in bulk.
     ActiveRecord::Associations::Preloader.new(records: [ @stock_count ],
-                                              associations: { items: { product: { image_attachment: :blob } } }).call
+                                              associations: { items: { product: [ :product_barcodes, Product::IMAGE_PRELOAD ] } }).call
     @live_on_hand = Inventory::StockAvailability
                       .on_hand_by(warehouse_ids: @stock_count.warehouse_id, product_ids: @stock_count.items.map(&:product_id))
                       .transform_keys(&:last)

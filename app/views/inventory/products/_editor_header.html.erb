@@ -1,0 +1,48 @@
+<%#
+  Product New / Edit page header: breadcrumb, back navigation, the product's
+  name (as saved — a refused Save keeps the typed name in the form only), its
+  SKU and status. The page's one Save is in the action bar at the bottom.
+
+  locals: product, back_path
+%>
+<% lk = "inventory.products.layout" %>
+<% editing = product.persisted? %>
+<% saved_name = editing ? (product.attribute_in_database(:name).presence || product.name) : nil %>
+<% saved_sku  = editing ? product.attribute_in_database(:sku) : nil %>
+<header class="pe-header">
+  <nav class="pe-crumbs" aria-label="<%= t("workspace.breadcrumb") %>">
+    <ol>
+      <li><%= link_to t("#{lk}.products"), inventory_products_path %></li>
+      <% if editing %>
+        <li><%= link_to inventory_product_path(product) do %><bdi><%= saved_name %></bdi><% end %></li>
+        <li aria-current="page"><%= t("#{lk}.edit") %></li>
+      <% else %>
+        <li aria-current="page"><%= t("inventory.products.new_title") %></li>
+      <% end %>
+    </ol>
+  </nav>
+
+  <div class="pe-header__row">
+    <% back_label = t(editing ? "#{lk}.back_to_product" : "#{lk}.back_to_products") %>
+    <%= link_to back_path, class: "pe-header__back", title: back_label, aria: { label: back_label } do %>
+      <svg class="pe-header__back-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <% end %>
+    <div class="pe-header__text">
+      <% if editing %>
+        <p class="pe-header__eyebrow"><%= t("inventory.products.edit_title") %></p>
+        <h1 class="page-title pe-header__title"><bdi><%= saved_name %></bdi></h1>
+        <div class="pe-header__meta">
+          <span class="pe-header__sku"><%= t("inventory.products.sku") %>: <bdi><%= saved_sku %></bdi></span>
+          <% if product.attribute_in_database(:active) %>
+            <span class="badge badge-success"><%= t("inventory.products.status_active") %></span>
+          <% else %>
+            <span class="badge badge-neutral"><%= t("inventory.products.status_archived") %></span>
+          <% end %>
+        </div>
+      <% else %>
+        <h1 class="page-title pe-header__title"><%= t("inventory.products.new_title") %></h1>
+        <p class="pe-header__meta td-secondary"><%= t("#{lk}.required_hint") %></p>
+      <% end %>
+    </div>
+  </div>
+</header>

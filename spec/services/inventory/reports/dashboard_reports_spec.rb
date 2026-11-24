@@ -10,8 +10,7 @@ RSpec.describe "Inventory::Reports dashboard services", type: :model do
   let(:branch)   { business.branches.create!(name: "Nasr City", active: true) }
   let(:supplier) { business.suppliers.create!(name: "Acme") }
   let(:product) do
-    business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10,
-                              reorder_level: 5, reorder_quantity: 12)
+    business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10)
   end
   let(:idle) do
     business.products.create!(name: "Idle Wax", sku: "IW-1", initial_cost_price: 4, average_cost_price: 4)
@@ -98,7 +97,8 @@ RSpec.describe "Inventory::Reports dashboard services", type: :model do
   end
 
   describe Inventory::Reports::LowStock do
-    it "lists products at or below the reorder level with the configured reorder quantity as the suggestion" do
+    it "lists products at or below the warehouse's threshold with its own reorder quantity as the suggestion" do
+      product.product_warehouse_settings.create!(warehouse: main, low_stock_level: 5, reorder_quantity: 12)
       receive(qty: 4)
       row = described_class.new(business).rows.find { |r| r.product == product }
       expect(row.on_hand).to eq(4)

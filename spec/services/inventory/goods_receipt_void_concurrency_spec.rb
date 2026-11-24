@@ -171,7 +171,9 @@ RSpec.describe "GoodsReceipt void concurrency (two connections, BUG-016)" do
     expect([ second.ok?, second.error ]).to eq([ false, r.errors.generate_message(:base, :already_voided) ])
     expect(reversal_movements(r).count).to eq(1)
     expect(product.reload.current_stock).to eq(0)
-    expect(product.average_cost_price).to eq(0)
+    # W2: the void unblends at its own posting time; with no stock left the
+    # average stays as it was (it is re-set by the next receipt).
+    expect(product.average_cost_price).to eq(50)
     expect(settlements_of(r).order(:id).map(&:amount)).to eq([ 500, -500 ])
     expect(CustodyAccount.find(custody.id).current_balance).to eq(1000)
     expect(void_audits(r).pluck(:actor_id)).to eq([ actor.id ])

@@ -65,27 +65,37 @@ RSpec.describe Inventory::WarehouseAccess do
     expect(ids_for(manager)).to eq([ shubra_wh.id ])
   end
 
-  it "keeps the branch warehouse when the sales branch is inactive (historical access, D3)" do
+  # Decision 5 (Warehouse Access, Phase 2) supersedes D3 "historical access":
+  # only the CURRENT, active, sales branch gives its manager its warehouse.
+  it "ends the manager's automatic access when the sales branch is deactivated" do
     manager = inventory_user
     shubra.update_columns(branch_manager_id: manager.id, active: false)
+
+    expect(ids_for(manager)).to eq([])
+  end
+
+  it "keeps an explicit assignment to the warehouse of a deactivated branch (only the automatic rule ends)" do
+    manager = inventory_user
+    shubra.update_columns(branch_manager_id: manager.id, active: false)
+    assign(manager, shubra_wh)
 
     expect(ids_for(manager)).to eq([ shubra_wh.id ])
   end
 
-  describe "historical branch warehouse access (D3)" do
-    it "keeps the linked warehouse after the branch changes from sales to headquarters" do
+  describe "branch reclassified from sales (decision 5)" do
+    it "ends the automatic access when the branch changes from sales to headquarters" do
       manager = inventory_user
       shubra.update_columns(branch_manager_id: manager.id, branch_type: "headquarters")
 
-      expect(ids_for(manager)).to eq([ shubra_wh.id ])
+      expect(ids_for(manager)).to eq([])
     end
 
     %w[maintenance laundry warehouse other].each do |type|
-      it "keeps the linked warehouse after the branch changes from sales to #{type}" do
+      it "ends the automatic access when the branch changes from sales to #{type}" do
         manager = inventory_user
         shubra.update_columns(branch_manager_id: manager.id, branch_type: type)
 
-        expect(ids_for(manager)).to eq([ shubra_wh.id ])
+        expect(ids_for(manager)).to eq([])
       end
     end
 

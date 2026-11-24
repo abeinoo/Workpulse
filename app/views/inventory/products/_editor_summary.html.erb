@@ -1,0 +1,38 @@
+<%#
+  Product Edit page, side column: read-only context about the saved product
+  (status, size, stock on hand, last update). Nothing here is editable; the
+  size is the informational Unit of Measure + Amount, never a stock unit.
+
+  locals: product
+%>
+<% lk = "inventory.products.layout" %>
+<section class="pe-card pe-summary" aria-labelledby="pe-summary-title" data-testid="product-edit-summary">
+  <h2 class="section-title" id="pe-summary-title"><%= t("#{lk}.summary_title") %></h2>
+  <dl class="pe-summary__list">
+    <div class="pe-summary__row">
+      <dt><%= t("#{lk}.status") %></dt>
+      <dd>
+        <% if product.attribute_in_database(:active) %>
+          <span class="badge badge-success"><%= t("inventory.products.status_active") %></span>
+        <% else %>
+          <span class="badge badge-neutral"><%= t("inventory.products.status_archived") %></span>
+        <% end %>
+      </dd>
+    </div>
+    <div class="pe-summary__row">
+      <dt><%= t("#{lk}.size") %></dt>
+      <dd><bdi><%= product_measurement(product) || measure_name(product.unit_of_measure) %></bdi></dd>
+    </div>
+    <div class="pe-summary__row">
+      <dt><%= t("#{lk}.on_hand") %></dt>
+      <dd class="pe-summary__num">
+        <%= product.attribute_in_database(:track_inventory) ? inventory_quantity(product.current_stock) : t("#{lk}.not_tracked") %>
+      </dd>
+    </div>
+    <div class="pe-summary__row">
+      <dt><%= t("#{lk}.last_updated") %></dt>
+      <dd><%= l(product.updated_at, format: :short) %></dd>
+    </div>
+  </dl>
+  <%= link_to t("#{lk}.view_product"), inventory_product_path(product), class: "btn btn-ghost btn-sm pe-summary__link" %>
+</section>

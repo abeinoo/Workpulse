@@ -221,9 +221,24 @@ module Finance
           Group.new(label: branch.name, branch_id: branch.id, subtotal: rows.sum { |r| r[:total] }, rows: rows)
         end
 
+        total = section_total(merged_totals(:inventory_costs))
+        # Central-warehouse consumption (no branch): its own Unallocated group,
+        # only in the business-wide report — the same line Branch Profitability
+        # carries, so the two still reconcile.
+        if unallocated_inventory_shown?
+          rows = collapse_inventory_rows(rows_by_branch[nil])
+          if rows.any?
+            groups << unallocated_group(rows.sum { |r| r[:total] }, rows)
+            total += sources_by_month.sum(&:unallocated_inventory_cost)
+          end
+        end
+
         Section.new(key: :inventory, title: I18n.t("finance.reports.expense_details.sections.inventory"),
-                    total: section_total(merged_totals(:inventory_costs)), applies_type_filter: false, groups: groups)
+                    total: total, applies_type_filter: false, groups: groups)
       end
+
+      # Unallocated (central-warehouse) consumption: only without a branch filter.
+      def unallocated_inventory_shown? = @branch_id.nil?
 
       # Multi-month range: the same product can appear once per month
       # (concatenated by merged_records). Collapse those into one row per

@@ -17,29 +17,44 @@ module Inventory
   # A product whose availability in the DESTINATION warehouse is Inactive is
   # refused (Inventory::IncomingAvailabilityGuard) — no exception. The source
   # side is never checked: taking stock out of an Inactive pair is allowed.
+  #
+  # Quantity and value are equal on both sides. Reserved stock in the source
+  # is protected (on-hand − transfer >= reserved). Posting is audited (BUG-074).
   class StockTransferPoster
+    include AuditLoggable
+
     Result = Struct.new(:ok, :transfer, keyword_init: true) do
       def ok? = ok
     end
 
-    def initialize(transfer)
+    # actor: the person posting; defaults to the transfer's created_by. With
+    # neither (a system path) the caller is responsible for authorization.
+    def initialize(transfer, actor: nil)
       @transfer = transfer
+      @actor    = actor || transfer.created_by
     end
 
     def call
-      value_items
       return Result.new(ok: false, transfer: @transfer) unless valid_warehouses?
+      # Service-level reach (Phase 2): a transfer touches BOTH warehouses.
+      if @actor && !WarehouseReach.permits?(@actor, @transfer.source_warehouse_id, @transfer.destination_warehouse_id)
+        @transfer.errors.add(:base, WarehouseReach.message)
+        return Result.new(ok: false, transfer: @transfer)
+      end
 
       ActiveRecord::Base.transaction do
         lock_products!
+        value_items
         raise ActiveRecord::Rollback unless destination_accepts_incoming?
         raise ActiveRecord::Rollback unless availability_ok?
+        raise ActiveRecord::Rollback unless reservations_protected?
 
         @transfer.transfer_number = NumberSequencer.new(@transfer.business, :stock_transfer).next_number if @transfer.transfer_number.blank?
 
         raise ActiveRecord::Rollback unless @transfer.save
 
         @transfer.items.each { |item| post_item(item) }
+        audit_posting
         return Result.new(ok: true, transfer: @transfer)
       end
 
@@ -48,11 +63,36 @@ module Inventory
 
     private
 
+    # Valued with the average read under the product locks (BUG-071).
     def value_items
+      averages = StockAvailability.locked_averages(@transfer.items.map(&:product_id))
       @transfer.items.each do |item|
         next if item.product.nil?
-        item.unit_cost = item.product.average_cost_price
+        item.unit_cost = averages.fetch(item.product_id, item.product.average_cost_price)
       end
+    end
+
+    def reservations_protected?
+      removals = @transfer.items.reject(&:marked_for_destruction?).select(&:product_id)
+                          .group_by(&:product_id).transform_values { |items| items.sum { |i| i.quantity.to_d } }
+      StockAvailability.protect_reservations!(@transfer, warehouse: @transfer.source_warehouse, removals: removals)
+    end
+
+    def audit_posting
+      return if @transfer.created_by.nil?
+
+      log_audit(
+        actor: @transfer.created_by, auditable: @transfer, action: "post",
+        metadata: {
+          transfer_number:          @transfer.transfer_number,
+          source_warehouse_id:      @transfer.source_warehouse_id,
+          destination_warehouse_id: @transfer.destination_warehouse_id,
+          lines: @transfer.items.map do |i|
+            { product_id: i.product_id, quantity: Inventory::QuantityFormat.plain(i.quantity),
+              unit_cost: i.unit_cost.to_d.to_s("F") }
+          end
+        }
+      )
     end
 
     # Row locks (FOR UPDATE, id order to avoid deadlocks) serialize posts that

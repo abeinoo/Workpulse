@@ -22,6 +22,13 @@ module Inventory
     def call
       branch    = Branch.where(business_id: @actor.business_id).find(@branch_id)
       warehouse = Warehouse.where(business_id: @actor.business_id).find(@warehouse_id)
+      # Service-level authorization (Phase 2): the controller's exact rule —
+      # manage_inventory and reach to the new AND the current supplying
+      # warehouse — so a direct call is no bypass.
+      current = WarehouseBranchSupply.find_by(branch_id: branch.id)&.warehouse
+      unless WarehouseBranchSupplyPolicy.new(@actor, WarehouseBranchSupply).assign?(warehouse, current)
+        return Result.new(ok: false, error: WarehouseReach.message)
+      end
       supply    = nil
 
       WarehouseBranchSupply.transaction do

@@ -37,7 +37,7 @@ module Inventory
       @error = nil
       ActiveRecord::Base.transaction do
         lock_count!
-        @error = precondition_error
+        @error = count_reachable? ? precondition_error : WarehouseReach.message
         raise ActiveRecord::Rollback if @error
 
         owner_exception = own_count?
@@ -95,7 +95,7 @@ module Inventory
         adjustment.items.build(product: item.product, quantity_difference: item.difference)
       end
 
-      result = AdjustmentPoster.new(adjustment).call
+      result = AdjustmentPoster.new(adjustment, actor: @actor).call
       return adjustment if result.ok?
 
       @error = adjustment.errors.full_messages.to_sentence.presence || t_error("approve_failed")

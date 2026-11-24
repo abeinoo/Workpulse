@@ -10,11 +10,11 @@ RSpec.describe Inventory::ProductAvailabilityManager do
   let!(:nasr_wh) { business.warehouses.create!(name: "Nasr City WH", kind: "central") }
   let!(:foreign_wh) { other.warehouses.create!(name: "Foreign") }
 
-  # Legacy product-level values (historical central settings) must never be
-  # read or copied by this service.
+  # Stale values in the retired product-level columns (as existing databases
+  # still hold) must never be read or copied by this service.
   def product(name, sku, tracked: true, **attrs)
-    business.products.create!({ name: name, sku: sku, initial_cost_price: 5, average_cost_price: 5, track_inventory: tracked,
-                                low_stock_level: 10, reorder_level: 10, reorder_quantity: 20 }.merge(attrs))
+    business.products.create!({ name: name, sku: sku, initial_cost_price: 5, average_cost_price: 5, track_inventory: tracked }.merge(attrs))
+            .tap { |p| write_retired_product_stock_columns!(p, low_stock_level: 10, reorder_quantity: 20, reorder_level: 10) }
   end
   let!(:shampoo) { product("Shampoo", "SH-1") }
   let!(:mask)    { product("Mask", "MK-1") }
@@ -52,11 +52,11 @@ RSpec.describe Inventory::ProductAvailabilityManager do
         .to include("status" => [ nil, "active" ], "low_stock_level" => [ nil, "5.0" ])
     end
 
-    it "never copies the product's legacy (central) values into a branch warehouse" do
+    it "never copies stale product-level values into a warehouse, and never touches them" do
       service.add_many(warehouse_id: nasr_wh.id, items: [ { product_id: shampoo.id } ])
       row = ProductWarehouseSetting.find_by!(product: shampoo, warehouse: nasr_wh)
       expect([ row.low_stock_level, row.reorder_quantity ]).to eq([ 0, 0 ])
-      expect(shampoo.reload.attributes.slice("low_stock_level", "reorder_level", "reorder_quantity"))
+      expect(retired_product_stock_columns(shampoo).slice("low_stock_level", "reorder_level", "reorder_quantity"))
         .to eq("low_stock_level" => 10, "reorder_level" => 10, "reorder_quantity" => 20)
     end
 
@@ -101,12 +101,10 @@ RSpec.describe Inventory::ProductAvailabilityManager do
       expect(service.add_many(warehouse_id: nasr_wh.id, items: [ item(shampoo, low: "abc") ]).error).to eq(:invalid_quantity)
     end
 
-    it "refuses another business's, archived or parent products" do
+    it "refuses another business's or archived products" do
       foreign = other.products.create!(name: "F", sku: "F-1", initial_cost_price: 1, average_cost_price: 1)
       archived = product("Old", "OLD-1").tap { |p| p.update!(active: false) }
-      parent = product("Family", "FAM-1")
-      product("Child", "FAM-1-A", parent_product: parent)
-      [ foreign, archived, parent ].each do |refused|
+      [ foreign, archived ].each do |refused|
         expect(service.add_many(warehouse_id: nasr_wh.id, items: [ item(refused) ]).error).to eq(:invalid_product)
       end
       expect(ProductWarehouseSetting.count).to eq(0)

@@ -19,7 +19,11 @@ RSpec.describe "Product Edit — availability per warehouse (included by default
   let!(:nasr)    { sales_warehouse("Nasr City") }
   let!(:shubra)  { sales_warehouse("Shubra") }
   let!(:central) { business.warehouses.create!(name: "Central WH", kind: "central") }
-  let!(:product) { business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10, low_stock_level: 77) }
+  # Stale values in the retired product-level columns: never shown or used.
+  let!(:product) do
+    business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10)
+            .tap { |p| write_retired_product_stock_columns!(p, low_stock_level: 77, reorder_quantity: 88) }
+  end
   let(:manager)  { Inventory::ProductAvailabilityManager.new(actor: owner) }
 
   # Edits products and manages availability.
@@ -150,7 +154,7 @@ RSpec.describe "Product Edit — availability per warehouse (included by default
         expect(state(w)).to eq("included")
         expect(card(w).at_css("[data-testid='exclude-#{w.id}']")).to be_present
         expect(card(w).at_css("#pws-#{w.id}-low")["value"]).to eq("0") # defaults, never a legacy value
-        expect(card(w).at_css("[data-testid='save-#{w.id}']")).to be_present
+        expect(card(w).at_css("[data-testid='save-#{w.id}']")).to be_nil # saved by the page's one Save
       end
       expect(card(central).text).to include("Central")
       expect(card(central).text).not_to include("77")
@@ -232,7 +236,8 @@ RSpec.describe "Product Edit — availability per warehouse (included by default
       row = ProductWarehouseSetting.sole
       expect(row).to have_attributes(low_stock_level: 6, reorder_quantity: 2)
       expect(AuditLog.where(auditable: row, action: "availability_update").count).to eq(1)
-      expect(product.reload.attributes.slice("name", "low_stock_level")).to eq("name" => "Shampoo", "low_stock_level" => 77)
+      expect(product.reload.name).to eq("Shampoo")
+      expect(retired_product_stock_columns(product)["low_stock_level"]).to eq(77)
     end
 
     it "saving unchanged values writes nothing" do
@@ -338,7 +343,7 @@ RSpec.describe "Product Edit — availability per warehouse (included by default
       allow_any_instance_of(Inventory::ProductAvailabilityManager).to receive(:log_audit!).and_raise(AuditLoggable::AuditWriteFailed, "down")
       exclude(nasr, reason: "Moved to Shubra")
       expect(doc.at_css("[data-testid='exclusion-error-#{nasr.id}']").text).to eq("Nasr City: #{I18n.t('product_availability.errors.audit_failed')}")
-      expect(card(nasr).at_css("textarea[name='reason']").text).to eq("Moved to Shubra")
+      expect(card(nasr).at_css("#exclusion-reason-#{nasr.id}").text).to eq("Moved to Shubra")
       expect(ProductWarehouseSetting.count).to eq(0)
     end
 

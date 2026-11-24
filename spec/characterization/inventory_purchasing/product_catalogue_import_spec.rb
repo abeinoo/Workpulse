@@ -110,8 +110,9 @@ RSpec.describe "Characterization: product import catalogue resolution", type: :r
     it "one file with 'Acme' then 'acme' (no existing brand): the second row raises, nothing is kept" do
       expect { import(csv([ "Widget", "W-1", "Acme", "" ], [ "Gadget", "W-2", "acme", "" ])) }
         .to raise_error(ActiveRecord::RecordInvalid)
-      expect(business.products).to be_empty
-      expect(business.brands).to be_empty
+      # The database: nothing kept (the import's in-memory records are rolled back, not cached).
+      expect(Product.where(business_id: business.id)).to be_empty
+      expect(Brand.where(business_id: business.id)).to be_empty
     end
 
     it "the same for categories: existing 'Cleaning', row 'CLEANING'" do

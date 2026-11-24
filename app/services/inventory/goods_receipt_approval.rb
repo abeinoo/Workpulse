@@ -52,6 +52,8 @@ module Inventory
 
     # draft/rejected → pending_approval
     def submit!
+      return reach_error unless reachable?
+
       transition(from: %w[draft rejected], to: "pending_approval", action: "submit_for_approval") do
         receipt.rejection_reason = nil
       end
@@ -61,6 +63,7 @@ module Inventory
     # + custody transaction inside the transition's transaction — the status
     # change, settlement and ledger row commit together or not at all.
     def approve!
+      return reach_error unless reachable?
       return self_approval_error if self_approval?
 
       # Row lock (reloads the receipt): a concurrent second approval waits,
@@ -108,6 +111,7 @@ module Inventory
 
     # pending_approval → rejected
     def reject!(reason:)
+      return reach_error unless reachable?
       return self_approval_error if self_approval?
 
       reason = reason.to_s.strip
@@ -124,6 +128,14 @@ module Inventory
     end
 
     private
+
+    # Service-level reach (Phase 2): the receipt's warehouse must be one the
+    # actor can reach — the same rule as the controller and policy scope.
+    def reachable? = WarehouseReach.permits?(@actor, receipt.warehouse_id)
+
+    def reach_error
+      Result.new(ok: false, receipt: receipt, error: WarehouseReach.message)
+    end
 
     def receipt
       @receipt ||= GoodsReceipt.where(business_id: @actor.business_id).find(@goods_receipt_id)

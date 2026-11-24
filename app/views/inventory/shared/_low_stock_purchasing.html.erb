@@ -108,7 +108,7 @@
                 <td class="td-check">
                   <input type="checkbox"
                          class="low-stock-check-row"
-                         value="<%= alert.product.id %>-<%= alert.warehouse_id || "all" %>"
+                         value="<%= alert.product.id %>-<%= alert.warehouse_id %>"
                          data-amount="<%= row.suggested_value %>"
                          data-action="change->low-stock-selection#rowChanged"
                          data-product-id="<%= alert.product.id %>"
@@ -121,13 +121,13 @@
                          data-supplier-id="<%= supplier&.id %>"
                          data-supplier-name="<%= supplier&.name %>"
                          data-warehouse-id="<%= alert.warehouse_id %>"
-                         data-warehouse-name="<%= alert.warehouse_name unless alert.total? %>"
+                         data-warehouse-name="<%= alert.warehouse_name %>"
                          aria-label="<%= alert.product.name %>">
                 </td>
                 <td><%= product_identity(alert.product, link: inventory_product_path(alert.product)) %></td>
                 <td class="td-secondary"><%= alert.product.sku %></td>
                 <td class="td-secondary">
-                  <%= alert.total? ? t("inventory.dashboard.all_warehouses") : alert.warehouse_name %>
+                  <%= alert.warehouse_name %>
                 </td>
                 <td style="text-align: end;"><span class="badge badge-warning"><%= alert.on_hand.to_i %></span></td>
                 <% if show_min_level %>

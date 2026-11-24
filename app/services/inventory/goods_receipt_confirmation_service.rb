@@ -19,6 +19,9 @@ module Inventory
 
     def call
       @receipt = GoodsReceipt.where(business_id: @actor.business_id).find(@goods_receipt_id)
+      unless WarehouseReach.permits?(@actor, @receipt.warehouse_id) # service-level reach (Phase 2)
+        return Result.new(ok: false, receipt: @receipt, error: WarehouseReach.message)
+      end
 
       @receipt.with_lock do
         return already_processed_error if @receipt.voided?
@@ -45,10 +48,12 @@ module Inventory
       Result.new(ok: true, receipt: @receipt)
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, receipt: @receipt, error: e.record.errors.full_messages.to_sentence)
-    rescue AuditLoggable::AuditWriteFailed
-      # Only an N6 exception (receipt into an Inactive pair) writes a
-      # fail-closed entry here; the whole confirmation rolled back with it.
-      Result.new(ok: false, receipt: @receipt, error: I18n.t("inventory.goods_receipts.errors.confirmation_audit_failed"))
+    rescue AuditLoggable::AuditWriteFailed => e
+      # Fail-closed entries here: an N6 exception (receipt into an Inactive
+      # pair) or an average-cost change (Inventory::AverageCost); the whole
+      # confirmation rolled back with it.
+      key = e.message.include?(Inventory::AverageCost::AUDIT_ACTION) ? "activerecord.errors.messages.average_cost_audit_failed" : "inventory.goods_receipts.errors.confirmation_audit_failed"
+      Result.new(ok: false, receipt: @receipt, error: I18n.t(key))
     rescue ActiveRecord::Deadlocked, ActiveRecord::LockWaitTimeout
       # PostgreSQL aborted this confirmation to break a lock cycle with another
       # one. Its whole transaction rolled back: the receipt is still a draft, no

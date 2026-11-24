@@ -1,6 +1,9 @@
-<div data-line-row class="barcode-list__row">
+<%# A saved barcode is removed with its _destroy field (applied on Save); a row
+    already marked (a refused save re-rendering the form) stays marked and hidden. %>
+<% marked = f.object.marked_for_destruction? %>
+<div data-line-row class="barcode-list__row" <%= "hidden" if marked %>>
   <%= f.hidden_field :id if f.object.persisted? %>
-  <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } if f.object.persisted? %>
+  <%= f.hidden_field :_destroy, value: marked ? "1" : "0", data: { destroy_field: true } if f.object.persisted? %>
 
   <div class="barcode-list__input-wrap"
        data-controller="camera-scanner"

@@ -24,6 +24,12 @@ module Inventory
 
     def call
       new_record = @receipt.new_record?
+      # Service-level reach (Phase 2): never a draft in a warehouse the actor
+      # cannot reach, whoever calls this.
+      unless WarehouseReach.permits?(@actor, @receipt.warehouse_id)
+        @receipt.errors.add(:base, WarehouseReach.message)
+        return Result.new(ok: false, receipt: @receipt)
+      end
       assign_funding_source
 
       if @receipt.save

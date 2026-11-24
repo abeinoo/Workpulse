@@ -1,4 +1,5 @@
 class GoodsReceipt < ApplicationRecord
+  include RequiresActiveWarehouse
   include ImmutableDocument
   include Voidable
   include Attachable
@@ -68,6 +69,10 @@ class GoodsReceipt < ApplicationRecord
   validate  :supplier_recorded_for_unassigned_request_lines, if: :unassigned_request_lines_receipt_changed?
   validate  :supplier_in_same_business
   validate  :warehouse_in_same_business, if: :will_save_change_to_warehouse_id?
+  # Inactive warehouse: no new receipt, no move into one, no submission,
+  # approval or confirmation (RequiresActiveWarehouse).
+  requires_active_warehouse :warehouse,
+                            transitions: { status: %w[confirmed], approval_status: %w[pending_approval approved] }
 
   scope :for_business,  ->(business)     { where(business: business) }
   scope :recent,        -> { order(received_on: :desc, id: :desc) }

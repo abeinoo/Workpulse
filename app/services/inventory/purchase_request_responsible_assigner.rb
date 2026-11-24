@@ -47,7 +47,7 @@ module Inventory
     private
 
     def request
-      @request ||= PurchaseRequest.where(business_id: @actor.business_id).find(@purchase_request_id)
+      @request ||= PurchaseRequestPolicy::Scope.new(@actor, PurchaseRequest).resolve.find(@purchase_request_id) # warehouse reach, as PurchaseRequestApproval (Phase 2)
     end
 
     def eligible?

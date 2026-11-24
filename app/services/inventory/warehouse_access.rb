@@ -12,13 +12,16 @@ module Inventory
   #       (branches.branch_manager_id)   branch (kind "branch", same business)
   #   nothing applicable              -> [] — fail-closed, never "every warehouse"
   #
-  # Historical access (D3): the linked branch warehouse stays reachable when
-  # the branch is deactivated or changes from sales to another type — a
-  # branch warehouse is only ever provisioned for a sales branch and is never
-  # detached, so the link itself is what counts. A branch with no linked
-  # warehouse (a non-sales branch that never was sales) gives nothing, and an
-  # area-manager link grants nothing (D2). This resolves warehouse REACH only —
-  # the inventory permissions still decide which pages and actions a user has.
+  # Current responsibility only (Warehouse Access decision 5, superseding the
+  # earlier D3 "historical access"): the managed branch warehouse is reachable
+  # only while that branch is ACTIVE and still a SALES branch. Deactivating
+  # the branch or reclassifying it as non-sales ends the manager's automatic
+  # access at once (their explicit assignment to it is revoked by
+  # OrganizationAccess::BranchManagerLifecycle); historical documents stay
+  # readable to anyone who still reaches the warehouse otherwise. A branch
+  # with no linked warehouse gives nothing, and an area-manager link grants
+  # nothing (D2). This resolves warehouse REACH only — the inventory
+  # permissions still decide which pages and actions a user has.
   #
   # LIVE PER BUSINESS: User#inventory_warehouse_ids consults this (through the
   # provider contract) only for a business switched to fail-closed by
@@ -51,8 +54,8 @@ module Inventory
 
       own = Warehouse.where(business_id: business_id)
       assigned = own.where(id: WarehouseAssignment.where(user_id: @user.id).select(:warehouse_id))
-      managed  = own.where(kind: "branch",
-                           branch_id: Branch.where(business_id: business_id, branch_manager_id: @user.id).select(:id))
+      current  = Branch.where(business_id: business_id, branch_manager_id: @user.id, active: true, branch_type: "sales")
+      managed  = own.where(kind: "branch", branch_id: current.select(:id))
       assigned.or(managed).order(:id).pluck(:id)
     end
   end

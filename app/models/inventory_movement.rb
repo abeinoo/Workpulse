@@ -49,6 +49,12 @@ class InventoryMovement < ApplicationRecord
   # documents validate their own references first; this refuses the write if
   # any path ever skips them.
   validate  :references_in_same_business, on: :create
+  # Last line for inactive warehouses (Warehouse Access hardening, scenario
+  # J): no new stock may move in or out of an inactive warehouse by any path
+  # (documents, imports, counts, laundry). Only compensating "reversal" rows
+  # of a void are accepted, so historical documents stay correctable. The
+  # documents refuse earlier with their own message (RequiresActiveWarehouse).
+  validate  :warehouse_active_for_new_stock, on: :create
 
   scope :for_business, ->(business) { where(business: business) }
   scope :chronological, -> { order(:occurred_on, :id) }
@@ -64,6 +70,12 @@ class InventoryMovement < ApplicationRecord
   end
 
   private
+
+  def warehouse_active_for_new_stock
+    return if reversal? || warehouse.nil? || warehouse.active?
+
+    errors.add(:base, :warehouse_inactive, warehouse: warehouse.name)
+  end
 
   def references_in_same_business
     return if business_id.nil?

@@ -1,0 +1,33 @@
+<%# Quick Issue — product-selection step, for entry points without a product
+    (the standalone Quick Issue action). Choosing ONE product opens the
+    single-product popup for it (GET new?product_id=, in the same frame);
+    there is no multi-product screen. %>
+<% scope = "inventory.quick_issue" %>
+<div class="qi" data-testid="quick-issue-product-step" data-modal-placement="center" role="dialog" aria-modal="<%= in_modal %>" aria-labelledby="quick-issue-title">
+  <%= render "header", in_modal: in_modal %>
+
+  <% if @error.present? %>
+    <div class="flash flash--alert" role="alert" data-testid="quick-issue-error"><%= @error %></div>
+  <% end %>
+
+  <%= form_with url: new_inventory_quick_issue_path, method: :get, class: "qi__form",
+        data: { testid: "quick-issue-product-form" } do %>
+    <%= hidden_field_tag :return_to, @return_to, id: nil %>
+    <%= hidden_field_tag :step, 1, id: nil %>
+    <div class="form-group">
+      <label class="form-label" for="quick-issue-product"><%= t("#{scope}.product") %></label>
+      <%= product_combobox(nil, :product_id, name: "product_id", id: "quick-issue-product",
+            placeholder: t("#{scope}.product_placeholder"), clearable: false) %>
+      <% if @product_error.present? %>
+        <p class="qi__field-error" role="alert" data-testid="quick-issue-product-error"><%= @product_error %></p>
+      <% else %>
+        <p class="form-hint"><%= t("#{scope}.product_step_hint") %></p>
+      <% end %>
+    </div>
+
+    <div class="qi__actions">
+      <%= render "cancel", in_modal: in_modal %>
+      <button type="submit" class="btn btn-primary" data-testid="quick-issue-continue"><%= t("#{scope}.continue") %></button>
+    </div>
+  <% end %>
+</div>

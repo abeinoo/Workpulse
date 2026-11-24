@@ -29,7 +29,9 @@ RSpec.describe Workforce::AttendanceRequirementRollout do
   end
 
   it "is never written by application code" do
-    writers = Dir[Rails.root.join("app/**/*.rb")].select { |path| File.read(path).include?("SETTING =>") }
+    # The rollout's own SETTING key (bare or qualified) — not other *_SETTING
+    # constants, such as the Stock Issue workflow settings Business writes.
+    writers = Dir[Rails.root.join("app/**/*.rb")].select { |path| File.read(path).match?(/(?<![A-Z_])SETTING\s*=>/) }
     expect(writers).to be_empty
   end
 end

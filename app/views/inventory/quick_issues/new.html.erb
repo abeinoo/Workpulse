@@ -1,0 +1,24 @@
+<%# Quick Issue — ONE product per transaction (Inventory::QuickIssuesController).
+    Inside the global modal (<turbo-frame id="modal">) it is the popup; opened
+    directly (new tab, bookmarked URL) the same content renders as a compact
+    page. With a product: the single-product popup; without one: the compact
+    product-selection step that opens it. %>
+<% content_for :title, t("inventory.quick_issue.title") %>
+<% in_modal = turbo_frame_request? %>
+<% body = capture do %>
+  <% if @product %>
+    <%= render "dialog", in_modal: in_modal %>
+  <% elsif @product_locked %>
+    <%= render "unavailable", in_modal: in_modal %>
+  <% else %>
+    <%= render "product_step", in_modal: in_modal %>
+  <% end %>
+<% end %>
+
+<% if in_modal %>
+  <turbo-frame id="modal"><%= body %></turbo-frame>
+<% else %>
+  <div class="form-page" data-testid="quick-issue-page">
+    <div class="form-card"><%= body %></div>
+  </div>
+<% end %>

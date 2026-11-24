@@ -5,7 +5,7 @@ RSpec.describe "Availability reconciliation report", type: :request do
   let(:business) { create(:business) }
   let!(:owner)   { create(:user, :owner, business: business) }
   let!(:central) { business.warehouses.create!(name: "Main Warehouse", kind: "central") }
-  let!(:product) { business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 1, average_cost_price: 1, low_stock_level: 4) }
+  let!(:product) { business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 1, average_cost_price: 1) }
 
   it "renders every section for a manager, read-only, and changes nothing" do
     InventoryMovement.create!(business: business, product: product, warehouse: central, direction: :in, quantity: 3,
@@ -18,25 +18,23 @@ RSpec.describe "Availability reconciliation report", type: :request do
     expect(response).to have_http_status(:ok)
     body = response.body
     expect(body).to include(ERB::Util.html_escape(I18n.t("product_availability.reconciliation.read_only")))
-    expect(body).to include(%(data-testid="central-target"), %(data-testid="legacy-#{product.id}"))
+    expect(body).to include(%(data-testid="central-target"))
     # The central warehouse includes the product by default: its stock is not "without a row".
     expect(body).not_to include(%(data-testid="stock_without_row-#{product.id}-#{central.id}"))
-    expect(Nokogiri::HTML(body).at_css("[data-testid='legacy-transfer-#{product.id}']").text)
-      .to include(I18n.t("product_availability.reconciliation.legacy.transfers.to_create"))
     expect(Nokogiri::HTML(body).at_css("[data-testid='central-candidate-#{central.id}']")).to be_present
     expect([ ProductWarehouseSetting.count, InventoryMovement.count, AuditLog.count ]).to eq(before)
   end
 
-  it "counts every product whose legacy total alert level is set (kept, never mapped)" do
-    business.products.create!(name: "Mask", sku: "MK-1", initial_cost_price: 1, average_cost_price: 1, reorder_level: 6)
-    business.products.create!(name: "Comb", sku: "CB-1", initial_cost_price: 1, average_cost_price: 1, reorder_level: 2, active: false)
+  it "has no product-level (legacy) section and ignores stale product-level values" do
+    write_retired_product_stock_columns!(product, low_stock_level: 7, reorder_quantity: 30, reorder_level: 4)
     sign_in owner
     get inventory_availability_reconciliation_path
-    expect(Nokogiri::HTML(response.body).at_css("[data-testid='legacy-total-alert-count']").text)
-      .to include(I18n.t("product_availability.reconciliation.legacy.total_alert_in_use", count: 2))
+    expect(response).to have_http_status(:ok)
+    expect(response.body).not_to include("legacy-#{product.id}", "legacy-total-alert-count", "transfer-summary")
+    expect(response.body).not_to match(/legacy|Legacy|transfer to central/i)
   end
 
-  it "names every central warehouse and does not guess the historical one when there are several" do
+  it "names every central warehouse and does not guess when there are several" do
     old_central = business.warehouses.create!(name: "Old Central", kind: "central")
     sign_in owner
     get inventory_availability_reconciliation_path

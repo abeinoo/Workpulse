@@ -161,22 +161,24 @@ RSpec.describe "Inventory::StockIssues#index", type: :request do
       Nokogiri::HTML(response.body).css(".page-header a").to_h { |a| [ a.text.squish, a["href"] ] }
     end
 
-    it "shows New Issue and Import Stock Issue (EN), the import pointing at the import page" do
+    it "shows New Issue, Import Stock Issue and the single-product Stock Issue popup (EN)" do
       sign_in owner
       get inventory_stock_issues_path
 
       expect(header_links).to eq("Import Stock Issue" => import_inventory_stock_issues_path,
-                                 "New Issue"          => new_inventory_stock_issue_path)
+                                 "New Issue"          => new_inventory_stock_issue_path,
+                                 "Stock Issue"        => new_inventory_quick_issue_path) # opens in the modal
       expect(response.body).not_to include("Import CSV")
     end
 
-    it "shows إذن صرف جديد and استيراد إذن صرف (AR)" do
+    it "shows إذن صرف جديد, استيراد إذن صرف and صرف مخزني (AR)" do
       owner.update!(preferred_locale: "ar")
       sign_in owner
       get inventory_stock_issues_path
 
       expect(header_links).to eq("استيراد إذن صرف" => import_inventory_stock_issues_path,
-                                 "إذن صرف جديد"    => new_inventory_stock_issue_path)
+                                 "إذن صرف جديد"    => new_inventory_stock_issue_path,
+                                 "صرف مخزني"       => new_inventory_quick_issue_path)
       expect(response.body).not_to include("استيراد CSV")
     end
 

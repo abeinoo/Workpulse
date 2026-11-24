@@ -7,7 +7,7 @@ RSpec.describe "Inventory warehouse → branch supply links", type: :request do
   let!(:north)   { business.warehouses.create!(name: "North Warehouse") }
   let!(:shubra)  { business.branches.create!(name: "Shubra Branch", active: true) }
   let!(:nasr)    { business.branches.create!(name: "Nasr Branch", active: true) }
-  let(:product)  { business.products.create!(name: "Dye", sku: "D-1", initial_cost_price: 5, average_cost_price: 5, reorder_level: 100, reorder_quantity: 10) }
+  let(:product)  { business.products.create!(name: "Dye", sku: "D-1", initial_cost_price: 5, average_cost_price: 5) }
 
   def user_with(permissions, warehouses: [])
     role = business.permission_roles.create!(name: "R#{permissions.join}#{warehouses.size}", permissions: permissions)

@@ -37,6 +37,9 @@ module OrganizationAccess
         next outcome = Result.new(ok: false, record: branch, error: :not_authorized) unless BranchPolicy.new(@actor, branch).update?
 
         was_sales = branch.branch_type_sales?
+        # Captured under the lock, before the form is applied, for the
+        # branch-manager lifecycle (audit + warehouse access revocation).
+        previous  = { branch_manager_id: branch.branch_manager_id, active: branch.active, branch_type: branch.branch_type }
         next outcome = Result.new(ok: false, record: branch, error: :invalid) unless
           BranchFormAssignment.assign(branch: branch, attributes: @attributes, terminal_rows: @terminal_rows)
 
@@ -46,12 +49,21 @@ module OrganizationAccess
         end
 
         BranchProvisioning.provision!(branch: branch, actor: @actor) if branch.branch_type_sales? && !was_sales
+        # Manager replaced / removed / assigned, or sales -> non-sales: audited,
+        # and the affected manager's explicit branch-warehouse assignment
+        # revoked — in this transaction (any failure rolls the edit back).
+        BranchManagerLifecycle.branch_changed!(branch: branch, actor: @actor, previous: previous)
         outcome = Result.new(ok: true, record: branch)
       end
       outcome
     rescue BranchProvisioning::Failed => e
       branch.errors.add(:base, I18n.t("admin.branches.warehouse_provisioning_failed", reason: e.message))
       Result.new(ok: false, record: branch, error: :warehouse_provisioning_failed)
+    rescue AuditLoggable::AuditWriteFailed, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed
+      # The branch-manager audit or its warehouse-access revocation could not
+      # be written: nothing was saved (the transaction rolled back).
+      branch&.errors&.add(:base, I18n.t("admin.branches.manager_change_failed"))
+      Result.new(ok: false, record: branch, error: :failed)
     end
   end
 end

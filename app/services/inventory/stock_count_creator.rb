@@ -19,6 +19,8 @@ module Inventory
     end
 
     def call
+      return refuse_unreachable_warehouse unless WarehouseReach.permits?(@actor, @warehouse_id) # Phase 2 reach
+
       @count = @actor.business.stock_counts.build(
         warehouse_id: @warehouse_id, counted_on: @counted_on, notes: @notes, created_by: @actor
       )
@@ -36,6 +38,15 @@ module Inventory
     end
 
     private
+
+    # A refused warehouse still gives the form an (unsaved) count to re-render
+    # with the message — without the refused warehouse, and without reading any
+    # warehouse's stock.
+    def refuse_unreachable_warehouse
+      @count = @actor.business.stock_counts.build(counted_on: @counted_on, notes: @notes, created_by: @actor)
+      @count.errors.add(:base, WarehouseReach.message)
+      failure(WarehouseReach.message)
+    end
 
     def preload_products
       warehouse = @count.warehouse

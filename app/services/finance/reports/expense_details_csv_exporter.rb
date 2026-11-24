@@ -68,7 +68,8 @@ module Finance
           date: date, base_salary: base_salary, overtime: overtime, bonus: bonus, deduction: deduction,
           net: net, quantity: quantity, unit_cost: unit_cost, amount: amount
         }
-        COLUMNS.map { |key| values[key] }
+        # BUG-072: fixed-point text, never "0.704e-1" (CostFormat).
+        COLUMNS.map { |key| values[key] }.map { |value| value.is_a?(BigDecimal) || value.is_a?(Float) ? CostFormat.csv(value) : value }
       end
     end
   end

@@ -24,7 +24,7 @@ module Inventory
         @rows ||= begin
           totals = StockLevels.totals_for(@business, warehouse_ids: @warehouse_ids)
           last   = last_movement_dates
-          @business.products.active.inventory_tracked.non_parent.ordered.filter_map do |product|
+          @business.products.active.inventory_tracked.ordered.filter_map do |product|
             last_on = last[product.id]
             next if last_on && last_on > @cutoff
 

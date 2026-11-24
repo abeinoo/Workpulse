@@ -67,11 +67,13 @@ module Inventory
 
     private
 
-    # Issue value = current average cost of each product.
+    # Issue value = current average cost of each product, read from the rows
+    # locked just before (BUG-071) — never a product object loaded earlier.
     def value_items
+      averages = StockAvailability.locked_averages(@issue.items.map(&:product_id))
       @issue.items.each do |item|
         next if item.product.nil?
-        item.unit_cost = item.product.average_cost_price
+        item.unit_cost = averages.fetch(item.product_id, item.product.average_cost_price)
       end
     end
 

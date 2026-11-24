@@ -233,8 +233,9 @@ RSpec.describe "Stock count fractional and system-derived quantities", type: :mo
   describe "completion errors" do
     it "name the product whose row could not be saved" do
       count = legacy_count(lines: [ [ wax, 7, 5 ] ])
-      business.products.create!(name: "Wax mini", sku: "WX-1-M", parent_product_id: wax.id,
-                                initial_cost_price: 2, average_cost_price: 2)   # wax became a product family
+      # A negative ledger balance cannot be adopted as a counted quantity (>= 0).
+      InventoryMovement.create!(business: business, product: wax, warehouse: warehouse, direction: :out,
+                                quantity: 100, unit_cost: 2, reason: :adjustment, occurred_on: Date.current)
       result = complete(count)
       expect(result.ok?).to be(false)
       expect(result.error).to start_with("WX-1: ")

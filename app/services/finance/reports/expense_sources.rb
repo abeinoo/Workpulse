@@ -63,6 +63,15 @@ module Finance
         @inventory_costs ||= consumption_ledger.cost_by_branch
       end
 
+      # Consumption attributed to NO branch — Stock Issues from a central (or
+      # other non-branch) warehouse, which are never attributed to a branch
+      # automatically, net of their voids. Historical issues keep the branch
+      # they were recorded with. Shown as its own Unallocated line and
+      # included once in the company totals.
+      def unallocated_inventory_cost
+        inventory_costs[nil] || 0
+      end
+
       def direct_expenses
         @direct_expenses ||= direct_expenses_scope.group(:branch_id).sum(:amount)
       end

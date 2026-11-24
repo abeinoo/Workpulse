@@ -104,6 +104,18 @@ class User < ApplicationRecord
 
   attr_accessor :login
 
+  # The person changing this account's status — set only by
+  # OrganizationAccess::Accounts (the status toggle and the employee form), so
+  # a deactivation can be attributed and audited. Not persisted.
+  attr_accessor :account_actor
+
+  # A branch manager's account deactivated by a person: their explicit
+  # assignment to each managed branch's warehouse is revoked and audited
+  # (OrganizationAccess::BranchManagerLifecycle) inside this save's
+  # transaction — the deactivation and the revocation commit together.
+  after_update :end_branch_manager_warehouse_access,
+               if: -> { account_actor && saved_change_to_active?(from: true, to: false) }
+
   validates :preferred_locale, inclusion: { in: %w[en ar] }, allow_blank: true
   validates :employee_code,            uniqueness: { scope: :business_id, case_sensitive: false },
                                        allow_blank: true
@@ -294,6 +306,10 @@ class User < ApplicationRecord
   end
 
   private
+
+  def end_branch_manager_warehouse_access
+    OrganizationAccess::BranchManagerLifecycle.manager_deactivated!(user: self, actor: account_actor)
+  end
 
   # The provider's answer, accepted only in the documented nil / Array shape —
   # anything else raises rather than ever resolving to "every warehouse".

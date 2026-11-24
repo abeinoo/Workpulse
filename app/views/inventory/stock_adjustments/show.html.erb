@@ -68,7 +68,7 @@
                 <%= inventory_signed_quantity(item.quantity_difference) %>
               </span>
             </td>
-            <td style="text-align: end;"><%= format_currency(item.unit_cost) %></td>
+            <td style="text-align: end;"><%= format_unit_cost_currency(item.unit_cost) %></td>
             <td style="text-align: end;"><%= format_currency(@stock_adjustment.line_value(item)) %></td>
           </tr>
         <% end %>

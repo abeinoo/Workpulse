@@ -4,19 +4,20 @@
 # warehouse-restricted user can only resolve products they may already see.
 class Inventory::BarcodeLookupsController < Inventory::BaseController
   def show
-    authorize Product, :index?
+    authorize Product, :pick?
 
-    result = Inventory::BarcodeLookup.new(policy_scope(Product).active).find(params[:code])
+    result = Inventory::BarcodeLookup.new(policy_scope(Product).active, business_id: current_user.business_id).find(params[:code])
     if result
       product = result.product
-      if product.parent?
-        render json: { error: "parent_product", name: product.name }, status: :unprocessable_entity
-      else
-        preload_product_images([ product ])
-        render json: product_picker_json(product).merge(matched_on: result.matched_on)
-      end
+      preload_product_images([ product ])
+      render json: product_picker_json(product).merge(matched_on: result.matched_on)
     else
       render json: { error: "not_found" }, status: :not_found
     end
   end
+
+  private
+
+  # The product pickers serve Stock Issue creation and Quick Issue too.
+  def admitted_without_inventory_view? = policy(Product).pick?
 end

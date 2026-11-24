@@ -2529,6 +2529,7 @@ en:
         permission_role_hint: "Grants this user specific feature access on top of their organizational role."
         warehouses: "Inventory Warehouses"
         warehouses_hint: "Leave all unchecked for access to every warehouse. Selecting specific warehouses restricts this user's inventory visibility to only those."
+        warehouse_inactive: "Inactive"
         attendance_sources: "Attendance Sources"
         attendance_sources_hint: "Control how this employee may record attendance. At least one source should be enabled for employees with shift assignments."
         allow_mobile_attendance: "Allow Mobile Attendance"
@@ -2561,6 +2562,7 @@ en:
         admin_notes_hint: "Internal administrative notes. Not visible to the employee and excluded from exports."
     branches:
       warehouse_provisioning_failed: "The branch was not saved because its branch warehouse could not be created: %{reason}"
+      manager_change_failed: "The branch could not be saved: recording the branch-manager change failed. Nothing was changed — please try again."
       index:
         title: "Branches"
         page_title: "Branches — WorkPulse"
@@ -2892,6 +2894,7 @@ en:
         shifts: "Shifts"
         reports: "Reports"
         inventory: "Inventory"
+        stock_issues: "Stock Issues"
         performance: "Performance"
         daily_reconciliation: "Daily Reconciliation"
         deposit_verification: "Deposit Verification"
@@ -2994,9 +2997,14 @@ en:
         approve_goods_receipts: "Approve Goods Receipts"
         confirm_goods_receipts: "Confirm Goods Receipts"
         void_goods_receipts: "Void Goods Receipts"
-        manage_stock_issues: "Manage Stock Issues"
+        view_stock_issues: "View Stock Issues"
+        create_stock_issues: "Create Stock Issues"
         approve_stock_issues: "Approve Stock Issues"
-        confirm_stock_issues: "Confirm Stock Issue (Physical Issuance)"
+        confirm_stock_issues: "Confirm Stock Issues (Post Stock Deduction)"
+        cancel_stock_issues: "Cancel Stock Issues"
+        void_stock_issues: "Void Posted Stock Issues"
+        quick_issue_stock: "Stock Issue"
+        manage_stock_issues: "Manage Stock Issues (legacy — no longer grants access)"
         manage_stock_transfers: "Manage Stock Transfers"
         create_purchase_requests: "Create Purchase Requests"
         approve_purchase_requests: "Approve Purchase Requests"
@@ -3006,6 +3014,7 @@ en:
         post_stock_counts: "Approve Stock Counts"
         view_stock_count_reports: "View Stock Count Reports"
         access_all_warehouses: "Access All Warehouses"
+        manage_warehouse_access: "Manage Warehouse Access"
         view_performance_dashboard: "View Performance Dashboard"
         view_notes: "View Notes"
         view_monthly_reviews: "View Monthly Reviews"
@@ -3142,9 +3151,14 @@ en:
         approve_goods_receipts: "Approve or reject a goods receipt's purchase — a purchasing decision only, does not post stock or move money"
         confirm_goods_receipts: "Confirm approved goods receipts — posts stock and deducts any linked funding source (e.g. employee custody)"
         void_goods_receipts: "Void a confirmed goods receipt, reversing its stock and settlement effects"
-        manage_stock_issues: "Create and edit draft stock issues, and submit them for approval"
-        approve_stock_issues: "Approve or reject a stock issue — authorization only, deducts no stock"
-        confirm_stock_issues: "Confirm an approved stock issue was physically issued — deducts stock. Separate from approval to enforce segregation of duties"
+        view_stock_issues: "View stock issues and their details, within the warehouses you can access — independent of View Inventory"
+        create_stock_issues: "Create, edit, submit and import stock issues, and delete drafts — only from warehouses you can access, to your primary or assigned branches"
+        approve_stock_issues: "Approve or reject a submitted stock issue — authorization only, deducts no stock"
+        confirm_stock_issues: "Confirm an approved stock issue — posts the stock deduction. A separate permission from approval; the same person may hold both"
+        cancel_stock_issues: "Cancel a stock issue that has not been posted (draft or approved) — a reason is required"
+        void_stock_issues: "Void a posted stock issue, returning its stock through a recorded reversal — a reason is required"
+        quick_issue_stock: "Issue products immediately in one step (Stock Issue) with a fixed reason and an automatic, recorded approval — independent of the other stock issue permissions; subject to the company Stock Issue setting"
+        manage_stock_issues: "Legacy permission — grants no access any more (replaced by Create Stock Issues). Kept so existing roles stay editable; remove it when convenient"
         manage_stock_transfers: "Move stock between warehouses"
         create_purchase_requests: "Create Purchase Requests from low-stock recommendations, grouped by supplier — request only, never posts inventory"
         approve_purchase_requests: "Approve or reject a submitted purchase request — authorization only, never creates a goods receipt or posts stock"
@@ -3154,6 +3168,7 @@ en:
         post_stock_counts: "Approve stock counts (generates adjustments) — segregation of duties"
         view_stock_count_reports: "View stock count history and variance reports"
         access_all_warehouses: "Company-wide access to every warehouse of the business. Without it, a user reaches only the warehouses assigned to them (and a sales branch manager their own branch warehouse)"
+        manage_warehouse_access: "Grant or revoke employees' explicit warehouse access — only warehouses you can reach yourself, never your own access, and only for employees you manage. Does not grant any inventory operation."
         view_performance_dashboard: "Access the performance dashboard — rankings, weak areas, and department scores"
         view_notes: "View all observations recorded on employees"
         view_monthly_reviews: "View monthly performance reviews — managers see their scope, employees see their own finalized reviews"
@@ -4167,11 +4182,8 @@ en:
       suppliers: "Suppliers"
       stock_value: "Stock Value"
       warehouse: "Warehouse"
-      all_warehouses: "All warehouses"
       low_stock_title: "Low Stock Alerts"
       low_stock_empty: "No products are low on stock."
-      family_low_stock_title: "Product Families with Low Stock"
-      low_children_count: "Low-Stock Children"
       recent_receipts: "Recent Goods Receipts"
       recent_issues: "Recent Stock Issues"
       none_yet: "Nothing yet."
@@ -4636,6 +4648,8 @@ en:
         product_warehouse_settings: "product stock thresholds"
         warehouse_assignments: "user warehouse access"
         warehouse_branch_supplies: "branch supply links"
+        inventory_packaging_entries: "packaging history"
+        inventory_unit_conversion_lines: "unit conversion history"
         other_records: "other records"
     suppliers:
       title: "Suppliers"
@@ -4835,6 +4849,7 @@ en:
         unknown_sku: "No product matches this SKU"
         insufficient_stock: "Not enough stock available"
         invalid_stock_settings: "Invalid Low Stock Level or Reorder Quantity (a number of 0 or more)"
+        invalid_measure: "unknown Measure (use ml, l, fl oz, g, kg, gal, oz, lb, cm, ft, in or piece)"
     barcode_labels:
       title: "Barcode Labels"
       print: "Print Labels"
@@ -4849,7 +4864,6 @@ en:
       scan_label: "Scan barcode"
       scan_placeholder: "Scan or type a barcode, then press Enter"
       not_found: 'No product found for "%{code}"'
-      parent_product: '"%{name}" is a product family — scan a child product instead.'
       matched_by_sku: "Matched by SKU"
     camera_scanner:
       title: "Scan Barcode"
@@ -4887,7 +4901,6 @@ en:
       barcode_primary_label: "Primary barcode"
       generate_barcode: "Generate Barcode"
       generate_barcode_hint: "Generates a unique internal barcode (10000001, 10000002, …)"
-      generate_barcode_failed: "Could not generate a unique barcode. Please try again."
       barcode_types:
         manufacturer: "Manufacturer"
         internal: "Internal"
@@ -4906,7 +4919,6 @@ en:
       avg_cost: "Average Cost"
       current_stock: "Current Stock"
       stock_value: "Stock Value"
-      low_stock_level: "Low Stock Level"
       reorder_quantity: "Reorder Quantity"
       selling_markup_percentage: "Selling Markup (%)"
       selling_price: "Suggested Selling Price"
@@ -4914,17 +4926,9 @@ en:
       low_stock_badge: "Low stock"
       section_identity: "Product Details"
       section_pricing: "Pricing & Stock"
-      section_inventory_tracking: "Inventory Tracking & Notifications"
+      section_inventory_tracking: "Inventory Tracking, Notifications & Warehouse Availability"
       track_inventory: "Track stock quantity"
-      track_inventory_hint: "Untick for items whose quantity you don't track (chairs, equipment…): they get no stock counts, low-stock alerts or reorder settings. Refused while the product still has stock or open inventory documents."
-      legacy_low_stock_level: "Low Stock Threshold (legacy, read-only)"
-      legacy_low_stock_level_hint: "The old product-wide value, shown temporarily for reference. Enter it in the Central warehouse card below if needed; it is not copied or saved from here."
-      legacy_reorder_quantity: "Reorder Quantity (legacy, read-only)"
-      legacy_reorder_quantity_hint: "The old product-wide value, shown temporarily for reference. Enter it in the Central warehouse card below if needed; it is not copied or saved from here."
-      receive_low_stock_notification: "Receive Low Stock Notifications"
-      receive_low_stock_notification_hint: "Send a low stock alert when total stock reaches or falls below the reorder level."
-      reorder_level: "Reorder Level"
-      reorder_level_hint: "Alert fires when total stock is at or below this quantity."
+      track_inventory_hint: "Keep ticked for everything you count, including chairs and equipment: they stay in stock counts. Low-stock and reorder settings are optional and set per warehouse. Untick only for items whose quantity is never recorded: they get no stock counts, low-stock alerts or reorder settings. Refused while the product still has stock or open inventory documents."
       stock_by_warehouse: "Stock by Warehouse"
       no_stock_yet: "No stock recorded yet."
       warehouse: "Warehouse"
@@ -4983,29 +4987,8 @@ en:
       default_threshold: "default"
       new_title: "New Product"
       created: "Product created."
+      updated: "Product updated."
       edit_title: "Edit Product"
-      section_family: "Product Family"
-      family_hint: "Assign this product to a parent to group related products (e.g. sizes or colours). The parent product acts as a container only and cannot carry stock itself."
-      parent_product: "Parent Product"
-      parent_product_hint: "Only root-level products can become parents."
-      no_parent_product: "None (standalone product)"
-      parent_no_tracking_notice: "This product is a parent container. Stock tracking and low-stock notifications are managed by its child products."
-      parent_history_warning: "This product already has stock movements. Assigning it a parent will not affect existing movements, but it will be excluded from new transactions."
-      parent_barcodes_readonly_notice: "Parent products cannot be used in transactions and barcodes cannot be scanned at the point of sale. Existing barcodes are preserved for historical reference. To add or edit barcodes, remove all child products first."
-      parent_barcodes_show_notice: "This barcode belongs to a parent product and cannot be scanned in transactions. Scan a child product instead."
-      expand_children: "Expand children"
-      children_count:
-        one: "%{count} child"
-        other: "%{count} children"
-      family_stock_label: "family total"
-      family_total_stock: "Family Total Stock"
-      child_products: "Child Products"
-      child_products_count: "Children"
-      no_children_yet: "No child products yet. Edit this product to assign child products."
-      filter_all: "All Products"
-      filter_root: "Parent Products"
-      filter_child: "Child Products"
-      filter_standalone: "Standalone Products"
       status_active: "Active"
       status_archived: "Archived"
       status_all: "All"
@@ -5013,19 +4996,15 @@ en:
       archived_notice: "This product was archived on %{date}. It is preserved for historical records but excluded from new transactions."
       archive: "Archive"
       archive_confirm: "Archive this product? It will be hidden from all transaction forms but its history is preserved."
-      archive_family: "Archive Family"
-      archive_family_confirm: "Archive this product and all its child products? They will be hidden from all transaction forms but history is preserved."
       restore: "Restore"
       archived: "Product archived successfully."
       restored: "Product restored successfully."
-      family_archived: "Product family archived successfully."
       delete_confirm: "Permanently delete this product? This cannot be undone."
       has_history_cannot_delete: "This product has historical inventory records and cannot be deleted. Archive it instead."
       destroyed: "Product deleted."
       delete_requires_archive: "Archive the product before deleting it."
       delete_referenced: "This product is still used — by a warehouse, a purchase request or another record — and cannot be deleted. Keep it archived instead."
       delete_audit_failed: "The product was not deleted because its audit record could not be saved. Please try again."
-      archive_has_active_children: "Cannot archive a parent product that has active child products. Archive the children first, or use Archive Family."
     movements:
       stock_count_reasons:
         adjustment: "Stock count adjustment"
@@ -6082,8 +6061,9 @@ en:
           attributes:
             base:
               no_items: "Add at least one product to issue"
-              insufficient_stock: "Not enough stock for %{product} (%{sku}): %{available} available, %{requested} requested"
-              insufficient_stock_reserved: "Not enough available stock for %{product} (%{sku}). Available to issue: %{available}, requested: %{requested}. Other approved stock issues have already reserved %{reserved} of the %{on_hand} on hand."
+              quick_issue_single_product: "A Stock Issue must contain exactly one product"
+              insufficient_stock: "Not enough stock for %{product} (%{sku}) in %{warehouse}: %{available} available, %{requested} requested"
+              insufficient_stock_reserved: "Not enough available stock for %{product} (%{sku}) in %{warehouse}. Available to issue: %{available}, requested: %{requested}. Other approved stock issues have already reserved %{reserved} of the %{on_hand} on hand."
               not_approved: "This stock issue must be approved before stock can be deducted"
         purchase_request:
           attributes:
@@ -6193,10 +6173,8 @@ en:
           attributes:
             base:
               has_history_cannot_delete: "This product has historical inventory records and cannot be deleted. Archive it instead."
-              archive_has_active_children: "Cannot archive a parent product that has active child products. Archive the children first, or use Archive Family."
-            parent_product_id:
-              too_deep: "cannot be a variant of another variant — parent products can only be one level deep"
-              circular: "cannot be set to the product itself"
+              duplicate_barcodes: "Each barcode can be used only once: %{barcodes} is entered more than once."
+              barcode_taken: "A barcode is already used by another product of this business. Choose a different barcode."
         goods_receipt:
           attributes:
             base:
@@ -6230,7 +6208,6 @@ en:
         goods_receipt_item:
           attributes:
             product_id:
-              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
               invalid: "must match the purchase request line's product"
               on_purchase_request: "is on the purchase request — enter its quantity on that request line instead of adding it as an extra product"
             quantity:
@@ -6238,22 +6215,6 @@ en:
             purchase_request_item:
               invalid: "must belong to the linked purchase request"
               supplier_mismatch: "belongs to another supplier — receive it in a receipt for that line's supplier"
-        stock_issue_item:
-          attributes:
-            product_id:
-              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
-        stock_transfer_item:
-          attributes:
-            product_id:
-              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
-        stock_adjustment_item:
-          attributes:
-            product_id:
-              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
-        stock_count_item:
-          attributes:
-            product_id:
-              parent_not_allowed: "is a parent product and cannot be used directly — select a specific variant instead"
         shift_template_entry:
           attributes:
             ends_on:

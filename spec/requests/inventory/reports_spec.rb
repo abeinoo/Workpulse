@@ -58,7 +58,7 @@ RSpec.describe "Inventory::Reports", type: :request do
       get inventory_movements_report_path, params: { warehouse_id: wh_a.id }
       first_row = response.body[/<tbody>.*?<\/tr>/m]
       expect(first_row).to include(I18n.t("inventory.movements.reasons.stock_issue"))
-      expect(first_row).to match(%r{>-3</td>\s*<td[^>]*>7</td>})
+      expect(first_row).to match(%r{>-3</td>\s*<td[^>]*>7</td>}) # numbers of inventory units, no measure
     end
 
     it "a date-filtered window continues from the opening balance, not zero" do
@@ -108,7 +108,7 @@ RSpec.describe "Inventory::Reports", type: :request do
     end
 
     it "low stock offers the purchase-request action only with purchasing permission" do
-      product.update!(reorder_level: 20, reorder_quantity: 30)
+      ProductWarehouseSetting.create!(product: product, warehouse: wh_a, low_stock_level: 1000, reorder_quantity: 30)
       get inventory_low_stock_report_path
       expect(response.body).to include("Shampoo")
       expect(response.body).to include('data-low-stock-selection-target="createBtn"')

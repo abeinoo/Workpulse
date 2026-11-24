@@ -1,0 +1,26 @@
+# Product New / Edit page layout: header, section titles, the summary panel
+# and the action bar. Presentation only.
+en:
+  inventory:
+    products:
+      layout:
+        products: "Products"
+        edit: "Edit"
+        back_to_product: "Back to product"
+        back_to_products: "Back to products"
+        required_hint: "Fields marked * are required."
+        section_basic: "Basic Information"
+        section_basic_hint: "How the product is named, identified and described."
+        section_barcodes_hint: "Scan with the camera or type a code. Mark one barcode as primary."
+        section_pricing: "Pricing"
+        section_additional: "Additional Information"
+        measure_hint: "Describes what one unit contains (for example 355 ml). For information only: stock is always counted in units."
+        average_cost: "Current average cost"
+        suggested_price_hint: "From the current average cost and the markup."
+        summary_title: "Product Summary"
+        status: "Status"
+        size: "Size"
+        on_hand: "On hand (units)"
+        not_tracked: "Not tracked"
+        last_updated: "Last updated"
+        view_product: "View product"

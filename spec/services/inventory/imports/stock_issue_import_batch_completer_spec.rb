@@ -2,9 +2,9 @@ require "rails_helper"
 
 RSpec.describe Inventory::Imports::StockIssueImportBatchCompleter do
   let(:business)  { create(:business) }
-  let(:warehouse) { business.warehouses.create!(name: "Main") }
+  let(:warehouse) { branch_warehouse_for(branch, name: "Main") } # the branch's own warehouse
   let(:branch)    { business.branches.create!(name: "Main Branch", active: true) }
-  let(:user)      { create(:user, business: business) }
+  let(:user)      { stock_issue_user(business, :create_stock_issues) }
   let(:stock_issue) do
     business.stock_issues.create!(warehouse: warehouse, branch: branch, issued_on: Date.current, status: :draft)
   end

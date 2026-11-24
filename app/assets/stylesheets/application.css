@@ -1279,6 +1279,7 @@ tbody td {
 
 /* Product Availability per Warehouse — the product Edit page's section. */
 .availability-section { scroll-margin-top: var(--space-6); }
+.availability-section[hidden] { display: none; }
 .availability-frame { display: block; transition: opacity 0.15s; }
 .availability-frame[aria-busy="true"],
 .availability-frame[busy] { opacity: 0.6; pointer-events: none; }
@@ -1365,11 +1366,283 @@ tbody td {
 .availability-add__row:has(.availability-add__pick input:checked) { border-color: var(--accent); }
 .availability-readonly-list { margin-top: var(--space-4); }
 
-/* Product Edit page: one flow — product details, the warehouse cards right
-   after Inventory tracking, then notes and Save (still the product form). */
-.form-page.product-edit { max-width: 1040px; }
-.form-card--split { border-end-start-radius: 0; border-end-end-radius: 0; }
-.form-card--split-tail { margin-top: var(--space-5); }
+/* ── Product New / Edit page ───────────────────────────────────────────────
+   Header; then a main column (Basic Information, Barcodes, Pricing) beside a
+   side column (photos, product summary); on Edit the Inventory Tracking &
+   Warehouse Availability section and Additional Information span the full
+   width below both; the action bar with the page's one Save stays at the
+   bottom of the screen. Breakpoints follow the page's own width (container
+   queries), so the app's sidebar and workspace rail are already accounted for.
+   Logical properties only: the same rules hold in RTL. */
+.form-page.product-editor-page {
+  max-width: 1400px;
+  padding-inline: var(--space-4);
+  padding-bottom: var(--space-6);
+  container: product-editor / inline-size;
+}
+@media (min-width: 768px) {
+  .form-page.product-editor-page { padding-inline: var(--space-6); }
+}
+@media (min-width: 1280px) {
+  .form-page.product-editor-page { padding-inline: var(--space-8); }
+}
+
+/* Header: breadcrumb, back, product name, SKU and status. */
+.pe-header { margin-bottom: var(--space-6); min-width: 0; }
+.pe-crumbs ol {
+  list-style: none; margin: 0 0 var(--space-3); padding: 0;
+  display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-1) var(--space-2);
+  font-size: var(--text-sm); color: var(--text-2);
+}
+.pe-crumbs li { display: inline-flex; align-items: center; gap: var(--space-2); flex: none; white-space: nowrap; }
+.pe-crumbs li:has(> a > bdi) { flex: 0 1 auto; min-width: 0; } /* the product name truncates, never wraps */
+.pe-crumbs li + li::before { content: "›"; color: var(--text-3); }
+[dir="rtl"] .pe-crumbs li + li::before { content: "‹"; }
+.pe-crumbs a { color: var(--text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 48ch; }
+.pe-crumbs a:hover { color: var(--accent); }
+.pe-crumbs [aria-current="page"] { color: var(--text-1); font-weight: 500; }
+.pe-header__row { display: flex; align-items: flex-start; gap: var(--space-4); }
+.pe-header__back {
+  flex: 0 0 auto; display: grid; place-items: center;
+  width: 40px; height: 40px; margin-top: 2px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--text-2);
+  transition: color var(--transition), border-color var(--transition);
+}
+.pe-header__back:hover { color: var(--accent); border-color: var(--accent); }
+[dir="rtl"] .pe-header__back-icon { transform: scaleX(-1); }
+.pe-header__text { flex: 1; min-width: 0; }
+.pe-header__eyebrow {
+  margin: 0; font-size: var(--text-xs); font-weight: 600; line-height: 1.4;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3);
+}
+.pe-header__title { margin: 2px 0 0; line-height: 1.3; overflow-wrap: anywhere; }
+.pe-header__meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3);
+  margin: var(--space-2) 0 0; font-size: var(--text-sm); color: var(--text-2); line-height: 1.5;
+}
+
+/* Columns. Single column (photos first) until the page is wide enough. */
+.product-editor { display: grid; gap: var(--space-5); grid-template-columns: minmax(0, 1fr); align-items: start; }
+.product-editor__main,
+.product-editor__aside { min-width: 0; display: flex; flex-direction: column; gap: var(--space-5); }
+@container product-editor (min-width: 760px) {
+  .product-editor { grid-template-columns: minmax(0, 1fr) clamp(240px, 28%, 380px); gap: var(--space-6); }
+  /* The main column's own children become grid items, so the sections
+     after the product form can span both columns. */
+  .product-editor__main { display: contents; }
+  .product-editor__main > .product-form { grid-column: 1; grid-row: 1; }
+  .product-editor__aside { grid-column: 2; grid-row: 1; }
+  .product-editor__main > :not(.product-form) { grid-column: 1 / -1; }
+}
+
+/* Section cards. */
+.product-form { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.pe-card {
+  container-type: inline-size;
+  min-width: 0;
+  padding: var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+.pe-card__head { margin-bottom: var(--space-5); }
+.pe-card__head--actions { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.pe-card__head--actions > div:first-child { flex: 1 1 18rem; min-width: 0; }
+.pe-card__tools { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pe-card .section-title { font-size: var(--text-lg); }
+.pe-card__head .section-title { margin: 0; }
+.pe-card__head .form-hint { margin-top: var(--space-1); font-size: var(--text-sm); }
+.pe-card > .section-title { margin-bottom: var(--space-4); }
+.pe-empty { margin: 0; }
+.pe-notes { margin-bottom: 0; }
+.pe-notes .form-control { min-height: 7rem; }
+@container product-editor (max-width: 559px) {
+  .pe-card { padding: var(--space-4); }
+}
+
+/* Field grid inside a card: 1 → 2 → 6 columns by the card's width. */
+.pe-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 var(--space-5);
+  margin-bottom: calc(var(--space-5) * -1); /* the last row's form-group margin */
+}
+.pe-grid > .form-group { min-width: 0; }
+@container (min-width: 520px) {
+  .pe-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pe-span-4 { grid-column: 1 / -1; }
+}
+@container (min-width: 760px) {
+  .pe-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .pe-span-2 { grid-column: span 2; }
+  .pe-span-3 { grid-column: span 3; }
+  .pe-span-4 { grid-column: span 4; }
+}
+
+/* Read-only figure (suggested selling price), the height of a field. */
+.pe-figure {
+  min-height: 48px; display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px dashed var(--border); border-radius: var(--radius); background: var(--surface-2);
+}
+.pe-figure strong { font-size: var(--text-lg); color: var(--text-1); font-variant-numeric: tabular-nums; }
+.pe-figure .td-secondary { font-size: var(--text-xs); }
+
+/* Side column: product summary. */
+.pe-summary .section-title { margin-bottom: var(--space-2); }
+.pe-summary__list { margin: 0; }
+.pe-summary__row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-3) 0; border-bottom: 1px solid var(--border); font-size: var(--text-sm);
+}
+.pe-summary__row:last-child { border-bottom: 0; }
+.pe-summary__row dt { color: var(--text-2); font-weight: 500; }
+.pe-summary__row dd { margin: 0; min-width: 0; text-align: end; font-weight: 600; color: var(--text-1); overflow-wrap: anywhere; }
+.pe-summary__num { font-variant-numeric: tabular-nums; }
+.pe-summary__link { width: 100%; justify-content: center; margin-top: var(--space-3); }
+@container product-editor (max-width: 759px) {
+  .product-editor .pgallery__main { aspect-ratio: 4 / 3; }
+}
+
+/* Action bar: the page's one Save, always in reach. .app-shell clips
+   overflow-x with `hidden`, which makes it a scroll container that never
+   scrolls — sticky would anchor to it, not to the viewport. On this page
+   only, `clip` clips the same way without creating a scroll container. */
+.app-shell:has(.product-editor-page) { overflow-x: clip; }
+.pe-actions {
+  position: sticky; bottom: var(--space-3); z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3);
+  margin-top: var(--space-6);
+  padding: var(--space-3) var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+}
+.pe-actions__status { flex: 1 1 20rem; min-width: 0; display: flex; align-items: center; gap: var(--space-3); }
+.pe-actions__hint { margin: 0; }
+.pe-actions__buttons { flex: 0 0 auto; display: flex; gap: var(--space-2); }
+.pe-actions__buttons .btn-primary { min-width: 10rem; }
+@media (max-width: 1023px) {
+  /* Above the fixed bottom navigation. */
+  .product-editor-page .pe-actions { bottom: calc(var(--bottom-nav-h) + var(--space-2)); }
+}
+@container product-editor (max-width: 559px) {
+  .pe-actions { padding: var(--space-3); }
+  .pe-actions__hint { display: none; }
+  .pe-actions__status:not(:has(.badge:not([hidden]))) { display: none; }
+  .pe-actions__buttons { width: 100%; }
+  .pe-actions__buttons > * { flex: 1; text-align: center; justify-content: center; }
+}
+
+/* Visible keyboard focus on the page's links and buttons. */
+.product-editor-page :is(a, button, .btn, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Warehouse availability inside the Inventory Tracking section: no card of its own. */
+.product-edit .availability-section.availability-section--embedded {
+  margin-top: var(--space-4);
+  padding: var(--space-4) 0 0;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+}
+
+.pgallery {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pgallery.is-dragover { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.pgallery__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
+.pgallery__head .section-title { margin: 0; }
+.pgallery__count { font-size: var(--text-sm, 0.8125rem); }
+
+.pgallery__main {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle, var(--border));
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.pgallery__main-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.pgallery__main-badge { position: absolute; inset-block-start: var(--space-2); inset-inline-start: var(--space-2); }
+.pgallery__empty { display: grid; justify-items: center; gap: var(--space-2); color: var(--text-3); text-align: center; padding: var(--space-4); }
+.pgallery__empty p { margin: 0; font-size: var(--text-sm, 0.8125rem); }
+
+.pgallery__thumbs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: var(--space-2);
+}
+.pgallery__thumbs:empty { display: none; }
+.pgallery__item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+}
+.pgallery__item.is-primary { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.pgallery__item.is-dragging { opacity: 0.45; }
+.pgallery__item.is-failed { border-color: var(--danger); }
+.pgallery__thumb { position: relative; aspect-ratio: 1 / 1; background: var(--surface-2); }
+.pgallery__thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pgallery__badge { position: absolute; inset-block-start: 4px; inset-inline-start: 4px; font-size: 0.6875rem; padding: 1px 6px; }
+.pgallery__item:not(.is-primary) .pgallery__badge { display: none; }
+.pgallery__item.is-uploading .pgallery__thumb-img { opacity: 0.55; }
+.pgallery__progress { position: absolute; inset-inline: 6px; inset-block-end: 6px; height: 4px; border-radius: 2px; background: rgba(0, 0, 0, 0.2); overflow: hidden; }
+.pgallery__progress[hidden] { display: none; }
+.pgallery__progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
+.pgallery__item-error {
+  position: absolute; inset: 0; margin: 0; padding: 6px;
+  display: grid; place-items: center; text-align: center;
+  font-size: 0.6875rem; color: var(--danger); background: rgba(var(--danger-rgb, 220, 38, 38), 0.08);
+}
+.pgallery__item-error[hidden] { display: none; }
+.pgallery__actions { display: flex; justify-content: space-between; border-top: 1px solid var(--border-subtle, var(--border)); }
+.pgallery__action {
+  flex: 1; display: grid; place-items: center; min-height: 28px;
+  background: none; border: 0; color: var(--text-2); cursor: pointer;
+}
+.pgallery__action:hover, .pgallery__action:focus-visible { color: var(--accent); background: var(--surface-2); }
+.pgallery__action--danger:hover, .pgallery__action--danger:focus-visible { color: var(--danger); }
+.pgallery__item.is-primary [data-role="make-primary"] { visibility: hidden; }
+[dir="rtl"] .pgallery__dir { transform: scaleX(-1); }
+
+.pgallery__drop {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: var(--space-4);
+  border: 1.5px dashed var(--border-strong, var(--border));
+  border-radius: var(--radius-lg);
+  color: var(--text-2);
+  text-align: center;
+  cursor: pointer;
+}
+.pgallery__drop:hover, .pgallery__drop:focus-within { border-color: var(--accent); color: var(--accent); }
+.pgallery__drop[hidden] { display: none; }
+.pgallery__drop-title { font-weight: 600; color: var(--text-1); }
+.pgallery__drop-hint { font-size: 0.75rem; }
+.pgallery__file { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.pgallery__hint { margin: 0; font-size: 0.75rem; }
+.pgallery__errors { font-size: 0.8125rem; color: var(--danger); }
 .product-edit .availability-section {
   margin-top: var(--space-5);
   padding: var(--space-5);
@@ -12890,6 +13163,29 @@ tr.bulk-row--locked { background: rgba(217, 119, 6, 0.08); }
 }
 
 .barcode-list__row:last-child { border-bottom: none; }
+/* A removed line (the × of a saved barcode or document line: line_items_controller
+   sets [hidden] and _destroy=1) must really disappear: the row's own display
+   (flex here, block/grid in card tables) would otherwise override [hidden]. */
+[data-line-row][hidden] { display: none !important; }
+
+/* A document line's quantity input (a number of inventory units). */
+.qty-with-unit { display: flex; align-items: center; gap: var(--space-2); }
+.qty-with-unit .form-control { flex: 1 1 auto; min-width: 7rem; }
+/* Product form: Amount beside Measure (mirrors in RTL with the grid). */
+/* The pair takes its own full row of the product form grid, and the Measure
+   never shrinks below a readable width (it collapsed to one letter in RTL). */
+.measure-group { grid-column: 1 / -1; }
+.measure-pair { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(10rem, 2fr); gap: var(--space-2); align-items: end; }
+/* Measure = a whole product: no Amount, the Measure takes the row. Narrow
+   screens: Measure and Amount stack. */
+.measure-pair:has(> .measure-pair__amount[hidden]) { grid-template-columns: 1fr; }
+@media (max-width: 480px) { .measure-pair { grid-template-columns: 1fr; } }
+/* Logical properties already flip for Arabic; undo the shared component's
+   physical RTL override here so the suffix's outer edge stays bordered. */
+[dir="rtl"] .measure-pair__amount .input-with-suffix .form-control { border-radius: var(--radius); border-start-end-radius: 0; border-end-end-radius: 0; }
+[dir="rtl"] .measure-pair__amount .input-suffix { border-inline-start: none; border-inline-end: 1px solid var(--border); border-radius: 0; border-start-end-radius: var(--radius); border-end-end-radius: var(--radius); }
+/* Product Edit: the page's one Save. */
+.product-save-bar__unsaved[hidden] { display: none; }
 
 .barcode-list__input-wrap {
   flex: 1;
@@ -15812,3 +16108,300 @@ td .pcombo { min-width: 220px; }
 .pcombo__meta { font-size: var(--text-xs); color: var(--text-3); align-self: flex-start; }
 .pcombo__option mark { background: transparent; color: inherit; text-decoration: underline; text-underline-offset: 2px; font-weight: 700; }
 .pcombo__status { padding: var(--space-3); color: var(--text-2); font-size: var(--text-sm); }
+
+/* ── Inventory Products index (inventory/products/index) ──────────────────
+   Scoped to .products-index. Logical properties throughout → RTL / LTR alike.
+   Tablet (≤1024px): the SKU column folds under the product name.
+   Mobile (≤768px): .table-wrap--cards turns rows into cards; the product
+   identity, stock and ⋮ menu stay on top. */
+.products-index__header { margin-bottom: var(--space-4); }
+.products-index__heading { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; min-width: 0; }
+.products-index__heading .page-title { margin: 0; }
+.products-index__count { font-variant-numeric: tabular-nums; }
+.products-index__actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.products-index__actions .btn { display: inline-flex; align-items: center; gap: var(--space-2); }
+
+/* Summary: three compact, clickable figures (not a dashboard). */
+.products-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.products-summary__card {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-1);
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.products-summary__card:hover { border-color: var(--accent); }
+.products-summary__card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.products-summary__card.is-active { border-color: var(--accent); background: var(--accent-muted, var(--surface-1)); }
+.products-summary__label { font-size: var(--text-xs); font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
+.products-summary__value { font-size: var(--text-xl); font-weight: 700; font-variant-numeric: tabular-nums; }
+.products-summary__card--warning .products-summary__value { color: var(--warning); }
+.products-summary__card--danger  .products-summary__value { color: var(--danger); }
+
+.products-index__tabs { margin-bottom: var(--space-3); }
+
+/* Search + filters: one compact row that wraps. */
+.products-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.products-filters__search { flex: 1 1 320px; min-width: 0; }
+.products-filters__selects {
+  flex: 1.5 1 480px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr); /* stock status label is the longest */
+  gap: var(--space-2);
+  min-width: 0;
+}
+.products-filters__selects .form-control { min-width: 0; }
+.products-filters__buttons { display: flex; gap: var(--space-2); flex: 0 0 auto; }
+.products-index__chips { margin-bottom: var(--space-3); }
+
+/* Selection bar: quiet until something is selected. */
+.products-bulk {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+.products-bulk.is-active { border-style: solid; border-color: var(--accent); color: var(--text-1); font-weight: 600; }
+.products-bulk__actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.products-bulk [hidden] { display: none !important; } /* .btn's display would otherwise override [hidden] */
+.products-bulk__actions .btn { display: inline-flex; align-items: center; gap: var(--space-2); }
+
+/* Table */
+/* Wide screens: the columns fit, so the box may let the ⋮ menu escape it.
+   Tablets keep .table-wrap's horizontal scroll as an overflow safety net. */
+@media (min-width: 1025px) {
+  .products-table-wrap { overflow: visible; }
+}
+.products-table th, .products-table td { vertical-align: middle; }
+.products-table tbody tr { transition: background 0.12s ease; }
+.products-table tbody tr:hover { background: var(--navy-600, var(--surface-1)); }
+.products-table__select { width: 40px; }
+.products-table__actions { width: 48px; text-align: end; }
+.products-table__num { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.products-table__product { min-width: 280px; }
+/* Product cell: 60px un-cropped thumbnail, then name / brand / category / SKU. */
+.product-cell { display: flex; align-items: flex-start; gap: var(--space-3); min-width: 0; }
+.product-cell__thumb { flex: 0 0 auto; display: block; border-radius: 12px; }
+.product-cell__thumb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.products-table .product-cell .pthumb { width: 60px; height: 60px; border-radius: 12px; background: var(--surface-1, var(--surface-2)); }
+.products-table .product-cell .pthumb__img { object-fit: contain; padding: 4px; }
+.product-cell__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding-top: 2px; }
+.product-cell__name {
+  font-weight: 600;
+  color: var(--text-1);
+  text-decoration: none;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.product-cell__name:hover { color: var(--accent); }
+.product-cell__brand,
+.product-cell__category { font-size: var(--text-sm); color: var(--text-2); line-height: 1.35; overflow-wrap: anywhere; }
+.product-cell__category { font-size: var(--text-xs); }
+.product-cell__meta { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; margin-top: 2px; font-size: var(--text-xs); }
+.product-cell__sku { color: var(--text-3); white-space: nowrap; }
+.products-table__row--archived td:not(.products-table__actions) { opacity: 0.7; }
+
+.products-stock { display: inline-flex; align-items: center; gap: var(--space-2); justify-content: flex-end; white-space: nowrap; }
+.products-stock__qty { font-weight: 600; font-variant-numeric: tabular-nums; }
+.products-stock .badge { font-variant-numeric: tabular-nums; }
+.products-stock__label { font-size: var(--text-xs); font-weight: 600; }
+.products-stock__label--low { color: var(--warning); }
+.products-stock__label--out { color: var(--danger); }
+
+/* ⋮ menu: last rows of a long list open upwards so they stay on screen. */
+.products-row-actions .row-actions__menu { min-width: 210px; }
+.products-row-actions form { margin: 0; }
+.products-table tbody tr:nth-last-child(-n+2):not(:nth-child(-n+3)) .row-actions__menu {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.products-row-actions__divider { height: 1px; margin: var(--space-1) 0; background: var(--border); }
+.products-index__header .row-actions__menu { min-width: 200px; }
+
+/* Tablet: fold SKU under the name; keep everything else. */
+@media (max-width: 1024px) {
+  .products-filters__selects { flex-basis: 100%; }
+}
+
+/* Mobile: card list. */
+@media (max-width: 768px) {
+  .products-summary { gap: var(--space-2); }
+  .products-summary__card { flex-direction: column; align-items: flex-start; padding: var(--space-2) var(--space-3); }
+  .products-summary__value { font-size: var(--text-lg); }
+  .products-filters__search, .products-filters__selects { flex-basis: 100%; }
+  .products-filters__selects { grid-template-columns: 1fr 1fr; }
+  .products-filters__selects > :last-child { grid-column: 1 / -1; }
+  .products-filters__buttons { flex-basis: 100%; }
+  .products-filters__buttons .btn { flex: 1 1 0; }
+  .products-index__actions { width: 100%; }
+
+  .products-table tbody tr { position: relative; padding-inline-end: calc(var(--space-4) + 36px); }
+  .products-table tbody td.products-table__select,
+  .products-table tbody td.products-table__product { border-bottom: none; }
+  .products-table tbody td.products-table__select {
+    position: absolute;
+    top: var(--space-3);
+    inset-inline-end: var(--space-3);
+    padding: 0;
+    min-height: 0;
+  }
+  .products-table tbody td.products-table__product::before { display: none; }
+  .products-table__product { min-width: 0; }
+  .products-table .product-cell .pthumb { width: 48px; height: 48px; border-radius: 10px; }
+  .product-cell { gap: var(--space-2); }
+  .products-table tbody td.products-table__actions {
+    position: absolute;
+    bottom: var(--space-2);
+    inset-inline-end: var(--space-2);
+    width: auto;
+    padding: 0;
+    margin: 0;
+    border: none;
+    min-height: 0;
+  }
+  .products-table tbody td.products-table__num,
+  .products-table tbody td.products-table__stock { justify-content: space-between; }
+  .products-row-actions .row-actions__btn { width: 36px; height: 36px; }
+  /* Each card is position: relative, so later cards painted over an open
+     menu: lift the card whose menu is open above its siblings. */
+  .products-table tbody tr:has(.row-actions__menu:not([hidden])) { z-index: 40; overflow: visible; }
+  /* The global mobile rule stretches every .page-header .btn to 100%:
+     keep the three header actions on one row, Add Product taking the rest. */
+  .products-index__header .products-index__actions { flex-wrap: nowrap; }
+  .products-index__header .products-index__actions .btn { width: auto; flex: 0 0 auto; justify-content: center; }
+  .products-index__header .products-index__actions .btn-primary { flex: 1 1 auto; }
+  .products-index__header .products-index__actions [data-testid=products-settings] span,
+  .products-index__header .products-index__actions .btn-secondary span { display: none; }
+  .products-table tbody tr:nth-last-child(-n+2):not(:nth-child(-n+3)) .row-actions__menu { bottom: calc(100% + 4px); }
+}
+
+/* ── Quick Issue popup (inventory/quick_issues) — one product, compact ─────
+   Logical properties only (RTL-safe). Sections: product card → "Issue from"
+   (warehouse + availability) → quantity / reason → notes → actions. On small
+   screens the fields stack and the actions stay reachable at the bottom. */
+.qi { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-5); }
+.qi__header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3);
+              padding-block-end: var(--space-3); border-block-end: 1px solid var(--border); }
+.qi__title { font-size: var(--text-lg); font-weight: 700; color: var(--text-1); margin: 0; line-height: 1.3; }
+.qi__subtitle { font-size: var(--text-xs); color: var(--text-2); margin: var(--space-1) 0 0; line-height: 1.5; }
+.qi__close { flex: none; border: none; background: none; cursor: pointer; color: var(--text-2);
+             padding: var(--space-1); border-radius: var(--radius-sm); }
+.qi__close:hover, .qi__close:focus-visible { background: var(--surface-2); color: var(--text-1); }
+
+.qi__product { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3);
+               background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); }
+.qi__product-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.qi__product-name { font-weight: 600; color: var(--text-1); overflow-wrap: anywhere; }
+.qi__product-meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); font-size: var(--text-xs); color: var(--text-3); }
+
+.qi__form { display: flex; flex-direction: column; gap: var(--space-4); }
+.qi__form .form-group { margin-bottom: 0; }
+
+.qi__section { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; }
+.qi__section-title { margin: 0; font-size: var(--text-xs); font-weight: 600; color: var(--text-2);
+                     text-transform: uppercase; letter-spacing: 0.04em; }
+.qi__fixed { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); }
+.qi__fixed-label { font-size: var(--text-sm); color: var(--text-2); }
+.qi__fixed-value { margin: 0; font-weight: 600; color: var(--text-1); }
+
+.qi__availability { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-2);
+                    padding: var(--space-2) var(--space-3); border-radius: var(--radius); background: var(--accent-muted);
+                    border-inline-start: 3px solid var(--accent); }
+.qi__availability[hidden] { display: none; }
+.qi__availability-label { font-size: var(--text-xs); font-weight: 600; color: var(--text-2); }
+.qi__availability-value { font-size: var(--text-lg); font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; }
+.qi__availability-source { font-size: var(--text-sm); color: var(--text-2); }
+.qi__availability--empty { background: var(--danger-muted); border-inline-start-color: var(--danger); }
+.qi__availability--empty .qi__availability-value { color: var(--danger); }
+
+.qi__row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3); align-items: start; }
+.qi__field-error { font-size: var(--text-sm); color: var(--danger); margin: var(--space-1) 0 0; }
+.qi .form-control.is-invalid { border-color: var(--danger); }
+
+.qi__actions { display: flex; justify-content: flex-end; align-items: center; gap: var(--space-3);
+               padding-block-start: var(--space-3); border-block-start: 1px solid var(--border); }
+.qi__confirm { min-width: 9rem; }
+@media (max-width: 560px) {
+  .qi { padding: var(--space-4); gap: var(--space-3); }
+  .qi__row { grid-template-columns: 1fr; }
+  /* Confirm first (on top) and full width; Cancel under it. */
+  .qi__actions { flex-direction: column-reverse; align-items: stretch; }
+  .qi__actions .btn { width: 100%; }
+}
+
+/* ── Centered modal placement (opt-in) ─────────────────────────────────────
+   The global overlay (layouts/application) is a bottom sheet by default, set
+   by inline styles. Content carrying data-modal-placement="center" makes
+   modal_controller.js add .modal-overlay--centered, and only then are those
+   inline styles overridden (hence !important): centered both ways, a full
+   rounded card, never taller than the viewport (dynamic viewport units, so
+   mobile browser chrome is respected). Other modals are untouched. */
+#modal-overlay.modal-overlay--centered { align-items: center !important; padding: var(--space-4); }
+#modal-overlay.modal-overlay--centered > div {
+  max-width: 600px !important;
+  max-height: calc(100vh - 2 * var(--space-4)) !important;
+  max-height: calc(100dvh - 2 * var(--space-4)) !important;
+  border-radius: var(--radius-xl, 16px) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28) !important;
+  overscroll-behavior: contain;
+}
+@media (max-width: 560px) {
+  #modal-overlay.modal-overlay--centered { padding: var(--space-2); }
+  #modal-overlay.modal-overlay--centered > div {
+    max-height: calc(100vh - 2 * var(--space-2)) !important;
+    max-height: calc(100dvh - 2 * var(--space-2)) !important;
+  }
+}
+
+/* Inside the modal the panel is the scroll container: the Stock Issue popup's
+   header and actions stay pinned while its body scrolls under them. The
+   negative margins let their background cover the card's padding edge to
+   edge. (Not applied on the full-page fallback.) */
+#modal-overlay .qi__header {
+  position: sticky; inset-block-start: 0; z-index: 2; background: var(--surface);
+  margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-5)) 0;
+  padding: var(--space-5) var(--space-5) var(--space-3);
+}
+#modal-overlay .qi__actions {
+  position: sticky; inset-block-end: 0; z-index: 2; background: var(--surface);
+  margin: 0 calc(-1 * var(--space-5)) calc(-1 * var(--space-5));
+  padding: var(--space-3) var(--space-5) var(--space-5);
+}
+@media (max-width: 560px) {
+  #modal-overlay .qi__header {
+    margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+    padding: var(--space-4) var(--space-4) var(--space-3);
+  }
+  #modal-overlay .qi__actions {
+    margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-4));
+    padding: var(--space-3) var(--space-4) var(--space-4);
+  }
+}

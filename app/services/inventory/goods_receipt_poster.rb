@@ -31,6 +31,13 @@ module Inventory
     end
 
     def call
+      # Service-level reach (Phase 2) when a person posts; an actor-less call
+      # is a system/backfill path whose caller authorizes it.
+      if @actor && !WarehouseReach.permits?(@actor, @receipt.warehouse_id)
+        @receipt.errors.add(:base, WarehouseReach.message)
+        return Result.new(ok: false, receipt: @receipt)
+      end
+
       ActiveRecord::Base.transaction do
         @receipt.receipt_number = NumberSequencer.new(@receipt.business, :goods_receipt).next_number if @receipt.receipt_number.blank?
 
@@ -45,12 +52,18 @@ module Inventory
         exception_lines = incoming_availability_exceptions
         raise ActiveRecord::Rollback if exception_lines.nil?
 
+        # BUG-071: the products are locked (after the request-line locks, the
+        # one order every receipt takes) before on-hand and the average are
+        # read, so two receipts of one product both blend into the average.
+        @averages = (StockAvailability.lock_products!(@receipt.items.map(&:product_id)) || []).to_h { |p| [ p.id, p.average_cost_price ] }
+        @owner    = @actor ? nil : @receipt.business.owner
+
         # Each line's product, with the barcodes and image its cost update
         # validates, in one go — validations still run; lines of the same
         # product share one record, exactly as the cost update needs (it reads
         # the average the previous line just wrote).
         ActiveRecord::Associations::Preloader.new(
-          records: @receipt.items.to_a, associations: { product: [ :product_barcodes, { image_attachment: :blob } ] }
+          records: @receipt.items.to_a, associations: { product: [ :product_barcodes, Product::IMAGE_PRELOAD ] }
         ).call
         @receipt.items.each { |item| post_item(item) }
         audit_exceptions!(exception_lines)
@@ -137,10 +150,11 @@ module Inventory
 
     def post_item(item)
       product = item.product
-      # Read on-hand *before* this movement so the moving average is correct.
+      # Read on-hand *before* this movement (under the product lock) so the
+      # moving average is correct.
       on_hand_before = product.current_stock
 
-      @receipt.inventory_movements.create!(
+      movement = @receipt.inventory_movements.create!(
         business:    @receipt.business,
         product:     product,
         warehouse:   @receipt.warehouse,
@@ -151,11 +165,14 @@ module Inventory
         occurred_on: @receipt.received_on
       )
 
-      ProductCostUpdater.new(product).apply_receipt(
+      outcome = ProductCostUpdater.new(product, actor: @actor, owner: @owner, current_average: @averages[product.id]).apply_receipt(
         quantity:       item.quantity,
         unit_cost:      item.unit_cost,
-        on_hand_before: on_hand_before
+        on_hand_before: on_hand_before,
+        source:         @receipt,
+        movement:       movement
       )
+      @averages[product.id] = outcome.average
     end
   end
 end

@@ -3,10 +3,16 @@
 <div class="admin-page">
   <div class="page-header">
     <h1 class="page-title"><%= t("inventory.stock_issues.title") %></h1>
-    <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_stock_issues) %>
+    <% if policy(StockIssue).create? || policy(StockIssue).quick_issue? %>
       <div class="flex items-center" style="gap: var(--space-2);">
-        <%= link_to t("inventory.imports.stock_issues.index_button"), import_inventory_stock_issues_path, class: "btn btn-secondary btn-sm" %>
-        <%= link_to t("inventory.stock_issues.new_action"), new_inventory_stock_issue_path, class: "btn btn-primary btn-sm" %>
+        <% if policy(StockIssue).quick_issue? %>
+          <%= link_to t("inventory.quick_issue.action"), new_inventory_quick_issue_path, class: "btn btn-secondary btn-sm",
+                data: { turbo_frame: "modal", testid: "stock-issues-quick-issue" } %>
+        <% end %>
+        <% if policy(StockIssue).create? %>
+          <%= link_to t("inventory.imports.stock_issues.index_button"), import_inventory_stock_issues_path, class: "btn btn-secondary btn-sm" %>
+          <%= link_to t("inventory.stock_issues.new_action"), new_inventory_stock_issue_path, class: "btn btn-primary btn-sm" %>
+        <% end %>
       </div>
     <% end %>
   </div>
@@ -71,7 +77,7 @@
           </div>
 
           <div class="filter-bar__field">
-            <%= f.label :branch_id, t("inventory.stock_issues.branch"), class: "filter-bar__label" %>
+            <%= f.label :branch_id, t("inventory.stock_issues.cost_branch"), class: "filter-bar__label" %>
             <%= f.select :branch_id,
                   options_for_select(
                     [[ t("inventory.stock_issues.all_branches"), "" ]] + @filter_branches.map { |b| [ b.name, b.id ] },
@@ -161,7 +167,7 @@
         <thead><tr>
           <th><%= t("inventory.stock_issues.number") %></th>
           <th><%= t("inventory.stock_issues.date") %></th>
-          <th><%= t("inventory.stock_issues.branch") %></th>
+          <th><%= t("inventory.stock_issues.cost_branch") %></th>
           <th><%= t("inventory.stock_issues.created_by") %></th>
           <th><%= t("inventory.stock_issues.items_count") %></th>
           <th><%= t("inventory.void.status") %></th>
@@ -175,6 +181,12 @@
               <td>
                 <%= link_to issue.issue_number, inventory_stock_issue_path(issue),
                       class: "link", style: "font-weight: 700; font-size: var(--text-base);" %>
+                <% if issue.quick_issue? %>
+                  <div style="font-size: var(--text-xs);" data-testid="stock-issue-quick-badge">
+                    <span class="badge badge-warning"><%= t("inventory.stock_issues.workflows.quick_issue") %></span>
+                    <span class="td-secondary"><%= stock_issue_reason_text(issue) %></span>
+                  </div>
+                <% end %>
               </td>
               <td class="td-secondary">
                 <%= local_date(issue.issued_on) %>

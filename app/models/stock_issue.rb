@@ -1,4 +1,5 @@
 class StockIssue < ApplicationRecord
+  include RequiresActiveWarehouse
   include ImmutableDocument
   include Voidable
 
@@ -29,11 +30,30 @@ class StockIssue < ApplicationRecord
   # Statuses an edit sends back to draft.
   REOPENED_BY_EDIT_STATUSES = %w[pending_approval approved].freeze
 
+  # Which workflow produced the issue: the standard Create -> Submit ->
+  # Approve -> Confirm path, or a Quick Issue (Inventory::StockIssueQuickIssue,
+  # posted immediately in one transaction).
+  WORKFLOWS = %w[standard quick_issue].freeze
+  # The fixed Quick Issue reasons — one per Quick Issue transaction, never
+  # per line, never editable by users. "other" requires a description. Not
+  # Stock Adjustment reasons (an adjustment is a separate workflow).
+  QUICK_ISSUE_REASONS = %w[internal_use damaged expired lost other].freeze
+  # How the warehouse was chosen. "selected": by the user, from the warehouses
+  # they are authorized to use (Inventory::IssueWarehouseReach) — every new
+  # Standard Stock Issue and Quick Issue, and every issue created before the
+  # withdrawn branch-warehouse rule. "branch_warehouse": HISTORICAL ONLY — an
+  # issue created while that rule applied (warehouse resolved from a consuming
+  # branch); kept as recorded, never written for a new issue.
+  WAREHOUSE_SOURCES = %w[selected branch_warehouse].freeze
+
   belongs_to :business
   belongs_to :warehouse
-  # The branch that consumed the issued stock — feeds branch profitability.
-  # Required for NEW issues (on :create) so every consumption is attributable;
-  # the DB column stays nullable so pre-existing rows remain valid and voidable.
+  # Cost attribution for branch profitability / consumption reports (copied to
+  # each OUT movement by Inventory::StockIssuePoster). NOT a user input and not
+  # required: a new issue takes it from its warehouse
+  # (#assign_cost_attribution_branch — the branch a branch warehouse belongs
+  # to; nil for a central or other non-branch warehouse = unattributed).
+  # Historical issues keep the consuming branch recorded when they were created.
   belongs_to :branch, optional: true
   belongs_to :created_by,   class_name: "User", optional: true
   belongs_to :submitted_by, class_name: "User", optional: true
@@ -58,7 +78,6 @@ class StockIssue < ApplicationRecord
   # uniqueness-when-present is validated here (mirrors StockCount#count_number).
   validates :issue_number, uniqueness: { scope: :business_id, case_sensitive: false }, allow_nil: true
   validates :issued_on, presence: true
-  validates :branch_id, presence: true, on: :create
   # A draft may sit with zero items while the user resolves import errors —
   # the item requirement only applies once it's actually being submitted or
   # posted. A cancelled issue is exempt too: cancellation is only ever reached
@@ -68,13 +87,22 @@ class StockIssue < ApplicationRecord
   validate  :has_at_least_one_item, unless: -> { draft? || cancelled? }
   validate  :branch_in_same_business
   validate  :warehouse_in_same_business, if: :will_save_change_to_warehouse_id?
+  # Inactive warehouse: no new issue, no move into one, no submission,
+  # approval or confirmation (RequiresActiveWarehouse).
+  requires_active_warehouse :warehouse, transitions: { status: %w[pending_approval approved issued] }
   validate  :issued_only_from_approved, if: -> { will_save_change_to_status?(to: "issued") }
-  # An inactive branch takes no new issue, no issue moved to it, and no
-  # submission or approval (BUG-029) — every creation path (manual form, CSV
-  # import, import-batch completion) goes through this. An issue approved
-  # before the deactivation may still be confirmed; rejecting, cancelling,
-  # deleting a draft and voiding stay available.
-  validate  :branch_active, if: :branch_activity_required?
+  # Quick Issue reason (mirrors the DB checks): required for a Quick Issue,
+  # from the fixed list; "other" needs a description; fixed once written.
+  validates :workflow, inclusion: { in: WORKFLOWS }
+  validates :issue_reason, inclusion: { in: QUICK_ISSUE_REASONS }, allow_nil: true
+  validates :issue_reason, presence: true, if: :quick_issue?
+  validates :issue_reason_note, presence: true, if: -> { issue_reason == "other" }
+  validate  :issue_reason_unchanged, on: :update
+  # A Quick Issue carries exactly ONE product (Inventory::StockIssueQuickIssue).
+  # Checked when it is created only: Quick Issues recorded before this rule
+  # keep their lines and stay valid through any later save.
+  validate  :quick_issue_single_product, on: :create, if: :quick_issue?
+  validates :warehouse_source, inclusion: { in: WAREHOUSE_SOURCES }
 
   before_create :assign_issue_number
 
@@ -98,7 +126,7 @@ class StockIssue < ApplicationRecord
     where.not(id: StockIssueImportBatch.draft.select(:stock_issue_id))
   }
 
-  # Issue #, consumer branch, warehouse, or a product's SKU/name on any line.
+  # Issue #, warehouse, (historical) branch, or a product's SKU/name on any line.
   scope :search, ->(term) {
     return all if term.blank?
 
@@ -129,6 +157,18 @@ class StockIssue < ApplicationRecord
 
   def cost_estimated?
     !issued?
+  end
+
+  def quick_issue? = workflow == "quick_issue"
+
+  # Sets the cost-attribution branch from the warehouse — for a new issue, or
+  # when an edit changes the warehouse; a historical issue whose warehouse is
+  # unchanged keeps the branch it was recorded with.
+  def assign_cost_attribution_branch
+    return unless new_record? || will_save_change_to_warehouse_id?
+
+    source = Warehouse.find_by(id: warehouse_id, business_id: business_id)
+    self.branch_id = (source.branch_id if source&.kind_branch?)
   end
 
   def cost_unavailable?
@@ -163,6 +203,16 @@ class StockIssue < ApplicationRecord
     errors.add(:base, :no_items) if items.reject(&:marked_for_destruction?).empty?
   end
 
+  def quick_issue_single_product
+    errors.add(:base, :quick_issue_single_product) unless items.reject(&:marked_for_destruction?).size == 1
+  end
+
+  def issue_reason_unchanged
+    %i[workflow issue_reason issue_reason_note warehouse_source].each do |attribute|
+      errors.add(attribute, :immutable) if will_save_change_to_attribute?(attribute)
+    end
+  end
+
   # Hard invariant behind the approval gate: stock may only be deducted for a
   # persisted, approved issue. Refuses any save that moves an issue to
   # "issued" from anything else (a new record, draft, pending_approval, …),
@@ -175,15 +225,6 @@ class StockIssue < ApplicationRecord
     return if branch.nil? || business_id.nil?
 
     errors.add(:branch, :invalid) if branch.business_id != business_id
-  end
-
-  def branch_activity_required?
-    will_save_change_to_branch_id? ||
-      will_save_change_to_status?(to: "pending_approval") || will_save_change_to_status?(to: "approved")
-  end
-
-  def branch_active
-    errors.add(:branch, :branch_inactive) if branch && !branch.active?
   end
 
   # The warehouse id comes straight from form params — never trust one that

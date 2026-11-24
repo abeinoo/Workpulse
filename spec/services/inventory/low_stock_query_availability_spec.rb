@@ -1,17 +1,18 @@
 require "rails_helper"
 
 # Product availability per warehouse — Phase 1, unit 4: the low-stock engine
-# honours availability state and separates detection from notification,
-# while the legacy total alert for unconfigured products stays (decision N2).
+# honours availability state and separates detection from notification.
+# There is no product-level (total-stock) alert: unconfigured pairs never alert.
 RSpec.describe Inventory::LowStockQuery, "availability-aware" do
   let(:business) { create(:business) }
   let!(:owner)   { create(:user, :owner, business: business) }
   let!(:central) { business.warehouses.create!(name: "Main Warehouse", kind: "central") }
   let!(:shubra)  { business.warehouses.create!(name: "Shoubra WH", kind: "central") }
 
+  # Every product carries stale values in the retired product columns: never used.
   def product(sku, tracked: true, legacy_level: 10)
-    business.products.create!(name: "Product #{sku}", sku: sku, initial_cost_price: 5, average_cost_price: 5,
-                              track_inventory: tracked, low_stock_level: legacy_level, reorder_level: legacy_level, reorder_quantity: 20)
+    business.products.create!(name: "Product #{sku}", sku: sku, initial_cost_price: 5, average_cost_price: 5, track_inventory: tracked)
+            .tap { |p| write_retired_product_stock_columns!(p, low_stock_level: legacy_level, reorder_quantity: 20, reorder_level: legacy_level) }
   end
 
   def receive(product, warehouse, quantity)
@@ -61,14 +62,10 @@ RSpec.describe Inventory::LowStockQuery, "availability-aware" do
     expect(alerts.sole).to be_notifiable
   end
 
-  it "keeps the legacy total alert for an unconfigured product (transition, N2) — marked notifiable" do
+  it "has no product-level total alert: an unconfigured product never alerts, whatever its stale values" do
     legacy = product("LG-1", legacy_level: 10)
-    receive(legacy, central, 4)
-
-    alert = alerts.sole
-    expect(alert).to be_total
-    expect(alert).to be_notifiable
-    expect(alert.low_stock_level).to eq(10)
+    receive(legacy, central, 4) # 4 ≤ the stale 10 — ignored
+    expect(alerts).to be_empty
   end
 
   it "a branch warehouse without a row never inherits the central settings" do

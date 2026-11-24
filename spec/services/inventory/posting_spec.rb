@@ -91,12 +91,13 @@ RSpec.describe "Inventory posting & costing", type: :model do
   end
 
   describe "low-stock detection" do
-    it "flags a product at or below its low-stock level" do
-      product.update!(low_stock_level: 5)
+    it "flags a product at or below its warehouse's low-stock level" do
+      product.product_warehouse_settings.create!(warehouse: warehouse, low_stock_level: 5, reorder_quantity: 10)
+      low = -> { Inventory::LowStockQuery.new(business).alerts.map { |a| [ a.product, a.warehouse_id ] } }
       post_receipt(qty: 5, cost: 100)
-      expect(product.reload.low_stock?).to be(true)
+      expect(low.call).to eq([ [ product, warehouse.id ] ])
       post_receipt(qty: 1, cost: 100)
-      expect(product.reload.low_stock?).to be(false)
+      expect(low.call).to be_empty
     end
   end
 end

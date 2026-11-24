@@ -255,6 +255,11 @@ class Admin::UsersController < Admin::BaseController
     return if warehouse_ids.nil?
 
     OrganizationAccess::UserWarehouseAccess.assign(user: user, warehouse_ids: warehouse_ids, actor: current_user)
+  rescue OrganizationAccess::UserWarehouseAccess::Refused
+    # Only a crafted request reaches this — the form offers only what the
+    # actor may change (UserPolicy#manage_warehouse_access?, the actor's own
+    # reach). Nothing was written.
+    raise Pundit::NotAuthorizedError
   end
 
   # Stages a requested role change on the (possibly unsaved) user, saved with

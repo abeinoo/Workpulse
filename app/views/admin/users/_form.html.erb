@@ -151,15 +151,21 @@
     </div>
     <% end %>
 
+    <%# Only warehouses the editor can reach (manage_warehouse_access, Phase 2):
+        assignments outside that reach are kept by the assignment service, and
+        an inactive warehouse can be removed but not newly granted. %>
+    <% reach = current_user.inventory_warehouse_ids %>
     <% warehouses = current_user.business.warehouses.ordered %>
+    <% warehouses = warehouses.where(id: reach) if reach %>
     <% if warehouses.any? && permitted.include?(assigned_warehouse_ids: []) %>
       <div class="form-group" style="grid-column: 1 / -1;">
         <%= f.label :assigned_warehouse_ids, t("admin.users.form.warehouses"), class: "form-label" %>
         <div class="check-grid" style="display: flex; flex-wrap: wrap; gap: var(--space-3);">
           <%= f.collection_check_boxes :assigned_warehouse_ids, warehouses, :id, :name do |b| %>
+            <% inactive = !b.object.active? %>
             <label class="form-check">
-              <%= b.check_box %>
-              <span class="form-check-label"><%= b.text %></span>
+              <%= b.check_box(disabled: inactive && !b.checked?) %>
+              <span class="form-check-label"><%= b.text %><% if inactive %> <span class="badge badge-neutral"><%= t("admin.users.form.warehouse_inactive") %></span><% end %></span>
             </label>
           <% end %>
         </div>

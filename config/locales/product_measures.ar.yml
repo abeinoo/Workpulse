@@ -1,0 +1,17 @@
+ar:
+  inventory:
+    measures:
+      field: وحدة القياس
+      amount: المقدار
+      ml:     { name: مليلتر (مل), short: مل }
+      l:      { name: لتر (ل), short: ل }
+      fl_oz:  { name: أونصة سائلة (fl oz), short: أونصة سائلة }
+      g:      { name: غرام (غ), short: غ }
+      kg:     { name: كيلوغرام (كغ), short: كغ }
+      gal:    { name: غالون (gal), short: غالون }
+      oz:     { name: أونصة (oz), short: أونصة }
+      lb:     { name: رطل (lb), short: رطل }
+      cm:     { name: سنتيمتر (سم), short: سم }
+      ft:     { name: قدم (ft), short: قدم }
+      in:     { name: بوصة (in), short: بوصة }
+      pieces: { name: منتج كامل (قطعة), short: قطعة }

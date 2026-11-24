@@ -5,7 +5,7 @@ require "rails_helper"
 RSpec.describe "Inventory::StockIssues import — CSV and XLSX", type: :request do
   let(:business)   { create(:business) }
   let(:owner)      { create(:user, :super_admin, business: business) }
-  let!(:warehouse) { business.warehouses.create!(name: "Main") }
+  let!(:warehouse) { branch_warehouse_for(branch, name: "Main") } # the branch's own warehouse
   let!(:branch)    { business.branches.create!(name: "Main Branch", active: true) }
   let!(:uyn1)      { business.products.create!(name: "أعواد خشبية كبيرة", sku: "UYN1", initial_cost_price: 30, average_cost_price: 30) }
   let!(:abc)       { business.products.create!(name: "Widget", sku: "ABC123", initial_cost_price: 10, average_cost_price: 10) }

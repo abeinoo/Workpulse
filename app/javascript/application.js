@@ -1,5 +1,14 @@
-import "@hotwired/turbo-rails"
+import { Turbo } from "@hotwired/turbo-rails"
 import "controllers"
+
+// <turbo-stream action="visit" url="/path"> — a modal form (rendered inside
+// <turbo-frame id="modal">) that succeeded asks the browser to visit the next
+// page, so the popup closes and the page shows the flash. Only local paths are
+// followed. Used by Inventory::QuickIssuesController#create.
+Turbo.StreamActions.visit = function () {
+  const url = this.getAttribute("url")
+  if (url && url.startsWith("/") && !url.startsWith("//")) Turbo.visit(url, { action: "advance" })
+}
 
 // Turbo replaces <body> but never touches <html lang> or <html dir>.
 // Read the server-set meta tags on every page load and apply them so that

@@ -5,8 +5,8 @@ require "rails_helper"
 # (a second connection is the only thing a row lock can block). Each void runs as
 # the controllers run it: a fresh policy-scoped copy, then Inventory::DocumentVoider.
 # The first void is paused (blocking Queue handshake, no sleeps) inside its
-# transaction, after its reversal movements and void update — on its first
-# ProductCostRecalculator#recompute! — and the second void is then started and
+# transaction, right after its reversal movements (DocumentVoider#post_reversal!)
+# — and the second void is then started and
 # observed waiting on the document row (pg_stat_activity). Each example asserts the
 # SAFE outcome: the second void is refused as already voided and writes nothing —
 # one set of reversal movements, the stock restored once, the first voider kept.
@@ -103,27 +103,31 @@ RSpec.describe "Inventory::DocumentVoider concurrency (two connections, BUG-017)
     end
   end
 
-  # Pauses the first cost recompute — inside DocumentVoider's transaction, after
-  # its reversal movements and void update — until released.
+  # Pauses the first void right after its reversal movements — inside
+  # DocumentVoider's transaction, holding its locks — until released. (Voids
+  # no longer recalculate cost from history, W2; this is the pause point.)
   def pause_first_void
     reached = Queue.new
     release = Queue.new
     calls   = 0
-    allow_any_instance_of(Inventory::ProductCostRecalculator).to receive(:recompute!).and_wrap_original do |original, *args|
+    allow_any_instance_of(Inventory::DocumentVoider).to receive(:post_reversal!).and_wrap_original do |original|
+      result = original.call
       calls += 1
       if calls == 1
         reached << true
         release.pop
       end
-      original.call(*args)
+      result
     end
     @releases = (@releases || []) << release
     [ reached, release ]
   end
 
   let(:business)    { create(:business) }
-  let(:first_user)  { create(:user, :super_admin, business: business) }
-  let(:second_user) { create(:user, :super_admin, business: business) }
+  # Two voiders with explicit permissions (a stock issue's void needs
+  # void_stock_issues; only one user of a business can be its owner).
+  let(:first_user)  { stock_issue_user(business, :void_stock_issues) }
+  let(:second_user) { stock_issue_user(business, :void_stock_issues) }
   let(:main)        { business.warehouses.create!(name: "Main") }
   let(:branch)      { business.warehouses.create!(name: "Branch") }
   let(:product) do
@@ -144,7 +148,7 @@ RSpec.describe "Inventory::DocumentVoider concurrency (two connections, BUG-017)
   def race_two_voids(doc)
     reached, release = pause_first_void
     first = on_other_connection { void(doc.class, doc.id, first_user) }
-    wait_for(reached) # reversal written and document marked voided — not committed
+    wait_for(reached) # document and products locked, reversal written — not voided, not committed
 
     second = on_other_connection { void(doc.class, doc.id, second_user) }
     expect(wait_until_lock_waits(doc.class.table_name)).to be_present

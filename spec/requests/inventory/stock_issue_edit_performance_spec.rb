@@ -7,13 +7,16 @@ require "rails_helper"
 RSpec.describe "Inventory::StockIssues edit performance", type: :request do
   let(:business)  { create(:business) }
   let(:owner)     { create(:user, :super_admin, business: business) }
-  let(:warehouse) { business.warehouses.create!(name: "Main") }
+  let(:warehouse) { branch_warehouse_for(branch, name: "Main") } # the branch's own warehouse
   let(:branch)    { business.branches.create!(name: "B", active: true) }
 
   def products!(count, offset: 0)
     Array.new(count) do |i|
       business.products.create!(name: "P#{offset + i}", sku: "SKU-#{offset + i}", initial_cost_price: 10, average_cost_price: 10)
-              .tap { |p| p.product_barcodes.create!(barcode: "EXTRA-#{offset + i}", is_primary: false) }
+              .tap do |p|
+                p.product_barcodes.create!(barcode: "PRIMARY-#{offset + i}", is_primary: true) # barcodes are optional: give one
+                p.product_barcodes.create!(barcode: "EXTRA-#{offset + i}", is_primary: false)
+              end
     end
   end
 
@@ -82,24 +85,10 @@ RSpec.describe "Inventory::StockIssues edit performance", type: :request do
 
     get edit_inventory_stock_issue_path(issue)
     doc = Nokogiri::HTML(response.body)
-    rows = doc.css("tbody[data-line-items-target='rows'] select")
+    rows = doc.css("tbody[data-line-items-target='rows'] select[name$='[product_id]']")
     expect(rows.map { |s| s.at_css("option[selected]")&.[]("value") }).to eq(issue.items.order(:id).map { |i| i.product_id.to_s })
     option = rows.first.at_css("option[value='#{products.first.id}']")
     expect(option["data-barcode"]).to eq(primary)
     expect(doc.css("template select option[selected]")).to be_empty
-  end
-
-  it "still refuses a product family (parent product) on update" do
-    products = products!(2)
-    issue = pending_issue(products)
-    parent = business.products.create!(name: "Family", sku: "FAM", initial_cost_price: 1, average_cost_price: 1)
-    business.products.create!(name: "Child", sku: "FAM-1", initial_cost_price: 1, average_cost_price: 1, parent_product: parent)
-
-    params = update_params(issue, quantity: 1)
-    params[:stock_issue][:items_attributes]["9"] = { product_id: parent.id, quantity: 1 }
-    patch inventory_stock_issue_path(issue), params: params
-
-    expect(response).to have_http_status(:unprocessable_entity)
-    expect(issue.reload.items.map(&:product_id)).not_to include(parent.id)
   end
 end

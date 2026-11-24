@@ -5,10 +5,11 @@ RSpec.describe Inventory::LowStockQuery, type: :model do
   let(:main)     { business.warehouses.create!(name: "Main") }
   let(:branch)   { business.warehouses.create!(name: "Branch") }
 
-  def product(low: 0, reorder: 0, sku: "P-#{SecureRandom.hex(3)}")
-    business.products.create!(name: "P", sku: sku, initial_cost_price: 1,
-                              average_cost_price: 1, low_stock_level: low,
-                              reorder_level: low, reorder_quantity: reorder)
+  # low > 0 gives the product an Active setting in `wh` (thresholds are per warehouse only).
+  def product(low: 0, reorder: 0, wh: main, sku: "P-#{SecureRandom.hex(3)}")
+    business.products.create!(name: "P", sku: sku, initial_cost_price: 1, average_cost_price: 1).tap do |p|
+      p.product_warehouse_settings.create!(warehouse: wh, low_stock_level: low, reorder_quantity: reorder) if low.positive?
+    end
   end
 
   def receive(prod, qty:, wh:)
@@ -35,11 +36,11 @@ RSpec.describe Inventory::LowStockQuery, type: :model do
     end
   end
 
-  describe "per-warehouse thresholds override the product default" do
+  describe "each warehouse uses its own threshold" do
     it "uses the warehouse-specific low_stock_level" do
-      p = product(low: 0)
+      p = product
       p.product_warehouse_settings.create!(warehouse: main, low_stock_level: 10, reorder_quantity: 30)
-      receive(p, qty: 8, wh: main)  # 8 <= 10 → low for this warehouse, despite product default of 0
+      receive(p, qty: 8, wh: main)  # 8 <= 10 → low for this warehouse
 
       alert = alerts.find { |a| a.warehouse_id == main.id }
       expect(alert).to be_present
@@ -55,22 +56,53 @@ RSpec.describe Inventory::LowStockQuery, type: :model do
     end
   end
 
-  describe "fallback for products with no per-warehouse settings" do
-    it "evaluates total stock against the product-level default" do
-      p = product(low: 5, reorder: 10)
-      receive(p, qty: 3, wh: main)  # total 3 <= 5
-
-      alert = alerts.find { |a| a.product == p }
-      expect(alert).to be_present
-      expect(alert).to be_total
-      expect(alert.warehouse_id).to be_nil
-      expect(alert.on_hand).to eq(3)
+  describe "no product-level fallback" do
+    # Existing databases still hold stale values in the retired product columns.
+    def stale!(p, low: 50, reorder: 99, total: 50, notify: true)
+      write_retired_product_stock_columns!(p, low_stock_level: low, reorder_quantity: reorder, reorder_level: total,
+                                              receive_low_stock_notification: notify)
     end
 
-    it "does not alert when total is above the default" do
-      p = product(low: 5)
-      receive(p, qty: 9, wh: main)
+    it "never alerts a product without a warehouse setting, whatever its stale product values" do
+      p = product
+      stale!(p)
+      receive(p, qty: 3, wh: main) # 3 ≤ the stale 50 — ignored
+      empty = product
+      stale!(empty, low: 0, reorder: 0, total: 0) # the old "out of stock" total alert — gone
+
       expect(alerts).to be_empty
+    end
+
+    it "a warehouse without its own setting inherits nothing from the product or from another warehouse" do
+      p = product(low: 5, reorder: 7, wh: branch)
+      stale!(p)
+      receive(p, qty: 3, wh: main) # Main: no setting → no alert, even at 3
+
+      expect(alerts.map { |a| [ a.warehouse_id, a.low_stock_level, a.reorder_quantity ] }).to eq([ [ branch.id, 5, 7 ] ])
+    end
+
+    it "suggests the warehouse's own reorder quantity, never the product's" do
+      p = product(low: 5, reorder: 0)
+      stale!(p, reorder: 99)
+      expect(alerts.sole.reorder_quantity).to eq(0)
+    end
+
+    it "notification follows the warehouse setting only: the stale product flag neither hides nor mutes an alert" do
+      muted = product(low: 5, reorder: 1)
+      stale!(muted, notify: true)
+      muted.product_warehouse_settings.sole.update!(receive_low_stock_notification: false)
+      loud = product(low: 5, reorder: 1)
+      stale!(loud, notify: false) # used to drop the product from every alert
+
+      by_product = alerts.to_h { |a| [ a.product, a.notifiable? ] }
+      expect(by_product).to eq(muted => false, loud => true)
+    end
+
+    it "every alert names its warehouse" do
+      product(low: 5, wh: main)
+      product(low: 5, wh: branch)
+      expect(alerts.map(&:warehouse_id)).to contain_exactly(main.id, branch.id)
+      expect(alerts.first).not_to respond_to(:total?)
     end
   end
 
@@ -83,36 +115,16 @@ RSpec.describe Inventory::LowStockQuery, type: :model do
       expect(alerts).to be_empty
     end
 
-    it "excludes an archived child product even when its stock is below minimum" do
-      parent = business.products.create!(
-        name: "Family", sku: "FAM-#{SecureRandom.hex(3)}",
-        initial_cost_price: 0, average_cost_price: 0
-      )
-      child = product(low: 5, reorder: 10)
-      child.update!(parent_product_id: parent.id)
-      receive(child, qty: 2, wh: main)  # 2 <= 5, would alert if active
-      child.update!(active: false, archived_at: Time.current)
-
-      expect(alerts.map(&:product)).not_to include(child)
-    end
-
-    it "surfaces an active child alert while ignoring its archived sibling" do
-      parent = business.products.create!(
-        name: "Family", sku: "FAM-#{SecureRandom.hex(3)}",
-        initial_cost_price: 0, average_cost_price: 0
-      )
-      active_child   = product(low: 5, reorder: 10)
-      archived_child = product(low: 5, reorder: 10)
-      active_child.update!(parent_product_id: parent.id)
-      archived_child.update!(parent_product_id: parent.id)
-
-      receive(active_child,   qty: 2, wh: main)  # below threshold
-      receive(archived_child, qty: 1, wh: main)  # also below threshold, but archived
-      archived_child.update!(active: false, archived_at: Time.current)
+    it "surfaces an active product's alert while ignoring an archived one" do
+      active_product   = product(low: 5, reorder: 10)
+      archived_product = product(low: 5, reorder: 10)
+      receive(active_product,   qty: 2, wh: main)  # below threshold
+      receive(archived_product, qty: 1, wh: main)  # also below threshold, but archived
+      archived_product.update!(active: false, archived_at: Time.current)
 
       alert_products = alerts.map(&:product)
-      expect(alert_products).to include(active_child)
-      expect(alert_products).not_to include(archived_child)
+      expect(alert_products).to include(active_product)
+      expect(alert_products).not_to include(archived_product)
     end
 
     it "counts the dashboard alert total using only active products" do

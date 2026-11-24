@@ -8,7 +8,7 @@ class Inventory::StockTransfersController < Inventory::BaseController
   def show
     @stock_transfer = find_transfer
     authorize @stock_transfer
-    @items = @stock_transfer.items.includes(product: { image_attachment: :blob })
+    @items = @stock_transfer.items.includes(product: Product::IMAGE_PRELOAD)
   end
 
   def new
@@ -24,7 +24,7 @@ class Inventory::StockTransfersController < Inventory::BaseController
     authorize @stock_transfer
     ensure_warehouses_accessible!(@stock_transfer.source_warehouse_id, @stock_transfer.destination_warehouse_id)
 
-    result = Inventory::StockTransferPoster.new(@stock_transfer).call
+    result = Inventory::StockTransferPoster.new(@stock_transfer, actor: current_user).call
     if result.ok?
       redirect_to inventory_stock_transfer_path(@stock_transfer), notice: t("inventory.stock_transfers.created")
     else

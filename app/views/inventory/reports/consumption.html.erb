@@ -35,7 +35,8 @@
             <tr>
               <td class="td-wrap"><%= product_identity(row.product, link: inventory_product_path(row.product)) %></td>
               <td class="td-secondary"><%= row.product.sku %></td>
-              <td class="td-secondary"><%= row.branch&.name || "—" %></td>
+              <%# No branch = Unallocated: central-warehouse consumption, never attributed to a branch. %>
+              <td class="td-secondary"><%= row.branch&.name || content_tag(:em, t("inventory.reports.unallocated"), data: { testid: "consumption-unallocated" }) %></td>
               <td class="td-secondary"><%= render "inventory/warehouse_supplies/link_label", warehouses: row.supply_warehouses, source: row.supply_source %></td>
               <td style="text-align: end;"><%= row.issued_quantity.to_i %></td>
               <td style="text-align: end;"><%= row.reversed_quantity.positive? ? row.reversed_quantity.to_i : "—" %></td>

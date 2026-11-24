@@ -7,7 +7,7 @@
   </div>
   <div class="alert alert-info" data-testid="read-only-notice"><%= t("product_availability.reconciliation.read_only") %></div>
 
-  <%# ── Historical central warehouse ─────────────────────── %>
+  <%# ── Central warehouse ──────────────────────────────────── %>
   <h2 class="section-title"><%= t("product_availability.reconciliation.central.title") %></h2>
   <%# The same definition as the product page's "Central warehouse" badge: kind = central. %>
   <p data-testid="central-list">
@@ -60,58 +60,6 @@
       </tbody>
     </table>
   </div>
-
-  <%# ── Legacy product-level values (historical central) ─── %>
-  <h2 class="section-title"><%= t("product_availability.reconciliation.legacy.title") %> <span class="badge badge-neutral"><%= r.legacy.total %></span></h2>
-  <p class="form-hint"><%= t("product_availability.reconciliation.legacy.hint") %></p>
-  <% if r.transfer_visible? %>
-    <% tp = r.transfer_preview %>
-    <p class="form-hint" data-testid="transfer-summary"><%= t("product_availability.reconciliation.legacy.transfer_summary",
-          transferred: tp.of("matching").size, pending: tp.to_create_count, exceptions: tp.exceptions.size) %></p>
-  <% end %>
-  <p class="form-hint" data-testid="legacy-total-alert-count"><%= t("product_availability.reconciliation.legacy.total_alert_in_use", count: r.legacy_total_alert_count) %></p>
-  <% if r.legacy.rows.empty? %>
-    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("product_availability.reconciliation.none") %></p></div>
-  <% else %>
-    <% lg = "product_availability.reconciliation.legacy" %>
-    <div class="table-wrap table-wrap--cards" style="margin-bottom: var(--space-2);">
-      <table>
-        <thead><tr>
-          <th><%= t("product_availability.columns.product") %></th>
-          <th style="text-align: end;"><%= t("#{lg}.old_low") %></th>
-          <th style="text-align: end;"><%= t("#{lg}.old_reorder") %></th>
-          <th style="text-align: end;"><%= t("#{lg}.central_low") %></th>
-          <th style="text-align: end;"><%= t("#{lg}.central_reorder") %></th>
-          <th><%= t("#{lg}.transfer") %></th>
-          <th><%= t("#{lg}.reason") %></th>
-        </tr></thead>
-        <tbody>
-          <% r.legacy.rows.each do |row| %>
-            <% p = row.product %>
-            <% s = row.central_setting %>
-            <% outcome = row.transfer || "not_applicable" %>
-            <tr data-testid="legacy-<%= p.id %>">
-              <td data-label="<%= t("product_availability.columns.product") %>">
-                <%= link_to p.name, inventory_product_path(p), class: "link" %>
-                <div class="td-secondary"><%= p.sku %></div>
-              </td>
-              <td style="text-align: end;" data-label="<%= t("#{lg}.old_low") %>"><%= availability_quantity(p.low_stock_level) %></td>
-              <td style="text-align: end;" data-label="<%= t("#{lg}.old_reorder") %>"><%= availability_quantity(p.reorder_quantity) %></td>
-              <td style="text-align: end;" data-label="<%= t("#{lg}.central_low") %>"><%= s ? availability_quantity(s.low_stock_level) : "—" %></td>
-              <td style="text-align: end;" data-label="<%= t("#{lg}.central_reorder") %>"><%= s ? availability_quantity(s.reorder_quantity) : "—" %></td>
-              <td data-label="<%= t("#{lg}.transfer") %>" data-testid="legacy-transfer-<%= p.id %>">
-                <span class="badge <%= outcome == "matching" ? "badge-success" : (outcome == "to_create" || outcome == "not_applicable" ? "badge-neutral" : "badge-warning") %>"><%= t("#{lg}.transfers.#{outcome}") %></span>
-              </td>
-              <td class="td-secondary" data-label="<%= t("#{lg}.reason") %>" data-testid="legacy-reason-<%= p.id %>">
-                <%= t("#{lg}.reasons.#{outcome}", default: "") %>
-              </td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-    <%= render "truncated", list: r.legacy %>
-  <% end %>
 
   <%# ── Explicit branch rows ─────────────────────────────── %>
   <h2 class="section-title"><%= t("product_availability.reconciliation.branch_rows.title") %> <span class="badge badge-neutral"><%= r.branch_rows.total %></span></h2>

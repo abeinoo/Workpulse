@@ -20,15 +20,16 @@ class Inventory::StockIssuesController < Inventory::BaseController
     @stock_issues = @stock_issues.voided if params[:status] == "voided"
 
     @filter_warehouses   = accessible_warehouses
-    @filter_branches     = current_user.business.branches.active.order(:name)
+    # Cost-attribution branches of the issues this user can see.
+    @filter_branches     = current_user.business.branches.where(id: base.select(:branch_id)).order(:name)
     @filter_creators     = User.where(
-                              id: StockIssue.for_business(current_user.business).select(:created_by_id)
+                              id: base.select(:created_by_id)
                             ).order(:first_name, :last_name)
     @filter_approvers    = User.where(
-                              id: StockIssue.for_business(current_user.business).select(:approved_by_id)
+                              id: base.select(:approved_by_id)
                             ).order(:first_name, :last_name)
     @filter_issuers      = User.where(
-                              id: StockIssue.for_business(current_user.business).select(:issued_by_id)
+                              id: base.select(:issued_by_id)
                             ).order(:first_name, :last_name)
     @active_filter_count = params.values_at(:q, :warehouse_id, :branch_id, :status, :workflow_status,
                                              :created_by_id, :approved_by_id, :issued_by_id, :from, :to)
@@ -58,7 +59,7 @@ class Inventory::StockIssuesController < Inventory::BaseController
 
   def show
     @stock_issue = find_issue(includes: [ :submitted_by, :approved_by, :rejected_by, :issued_by, :cancelled_by, :voided_by,
-                                          { items: { product: { image_attachment: :blob } } } ])
+                                          { items: { product: Product::IMAGE_PRELOAD } } ])
     authorize @stock_issue
     @items           = @stock_issue.items
     # Physical / reserved-by-others / available / requested per product while
@@ -77,7 +78,10 @@ class Inventory::StockIssuesController < Inventory::BaseController
   end
 
   def new
-    @stock_issue = current_user.business.stock_issues.build(issued_on: Date.current)
+    # The only warehouse the user may use is preselected; with several the
+    # user chooses (Inventory::IssueWarehouseReach).
+    @stock_issue = current_user.business.stock_issues.build(issued_on: Date.current,
+                                                            warehouse_id: issue_warehouse_reach.default_warehouse_id)
     @stock_issue.items.build
     authorize @stock_issue
     load_options
@@ -87,7 +91,8 @@ class Inventory::StockIssuesController < Inventory::BaseController
     @stock_issue = current_user.business.stock_issues.build(issue_params)
     @stock_issue.created_by = current_user
     authorize @stock_issue
-    ensure_warehouses_accessible!(@stock_issue.warehouse_id)
+    # The submitted warehouse is re-checked by the service (active, own
+    # business, one the user may use) — never trusted.
 
     result = Inventory::StockIssueDraftService.new(@stock_issue, actor: current_user).call
     if result.ok?
@@ -111,7 +116,7 @@ class Inventory::StockIssuesController < Inventory::BaseController
   def update
     @stock_issue = find_issue
     authorize @stock_issue
-    ensure_warehouses_accessible!(issue_params[:warehouse_id].presence || @stock_issue.warehouse_id)
+    ensure_warehouses_accessible!(@stock_issue.warehouse_id)
 
     result = Inventory::StockIssueEditor.new(stock_issue_id: @stock_issue.id, actor: current_user,
                                              attributes: issue_params, lock_token: params[:lock_token]).call
@@ -168,13 +173,17 @@ class Inventory::StockIssuesController < Inventory::BaseController
     redirect_with_result(result, ok_message: t("inventory.stock_issues.cancelled"))
   end
 
+  # Draft deletion (create_stock_issues) through its service — no reason, no
+  # extra audit entry.
   def destroy
     @stock_issue = find_issue
     authorize @stock_issue
-    @stock_issue.destroy
-    redirect_to inventory_stock_issues_path, notice: t("inventory.stock_issues.deleted")
-  rescue ImmutableDocument::DeletionNotAllowedError
-    redirect_to inventory_stock_issue_path(@stock_issue), alert: t("inventory.stock_issues.errors.cannot_delete")
+    result = Inventory::StockIssueDraftDeletion.new(stock_issue_id: @stock_issue.id, actor: current_user).call
+    if result.ok?
+      redirect_to inventory_stock_issues_path, notice: t("inventory.stock_issues.deleted")
+    else
+      redirect_to inventory_stock_issue_path(@stock_issue), alert: result.error
+    end
   end
 
   def void
@@ -191,8 +200,9 @@ class Inventory::StockIssuesController < Inventory::BaseController
 
   def import
     authorize StockIssue, :create?
-    @warehouses = accessible_warehouses
-    @branches   = current_user.business.branches.active.order(:name)
+    @warehouses        = issue_warehouse_reach.warehouses
+    @default_warehouse = issue_warehouse_reach.default_warehouse_id
+    @warehouse_notice  = issue_warehouse_reach.message if @warehouses.empty?
   end
 
   # ?kind=xlsx serves the Excel version; both carry the same SKU/Quantity
@@ -242,7 +252,7 @@ class Inventory::StockIssuesController < Inventory::BaseController
     end
 
     importer = Inventory::Imports::StockIssueImporter.new(
-      current_user.business, @mapper.rows(@mapping), warehouse: @warehouse, branch: @branch, user: current_user,
+      current_user.business, @mapper.rows(@mapping), warehouse: @warehouse, user: current_user,
       notes: params[:notes]
     )
     if params[:allow_partial] != "1" && importer.preview.any? { |row| !row.valid? }
@@ -250,7 +260,11 @@ class Inventory::StockIssuesController < Inventory::BaseController
       render_import_preview(status: :unprocessable_entity) and return
     end
 
-    result = importer.call
+    result = begin
+      importer.call
+    rescue Inventory::StockIssueAuthorization::Denied, Inventory::WarehouseReach::Denied => e
+      redirect_to import_inventory_stock_issues_path, alert: e.message and return
+    end
 
     if result.batch
       redirect_to inventory_stock_issue_import_batch_path(result.batch)
@@ -260,6 +274,10 @@ class Inventory::StockIssuesController < Inventory::BaseController
   end
 
   private
+
+  def admitted_without_inventory_view? = current_user.can?(:view_stock_issues)
+
+  def issue_warehouse_reach = @issue_warehouse_reach ||= Inventory::IssueWarehouseReach.for(current_user)
 
   def find_issue(includes: [])
     policy_scope(StockIssue).includes(includes).find(params[:id])
@@ -273,25 +291,25 @@ class Inventory::StockIssuesController < Inventory::BaseController
     end
   end
 
-  # Resolves warehouse/branch and the CSV (fresh upload or the payload carried
-  # through the mapping step). Redirects back to the upload form and returns
-  # false on anything unusable.
+  # The import's warehouse (chosen on the upload form among the warehouses
+  # the user may use — re-checked here, never trusted; the importer checks it
+  # again) and the CSV (fresh upload or the payload carried through the
+  # mapping step). Redirects back to the upload form and returns false on
+  # anything unusable.
   def load_import_context
-    @warehouse = accessible_warehouses.find_by(id: params[:warehouse_id])
-    @branch    = current_user.business.branches.find_by(id: params[:branch_id])
-    fields     = Inventory::Imports::StockIssueImporter::COLUMNS
-    source     = params[:file].presence || params[:csv_payload].presence
+    fields = Inventory::Imports::StockIssueImporter::COLUMNS
+    source = params[:file].presence || params[:csv_payload].presence
+    warehouse_id = params[:warehouse_id].presence || issue_warehouse_reach.default_warehouse_id
 
-    if source.nil? || @warehouse.nil? || @branch.nil?
-      redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.file_warehouse_and_branch_required")
+    if source.nil? || warehouse_id.blank?
+      redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.file_and_warehouse_required")
       return false
     end
-    # Refused before the file is even read — preview and import alike; the
-    # StockIssue validation refuses a direct importer call too (BUG-029).
-    unless @branch.active?
-      redirect_to import_inventory_stock_issues_path, alert: t("inventory.imports.branch_inactive")
+    unless issue_warehouse_reach.issuable?(warehouse_id)
+      redirect_to import_inventory_stock_issues_path, alert: issue_warehouse_reach.message
       return false
     end
+    @warehouse = current_user.business.warehouses.find(warehouse_id)
 
     @file_name     = params[:file].respond_to?(:original_filename) ? params[:file].original_filename : params[:file_name].to_s
     @just_uploaded = params[:file].present?
@@ -319,23 +337,31 @@ class Inventory::StockIssuesController < Inventory::BaseController
     @mapping_errors = @mapper.mapping_errors(@mapping)
     if @mapping_errors.empty?
       @preview_rows = Inventory::Imports::StockIssueImporter.new(
-        current_user.business, @mapper.rows(@mapping), warehouse: @warehouse, branch: @branch
+        current_user.business, @mapper.rows(@mapping), warehouse: @warehouse
       ).preview
       @invalid_rows = @preview_rows.reject(&:valid?)
     end
     render :import_preview, status: status
   end
 
+  # Warehouses: only the active ones the user may use
+  # (Inventory::IssueWarehouseReach) — plus, when editing, the issue's current
+  # warehouse (it may be inactive, or have been chosen under an earlier rule),
+  # so an unchanged issue still renders it; keeping it is allowed, moving to
+  # any other warehouse is re-checked by Inventory::StockIssueEditor.
   def load_options
-    @warehouses = accessible_warehouses
-    @branches   = current_user.business.branches.active.order(:name)
+    @warehouses = issue_warehouse_reach.warehouses.to_a
+    if @stock_issue&.persisted? && @stock_issue.warehouse && @warehouses.none? { |w| w.id == @stock_issue.warehouse_id }
+      @warehouses = [ *@warehouses, @stock_issue.warehouse ].sort_by(&:name)
+    end
+    @warehouse_notice = issue_warehouse_reach.message if issue_warehouse_reach.none?
     # Line pickers search the catalogue on demand; only each line's product is rendered.
     preload_line_products(@stock_issue&.items)
   end
 
   def issue_params
     params.require(:stock_issue).permit(
-      :warehouse_id, :branch_id, :issued_on, :notes,
+      :warehouse_id, :issued_on, :notes,
       items_attributes: [ :id, :product_id, :quantity, :_destroy ]
     )
   end
@@ -361,7 +387,12 @@ class Inventory::StockIssuesController < Inventory::BaseController
         from = Array(log.changes_json["status"]).first
         events << { type: from == "approved" ? :approval_revoked : :reopened, time: log.created_at, actor: log.actor }
       when "approve"
-        events << { type: :approved, time: log.created_at, actor: log.actor }
+        # A Products-index quick issue approves its own submission
+        # (Inventory::StockIssueQuickIssue) — shown as such, never as a
+        # regular independent approval.
+        quick = log.metadata["quick_issue"]
+        events << { type: quick ? :quick_issue_approved : :approved, time: log.created_at, actor: log.actor,
+                    data: (helpers.stock_issue_reason_text(@stock_issue) if quick && @stock_issue.issue_reason) }
       when "reject"
         events << { type: :rejected, time: log.created_at, actor: log.actor, data: log.metadata["reason"] }
       when "confirm"

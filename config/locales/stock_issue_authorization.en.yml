@@ -1,0 +1,42 @@
+# Stock Issue & Quick Issue authorization: operation permissions, workflow
+# settings and Quick Issue reasons (warehouse access: stock_issue_warehouse.*.yml).
+en:
+  activerecord:
+    errors:
+      messages:
+        void_audit_failed: "The void could not be recorded in the audit trail, so nothing was reversed. Try again; if it keeps failing, contact support."
+        immutable: "cannot be changed"
+  inventory:
+    stock_issues:
+      workflow: "Workflow"
+      workflows:
+        standard: "Standard"
+        quick_issue: "Stock Issue"
+      reason: "Reason"
+      reasons:
+        internal_use: "Internal Use"
+        damaged: "Damaged"
+        expired: "Expired"
+        lost: "Lost"
+        other: "Other"
+      errors:
+        not_permitted: "You do not have permission for this stock issue action."
+        audit_failed: "The action could not be recorded in the audit trail, so nothing was changed. Try again; if it keeps failing, contact support."
+    stock_issue_workflow_settings:
+      title: "Stock Issue Workflow"
+      desc: "Self-approval for Stock Issues and whether employees may use Stock Issue"
+      subtitle: "Each workflow has its own settings. Every change is recorded in the audit log."
+      standard_title: "Standard Stock Issue"
+      self_approval: "Self-approval"
+      self_approval_options:
+        forbidden: "Forbidden — the employee who submitted an issue cannot approve or reject it"
+        allowed: "Allowed — the submitter may approve their own issue"
+      self_approval_hint: "Only the submitter of the current submission is compared; editing an issue does not block its editor. The owner is always exempt."
+      fixed_rules: "Always enforced and not configurable: approval before stock is deducted, warehouse access, stock availability and locks, reasons for cancel and void, and the audit trail."
+      quick_title: "Stock Issue"
+      quick_issue_enabled: "Employees with the Stock Issue permission may use Stock Issue"
+      quick_issue_hint: "When disabled, only the owner can use Stock Issue. Stock Issue always posts immediately with an automatic, audited approval, and is not affected by the Standard Stock Issue self-approval setting."
+      save: "Save settings"
+      confirm: "Save the Stock Issue workflow settings? The change is recorded in the audit log."
+      saved: "Stock Issue workflow settings saved."
+      failed: "The settings could not be saved. Nothing was changed."

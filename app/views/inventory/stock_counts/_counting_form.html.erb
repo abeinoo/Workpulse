@@ -59,10 +59,12 @@
       <td class="td-secondary">__BARCODE__</td>
       <td style="text-align: end;">0</td>
       <td>
-        <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" placeholder="—" class="form-control qty-input"
-               name="stock_count[items_attributes][NEW_INDEX][counted_quantity]"
-               data-quantity-field
-               data-action="input->count-sheet#recalc keydown.enter->count-sheet#focusScanner">
+        <div class="qty-with-unit">
+          <input type="number" step="1" min="0" inputmode="numeric" pattern="[0-9]*" placeholder="—" class="form-control qty-input"
+                 name="stock_count[items_attributes][NEW_INDEX][counted_quantity]"
+                 data-quantity-field
+                 data-action="input->count-sheet#recalc keydown.enter->count-sheet#focusScanner">
+        </div>
       </td>
       <td style="text-align: end;"><span data-difference class="badge badge-neutral">—</span></td>
     </tr>

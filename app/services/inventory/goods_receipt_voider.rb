@@ -41,6 +41,9 @@ module Inventory
 
     def call
       @receipt = GoodsReceipt.where(business_id: @actor.business_id).find(@goods_receipt_id)
+      unless WarehouseReach.permits?(@actor, @receipt.warehouse_id) # service-level reach (Phase 2)
+        return Result.new(ok: false, document: @receipt, error: WarehouseReach.message)
+      end
 
       ActiveRecord::Base.transaction do
         # Row lock first, reloading the receipt (BUG-015 / BUG-016): every decision

@@ -89,12 +89,12 @@ module Inventory
         product = line.product
         if line.reserved.positive?
           issue.errors.add(:base, :insufficient_stock_reserved,
-                           product: product.name, sku: product.sku,
+                           product: product.name, sku: product.sku, warehouse: issue.warehouse&.name,
                            available: format_quantity(line.available), requested: format_quantity(line.requested),
                            reserved: format_quantity(line.reserved), on_hand: format_quantity(line.on_hand))
         else
           issue.errors.add(:base, :insufficient_stock,
-                           product: product.name, sku: product.sku,
+                           product: product.name, sku: product.sku, warehouse: issue.warehouse&.name,
                            available: format_quantity(line.available), requested: format_quantity(line.requested))
         end
       end
@@ -125,6 +125,60 @@ module Inventory
           break
         end
       end
+    end
+
+    # Reservation protection for every removal that does not consume its own
+    # reservation (transfers, adjustments, count approval, voids, laundry):
+    #
+    #   on_hand − removal >= reserved
+    #
+    # removals: { product_id => base quantity removed from warehouse_id }.
+    # Returns one Shortfall per product that would break the invariant, naming
+    # the approved issues holding the stock. Callers hold .lock_products!.
+    Shortfall = Struct.new(:product, :warehouse, :removal, :on_hand, :reserved, :issue_numbers, keyword_init: true) do
+      def available = [ on_hand - reserved, 0 ].max
+    end
+
+    def self.removal_shortfalls(warehouse:, removals:, excluding_issue_id: nil)
+      removals = removals.transform_values(&:to_d).select { |_, quantity| quantity.positive? }
+      return [] if removals.empty?
+
+      on_hand  = on_hand_by(warehouse_ids: warehouse.id, product_ids: removals.keys)
+      reserved = reserved_by(warehouse_ids: warehouse.id, product_ids: removals.keys, excluding_issue_id: excluding_issue_id)
+      short = removals.select do |product_id, quantity|
+        held = reserved[[ warehouse.id, product_id ]].to_d
+        held.positive? && on_hand[[ warehouse.id, product_id ]].to_d - quantity < held
+      end
+      return [] if short.empty?
+
+      products = Product.where(id: short.keys).index_by(&:id)
+      holders  = reserved_items.where(stock_issues: { warehouse_id: warehouse.id }, product_id: short.keys)
+      holders  = holders.where.not(stock_issue_id: excluding_issue_id) if excluding_issue_id
+      numbers  = holders.distinct.pluck(:product_id, "stock_issues.issue_number").group_by(&:first)
+      short.map do |product_id, quantity|
+        Shortfall.new(product: products[product_id], warehouse: warehouse, removal: quantity,
+                      on_hand: on_hand[[ warehouse.id, product_id ]].to_d, reserved: reserved[[ warehouse.id, product_id ]].to_d,
+                      issue_numbers: numbers.fetch(product_id, []).map(&:last).sort)
+      end
+    end
+
+    # Adds :reserved_stock_conflict per shortfall to record.errors; true when none.
+    def self.protect_reservations!(record, warehouse:, removals:, excluding_issue_id: nil)
+      shortfalls = removal_shortfalls(warehouse: warehouse, removals: removals, excluding_issue_id: excluding_issue_id)
+      shortfalls.each do |s|
+        record.errors.add(:base, :reserved_stock_conflict,
+                          product: s.product.name, sku: s.product.sku, warehouse: warehouse.name,
+                          removal: format_quantity(s.removal), on_hand: format_quantity(s.on_hand),
+                          reserved: format_quantity(s.reserved), issues: s.issue_numbers.join(", "))
+      end
+      shortfalls.empty?
+    end
+
+    # Current averages read from the rows locked by .lock_products!, so a
+    # line is valued with the average as committed, never a stale instance.
+    def self.locked_averages(product_ids)
+      ids = product_ids.compact.uniq
+      ids.any? ? Product.where(id: ids).pluck(:id, :average_cost_price).to_h : {}
     end
 
     def self.format_quantity(quantity)

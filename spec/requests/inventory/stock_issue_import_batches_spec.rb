@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "Inventory::StockIssueImportBatches", type: :request do
   let(:business) { create(:business) }
   let(:owner)    { create(:user, :super_admin, business: business) }
-  let!(:warehouse) { business.warehouses.create!(name: "Main") }
+  let!(:warehouse) { branch_warehouse_for(branch, name: "Main") } # the branch's own warehouse
   let!(:branch)     { business.branches.create!(name: "Main Branch", active: true) }
   let!(:product) do
     business.products.create!(name: "Widget", sku: "W-001", initial_cost_price: 10, average_cost_price: 10)

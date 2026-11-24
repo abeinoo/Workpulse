@@ -509,7 +509,7 @@ RSpec.describe "Inventory::StockCounts", type: :request do
         get inventory_stock_count_path(count)
         row = Nokogiri::HTML(response.body).css("tr").find { |tr| tr.text.include?("GKM-84978") }
         cells = row.css("td").map { |td| td.text.squish }
-        expect(cells[2..4]).to eq([ "4.004", "4.004", "0" ])
+        expect(cells[2..4]).to eq([ "4.004", "4.004", "0" ]) # inventory units, never the product's measure
         expect(cells[5]).to include(I18n.t("inventory.stock_counts.sources.system"))
       end
 
@@ -602,8 +602,9 @@ RSpec.describe "Inventory::StockCounts", type: :request do
 
       it "names the product's SKU in a completion error" do
         count = legacy_in_progress_count
-        business.products.create!(name: "Serum mini", sku: "GKM-84978-M", parent_product_id: serum.id,
-                                  initial_cost_price: 50, average_cost_price: 50)
+        # A negative ledger balance cannot be adopted as a counted quantity (>= 0).
+        InventoryMovement.create!(business: business, product: serum, warehouse: warehouse, direction: :out,
+                                  quantity: 100, unit_cost: 50, reason: :adjustment, occurred_on: Date.current)
         complete_as(count, counter)
         expect(count).to be_in_progress
         expect(flash[:alert]).to start_with("GKM-84978: ")

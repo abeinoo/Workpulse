@@ -113,12 +113,74 @@ RSpec.describe PermissionRole, type: :model do
 
   # ── Constants ───────────────────────────────────────────────────────────────
   describe "PERMISSION_GROUPS" do
-    it "covers exactly 24 groups" do
-      expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(24)
+    it "covers exactly 25 groups" do
+      expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(25)
     end
 
-    it "has 143 total permissions" do
-      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(143)
+    it "has 149 total permissions (manage_branch_access retired)" do
+      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(149)
+    end
+
+    # Stock Issue & Quick Issue authorization: one permission per operation.
+    let(:stock_issue_keys) do
+      %w[view_stock_issues create_stock_issues approve_stock_issues confirm_stock_issues
+         cancel_stock_issues void_stock_issues quick_issue_stock]
+    end
+
+    it "groups the Stock Issue permissions (and the legacy manage_stock_issues) together, in no default role" do
+      expect(PermissionRole::PERMISSION_GROUPS[:stock_issues]).to eq(stock_issue_keys + %w[manage_stock_issues])
+      expect(PermissionRole::PERMISSION_GROUPS[:inventory] & stock_issue_keys).to be_empty
+      expect(PermissionRole::DEFAULT_PERMISSIONS_BY_ROLE_TYPE.values.flatten & stock_issue_keys).to be_empty
+    end
+
+    it "requires only the Stock Issue view for the standard operations — never view_inventory — and nothing for Quick Issue" do
+      deps = PermissionRole::PERMISSION_DEPENDENCIES
+      %w[create_stock_issues approve_stock_issues confirm_stock_issues cancel_stock_issues void_stock_issues].each do |key|
+        expect(deps[key]).to eq(%w[view_stock_issues]), key
+      end
+      expect(deps["quick_issue_stock"]).to be_nil
+      expect(deps["view_stock_issues"]).to be_nil # independent of view_inventory
+    end
+
+    it "keeps a saved role that already held approve/confirm valid without the new view_stock_issues prerequisite" do
+      role = create(:permission_role, permissions: %w[view_inventory])
+      role.update_column(:permissions, %w[view_inventory approve_stock_issues confirm_stock_issues]) # saved under the old rule
+
+      role.reload.name = "Renamed"
+      expect(role).to be_valid
+      expect(role.save).to be true
+      expect(role.reload.permissions).to eq(%w[view_inventory approve_stock_issues confirm_stock_issues]) # not rewritten
+    end
+
+    it "applies the view_stock_issues prerequisite when approve/confirm is newly added" do
+      role = create(:permission_role, permissions: %w[view_inventory])
+      role.permissions += %w[approve_stock_issues]
+      expect(role).not_to be_valid
+      expect(role.errors[:permissions].join).to match(/requires.*view_stock_issues/)
+    end
+
+    it "no longer offers the retired manage_branch_access (Stock Issue branch assignment removed)" do
+      expect(PermissionRole::ALL_PERMISSIONS).not_to include("manage_branch_access")
+      expect(PermissionRole::PERMISSION_DEPENDENCIES).not_to have_key("manage_branch_access")
+      expect(PermissionRole::ALL_PERMISSIONS).to include("manage_warehouse_access") # warehouse access stays
+      %i[en ar].each do |locale|
+        expect(I18n.exists?("admin.permission_roles.permissions.manage_branch_access", locale)).to be(false)
+        expect(I18n.exists?("admin.permission_roles.permission_descriptions.manage_branch_access", locale)).to be(false)
+      end
+    end
+
+    it "names and describes every permission and group in English and Arabic" do
+      %i[en ar].each do |locale|
+        PermissionRole::ALL_PERMISSIONS.each do |key|
+          expect(I18n.t("admin.permission_roles.permissions.#{key}", locale: locale, default: "")).to be_present, "#{locale} #{key}"
+        end
+        (stock_issue_keys + %w[manage_stock_issues]).each do |key|
+          expect(I18n.t("admin.permission_roles.permission_descriptions.#{key}", locale: locale, default: "")).to be_present, "#{locale} #{key}"
+        end
+        PermissionRole::PERMISSION_GROUPS.each_key do |group|
+          expect(I18n.t("admin.permission_roles.groups.#{group}", locale: locale, default: "")).to be_present, "#{locale} #{group}"
+        end
+      end
     end
 
     # Warehouse Architecture PR 5: company-wide warehouse access, explicit only.
@@ -138,6 +200,26 @@ RSpec.describe PermissionRole, type: :model do
       { en: "Access All Warehouses", ar: "الوصول إلى جميع المستودعات" }.each do |locale, label|
         expect(I18n.t("admin.permission_roles.permissions.access_all_warehouses", locale: locale)).to eq(label)
         expect(I18n.t("admin.permission_roles.permission_descriptions.access_all_warehouses", locale: locale, default: "")).to be_present
+      end
+    end
+
+    # Warehouse Access Phase 2: administering explicit warehouse assignments.
+    it "offers manage_warehouse_access in the inventory group, requiring view_inventory, in no default role" do
+      expect(PermissionRole::PERMISSION_GROUPS[:inventory]).to include("manage_warehouse_access")
+      expect(PermissionRole::PERMISSION_DEPENDENCIES["manage_warehouse_access"]).to eq(%w[view_inventory])
+      expect(PermissionRole::DEFAULT_PERMISSIONS_BY_ROLE_TYPE.values.flatten).not_to include("manage_warehouse_access")
+    end
+
+    it "refuses manage_warehouse_access without view_inventory" do
+      role = build(:permission_role, permissions: %w[manage_warehouse_access])
+      expect(role).not_to be_valid
+      expect(role.errors[:permissions].join).to match(/requires.*view_inventory/i)
+    end
+
+    it "labels manage_warehouse_access in English and Arabic" do
+      { en: "Manage Warehouse Access", ar: "إدارة صلاحيات الوصول إلى المستودعات" }.each do |locale, label|
+        expect(I18n.t("admin.permission_roles.permissions.manage_warehouse_access", locale: locale)).to eq(label)
+        expect(I18n.t("admin.permission_roles.permission_descriptions.manage_warehouse_access", locale: locale, default: "")).to be_present
       end
     end
 

@@ -1,0 +1,38 @@
+ar:
+  inventory:
+    products:
+      index:
+        count:
+          zero: "لا توجد منتجات"
+          one: "منتج واحد"
+          two: "منتجان"
+          few: "%{count} منتجات"
+          many: "%{count} منتجًا"
+          other: "%{count} منتج"
+        status_tabs: "حالة المنتج"
+        catalogue_settings: "إعدادات الكتالوج"
+        search_label: "ابحث بالاسم أو رمز المنتج أو الباركود"
+        clear_filters: "مسح الفلاتر"
+        active_filters: "الفلاتر المفعّلة"
+        remove_filter: "إزالة الفلتر: %{filter}"
+        chip_search: "بحث: «%{term}»"
+        empty_filtered: "لا توجد منتجات مطابقة لهذه الفلاتر."
+        stock_on_hand: "المخزون المتوفر"
+        not_tracked: "غير متتبَّع"
+        select_hint: "حدد منتجات لطباعة الباركود الخاص بها."
+        selected_count: "المحدد: {count}"
+        clear_selection: "إلغاء التحديد"
+        summary:
+          total: "المنتجات"
+          low_stock: "مخزون منخفض"
+          out_of_stock: "نفد المخزون"
+        stock_status:
+          label: "حالة المخزون"
+          all: "كل حالات المخزون"
+          in_stock: "متوفر"
+          low_stock: "مخزون منخفض"
+          out_of_stock: "نفد المخزون"
+        actions:
+          view: "عرض المنتج"
+          movements: "عرض حركات المخزون"
+          delete: "حذف المنتج"

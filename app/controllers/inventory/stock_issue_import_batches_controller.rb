@@ -31,11 +31,13 @@ class Inventory::StockIssueImportBatchesController < Inventory::BaseController
 
   private
 
+  def admitted_without_inventory_view? = current_user.can?(:view_stock_issues)
+
   # Preloads everything the row cards' product-info panel needs (image,
   # barcodes) and shares this same `batch` instance with each row so
   # `row.batch.warehouse` doesn't refetch per card.
   def load_rows(batch)
-    rows = batch.rows.ordered.includes(product: [ :product_barcodes, { image_attachment: :blob } ])
+    rows = batch.rows.ordered.includes(product: [ :product_barcodes, Product::IMAGE_PRELOAD ])
     rows.each { |row| row.association(:batch).target = batch }
     rows
   end

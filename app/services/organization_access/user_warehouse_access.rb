@@ -23,15 +23,39 @@ module OrganizationAccess
   #       assignment created or removed is audited in that actor's name, in
   #       the same transaction as the change (Warehouse Architecture PR 5, D7).
   #     — warehouse_ids is the form's submitted list (blank values ignored); an
-  #       empty list removes every assignment. An unknown id raises
-  #       ActiveRecord::RecordNotFound; another business's warehouse raises
-  #       ActiveRecord::RecordInvalid.
+  #       empty list removes every assignment the actor may manage. An unknown
+  #       id raises ActiveRecord::RecordNotFound; another business's warehouse
+  #       raises ActiveRecord::RecordInvalid.
+  #     — the actor must hold manage_warehouse_access, may not change their own
+  #       access or that of a user they do not control, and may only add or
+  #       remove warehouses they can reach themselves (active ones, for a new
+  #       grant); assignments outside the actor's reach are left as they are.
+  #       Any refusal raises Refused and changes nothing.
+  #   revoke_branch_warehouse(user_id:, branch_id:, actor:)
+  #     — the branch-manager lifecycle (OrganizationAccess::BranchManagerLifecycle):
+  #       removes the user's EXPLICIT assignment to the given branch's own
+  #       (kind "branch") warehouse, if there is one, audited in the actor's
+  #       name in the caller's transaction. Nothing else is touched — no other
+  #       assignment, no warehouse, no inventory record. Returns
+  #       { user_id:, warehouse_id: } for a removed assignment, or nil.
   module UserWarehouseAccess
-    OPERATIONS = %i[assign].freeze
+    OPERATIONS = %i[assign revoke_branch_warehouse].freeze
 
     # Raised when warehouse access is changed before any handler is registered —
     # submitted access is never silently dropped.
     class NotRegistered < StandardError; end
+
+    # Raised by the handler when the actor may not make the requested change.
+    # reason: :not_permitted, :own_access, :not_in_scope, :outside_reach,
+    # :inactive_warehouse.
+    class Refused < StandardError
+      attr_reader :reason
+
+      def initialize(reason)
+        @reason = reason
+        super("warehouse access change refused: #{reason}")
+      end
+    end
 
     class << self
       def register(handler)
@@ -47,6 +71,27 @@ module OrganizationAccess
 
       def assign(user:, warehouse_ids:, actor:)
         handler.assign(user: user, warehouse_ids: warehouse_ids, actor: actor)
+      end
+
+      def revoke_branch_warehouse(user_id:, branch_id:, actor:)
+        handler.revoke_branch_warehouse(user_id: user_id, branch_id: branch_id, actor: actor)
+      end
+
+      # THE rule for who may change an employee's warehouse access — used by
+      # UserPolicy#manage_warehouse_access? (the screens) and by the handler
+      # (Inventory::UserWarehouseAssignments), so the two can never disagree:
+      # manage_warehouse_access, never one's own access, and — for an existing
+      # employee — one the actor manages (owner, or within the actor's
+      # manage_employees / view_employees scope) whose permissions the actor's
+      # own cover (PermissionGrants). A user not yet saved is the actor's new hire.
+      def manageable?(actor:, user:)
+        return false if actor.nil? || user.nil?
+        return false unless actor.can?(:manage_warehouse_access) && actor != user
+        return true if user.new_record?
+
+        in_scope = actor.owner? ||
+                   EmployeeScope.new(actor).for_permissions(:manage_employees, :view_employees).exists?(user.id)
+        in_scope && PermissionGrants.covers?(actor, user)
       end
     end
   end

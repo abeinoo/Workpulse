@@ -41,10 +41,16 @@ RSpec.describe "Inventory workspace navigation", type: :request do
 
       expect(tab_hrefs).to eq([ inventory_root_path, inventory_products_path, inventory_purchase_requests_path,
                                 inventory_goods_receipts_path, inventory_stock_issues_path, inventory_stock_counts_path ])
-      expect(more_hrefs).to eq([ inventory_warehouses_path, inventory_suppliers_path, inventory_stock_transfers_path,
+      expect(more_hrefs).to eq([ inventory_warehouses_path, inventory_suppliers_path,
+                                 inventory_stock_transfers_path,
                                  inventory_stock_adjustments_path, inventory_movements_report_path,
                                  inventory_reports_path, inventory_settings_path ])
       expect(tab_hrefs & more_hrefs).to be_empty
+    end
+
+    it "has no Quick Issue item (Quick Issue opens from the product page, Stock Issues and the dashboard)" do
+      get inventory_root_path
+      expect(rail_hrefs + tab_hrefs + more_hrefs).not_to include(new_inventory_quick_issue_path)
     end
 
     {

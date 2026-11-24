@@ -67,7 +67,8 @@
         <%= t("#{bc}.branches_title") %>
       </h2>
 
-      <% if @report.branch_rows.empty? %>
+      <% unallocated = @report.unallocated_row %>
+      <% if @report.branch_rows.empty? && unallocated.nil? %>
         <div class="empty-state"><p class="empty-state__title"><%= t("#{bc}.no_branches") %></p></div>
       <% else %>
         <% if @report.branch_rows.any?(&:shared?) %>
@@ -131,6 +132,23 @@
                     <% end %>
                   </td>
                   <td class="td-secondary"><%= local_date(row.last_consumed_on) %></td>
+                </tr>
+              <% end %>
+              <% if unallocated %>
+                <%# Central-warehouse consumption: attributed to no branch (never ranked). %>
+                <tr data-testid="branch-comparison-unallocated">
+                  <td class="td-wrap"><em><%= t("inventory.reports.unallocated") %></em>
+                    <span class="td-secondary" style="display: block;"><%= t("inventory.reports.unallocated_hint") %></span></td>
+                  <td class="td-secondary">—</td>
+                  <td class="td-secondary">—</td>
+                  <td style="text-align: end;" class="td-secondary">—</td>
+                  <td style="text-align: end;"><%= qty.(unallocated.issued) %></td>
+                  <td style="text-align: end;"><%= unallocated.reversed.positive? ? "−#{qty.(unallocated.reversed)}" : "—" %></td>
+                  <td style="text-align: end; font-weight: 600;"><%= qty.(unallocated.net_consumption) %></td>
+                  <td style="text-align: end;"><%= number_to_percentage(unallocated.share, precision: 1) %></td>
+                  <td style="text-align: end;"><%= number_with_precision(unallocated.avg_daily_consumption, precision: 2) %></td>
+                  <td style="text-align: end;" class="td-secondary">—</td>
+                  <td class="td-secondary"><%= local_date(unallocated.last_consumed_on) %></td>
                 </tr>
               <% end %>
             </tbody>

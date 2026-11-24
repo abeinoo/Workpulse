@@ -1,0 +1,8 @@
+# Shared inventory posting messages: the average-cost audit (Inventory::AverageCost)
+# and approved-reservation protection (Inventory::StockAvailability).
+en:
+  activerecord:
+    errors:
+      messages:
+        average_cost_audit_failed: "The average-cost change could not be recorded in the audit trail, so nothing was posted. Try again; if it keeps failing, contact support."
+        reserved_stock_conflict: "%{product} (%{sku}) in %{warehouse}: removing %{removal} would leave less than the %{reserved} reserved by approved stock issues %{issues} (on hand: %{on_hand}). Issue or cancel those first, or remove less."

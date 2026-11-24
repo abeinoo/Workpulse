@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "Inventory::StockIssues CSV import column mapping", type: :request do
   let(:business)   { create(:business) }
   let(:owner)      { create(:user, :super_admin, business: business) }
-  let!(:warehouse) { business.warehouses.create!(name: "Main") }
+  let!(:warehouse) { branch_warehouse_for(branch, name: "Main") } # the branch's own warehouse
   let!(:branch)    { business.branches.create!(name: "Main Branch", active: true) }
   let!(:uyn1)      { business.products.create!(name: "أعواد خشبية كبيرة", sku: "UYN1", initial_cost_price: 30, average_cost_price: 30) }
   let!(:abc)       { business.products.create!(name: "Widget", sku: "ABC123", initial_cost_price: 10, average_cost_price: 10) }
@@ -210,13 +210,14 @@ RSpec.describe "Inventory::StockIssues CSV import column mapping", type: :reques
       expect(response).to redirect_to(root_path)
     end
 
-    it "does not allow importing into a warehouse the user cannot access" do
+    it "does not allow importing into a warehouse the user is not authorized to use (tampered id)" do
       other = business.warehouses.create!(name: "Other")
-      allow_any_instance_of(User).to receive(:inventory_warehouse_ids).and_return([ warehouse.id ])
+      allow_any_instance_of(User).to receive(:inventory_warehouse_ids).and_return([ other.id ])
 
       post preview_import_inventory_stock_issues_path,
-           params: { warehouse_id: other.id, branch_id: branch.id, file: upload(real_csv) }
+           params: { warehouse_id: warehouse.id, file: upload(real_csv) }
       expect(response).to redirect_to(import_inventory_stock_issues_path)
+      expect(flash[:alert]).to eq(I18n.t("inventory.issue_warehouse.errors.not_allowed"))
     end
   end
 end

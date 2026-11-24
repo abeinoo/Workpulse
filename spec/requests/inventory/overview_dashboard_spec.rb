@@ -6,7 +6,11 @@ RSpec.describe "Inventory overview dashboard", type: :request do
   let!(:main)    { business.warehouses.create!(name: "Main Warehouse") }
   let(:branch)   { business.branches.create!(name: "Nasr Branch", active: true) }
   let(:supplier) { business.suppliers.create!(name: "Acme") }
-  let(:low)      { business.products.create!(name: "LowItem", sku: "LOW-1", initial_cost_price: 10, average_cost_price: 10, reorder_level: 5, reorder_quantity: 12) }
+  let(:low) do
+    business.products.create!(name: "LowItem", sku: "LOW-1", initial_cost_price: 10, average_cost_price: 10).tap do |p|
+      ProductWarehouseSetting.create!(product: p, warehouse: main, low_stock_level: 5, reorder_quantity: 12)
+    end
+  end
   let(:empty)    { business.products.create!(name: "EmptyItem", sku: "EMP-1", initial_cost_price: 3, average_cost_price: 3) }
   let(:today)    { BusinessDay.current(context: business) }
 
@@ -31,8 +35,8 @@ RSpec.describe "Inventory overview dashboard", type: :request do
   describe "with data" do
     before do
       receive(low, 6)
-      issue(low, 2)   # 4 left → low stock (reorder level 5)
-      empty           # tracked, never received → out of stock
+      issue(low, 2)   # 4 left → low stock (Main's threshold 5)
+      empty           # tracked, never received → out of stock; no warehouse setting → no low-stock alert
       # pending documents
       business.goods_receipts.build(warehouse: main, supplier: supplier, received_on: today, approval_status: "pending_approval")
               .tap { |r| r.items.build(product: low, quantity: 1, unit_cost: 10) }.save!
@@ -54,8 +58,8 @@ RSpec.describe "Inventory overview dashboard", type: :request do
       ov = ->(k) { I18n.t("inventory.dashboard.overview.kpis.#{k}") }
       expect(kpis[ov.(:stock_value)].first).to include("40")                                    # 4 × 10
       expect(kpis[ov.(:products)].first).to eq("2")
-      # LowStockQuery also counts EmptyItem (0 on hand ≤ reorder level 0) — existing low-stock rule.
-      expect(kpis[ov.(:low_stock)]).to eq([ Inventory::LowStockQuery.new(business).alerts.size.to_s, inventory_low_stock_report_path ])
+      # Only LowItem: EmptyItem has no warehouse setting, so no low-stock alert (it is counted as out of stock).
+      expect(kpis[ov.(:low_stock)]).to eq([ "1", inventory_low_stock_report_path ])
       expect(kpis[ov.(:out_of_stock)]).to eq([ "1", inventory_current_stock_report_path(stock_status: "out_of_stock") ])
       expect(kpis[ov.(:open_purchase_requests)]).to eq([ "1", inventory_purchase_requests_path(needs_action: "1") ])
       expect(kpis[ov.(:pending_receipts)]).to eq([ "1", inventory_goods_receipts_path(approval_status: "pending_approval") ])
@@ -67,7 +71,7 @@ RSpec.describe "Inventory overview dashboard", type: :request do
       get inventory_root_path
       titles = action_titles
       a = ->(k) { I18n.t("inventory.dashboard.overview.actions.#{k}.title") }
-      expect(titles).to include("#{a.(:out_of_stock)} — 1", "#{a.(:low_stock)} — 2", "#{a.(:purchase_requests)} — 1",
+      expect(titles).to include("#{a.(:out_of_stock)} — 1", "#{a.(:low_stock)} — 1", "#{a.(:purchase_requests)} — 1",
                                 "#{a.(:receipts_pending_approval)} — 1", "#{a.(:issues_pending_approval)} — 1",
                                 "#{a.(:counts_awaiting_approval)} — 1")
       expect(titles.join).not_to include(a.(:counts_in_progress))
@@ -112,7 +116,10 @@ RSpec.describe "Inventory overview dashboard", type: :request do
   end
 
   it "caps purchase recommendations at the most urgent rows and links to the full Low Stock report" do
-    12.times { |i| business.products.create!(name: "Item#{i}", sku: "IT-#{i}", initial_cost_price: 1, average_cost_price: 1, reorder_level: 5, reorder_quantity: 5) }
+    12.times do |i|
+      item = business.products.create!(name: "Item#{i}", sku: "IT-#{i}", initial_cost_price: 1, average_cost_price: 1)
+      ProductWarehouseSetting.create!(product: item, warehouse: main, low_stock_level: 5, reorder_quantity: 5)
+    end
     sign_in owner
     get inventory_root_path
     section = Nokogiri::HTML(response.body).at_css("#low-stock-alerts")

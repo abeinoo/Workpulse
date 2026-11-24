@@ -118,12 +118,11 @@ RSpec.describe "Product availability — default inclusion in every active wareh
       manager.save_settings(product_id: other.id, warehouse_id: nasr.id, low_stock_level: 5, reorder_quantity: 0)
 
       alerts = described_class.new(business).alerts
-      # Threshold 0 at the branch: no branch alert. A branch row does not end the
-      # legacy (out-of-stock) total alert — only a central row does.
-      expect(alerts.map { |a| [ a.product.name, a.warehouse_id ] }).to eq([ [ "Mask", nasr.id ], [ "Shampoo", nil ] ])
+      # Threshold 0 at the branch: no alert (and no product-level total alert).
+      expect(alerts.map { |a| [ a.product.name, a.warehouse_id ] }).to eq([ [ "Mask", nasr.id ] ])
 
       manager.exclude(product_id: other.id, warehouse_id: nasr.id, reason: "x")
-      expect(described_class.new(business).alerts.select(&:warehouse_id)).to be_empty
+      expect(described_class.new(business).alerts).to be_empty
     end
 
     it "keeps detection but marks a legacy 'alerts off' pair as not notifiable" do

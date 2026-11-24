@@ -27,18 +27,9 @@
     <p class="form-hint" style="margin: 0 0 var(--space-4);"><%= t("inventory.imports.mapping.any_columns_hint") %></p>
 
     <div class="form-grid">
-      <div class="form-group">
-        <%= label_tag :warehouse_id, t("inventory.imports.warehouse"), class: "form-label" %>
-        <%= select_tag :warehouse_id,
-              options_from_collection_for_select(@warehouses, :id, :name),
-              include_blank: "— #{t('inventory.stock_issues.select_warehouse')}", class: "form-control", required: true %>
-      </div>
-      <div class="form-group">
-        <%= label_tag :branch_id, t("inventory.stock_issues.branch"), class: "form-label" %>
-        <%= select_tag :branch_id,
-              options_from_collection_for_select(@branches, :id, :name),
-              include_blank: "— #{t('inventory.stock_issues.select_branch')}", class: "form-control", required: true %>
-      </div>
+      <%= render "inventory/stock_issues/warehouse_field", field_name: "warehouse_id",
+            warehouses: @warehouses, selected_id: params[:warehouse_id].presence || @default_warehouse,
+            notice: @warehouse_notice %>
       <%# Document-level note for the ONE stock issue this import creates —
           saved on StockIssue#notes, shared by every imported line. Not a
           file column. %>

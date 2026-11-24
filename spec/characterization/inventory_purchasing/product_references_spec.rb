@@ -7,7 +7,8 @@ require "rails_helper"
 # fixed by their own commits (regression specs in spec/requests/security/):
 # SEC-P6-4 brand (product_brand_business_scope_spec), SEC-P6-5 category
 # (product_category_business_scope_spec), SEC-P6-6 parent product — which used
-# to write into the other business's product (product_parent_business_scope_spec).
+# to write into the other business's product (moot: Product Family was removed;
+# a crafted parent id is ignored).
 # The default supplier: SEC-P6-2 (product_default_supplier_business_scope_spec).
 RSpec.describe "Characterization: product references to business-owned records", type: :request do
   let(:business) { create(:business) }
@@ -16,7 +17,6 @@ RSpec.describe "Characterization: product references to business-owned records",
 
   let!(:brand)            { business.brands.create!(name: "Own Brand") }
   let!(:category)         { business.product_categories.create!(name: "Own Category") }
-  let!(:parent)           { business.products.create!(name: "Own Parent", sku: "OP-1", initial_cost_price: 1, average_cost_price: 1) }
   let!(:foreign_brand)    { other.brands.create!(name: "Foreign Brand") }
   let!(:foreign_category) { other.product_categories.create!(name: "Foreign Category") }
   let!(:foreign_parent)   { other.products.create!(name: "Foreign Parent", sku: "FP-1", initial_cost_price: 1, average_cost_price: 1) }
@@ -29,11 +29,10 @@ RSpec.describe "Characterization: product references to business-owned records",
   before { sign_in manager }
 
   describe "same-business references are accepted" do
-    it "brand, category and parent product of the same business" do
-      product = create_product("C-1", brand_id: brand.id, product_category_id: category.id, parent_product_id: parent.id)
+    it "brand and category of the same business" do
+      product = create_product("C-1", brand_id: brand.id, product_category_id: category.id)
 
-      expect(product).to have_attributes(brand: brand, product_category: category, parent_product: parent)
-      expect(parent.reload).to have_attributes(track_inventory: false, receive_low_stock_notification: false)
+      expect(product).to have_attributes(brand: brand, product_category: category)
     end
   end
 
@@ -69,24 +68,26 @@ RSpec.describe "Characterization: product references to business-owned records",
     end
   end
 
-  describe "SEC-P6-6 (fixed): another business's product is refused as the parent — no cross-business write" do
-    it "on create: 422, nothing saved, the foreign product untouched (tracking on, no child)" do
+  # SEC-P6-6 is moot since Product Family was removed: there is no parent
+  # reference any more. A crafted parent_product_id is ignored — nothing is
+  # linked and the other business's product is never written.
+  describe "SEC-P6-6: a crafted parent product id is ignored — no cross-business write" do
+    it "on create: saved without any parent, the foreign product untouched" do
       before_attack = foreign_parent.reload.attributes
 
-      expect(create_product("V-1", parent_product_id: foreign_parent.id)).to be_nil
-      expect(response).to have_http_status(:unprocessable_entity)
+      product = create_product("V-1", parent_product_id: foreign_parent.id)
+      expect(product).to be_present
+      expect(raw_parent_product_id(product)).to be_nil
       expect(foreign_parent.reload.attributes).to eq(before_attack)
-      expect(foreign_parent).to have_attributes(track_inventory: true, receive_low_stock_notification: true)
-      expect(foreign_parent.child_products).to be_empty
     end
 
-    it "on update: 422, the product keeps no parent, the foreign product untouched" do
+    it "on update: the product keeps no parent, the foreign product untouched" do
       product = business.products.create!(name: "P", sku: "V-2", initial_cost_price: 1, average_cost_price: 1)
       before_attack = foreign_parent.reload.attributes
       patch inventory_product_path(product), params: { product: { parent_product_id: foreign_parent.id } }
 
-      expect(response).to have_http_status(:unprocessable_entity)
-      expect(product.reload.parent_product).to be_nil
+      expect(response).to redirect_to(inventory_product_path(product))
+      expect(raw_parent_product_id(product)).to be_nil
       expect(foreign_parent.reload.attributes).to eq(before_attack)
     end
   end

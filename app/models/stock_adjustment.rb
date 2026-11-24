@@ -1,4 +1,5 @@
 class StockAdjustment < ApplicationRecord
+  include RequiresActiveWarehouse
   include ImmutableDocument
   include Voidable
 
@@ -35,6 +36,8 @@ class StockAdjustment < ApplicationRecord
   # Only a stock count's approval may post a "stock_count" adjustment, and it
   # must name its count — a manual adjustment can never pose as a count.
   validate  :stock_count_reason_matches_link, on: :create
+  # An adjustment posts on creation: never into an inactive warehouse.
+  requires_active_warehouse :warehouse
 
   scope :for_business, ->(business) { where(business: business) }
   scope :recent,       -> { order(adjusted_on: :desc, id: :desc) }

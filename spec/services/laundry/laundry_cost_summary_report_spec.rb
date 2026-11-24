@@ -173,7 +173,8 @@ RSpec.describe Finance::Reports::LaundryCostSummary, type: :model do
 
     it "excludes a voided Stock Issue" do
       issue = issue!(branch: laundry_branch, qty: 3)
-      Inventory::DocumentVoider.new(issue, user: actor, reason: "miscounted").call
+      voider = stock_issue_user(business, :void_stock_issues)
+      expect(Inventory::DocumentVoider.new(issue, user: voider, reason: "miscounted").call).to be_ok
 
       expect(run.material_cost).to eq(0)
     end

@@ -38,8 +38,10 @@ module Finance
     # for the query-level reasoning behind each figure.
     #
     # Unallocated: business-level costs attributed to no branch — floating
-    # employees' gross salary and approved unallocated expenses (their employer
-    # insurance; ExpenseSources#unallocated_payroll_cost / #unallocated_expenses).
+    # employees' gross salary, approved unallocated expenses (their employer
+    # insurance; ExpenseSources#unallocated_payroll_cost / #unallocated_expenses)
+    # and inventory consumed from a central warehouse
+    # (ExpenseSources#unallocated_inventory_cost — never attributed to a branch).
     # They are on no branch row: Table#unallocated carries them as their own line
     # and the totals include them once (branch rows 50,000 + 40,000 + 30,000 and
     # 5,000 unallocated → total 125,000). Their payroll part is shown only with
@@ -110,17 +112,18 @@ module Finance
 
       # nil when there is no unallocated cost (the report is then exactly as before).
       def unallocated_row
-        payroll  = sources.unallocated_payroll_cost
-        expenses = sources.unallocated_expenses
-        return nil if payroll.zero? && expenses.zero?
+        payroll   = sources.unallocated_payroll_cost
+        expenses  = sources.unallocated_expenses
+        inventory = sources.unallocated_inventory_cost
+        return nil if payroll.zero? && expenses.zero? && inventory.zero?
 
         shown = @unallocated_payroll || payroll.zero? # nothing to withhold without a floating salary
         { branch:    I18n.t("finance.reports.unallocated"),
           revenue:   0,
           payroll:   shown ? payroll : nil,
-          inventory: 0,
+          inventory: inventory,
           expenses:  expenses,
-          net:       shown ? -(payroll + expenses) : nil }
+          net:       shown ? -(payroll + inventory + expenses) : nil }
       end
 
       def revenues

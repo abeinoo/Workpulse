@@ -31,10 +31,12 @@
   <td class="td-secondary"><%= product.barcode.presence || "—" %></td>
   <td style="text-align: end;"><%= inventory_quantity(system_qty) %></td>
   <td>
-    <%= f.number_field :counted_quantity, step: 1, min: 0, class: "form-control qty-input",
-          value: inventory_quantity(entered),
-          inputmode: "numeric", pattern: "[0-9]*", placeholder: "—",
-          data: { quantity_field: true, action: "input->count-sheet#recalc keydown.enter->count-sheet#focusScanner" } %>
+    <div class="qty-with-unit">
+      <%= f.number_field :counted_quantity, step: 1, min: 0, class: "form-control qty-input",
+            value: inventory_quantity(entered),
+            inputmode: "numeric", pattern: "[0-9]*", placeholder: "—",
+            data: { quantity_field: true, action: "input->count-sheet#recalc keydown.enter->count-sheet#focusScanner" } %>
+    </div>
     <%# Live status of this row's quantity: what it is now, and — once the person
         types in it or confirms it — that saving will record a new physical
         count (count-sheet#markEntered). %>

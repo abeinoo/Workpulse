@@ -100,7 +100,36 @@ module InventoryHelper
 
   # Inventory quantities exactly as stored (4.004 stays 4.004; 7.000 shows 7).
   def inventory_quantity(value) = Inventory::QuantityFormat.plain(value)
+
+  # ── Measure (Product#unit_of_measure) — informational only ──────────────
+  # It describes the contents of one inventory unit; it is never shown as the
+  # unit of an inventory quantity (those are plain numbers of units).
+  # "Millilitres (ml)" — the dropdown label.
+  def measure_name(code) = t("inventory.measures.#{code.presence || Product::DEFAULT_UNIT_OF_MEASURE}.name")
+  # "ml" / "مل" — beside the product's Amount.
+  def measure_short(product_or_code)
+    code = product_or_code.respond_to?(:unit_of_measure) ? product_or_code.unit_of_measure : product_or_code
+    t("inventory.measures.#{code.presence || Product::DEFAULT_UNIT_OF_MEASURE}.short")
+  end
+
+  # The short label rides along for the form's Amount suffix (product_measure_controller.js).
+  def measure_options = Product::UNITS_OF_MEASURE.map { |code| [ measure_name(code), code, { "data-short" => measure_short(code) } ] }
+
+  # The contents of one unit: Amount + Measure ("355 ml", "0.5 kg"), or nil
+  # without an amount.
+  def product_measurement(product)
+    return nil if product&.measure_amount.blank?
+
+    "#{inventory_quantity(product.measure_amount)} #{measure_short(product)}"
+  end
+
   def inventory_signed_quantity(value) = Inventory::QuantityFormat.signed(value)
+
+  # Unit cost for display (Decisions 11, 18): up to 8 dp, trailing zeros and
+  # point removed, never scientific — 25.00000000 → "25", 0.70400000 → "0.704".
+  def format_unit_cost(value)
+    CostFormat.unit(value)
+  end
 
   def stock_count_status_class(status)
     STOCK_COUNT_STATUS_BADGES.fetch(status.to_s, "badge-neutral")
@@ -149,6 +178,7 @@ module InventoryHelper
     created: "activity-timeline__marker--neutral", submitted: "activity-timeline__marker--warning",
     reopened: "activity-timeline__marker--neutral",
     approved: "activity-timeline__marker--success", rejected: "activity-timeline__marker--danger",
+    quick_issue_approved: "activity-timeline__marker--warning",
     settled: "activity-timeline__marker--accent", received: "activity-timeline__marker--success",
     voided: "activity-timeline__marker--danger", settlement_reversed: "activity-timeline__marker--warning"
   }.freeze
@@ -299,6 +329,15 @@ module InventoryHelper
     STOCK_ISSUE_TIMELINE_MARKER_CLASSES.fetch(type, "activity-timeline__marker--neutral")
   end
 
+  # A Quick Issue's fixed reason (and the description of "other"), for the
+  # issue page, its timeline and the reports. nil when no reason was recorded.
+  def stock_issue_reason_text(issue)
+    return nil if issue.issue_reason.blank?
+
+    label = t("inventory.stock_issues.reasons.#{issue.issue_reason}")
+    issue.issue_reason_note.present? ? "#{label} — #{issue.issue_reason_note}" : label
+  end
+
   STOCK_ISSUE_TIMELINE_ICONS = {
     created:   "M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
     submitted: "M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5",
@@ -311,6 +350,9 @@ module InventoryHelper
   # issued_legacy reuses the exact same icon as issued (see #stock_issue_timeline_icon) —
   # only the label differs (see the timeline.issued_legacy locale key).
   STOCK_ISSUE_TIMELINE_ICONS[:issued_legacy] = STOCK_ISSUE_TIMELINE_ICONS[:issued]
+  # A quick-issue self-approval keeps the approval tick; the warning marker
+  # and its own label set it apart from an independent approval.
+  STOCK_ISSUE_TIMELINE_ICONS[:quick_issue_approved] = STOCK_ISSUE_TIMELINE_ICONS[:approved]
   # Pencil — returned to draft for editing.
   STOCK_ISSUE_TIMELINE_ICONS[:approval_revoked] = STOCK_ISSUE_TIMELINE_ICONS[:rejected]
   STOCK_ISSUE_TIMELINE_ICONS[:reopened] = "m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"
@@ -340,9 +382,12 @@ module InventoryHelper
     options_for_select(
       products.map { |p|
         barcode = barcodes[p.id]
+        # Every barcode of the product when they were loaded (scanning any of
+        # them matches this line), else the one from the bulk lookup.
+        all = p.association(:product_barcodes).loaded? ? p.product_barcodes.map(&:barcode) : [ barcode ].compact
         [ "#{p.name} (#{p.sku})", p.id, {
           "data-barcode"             => barcode,
-          "data-barcodes"            => barcode.to_s,
+          "data-barcodes"            => all.join("|"),
           "data-sku"                 => p.sku,
           "data-default-supplier-id" => p.default_supplier_id
         } ]

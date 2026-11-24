@@ -21,6 +21,12 @@
         <span class="stat-card__sub"><%= t("inventory.settings.brands_desc") %></span>
       <% end %>
     <% end %>
+    <% if OrganizationAccess::StockIssueWorkflowSettings.permitted?(current_user, current_user.business) %>
+      <%= link_to inventory_stock_issue_workflow_settings_path, class: "stat-card", data: { testid: "stock-issue-workflow-settings-link" } do %>
+        <span class="stat-card__label"><%= t("inventory.stock_issue_workflow_settings.title") %></span>
+        <span class="stat-card__sub"><%= t("inventory.stock_issue_workflow_settings.desc") %></span>
+      <% end %>
+    <% end %>
     <% if policy(WarehouseBranchSupply).index? %>
       <%= link_to inventory_warehouse_supplies_path, class: "stat-card" do %>
         <span class="stat-card__label"><%= t("inventory.warehouse_supplies.title") %></span>

@@ -1,4 +1,5 @@
 class PurchaseRequestItem < ApplicationRecord
+  include RequiresActiveWarehouse
   belongs_to :purchase_request
   belongs_to :product
   # LEGACY: the per-line destination warehouse of requests created before the
@@ -25,6 +26,7 @@ class PurchaseRequestItem < ApplicationRecord
   validates :unit_price, numericality: { greater_than: 0 }
   validate  :product_in_same_business
   validate  :source_warehouse_in_same_business, if: :will_save_change_to_source_warehouse_id?
+  requires_active_warehouse :source_warehouse
   validate  :supplier_in_same_business, if: :will_save_change_to_supplier_id?
   validate  :supplier_matches_legacy_request_supplier, if: :will_save_change_to_supplier_id?
 

@@ -773,8 +773,6 @@ products = products_data.map do |d|
     p.barcode                   = d[:barcode]
     p.initial_cost_price        = d[:cost]
     p.average_cost_price        = d[:cost]   # blended forward once stock is posted
-    p.low_stock_level           = d[:low]
-    p.reorder_quantity          = d[:reorder]
     p.selling_markup_percentage = d[:markup]
   end
 end
@@ -782,8 +780,16 @@ prod = products.index_by(&:sku)
 puts "Products: #{products.count}"
 
 # ---------------------------------------------------------------------------
-# Per-warehouse overrides — the Jeddah warehouse alerts earlier on fast movers.
+# Per-warehouse low-stock settings (there is no product-level threshold): the
+# central distribution centre gets each product's default, and the Jeddah
+# warehouse its own, lower values on fast movers.
 # ---------------------------------------------------------------------------
+products_data.each do |d|
+  ProductWarehouseSetting.find_or_create_by!(product: prod[d[:sku]], warehouse: w_central) do |s|
+    s.low_stock_level  = d[:low]
+    s.reorder_quantity = d[:reorder]
+  end
+end
 { "HC-DB-100" => { low: 10, reorder: 25 },
   "SH-1L-200" => { low: 15, reorder: 40 } }.each do |sku, cfg|
   ProductWarehouseSetting.find_or_create_by!(product: prod[sku], warehouse: w_jeddah) do |s|

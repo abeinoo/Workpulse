@@ -28,13 +28,7 @@ class StockCountItem < ApplicationRecord
   validate  :counted_quantity_is_whole, unless: :system_derived?
   validates :product_id, uniqueness: { scope: :stock_count_id }
   validates :quantity_source, inclusion: { in: QUANTITY_SOURCES }, allow_nil: true
-  validate  :product_is_transactable
   validate  :product_in_same_business, if: :will_save_change_to_product_id?
-
-  def product_is_transactable
-    return unless product
-    errors.add(:product_id, :parent_not_allowed) if Product.where(parent_product_id: product.id).exists?
-  end
 
   # Line product ids (including rows the barcode scanner adds) come straight
   # from form params — never trust one that belongs to another business (IP-1).

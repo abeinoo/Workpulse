@@ -1,88 +1,61 @@
 class Inventory::ProductsController < Inventory::BaseController
+  # Stock-status filter of the index. in_stock / out_of_stock are the Current
+  # Stock report's definitions (Inventory::Reports::CurrentStock: on-hand > 0
+  # vs <= 0, inventory-tracked products only); low_stock is the list's own
+  # low-stock badge (Inventory::LowStockQuery, per-warehouse thresholds).
+  STOCK_STATUSES = %w[in_stock low_stock out_of_stock].freeze
+
   def index
     authorize Product
-    wh_ids    = accessible_warehouse_ids
-    @products = policy_scope(Product).ordered
-                  .includes(:brand, :product_category, image_attachment: :blob)
+    wh_ids = accessible_warehouse_ids
 
-    # ── Status filter (active / archived / all) — default: active ──────────
+    # ── Status tab (active / archived / all) — default: active ─────────────
     @status_filter = params[:status].presence&.inquiry || "active"
-    @products = case @status_filter.to_s
-    when "archived" then @products.archived
-    when "all"      then @products
-    else                 @products.active
-    end
-
-    # ── Family-type filter ──────────────────────────────────────────────────
-    @family_type = params[:family_type].presence
-    @products = case @family_type
-    when "root"       then @products.root_parents
-    when "child"      then @products.children
-    when "standalone" then @products.standalone
-    else                   @products
-    end
-
-    # ── Attribute filters ───────────────────────────────────────────────────
-    @products = @products.where(brand_id: params[:brand_id])               if params[:brand_id].present?
-    @products = @products.where(product_category_id: params[:category_id]) if params[:category_id].present?
-
-    # ── Text / barcode search ────────────────────────────────────────────────
-    if params[:q].present?
-      term = "%#{params[:q].strip.downcase}%"
-
-      # Phase A: find directly matching IDs across name, SKU, and barcodes.
-      # reorder(nil) strips the inherited ORDER BY name so that PostgreSQL does
-      # not reject the query — SELECT DISTINCT id … ORDER BY name is invalid
-      # because name is absent from the select list.  Ordering is irrelevant
-      # here since we only need the ID set; duplicate IDs cannot arise because
-      # the EXISTS subquery never joins product_barcodes into the outer row.
-      matching_ids = @products.reorder(nil).where(
-        "LOWER(products.name) LIKE :t OR LOWER(products.sku) LIKE :t OR " \
-        "EXISTS (" \
-          "SELECT 1 FROM product_barcodes pb2 " \
-          "WHERE pb2.product_id = products.id " \
-          "AND LOWER(pb2.barcode) LIKE :t" \
-        ")",
-        t: term
-      ).pluck(:id)
-
-      # Phase B: expand to full family so context is always visible.
-      # Matched child  → pull in its parent and siblings.
-      # Matched parent → pull in all its children.
-      parent_ids  = Product.where(id: matching_ids).where.not(parent_product_id: nil)
-                           .pluck(:parent_product_id)
-      sibling_ids = Product.where(parent_product_id: matching_ids + parent_ids).pluck(:id)
-
-      all_ids   = (matching_ids + parent_ids + sibling_ids).uniq
-      @products = policy_scope(Product).where(id: all_ids).ordered
-                    .includes(:brand, :product_category, image_attachment: :blob)
+    base = policy_scope(Product)
+    base = case @status_filter.to_s
+    when "archived" then base.archived
+    when "all"      then base
+    else                 base.active
     end
 
     # ── Stock totals (warehouse-scoped) ─────────────────────────────────────
     @stock_totals = Inventory::StockLevels.totals_for(current_user.business,
                                                        warehouse_ids: wh_ids)
+    @low_stock_product_ids = low_stock_product_ids(warehouse_ids: wh_ids)
+    in_stock_ids = @stock_totals.select { |_, quantity| quantity.to_d.positive? }.keys
 
-    # Derive family stock from the already-fetched totals (no extra query).
-    # Inherits the same warehouse scope automatically.
-    child_parent_pairs = current_user.business.products
-      .where.not(parent_product_id: nil)
-      .pluck(:id, :parent_product_id)
-    @family_stock_totals = {}
-    child_parent_pairs.each do |child_id, parent_id|
-      @family_stock_totals[parent_id] = (@family_stock_totals[parent_id] || 0) +
-                                        (@stock_totals[child_id] || 0)
+    # ── Summary — on the tab's base set, before search / filters, so the
+    #    header always reflects the whole (authorized, warehouse-scoped)
+    #    catalogue. Three COUNT queries; no product is loaded for them.
+    @summary = {
+      total:        base.count,
+      low_stock:    base.where(id: @low_stock_product_ids.to_a).count,
+      out_of_stock: base.inventory_tracked.where.not(id: in_stock_ids).count
+    }
+
+    @products = base.ordered.includes(:brand, :product_category, Product::IMAGE_PRELOAD)
+
+    # ── Attribute filters ───────────────────────────────────────────────────
+    @products = @products.where(brand_id: params[:brand_id])               if params[:brand_id].present?
+    @products = @products.where(product_category_id: params[:category_id]) if params[:category_id].present?
+
+    # ── Stock status ────────────────────────────────────────────────────────
+    @stock_status = params[:stock_status].presence_in(STOCK_STATUSES)
+    @products = case @stock_status
+    when "in_stock"     then @products.inventory_tracked.where(id: in_stock_ids)
+    when "low_stock"    then @products.where(id: @low_stock_product_ids.to_a)
+    when "out_of_stock" then @products.inventory_tracked.where.not(id: in_stock_ids)
+    else                     @products
     end
 
-    # Child count per parent — one GROUP BY for the count badge in tree rows
-    @child_counts = current_user.business.products
-      .where.not(parent_product_id: nil)
-      .group(:parent_product_id)
-      .count
-
-    # ── Tree structure ───────────────────────────────────────────────────────
-    # Always build the tree so family context is clear in search results too.
-    @root_products = @products.where(parent_product_id: nil)
-                               .includes(:child_products)
+    # ── Text / barcode search: name, SKU or any barcode ─────────────────────
+    if params[:q].present?
+      @products = @products.where(
+        "LOWER(products.name) LIKE :t OR LOWER(products.sku) LIKE :t OR " \
+        "EXISTS (SELECT 1 FROM product_barcodes pb2 WHERE pb2.product_id = products.id AND LOWER(pb2.barcode) LIKE :t)",
+        t: "%#{ProductBarcode.normalize(params[:q]).to_s.downcase}%"
+      )
+    end
 
     @brands     = current_user.business.brands.ordered
     @categories = current_user.business.product_categories.active.ordered
@@ -90,42 +63,30 @@ class Inventory::ProductsController < Inventory::BaseController
 
   def show
     @product = policy_scope(Product)
-                 .includes(:child_products, :product_barcodes, image_attachment: :blob)
+                 .includes(:product_barcodes, Product::IMAGE_PRELOAD)
                  .find(params[:id])
     authorize @product
     wh_ids      = accessible_warehouse_ids
     @warehouses = current_user.business.warehouses.ordered.index_by(&:id)
 
-    if @product.parent?
-      # Parent product: aggregate stock from children, warehouse-scoped.
-      @family_stock = Inventory::StockLevels.family_total(@product,
-                                                           warehouse_ids: wh_ids)
-      child_ids = @product.child_products.map(&:id)
-      @child_stock_totals = child_ids.any? ?
-        InventoryMovement.where(product_id: child_ids)
-                         .then { |r| wh_ids ? r.where(warehouse_id: wh_ids) : r }
-                         .group(:product_id)
-                         .sum(Arel.sql(Inventory::StockLevels::SIGNED))
-        : {}
-    else
-      all_by_warehouse    = Inventory::StockLevels.new(@product).by_warehouse
-      @stock_by_warehouse = wh_ids ? all_by_warehouse.slice(*wh_ids) : all_by_warehouse
+    all_by_warehouse    = Inventory::StockLevels.new(@product).by_warehouse
+    @stock_by_warehouse = wh_ids ? all_by_warehouse.slice(*wh_ids) : all_by_warehouse
 
-      load_warehouse_availability
+    load_warehouse_availability
+    @low_stock_warehouse = @availability_pairs.any?(&:low_stock?)
 
-      @display_stock       = @stock_by_warehouse.values.sum
-      @display_stock_value = @display_stock * @product.average_cost_price
+    @display_stock       = @stock_by_warehouse.values.sum
+    @display_stock_value = @display_stock * @product.average_cost_price
 
-      movements = @product.inventory_movements.includes(:warehouse, :source)
-      movements = movements.where(warehouse_id: wh_ids) if wh_ids
-      @recent_movements = Inventory::Reports::Movements.preload_stock_counts(
-        movements.order(occurred_on: :desc, id: :desc).limit(15).to_a
-      )
+    movements = @product.inventory_movements.includes(:warehouse, :source)
+    movements = movements.where(warehouse_id: wh_ids) if wh_ids
+    @recent_movements = Inventory::Reports::Movements.preload_stock_counts(
+      movements.order(occurred_on: :desc, id: :desc).limit(15).to_a
+    )
 
-      load_purchase_history
-      load_consumption_stats
-      load_recent_documents
-    end
+    load_purchase_history
+    load_consumption_stats
+    load_recent_documents
   end
 
   def new
@@ -144,7 +105,7 @@ class Inventory::ProductsController < Inventory::BaseController
     @product.average_cost_price = @product.initial_cost_price if @product.average_cost_price.to_d.zero?
     authorize @product
 
-    if @product.save
+    if save_with_gallery { @product.save }
       if params[:return_to_import_row_id].present?
         resolve_import_row_and_respond
       else
@@ -158,14 +119,12 @@ class Inventory::ProductsController < Inventory::BaseController
 
   def edit
     @product = policy_scope(Product)
-                 .includes(:child_products, :product_barcodes)
+                 .includes(:product_barcodes)
                  .find(params[:id])
     authorize @product
-    @product.product_barcodes.build if @product.product_barcodes.empty?
-    load_options
-    # The availability section below the form (its own forms and actions —
-    # never part of the product form submission).
-    @availability = Inventory::ProductAvailabilityOverview.new(@product, user: current_user) unless @product.parent?
+    # Barcodes are optional: a product without any shows the empty state (and
+    # "Add barcode"), never a spare blank row that looks like a barcode.
+    load_edit_sections
   end
 
   # The availability section on its own page — for users who manage
@@ -173,20 +132,28 @@ class Inventory::ProductsController < Inventory::BaseController
   def availability
     @product = find_product
     authorize @product, :show?
-    raise Pundit::NotAuthorizedError if @product.parent?
 
     @availability = Inventory::ProductAvailabilityOverview.new(@product, user: current_user)
   end
 
+  # The Edit page's one Save: product details, gallery and the warehouse
+  # availability cards in ONE transaction (Inventory::ProductEditor) — all
+  # saved, or nothing.
   def update
     @product = find_product
     authorize @product
     refuse_nested_warehouse_settings!
-    if @product.update(product_params)
-      redirect_to inventory_product_path(@product), notice: t("inventory.products.updated")
+    result = Inventory::ProductEditor.new(
+      actor: current_user, product_id: @product.id, attributes: product_params,
+      gallery: (gallery_entries if gallery_submitted?),
+      availability: availability_param
+    ).call
+    if result.ok?
+      redirect_to inventory_product_path(@product), notice: t("inventory.products.all_saved")
     else
-      load_options
-      @availability = Inventory::ProductAvailabilityOverview.new(@product, user: current_user) unless @product.parent?
+      @product = result.product
+      load_edit_sections(result)
+      flash.now[:alert] = t("inventory.products.nothing_saved")
       render :edit, status: :unprocessable_entity
     end
   end
@@ -218,15 +185,6 @@ class Inventory::ProductsController < Inventory::BaseController
     redirect_to inventory_product_path(@product), notice: t("inventory.products.restored")
   end
 
-  def archive_family
-    @product = find_product
-    authorize @product
-    @product.archive_family!
-    redirect_to inventory_product_path(@product), notice: t("inventory.products.family_archived")
-  rescue ActiveRecord::RecordInvalid
-    redirect_to inventory_product_path(@product), alert: @product.errors.full_messages.to_sentence
-  end
-
   def import
     authorize Product, :create?
     @warehouses = accessible_warehouses
@@ -241,62 +199,6 @@ class Inventory::ProductsController < Inventory::BaseController
   def next_barcode_code
     authorize Product, :index?
     render json: { code: Inventory::BarcodeGenerator.next_code }
-  end
-
-  # POST /inventory/products/:id/generate_barcode
-  def generate_barcode
-    @product = find_product
-    authorize @product, :update?
-
-    barcode = nil
-    5.times do
-      code = Inventory::BarcodeGenerator.next_code
-      pb   = @product.product_barcodes.build(
-        barcode:      code,
-        barcode_type: "internal",
-        is_primary:   !@product.product_barcodes.where(is_primary: true).exists?
-      )
-      if pb.save
-        barcode = pb
-        break
-      end
-      break unless pb.errors[:barcode].any? { |msg| msg.match?(/taken/i) }
-    end
-
-    if barcode&.persisted?
-      render json: {
-        id:           barcode.id,
-        barcode:      barcode.barcode,
-        barcode_type: barcode.barcode_type,
-        is_primary:   barcode.is_primary
-      }
-    else
-      render json: { error: t("inventory.products.generate_barcode_failed") },
-             status: :unprocessable_entity
-    end
-  end
-
-  # GET /inventory/products/:id/children
-  # Returns the child product rows HTML for lazy-loading by the product-family
-  # Stimulus controller. Warehouse-scoped like every other stock view.
-  def children
-    @product  = find_product
-    authorize @product, :show?
-    @children = @product.child_products.ordered
-                        .includes(:brand, image_attachment: :blob)
-    wh_ids    = accessible_warehouse_ids
-    child_ids = @children.map(&:id)
-
-    @child_stock_totals = child_ids.any? ?
-      InventoryMovement.where(product_id: child_ids)
-                       .then { |r| wh_ids ? r.where(warehouse_id: wh_ids) : r }
-                       .group(:product_id)
-                       .sum(Arel.sql(Inventory::StockLevels::SIGNED))
-      : {}
-
-    render partial: "child_rows",
-           locals:  { children: @children, stock_totals: @child_stock_totals,
-                      parent_product: @product }
   end
 
   def run_import
@@ -422,11 +324,81 @@ class Inventory::ProductsController < Inventory::BaseController
     policy_scope(Product).find(params[:id])
   end
 
+  # Everything the Edit page shows besides the product form: the options and
+  # the warehouse availability cards (with each card's refusal and typed values).
+  def load_edit_sections(result = nil)
+    load_options
+    @availability = Inventory::ProductAvailabilityOverview.new(@product, user: current_user)
+    if result
+      @availability_view = { row_errors: result.availability_errors, exclusion_errors: result.exclusion_errors,
+                             row_values: availability_param.transform_keys(&:to_i)
+                                                           .transform_values { |v| v.slice("low_stock_level", "reorder_quantity") },
+                             exclusion_values: availability_param.transform_keys(&:to_i) }
+    else
+      @availability_view = {}
+    end
+  end
+
+  # { "<warehouse id>" => { "low_stock_level", "reorder_quantity", "excluded", "reason" } } — the
+  # warehouse ids are only candidates: Inventory::ProductAvailabilityManager
+  # loads and authorizes each one.
+  def availability_param
+    raw = params[:availability]
+    return {} unless raw.respond_to?(:each_pair)
+
+    raw.to_unsafe_h.each_with_object({}) do |(warehouse_id, values), acc|
+      next unless values.is_a?(Hash)
+
+      acc[warehouse_id.to_s] = values.slice("low_stock_level", "reorder_quantity", "excluded", "reason").transform_values(&:to_s)
+    end
+  end
+
+  # Products low in at least one of the viewer's warehouses, by each
+  # warehouse's own threshold (never a product-level one) — the list badges.
+  def low_stock_product_ids(warehouse_ids:)
+    Inventory::LowStockQuery.new(current_user.business, warehouse_ids: warehouse_ids).alerts.to_set { |alert| alert.product.id }
+  end
+
+  # Saves the product (the block) and, when the form sent its image gallery,
+  # applies it in the same transaction (Inventory::ProductGalleryUpdater):
+  # both or neither. A form without the gallery leaves every image as it is.
+  def save_with_gallery
+    saved = false
+    Product.transaction do
+      raise ActiveRecord::Rollback unless yield
+
+      if gallery_submitted?
+        result = Inventory::ProductGalleryUpdater.new(actor: current_user, product_id: @product.id, entries: gallery_entries).call
+        unless result.ok?
+          @product.errors.add(:base, t("inventory.products.gallery.errors.#{result.error}", max: Attachable::DEFAULT_MAX_SIZE / 1.megabyte))
+          raise ActiveRecord::Rollback
+        end
+      end
+      saved = true
+    end
+    saved
+  rescue ActiveRecord::RecordNotUnique => e
+    # A concurrent save took the same barcode (or SKU) after validation: the
+    # unique index refused it and the whole save was rolled back.
+    if e.message.include?("product_barcodes")
+      @product.errors.add(:base, :barcode_taken)
+    else
+      @product.errors.add(:sku, :taken)
+    end
+    false
+  end
+
+  def gallery_submitted? = params.dig(:product, :gallery_present) == "1"
+
+  # ["image:<id>" | "upload:<signed id>", …] in display order (first = primary).
+  def gallery_entries = Array(params.dig(:product, :gallery)).map(&:to_s)
+  helper_method :gallery_entries, :gallery_submitted?
+
   # The product page's read-only Warehouse availability summary: every
   # reachable warehouse where this product has an availability row or stock,
   # with its state, on-hand, reserved and that warehouse's OWN settings (a
-  # warehouse without a row shows Not Configured — never the product-level
-  # legacy values). Managing happens in the Edit page's availability section
+  # warehouse without a row shows Not Configured — there is no product-level
+  # value to show). Managing happens in the Edit page's availability section
   # (or the standalone availability page).
   def load_warehouse_availability
     settings = policy_scope(ProductWarehouseSetting).where(product_id: @product.id).index_by(&:warehouse_id)
@@ -441,7 +413,7 @@ class Inventory::ProductsController < Inventory::BaseController
   # nil when the user manages availability in none of their warehouses.
   def availability_manage_path
     overview = Inventory::ProductAvailabilityOverview.new(@product, user: current_user)
-    return nil if @product.parent? || !overview.any_manageable?
+    return nil unless overview.any_manageable?
 
     policy(@product).update? ? edit_inventory_product_path(@product, anchor: "availability") : availability_inventory_product_path(@product)
   end
@@ -461,7 +433,7 @@ class Inventory::ProductsController < Inventory::BaseController
   # that row (and the batch summary) in place instead of navigating away.
   def resolve_import_row_and_respond
     result = Inventory::Imports::StockIssueImportRowResolver.new(
-      current_user.business, params[:return_to_import_row_id], product_id: @product.id
+      current_user.business, params[:return_to_import_row_id], user: current_user, product_id: @product.id
     ).call
     @row = result.row
     preload_product_images([ @row.product ]) # the re-rendered row's thumbnail
@@ -477,13 +449,6 @@ class Inventory::ProductsController < Inventory::BaseController
                       .ordered
     @warehouses = accessible_warehouses
     @suppliers  = current_user.business.suppliers.ordered
-    # Only active root-level products can become parents (max depth = 1).
-    # Exclude the current product so it cannot assign itself as its own parent.
-    @parent_product_options = current_user.business.products
-      .active
-      .where(parent_product_id: nil)
-      .where.not(id: [ @product.id ].compact)
-      .ordered
   end
 
   # Availability rows (and their per-warehouse low-stock settings) are written
@@ -500,14 +465,11 @@ class Inventory::ProductsController < Inventory::BaseController
 
   def product_params
     params.require(:product).permit(
-      :name, :sku, :brand_id, :product_category_id, :default_supplier_id,
-      :parent_product_id,
-      # The product-wide low_stock_level / reorder_quantity /
-      # receive_low_stock_notification / reorder_level were retired from the
-      # form (per-warehouse settings replace them); not accepted any more, so
-      # their stored legacy values stay as they are for the central migration.
+      :name, :sku, :measure_amount, :unit_of_measure, :brand_id, :product_category_id, :default_supplier_id,
+      # No low-stock / reorder fields: those are per warehouse only
+      # (Inventory::ProductAvailabilityManager), never on the product.
       :initial_cost_price, :track_inventory,
-      :selling_markup_percentage, :notes, :image,
+      :selling_markup_percentage, :notes,
       product_barcodes_attributes:           [ :id, :barcode, :barcode_type, :is_primary, :_destroy ]
     )
   end

@@ -61,6 +61,7 @@ module Inventory
     def call
       ActiveRecord::Base.transaction do
         lock_count!
+        return failure(WarehouseReach.message) unless count_reachable?
         return failure(t_error("not_editable")) unless @count.editable_counts?
 
         changes = record_entries!

@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe Inventory::StockIssueSubmission, type: :model do
   let(:business)  { create(:business) }
-  let(:requester) { create(:user, business: business) }
+  let(:requester) { stock_issue_user(business, :create_stock_issues) }
   let(:warehouse) { business.warehouses.create!(name: "Main") }
   let(:branch)    { business.branches.create!(name: "Nasr City", active: true) }
   let(:product)   { business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10) }

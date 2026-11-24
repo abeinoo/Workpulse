@@ -5,12 +5,23 @@ class Inventory::BaseController < ApplicationController
   private
 
   def require_inventory_access!
+    return if admitted_without_inventory_view?
     return if current_user.can?(:view_inventory)    ||
               current_user.can?(:manage_inventory)   ||
               current_user.can?(:view_inventory_reports)
 
     redirect_to root_path, alert: t("flash.not_authorized")
   end
+
+  # Screens that admit an operation permission on its own, without the
+  # inventory view: the Stock Issue screens (view_stock_issues), the Quick
+  # Issue popup (quick_issue_stock — it shows only the chosen product's
+  # available quantity in the warehouses of the user's own issue branches) and
+  # the product pickers (ProductPolicy#pick?). Every other inventory screen
+  # keeps its gate, so these permissions never expose other stock levels or
+  # inventory pages. Each such controller still
+  # authorizes its own action.
+  def admitted_without_inventory_view? = false
 
   # Active warehouses the current user may use — all of them, or only the ones
   # they're assigned to. Used to populate every warehouse dropdown.
@@ -42,13 +53,13 @@ class Inventory::BaseController < ApplicationController
   end
 
   # Product thumbnails (ProductThumbnailHelper) read only preloaded images:
-  # preload them for exactly the products a page is about to list — two
-  # queries, whatever the count. Report services stay untouched.
+  # preload them for exactly the products a page is about to list — three
+  # queries, whatever the count (images, attachments, blobs). Report services stay untouched.
   def preload_product_images(products)
     # By object, not id: the same product may come as separate objects from
     # different reports, and each one must be marked loaded.
     records = Array(products).compact.uniq(&:object_id)
-    ActiveRecord::Associations::Preloader.new(records: records, associations: { image_attachment: :blob }).call if records.any?
+    ActiveRecord::Associations::Preloader.new(records: records, associations: Product::IMAGE_PRELOAD).call if records.any?
     products
   end
 
@@ -60,7 +71,7 @@ class Inventory::BaseController < ApplicationController
     return if records.empty?
 
     ActiveRecord::Associations::Preloader.new(
-      records: records, associations: { product: [ :product_barcodes, { image_attachment: :blob } ] }
+      records: records, associations: { product: [ :product_barcodes, Product::IMAGE_PRELOAD ] }
     ).call
   end
 

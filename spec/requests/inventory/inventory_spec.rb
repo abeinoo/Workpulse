@@ -59,9 +59,11 @@ RSpec.describe "Inventory", type: :request do
   describe "creating records end-to-end" do
     before { sign_in owner }
 
-    it "creates a warehouse, product, posts a receipt, then a stock issue" do
+    it "creates a warehouse, product, posts a receipt, then a stock issue from the selected warehouse" do
       post inventory_warehouses_path, params: { warehouse: { name: "Main", status: "active" } }
-      warehouse = business.warehouses.find_by!(name: "Main")
+      central = business.warehouses.find_by!(name: "Main")
+      branch = business.branches.create!(name: "Main Branch", active: true)
+      warehouse = branch_warehouse_for(branch)
 
       post inventory_products_path, params: {
         product: { name: "Shampoo", sku: "SH-1", initial_cost_price: 10, low_stock_level: 2 }
@@ -90,10 +92,9 @@ RSpec.describe "Inventory", type: :request do
       expect(product.reload.current_stock).to eq(10)
       expect(product.average_cost_price).to eq(12)
 
-      branch = business.branches.create!(name: "Main Branch", active: true)
       post inventory_stock_issues_path, params: {
         stock_issue: {
-          warehouse_id: warehouse.id, branch_id: branch.id, issued_on: Date.current,
+          warehouse_id: warehouse.id, issued_on: Date.current,
           items_attributes: { "0" => { product_id: product.id, quantity: 3 } }
         }
       }
@@ -111,7 +112,9 @@ RSpec.describe "Inventory", type: :request do
 
       post confirm_inventory_stock_issue_path(issue)
       expect(issue.reload).to be_issued
+      expect(issue.warehouse).to eq(warehouse)
       expect(product.reload.current_stock).to eq(7)
+      expect(InventoryMovement.where(warehouse: central)).to be_empty
     end
 
     it "creates the stock issue draft regardless of on-hand stock, but refuses to approve (reserve) an over-issue" do
@@ -120,6 +123,7 @@ RSpec.describe "Inventory", type: :request do
       post inventory_products_path, params: { product: { name: "Mask", sku: "MK-1", initial_cost_price: 5 } }
       product = business.products.find_by!(sku: "MK-1")
       branch = business.branches.create!(name: "Main Branch", active: true)
+      branch_warehouse_for(branch)
 
       post inventory_stock_issues_path, params: {
         stock_issue: {

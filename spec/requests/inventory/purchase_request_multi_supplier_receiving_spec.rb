@@ -147,7 +147,7 @@ RSpec.describe "Purchase Request with several suppliers → Goods Receipts", typ
         expect(doc.css("table[data-testid='gr-items-table'] thead th").map { |th| th.text.squish }).to include(*headings)
         row = doc.at_css("[data-testid='gr-request-line'][data-purchase-request-item-id='#{line(product_a).id}']")
         expect(%w[ordered received remaining].map { |c| row.at_css("[data-testid='gr-line-#{c}']").text.squish })
-          .to eq(%w[10 6 4])
+          .to eq(%w[10 6 4]) # numbers of inventory units, never the product's measure
         expect(row.at_css("input[name$='[quantity]']")["max"].to_d).to eq(4) # never more than remains
         expect(doc.at_css("html")["dir"]).to eq(locale == "ar" ? "rtl" : "ltr")
       end

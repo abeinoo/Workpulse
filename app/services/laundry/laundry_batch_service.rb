@@ -73,6 +73,11 @@ module Laundry
       unless warehouse_accessible?(actor, warehouse)
         return Result.new(ok: false, error: I18n.t("laundry.batches.errors.warehouse_not_accessible"))
       end
+      # No material from an inactive warehouse (the movement ledger refuses it
+      # too — InventoryMovement#warehouse_active_for_new_stock).
+      unless warehouse.active?
+        return Result.new(ok: false, error: I18n.t("errors.messages.warehouse_inactive", warehouse: warehouse.name))
+      end
 
       outcome = BatchMaterialConsumer.new(@batch, warehouse).call(product: product, quantity: quantity)
       return Result.new(ok: false, error: outcome.error) unless outcome.ok?

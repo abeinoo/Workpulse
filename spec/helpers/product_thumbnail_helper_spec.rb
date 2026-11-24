@@ -8,12 +8,11 @@ RSpec.describe ProductThumbnailHelper, type: :helper do
   let(:product)  { business.products.create!(name: "Argan Oil", sku: "AO-1") }
 
   def with_image(record)
-    record.image.attach(io: File.open(Rails.root.join("spec/fixtures/files/test_image.png")),
-                        filename: "argan.png", content_type: "image/png")
+    attach_product_image!(record, filename: "argan.png")
     record
   end
 
-  def preloaded(record) = Product.with_attached_image.find(record.id)
+  def preloaded(record) = Product.with_primary_image.find(record.id)
   def html(markup) = Nokogiri::HTML.fragment(markup)
 
   describe "#product_thumbnail" do
@@ -41,7 +40,8 @@ RSpec.describe ProductThumbnailHelper, type: :helper do
 
     it "renders the placeholder for an image that can't be thumbnailed" do
       blob = ActiveStorage::Blob.create_and_upload!(io: StringIO.new("not an image"), filename: "x.txt", content_type: "text/plain")
-      ActiveStorage::Attachment.create!(record: product, name: "image", blob: blob)
+      image = ProductImage.new(product: product, business: business, position: 1).tap { |row| row.save!(validate: false) } # bypassing validations
+      ActiveStorage::Attachment.create!(record: image, name: "file", blob: blob)
 
       expect(html(helper.product_thumbnail(preloaded(product))).at_css(".pthumb--empty")).to be_present
     end
@@ -91,7 +91,7 @@ RSpec.describe ProductThumbnailHelper, type: :helper do
     end
 
     it "an ARIA combobox submitting through a hidden <select> holding only the selected product's option" do
-      selected = Product.with_attached_image.includes(:product_barcodes).find(with_image(product).id)
+      selected = Product.with_primary_image.includes(:product_barcodes).find(with_image(product).id)
       node = html(helper.product_combobox(builder, :product_id, selected: selected, kind: "tracked",
                                           select_data: { product_field: true, action: "change->x#y" })).at_css(".pcombo")
 

@@ -103,7 +103,6 @@ RSpec.describe "Warehouse-based access control", type: :request do
 
   describe "dashboard scoping" do
     it "values stock and lists low-stock only for the manager's warehouse" do
-      product.update!(low_stock_level: 8)   # A has 10 (ok), B has 7 (low) — manager must NOT see B's alert
       sign_in manager_a
       get inventory_root_path
       expect(response).to have_http_status(:ok)

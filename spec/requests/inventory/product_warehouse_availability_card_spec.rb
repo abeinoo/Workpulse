@@ -2,7 +2,7 @@ require "rails_helper"
 
 # Phase 2: the product page's read-only Warehouse Availability summary, and
 # the product form without per-warehouse rows (availability is written only by
-# Inventory::ProductAvailabilityManager). Also BUG-068 (parent product page).
+# Inventory::ProductAvailabilityManager).
 RSpec.describe "Product page — Warehouse Availability card", type: :request do
   let(:business) { create(:business) }
   let!(:owner)   { create(:user, :owner, business: business) }
@@ -11,8 +11,7 @@ RSpec.describe "Product page — Warehouse Availability card", type: :request do
   let!(:product) do
     # Legacy product-wide values (historical central warehouse) — never shown
     # as another warehouse's settings.
-    business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10,
-                              low_stock_level: 77, reorder_quantity: 88)
+    business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10)
   end
   let(:manager) { Inventory::ProductAvailabilityManager.new(actor: owner) }
 
@@ -140,26 +139,6 @@ RSpec.describe "Product page — Warehouse Availability card", type: :request do
       expect(response).to redirect_to(inventory_product_path(product))
       expect(product.reload.name).to eq("Shampoo Pro")
       expect(row.reload.low_stock_level).to eq(3)
-    end
-  end
-
-  describe "BUG-068: a parent product with children" do
-    let!(:parent) { business.products.create!(name: "Shampoo Family", sku: "FAM", initial_cost_price: 1, average_cost_price: 1) }
-    let!(:child)  { business.products.create!(name: "Shampoo 1L", sku: "FAM-1", initial_cost_price: 1, average_cost_price: 1, parent_product: parent) }
-
-    before do
-      stock!(central, 6, item: child)
-      sign_in owner
-    end
-
-    it "renders the parent page and its children list with the children's stock" do
-      get inventory_product_path(parent)
-      expect(response).to have_http_status(:ok)
-      expect(response.body).to include("Shampoo 1L")
-
-      get children_inventory_product_path(parent)
-      expect(response).to have_http_status(:ok)
-      expect(response.body).to include("Shampoo 1L")
     end
   end
 end

@@ -6,11 +6,29 @@ class ProductBarcode < ApplicationRecord
   BARCODE_TYPES = %w[manufacturer internal carton].freeze
 
   belongs_to :business
-  belongs_to :product
+  belongs_to :product, inverse_of: :product_barcodes
+
+  # One normalization everywhere a barcode is stored, compared or searched:
+  #   stored value — surrounding whitespace (any Unicode space) trimmed, nothing
+  #                  else changed: always a string, leading zeros kept;
+  #   comparison   — the stored value, case-insensitively: the business-wide
+  #                  unique index is on (business_id, LOWER(barcode)).
+  # A barcode is unique across ALL products of the business (active or
+  # archived) and all barcode types; another business may reuse it.
+  def self.normalize(value) = value.to_s.gsub(/\A[[:space:]]+|[[:space:]]+\z/, "").presence
+  def self.comparison_key(value) = normalize(value)&.downcase
+
+  # Rows of the business holding this value (index: business_id, LOWER(barcode)).
+  scope :matching, ->(value) { where("LOWER(product_barcodes.barcode) = ?", comparison_key(value)) }
+
+  # Temporary value while a product save frees a changing row's old value
+  # (Product#release_changing_barcode_values); never a real barcode.
+  RELEASING_PREFIX = "\u0001releasing:".freeze
 
   validates :barcode,      presence: true, length: { maximum: 100 }
+  validates :barcode,      format: { without: /[[:cntrl:]]/, message: :invalid }, allow_blank: true
   validates :barcode_type, inclusion: { in: BARCODE_TYPES }, allow_blank: false
-  validates :barcode,      uniqueness: { scope: :business_id, case_sensitive: false }
+  validate  :barcode_unique_in_business
 
   before_validation :set_business_id
   before_validation :normalize_barcode
@@ -30,7 +48,25 @@ class ProductBarcode < ApplicationRecord
   end
 
   def normalize_barcode
-    self.barcode = barcode.to_s.strip.presence
+    self.barcode = self.class.normalize(barcode)
+  end
+
+  # Business-wide uniqueness, checked against the database. A row of the SAME
+  # product that this very save changes to another value or deletes does not
+  # count (swapping two barcodes, or deleting one and re-adding its value);
+  # duplicates among the rows of one save are Product#barcodes_unique_in_form's.
+  # The unique index is the final guarantee (concurrent saves).
+  def barcode_unique_in_business
+    return if barcode.blank? || business_id.nil?
+
+    # The product's rows in memory (nested attributes load only the submitted
+    # rows, without marking the association loaded).
+    siblings = product ? product.association(:product_barcodes).target.select(&:persisted?).index_by(&:id) : {}
+    key = self.class.comparison_key(barcode)
+    clashes = ProductBarcode.where(business_id: business_id).matching(barcode).where.not(id: id).to_a.reject do |row|
+      (sibling = siblings[row.id]) && (sibling.marked_for_destruction? || self.class.comparison_key(sibling.barcode) != key)
+    end
+    errors.add(:barcode, :taken) if clashes.any?
   end
 
   def infer_barcode_type

@@ -50,7 +50,7 @@ here only so its stable ID and history are kept.
 | BUG-026 | Deleting a branch hard-deletes its attendance, device punches and legacy payroll periods | Organization & Access (branches) | **High — critical (irreversible data loss)** | Confirmed (characterization spec) | **In Progress** (adopted lifecycle committed on `fix/inventory-isolation-branch-lifecycle`, `bc47ad7` + `b82c6b8`; tests and full suite run; not reviewed, not merged — **Escalated**) | Review and merge |
 | BUG-027 | Remaining models take business-owned foreign keys without a same-business guard | Cross-domain (≈33 models) | Medium (tenant isolation, per path) | Suspected (static inventory; inventory paths fixed under BUG-025) | Open | Before multi-business use |
 | BUG-028 | `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change | Test suite (sign-up) | Low (local runs in a DST time zone, a few days a year) | Confirmed (reproduced 2026-10-29; time-travel arithmetic shown) | **Resolved — obsolete** (2026-11-15: the invitation link and its 7-day example were removed) | — |
-| BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by spec (2026-10-30: 21 refusal examples fail on the unchanged code) | **Resolved** (`ce40a61`, `ad5e9dc`, `4d5b442`, `1e6feb3`, PR #88) | — |
+| BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by spec (2026-10-30: 21 refusal examples fail on the unchanged code) | **Resolved** (`ce40a61`, `ad5e9dc`, `4d5b442`, `1e6feb3`, PR #88); stock-issue part (D3) **revised 2026-11-24**: warehouse status decides (uncommitted) | — |
 | BUG-030 | Imported stock issues (and product-import opening balances) are dated with the UTC calendar date, not the business day | Inventory & Purchasing | Low (date-boundary window; period attribution in reports) | Confirmed (code; formula evaluated outside the app, no spec) | Open | Next Inventory & Purchasing fix |
 | BUG-031 | Shift templates and template-applied assignments accept another business's shift or rule profile | Workforce (shifts; feeds attendance penalties / payroll) | **High** (cross-business config drives payroll deductions; needs a second business) | Confirmed (reproduced 2026-10-30, rolled-back transaction; regression specs fail on the unchanged code) | **Resolved** (`857506e`, PR #90) | — |
 | BUG-032 | Remaining-deposit settlement writes a foreign, inactive or missing payment method into the append-only ledger | Finance & Sales (remaining deposit balances) | Medium (immutable ledger row; name disclosure; 500 on a missing id) | Confirmed (reproduced 2026-10-30) | **Resolved** (`c866b64`, PR #90) | — |
@@ -74,9 +74,9 @@ here only so its stable ID and history are kept.
 | BUG-053 | Dispute reserve / release and shortage reassignment write a Remaining Deposit Balance without the shortage lock | Finance & Sales (Remaining Deposit Balance, Bank Disputes) | Medium (a race with a settlement, write-off or bulk custody settlement of the same balance could overwrite its remaining amount / status with a stale value) | Suspected (code reading 2026-11-15; not reproduced) | Open | Next Bank Dispute or Remaining Deposit Balance change |
 | BUG-054 | Bulk-settle index specs fail from 16 Nov 2026 (fixed DR dates fall out of the 14-business-day index window) | Test suite (Finance & Sales, Daily Reconciliation index) | Medium (CI `test` job red on `main` and every branch from 2026-11-16) | Confirmed (CI run 43827866157; reproduced with a fixed clock) | **Resolved** (fixed in the PR that adds this entry) | — |
 | BUG-055 | Product form's nested per-warehouse settings write warehouses outside the user's warehouse scope | Inventory & Purchasing (product form) | **High — critical (unauthorized access)** | Confirmed (request spec) | **In Progress** (fix on `security/product-warehouse-settings-scope`, not reviewed / merged; Escalated) | Phase 0 review |
-| BUG-056 | Low-stock alerts ignore the product's "Low Stock Level"; three thresholds with three different rules | Inventory & Purchasing (low stock) | Medium (wrong or missing purchasing alerts) | Confirmed (code) | Deferred | Warehouse availability Phases 4–5 |
+| BUG-056 | Low-stock alerts ignore the product's "Low Stock Level"; three thresholds with three different rules | Inventory & Purchasing (low stock) | Medium (wrong or missing purchasing alerts) | Confirmed (code) | **Resolved** (branch `chore/remove-product-level-stock-settings`, pending merge) | — |
 | BUG-057 | Configuring one warehouse's threshold silences every other warehouse of that product | Inventory & Purchasing (low stock) | Medium (stock-outs not alerted) | Confirmed (code) | Deferred | Warehouse availability Phases 2–5 |
-| BUG-058 | Total-stock low-stock fallback hides a warehouse's shortage; scoped users see it labelled "All warehouses" | Inventory & Purchasing (low stock) | Medium | Confirmed (code); scoped-user label Suspected | Deferred | Warehouse availability Phase 5 |
+| BUG-058 | Total-stock low-stock fallback hides a warehouse's shortage; scoped users see it labelled "All warehouses" | Inventory & Purchasing (low stock) | Medium | Confirmed (code); scoped-user label Suspected | **Resolved** (branch `chore/remove-product-level-stock-settings`, pending merge) | — |
 | BUG-059 | Untracked products with ledger stock are left out of stock valuation reports | Inventory & Purchasing (reports) | Medium (understated stock value) | Confirmed (code; 8 such products in local development data) | Deferred | Warehouse availability Phase 4 (N8) |
 | BUG-060 | Low-stock purchase picker suggests quantity 1 when no reorder quantity is set | Inventory & Purchasing (purchase requests) | Low | Confirmed (code) | Deferred | Warehouse availability Phase 4 |
 | BUG-061 | Product create / update — including threshold and warehouse-setting changes — writes no audit entry | Inventory & Purchasing (products) | Medium (traceability) | Confirmed (code) | **Partially resolved** (warehouse settings: Phase 2, PR #153, not merged — the product form no longer writes them; product-level edits still unaudited, Deferred) | Warehouse availability Phase 4 (product-level edits) |
@@ -86,7 +86,7 @@ here only so its stable ID and history are kept.
 | BUG-065 | Laundry batch consumption takes stock from any warehouse of the business, ignoring the user's warehouse scope | Inventory & Purchasing (Laundry) | Medium (reachable only by a role saved before `record_batch_consumption` left the registry, and owners) | Confirmed (request spec) | **In Progress** (fixed in `6f910a83`, PR #153, not merged) | PR #153 review |
 | BUG-066 | Successful product deletion shows a missing-translation flash (`inventory.products.destroyed` absent in EN and AR) | Inventory & Purchasing (products, i18n) | Low | Confirmed (request spec) | **In Progress** (Phase 1 unit 5) | Phase 1 review |
 | BUG-067 | Product import crashes (500) when its opening-balance adjustment is refused (e.g. a row with stock but no unit cost) | Inventory & Purchasing (product import) | Low (nothing is imported; the reason is lost) | Confirmed (request spec) | **In Progress** (Phase 1 unit 6, on PR #153's branch, not merged) | Phase 1 review |
-| BUG-068 | A parent product's page (and its children list) crashes (500) whenever the parent has child products: the child stock totals nest SUM inside SUM | Inventory & Purchasing (products) | Medium (the page of every product family fails) | Confirmed (request spec; reproduced on `main`'s query) | **In Progress** (Phase 2, on PR #153's branch, not merged) | Phase 2 review |
+| BUG-068 | A parent product's page (and its children list) crashes (500) whenever the parent has child products: the child stock totals nest SUM inside SUM | Inventory & Purchasing (products) | Medium (the page of every product family fails) | Confirmed (request spec; reproduced on `main`'s query) | **Resolved — obsolete** (Product Family removed; branch `chore/remove-product-level-stock-settings`, pending merge) | — |
 | BUG-069 | `common.yes` / `common.no` are missing in EN and AR: the unquoted YAML keys `yes:` / `no:` load as booleans, so every Yes/No badge shows a humanized missing-translation fallback (English "Yes" in the Arabic UI) | Shared (i18n) | Low | Confirmed (request spec) | **In Progress** (Phase 2, on PR #153's branch, not merged) | Phase 2 review |
 
 ---
@@ -1094,6 +1094,24 @@ here only so its stable ID and history are kept.
     dashboard) still reports an inactive branch. Receipt shortfalls are not shown (they are in no balance).
   * The stock-issue importer's `issued_on: Date.current` (not the business day) is a separate defect, not part of this
     fix.
+* **D3 revised — stock issues follow the WAREHOUSE status (owner decision 2026-11-24; branch
+  `feature/multi-unit-packaging`, uncommitted, specs not run):** Stock Issues are now authorized by warehouse access
+  (`Inventory::IssueWarehouseReach`) and have no consuming branch; `stock_issues.branch_id` is only cost attribution
+  derived from the warehouse (a branch warehouse → its branch; a central warehouse → none, Unallocated). The
+  stock-issue half of D3 is therefore replaced; the laundry decisions (D1, D2, D4–D6) are unchanged.
+  * Removed: the `StockIssue` `branch_active` validation, the branch presence requirement, and the import's
+    inactive-branch refusal (`inventory.imports.branch_inactive`). A branch's status no longer gates any Stock Issue
+    or Quick Issue operation.
+  * The warehouse decides: an **inactive warehouse** takes no new issue (draft, import, Quick Issue) and no
+    confirmation — re-checked under the warehouse row lock (`IssueWarehouseReach#verify_under_lock`, FOR SHARE) and
+    by `RequiresActiveWarehouse`, which also keeps refusing submission and approval from an inactive warehouse.
+    Rejecting, cancelling and deleting a draft stay available.
+  * **Void** reverses into the exact original warehouse (`StockIssue#reversal_entries` → the issue's own warehouse,
+    never redirected); the ledger guard accepts reversal movements into an inactive warehouse, as before.
+  * Historical issues and their movements, branch attribution and audit history are kept exactly as recorded.
+  * Tests: `spec/services/inventory/stock_issue_inactive_branch_spec.rb` (rewritten: an inactive branch no longer
+    gates; inactive-warehouse refusals; void into the original warehouse), `spec/requests/inactive_branch_operations_spec.rb`
+    (stock-issue part rewritten), `spec/services/inventory/stock_issue_warehouse_authorization_spec.rb`.
 * **Review milestone:** — (resolved).
 
 ## BUG-030 — Imported stock issues (and product-import opening balances) are dated with the UTC calendar date, not the business day
@@ -1785,7 +1803,7 @@ here only so its stable ID and history are kept.
 
 ## BUG-056 — Low-stock alerts ignore the product's "Low Stock Level"; three thresholds with three different rules
 
-* **Source:** low-stock threshold audit. **Discovered:** 2026-11-17. **Status:** Deferred.
+* **Source:** low-stock threshold audit. **Discovered:** 2026-11-17. **Status:** Resolved (pending merge).
 * **Domain / files:** `Inventory::LowStockQuery#alerts`, `Product#low_stock?` / `#low_stock_level_for` /
   `scope :low_stock` (unused), `app/views/inventory/products/{index,_child_rows,show}.html.erb`,
   `app/views/inventory/products/_form.html.erb`.
@@ -1798,6 +1816,12 @@ here only so its stable ID and history are kept.
   reverse.
 * **Recommended fix:** the approved warehouse availability plan (per-warehouse thresholds only; one shared rule;
   reconciliation of the historical central-warehouse values before the switch).
+* **Resolution (2026-11-21):** after the legacy values were transferred to the Central warehouse in Production,
+  every product-level threshold was removed: `Product#low_stock?`, `#low_stock_level_for`, `#reorder_quantity_for`,
+  `#low_stock_in?`, `scope :low_stock` / `:low_stock_notifiable`, the product-level badges, and the read-only
+  legacy fields. Badges, alerts and suggestions use each warehouse's `ProductWarehouseSetting` only; `Product`
+  ignores the four retired columns (`ignored_columns`). Regression: `warehouse_settings_single_source_spec.rb`,
+  `product_tracking_and_retired_stock_fields_spec.rb`, `low_stock_query_spec.rb`.
 * **Review milestone:** Warehouse availability Phases 4–5.
 
 ## BUG-057 — Configuring one warehouse's threshold silences every other warehouse of that product
@@ -1814,13 +1838,16 @@ here only so its stable ID and history are kept.
 
 ## BUG-058 — Total-stock low-stock fallback hides a warehouse's shortage; scoped users see it labelled "All warehouses"
 
-* **Source:** low-stock threshold audit. **Discovered:** 2026-11-17. **Status:** Deferred.
+* **Source:** low-stock threshold audit. **Discovered:** 2026-11-17. **Status:** Resolved (pending merge).
 * **Domain / files:** `Inventory::LowStockQuery#alerts` (fallback branch),
   `app/views/inventory/shared/_low_stock_purchasing.html.erb`, `low_stock_selection_controller.js`.
 * **Observed:** products without warehouse rows are checked once against the sum of all warehouses, so stock in one
   warehouse hides a shortage in another. For a warehouse-scoped user the sum covers only their warehouses but the
   alert is still shown as "All warehouses" (code reading; not reproduced).
 * **Recommended fix:** kept during the transition by owner decision N2; removed in Phase 5 after reconciliation.
+* **Resolution (2026-11-21):** the total-stock fallback (`products.reorder_level`) and the product-level
+  `receive_low_stock_notification` gate were removed from `Inventory::LowStockQuery`; every alert now belongs to one
+  warehouse, so the "All warehouses" label is gone too. A pair without an Active warehouse setting never alerts.
 * **Review milestone:** Warehouse availability Phase 5.
 
 ## BUG-059 — Untracked products with ledger stock are left out of stock valuation reports
@@ -1929,7 +1956,9 @@ here only so its stable ID and history are kept.
 
 ## BUG-068 — A parent product's page crashes when the parent has child products
 
-* **Source:** Phase 2 product page work. **Discovered:** 2026-11-19. **Status:** **In Progress** (PR #153, not merged).
+* **Source:** Phase 2 product page work. **Discovered:** 2026-11-19. **Status:** Resolved — obsolete (2026-11-21).
+  The Product Family feature was removed entirely (no parent page, no children list, no child stock totals);
+  pending merge of `chore/remove-product-level-stock-settings`.
 * **Observed:** `Inventory::ProductsController#show` (parent branch) and `#children` computed child stock totals with
   `.group(:product_id).sum(Arel.sql(Inventory::StockLevels::SIGNED_SUM))`. `SIGNED_SUM` already contains `SUM(...)`,
   so PostgreSQL refuses `SUM(COALESCE(SUM(...), 0))` (`PG::GroupingError: aggregate function calls cannot be

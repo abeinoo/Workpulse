@@ -1,0 +1,42 @@
+<% scope = "inventory.stock_issue_workflow_settings" %>
+<% content_for :title, t("#{scope}.title") %>
+
+<div class="form-page" data-testid="stock-issue-workflow-settings">
+  <%= link_to inventory_settings_path, class: "back-link" do %>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    <%= t("forms.back") %>
+  <% end %>
+  <h1 class="page-title"><%= t("#{scope}.title") %></h1>
+  <p class="page-subtitle mb-6"><%= t("#{scope}.subtitle") %></p>
+
+  <%= form_with url: inventory_stock_issue_workflow_settings_path, scope: :stock_issue_workflow_settings, method: :patch,
+        class: "form-card" do |f| %>
+    <h2 class="section-title"><%= t("#{scope}.standard_title") %></h2>
+    <fieldset class="form-group">
+      <legend class="form-label"><%= t("#{scope}.self_approval") %></legend>
+      <% Business::STOCK_ISSUE_SELF_APPROVAL_VALUES.each do |value| %>
+        <label class="form-check">
+          <%= f.radio_button :self_approval, value, checked: @business.stock_issue_self_approval == value %>
+          <span><%= t("#{scope}.self_approval_options.#{value}") %></span>
+        </label>
+      <% end %>
+      <p class="form-hint"><%= t("#{scope}.self_approval_hint") %></p>
+    </fieldset>
+    <p class="form-hint form-hint--info"><%= t("#{scope}.fixed_rules") %></p>
+
+    <div class="divider"></div>
+
+    <h2 class="section-title"><%= t("#{scope}.quick_title") %></h2>
+    <div class="form-group">
+      <label class="form-check">
+        <%= f.check_box :quick_issue_enabled, { checked: @business.quick_issue_enabled? }, "1", "0" %>
+        <span><%= t("#{scope}.quick_issue_enabled") %></span>
+      </label>
+      <p class="form-hint"><%= t("#{scope}.quick_issue_hint") %></p>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit t("#{scope}.save"), class: "btn btn-primary", data: { turbo_confirm: t("#{scope}.confirm") } %>
+    </div>
+  <% end %>
+</div>

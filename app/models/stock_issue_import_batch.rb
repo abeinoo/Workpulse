@@ -6,9 +6,13 @@
 # it for approval (it never posts stock) — there is never a second issue for
 # one import.
 class StockIssueImportBatch < ApplicationRecord
+  include RequiresActiveWarehouse
   belongs_to :business
   belongs_to :warehouse
-  belongs_to :branch
+  # Cost attribution copied from the import's StockIssue (nil for a
+  # non-branch warehouse — allowed once the pending migration
+  # 20261124110000 relaxes the column). Not a user input.
+  belongs_to :branch, optional: true
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :stock_issue
 
@@ -17,6 +21,7 @@ class StockIssueImportBatch < ApplicationRecord
   enum :status, { draft: "draft", completed: "completed" }
 
   validates :status, inclusion: { in: statuses.keys }
+  requires_active_warehouse :warehouse
 
   scope :for_business, ->(business) { where(business: business) }
 end

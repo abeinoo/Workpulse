@@ -8,22 +8,7 @@ class StockIssueItem < ApplicationRecord
   has_one :business, through: :stock_issue
 
   validates :quantity, numericality: { greater_than: 0 }
-  validate  :product_is_transactable
   validate  :product_in_same_business
-
-  # A product family (has child products) can't be issued. Uses preloaded
-  # child_products when the caller batched them (Inventory::StockIssueEditor)
-  # — same rule, no per-line query.
-  def product_is_transactable
-    return unless product
-
-    family = if product.association(:child_products).loaded?
-      product.child_products.any?
-    else
-      Product.where(parent_product_id: product.id).exists?
-    end
-    errors.add(:product_id, :parent_not_allowed) if family
-  end
 
   # Line product ids come straight from form params — never trust one that
   # belongs to another business.

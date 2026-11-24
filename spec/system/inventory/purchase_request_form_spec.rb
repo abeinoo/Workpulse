@@ -16,15 +16,16 @@ RSpec.describe "Purchase Request creation form", type: :system do
   let!(:responsible) { purchaser_with_custody(business, first_name: "Rami") }
 
   let!(:stocked_product) do
-    business.products.create!(name: "Stocked Shampoo", sku: "STK-1", average_cost_price: 20,
-                               low_stock_level: 5, reorder_level: 5, reorder_quantity: 10)
+    business.products.create!(name: "Stocked Shampoo", sku: "STK-1", average_cost_price: 20)
   end
   let!(:low_product) do
-    business.products.create!(name: "Low Conditioner", sku: "LOW-1", average_cost_price: 30,
-                               low_stock_level: 5, reorder_level: 5, reorder_quantity: 12)
+    business.products.create!(name: "Low Conditioner", sku: "LOW-1", average_cost_price: 30)
   end
 
   before do
+    { stocked_product => 10, low_product => 12 }.each do |product, reorder|
+      ProductWarehouseSetting.create!(product: product, warehouse: main_wh, low_stock_level: 5, reorder_quantity: reorder)
+    end
     { stocked_product => 50, low_product => 1 }.each do |product, qty|
       receipt = business.goods_receipts.build(warehouse: main_wh, received_on: Date.current)
       receipt.items.build(product: product, quantity: qty, unit_cost: product.average_cost_price)

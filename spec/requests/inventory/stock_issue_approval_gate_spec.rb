@@ -6,17 +6,17 @@ require "rails_helper"
 RSpec.describe "Inventory::StockIssues approval gate", type: :request do
   let(:business)  { create(:business) }
   let(:owner)     { create(:user, :super_admin, business: business) }
-  let!(:warehouse) { business.warehouses.create!(name: "Main") }
+  let!(:warehouse) { branch_warehouse_for(branch, name: "Main") } # the branch's own warehouse
   let!(:branch)    { business.branches.create!(name: "Nasr City", active: true) }
   let!(:product) do
     business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10)
   end
 
-  let(:creator_role)   { create(:permission_role, business: business, permissions: %w[view_inventory manage_stock_issues]) }
+  let(:creator_role)   { create(:permission_role, business: business, permissions: %w[view_inventory view_stock_issues create_stock_issues]) }
   let(:creator)        { create(:user, business: business, permission_role: creator_role) }
-  let(:approver_role)  { create(:permission_role, business: business, permissions: %w[view_inventory approve_stock_issues]) }
+  let(:approver_role)  { create(:permission_role, business: business, permissions: %w[view_inventory view_stock_issues approve_stock_issues]) }
   let(:approver)       { create(:user, business: business, permission_role: approver_role) }
-  let(:confirmer_role) { create(:permission_role, business: business, permissions: %w[view_inventory confirm_stock_issues]) }
+  let(:confirmer_role) { create(:permission_role, business: business, permissions: %w[view_inventory view_stock_issues confirm_stock_issues]) }
   let(:confirmer)      { create(:user, business: business, permission_role: confirmer_role) }
 
   before do

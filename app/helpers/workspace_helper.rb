@@ -41,6 +41,7 @@ module WorkspaceHelper
     purchasing:   '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
     receipts:     '<path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/>',
     issues:       '<path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>',
+    quick_issue:  '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
     transfers:    '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
     adjustments:  '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/>',
     stocktake:    '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
@@ -145,7 +146,7 @@ module WorkspaceHelper
                      current_user.can?(:manage_inventory)
     {
       # Mirrors Inventory::BaseController#require_inventory_access!
-      access:   reports_access,
+      access:   reports_access || current_user.can?(:view_stock_issues) || policy(StockIssue).quick_issue?,
       title:    t("nav.inventory_workspace"),
       subtitle: t("inventory.workspace.subtitle"),
       groups:   { catalog: "inventory.workspace.groups.catalog", purchasing: "inventory.workspace.groups.purchasing",
@@ -153,7 +154,7 @@ module WorkspaceHelper
                   settings: nil },
       sections: [
         # Overview: gated by Inventory::BaseController itself.
-        [ :overview,    t("nav.inventory_dashboard"),         inventory_root_path,              nil,         true,  true ],
+        [ :overview,    t("nav.inventory_dashboard"),         inventory_root_path,              nil,         true,  reports_access ],
         [ :items,       t("nav.inventory_products"),          inventory_products_path,          :catalog,    true,  policy(Product).index? ],
         [ :warehouses,  t("nav.inventory_warehouses"),        inventory_warehouses_path,        :catalog,    false, policy(Warehouse).index? ],
         [ :suppliers,   t("nav.inventory_suppliers"),         inventory_suppliers_path,         :catalog,    false, policy(Supplier).index? ],
