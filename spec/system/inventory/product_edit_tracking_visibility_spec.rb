@@ -44,7 +44,7 @@ RSpec.describe "Product Edit — Track stock quantity hides warehouse availabili
     visit edit_inventory_product_path(product)
     checkbox.uncheck
     click_button I18n.t("common.save")
-    expect(page).to have_text(I18n.t("inventory.products.updated"))
+    expect(page).to have_text(I18n.t("inventory.products.all_saved"))
     expect(product.reload).not_to be_track_inventory
 
     visit edit_inventory_product_path(product)
@@ -53,7 +53,7 @@ RSpec.describe "Product Edit — Track stock quantity hides warehouse availabili
 
     checkbox.check
     click_button I18n.t("common.save")
-    expect(page).to have_text(I18n.t("inventory.products.updated"))
+    expect(page).to have_text(I18n.t("inventory.products.all_saved"))
     visit edit_inventory_product_path(product)
     expect(page).to have_field("pws-#{branch_wh.id}-low", with: "2")
     expect(page).to have_field("pws-#{central.id}-low", with: "8")

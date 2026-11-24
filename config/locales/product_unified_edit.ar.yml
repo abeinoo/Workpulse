@@ -1,0 +1,18 @@
+# The product Edit page's one Save (Inventory::ProductEditor): product details
+# and warehouse availability saved together, or not at all.
+ar:
+  inventory:
+    products:
+      save_all: "حفظ جميع التعديلات"
+      saving_all: "جارٍ الحفظ…"
+      save_all_hint: "يحفظ كل ما في هذه الصفحة معًا — بيانات المنتج وإعدادات المستودعات. إذا رُفض أي جزء لا يُحفظ شيء."
+      all_saved: "تم حفظ جميع التعديلات."
+      nothing_saved: "لم يُحفظ أي شيء. صحّح الأقسام المشار إليها ثم احفظ مرة أخرى — ما أدخلته محفوظ في الصفحة."
+      unsaved_changes: "تعديلات غير محفوظة"
+  product_availability:
+    section:
+      hint_unified: "إعدادات كل مستودع على حدة. تُحفظ مع المنتج عند «حفظ جميع التعديلات»، ويُسجَّل كل تغيير في سجل التدقيق."
+      include_on_save: "أزل العلامة لإعادة إتاحة المنتج في هذا المستودع (بإعداداته السابقة) عند حفظ جميع التعديلات."
+      unsaved_until_save: "تم التعديل — يُحفظ مع «حفظ جميع التعديلات»"
+    exclusion:
+      applied_on_save: "يُطبَّق الاستبعاد عند حفظ جميع التعديلات. السبب مطلوب."

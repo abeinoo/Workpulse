@@ -1,6 +1,14 @@
-import "@hotwired/turbo-rails"
+import { Turbo } from "@hotwired/turbo-rails"
 import "controllers"
-import { installPackagingUnits } from "lib/packaging_units"
+
+// <turbo-stream action="visit" url="/path"> — a modal form (rendered inside
+// <turbo-frame id="modal">) that succeeded asks the browser to visit the next
+// page, so the popup closes and the page shows the flash. Only local paths are
+// followed. Used by Inventory::QuickIssuesController#create.
+Turbo.StreamActions.visit = function () {
+  const url = this.getAttribute("url")
+  if (url && url.startsWith("/") && !url.startsWith("//")) Turbo.visit(url, { action: "advance" })
+}
 
 // Turbo replaces <body> but never touches <html lang> or <html dir>.
 // Read the server-set meta tags on every page load and apply them so that
@@ -68,18 +76,3 @@ document.addEventListener("error", (event) => {
   img.parentElement?.classList.add("pthumb--empty")
   img.remove()
 }, true)
-
-// A document line's measure label (data-measure-label, InventoryHelper#
-// measure_label_tag) follows the product chosen on that line: every picker
-// fires "change" on its <select data-product-field> with the chosen <option>
-// carrying data-measure (lib/product_option.js, product_option_data).
-document.addEventListener("change", (event) => {
-  const select = event.target
-  if (!(select instanceof HTMLSelectElement) || !select.matches("select[data-product-field]")) return
-  const label = select.closest("[data-line-row]")?.querySelector("[data-measure-label]")
-  if (label) label.textContent = select.selectedOptions[0]?.dataset.measure || ""
-})
-
-// A document line's unit selector (base unit or a packaging level) follows the
-// line's product, with a live "= 30 pcs" hint (lib/packaging_units.js).
-installPackagingUnits()

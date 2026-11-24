@@ -1,9 +1,15 @@
 import { Controller } from "@hotwired/stimulus"
 
 // Bulk product selection on the products index page.
-// Manages checkboxes, select-all, and the "Print Selected Barcodes" action.
+// Manages checkboxes, select-all (visible rows), the selection bar (count +
+// clear) and the one existing bulk action: "Print Selected Barcodes".
 export default class extends Controller {
-  static targets = ["checkbox", "selectAll", "printBtn", "printCount"]
+  static targets = ["checkbox", "selectAll", "printBtn", "printCount", "bulkBar", "selectedCount", "clearBtn"]
+  static values  = { selectedTemplate: String, hint: String }
+
+  connect() {
+    this.#sync()
+  }
 
   toggleAll(event) {
     this.checkboxTargets.forEach(cb => { cb.checked = event.target.checked })
@@ -11,6 +17,11 @@ export default class extends Controller {
   }
 
   toggle() {
+    this.#sync()
+  }
+
+  clear() {
+    this.checkboxTargets.forEach(cb => { cb.checked = false })
     this.#sync()
   }
 
@@ -41,6 +52,14 @@ export default class extends Controller {
 
     if (this.hasPrintCountTarget) {
       this.printCountTarget.textContent = checked > 0 ? `(${checked})` : ""
+    }
+
+    if (this.hasClearBtnTarget) this.clearBtnTarget.hidden = checked === 0
+    if (this.hasBulkBarTarget) this.bulkBarTarget.classList.toggle("is-active", checked > 0)
+    if (this.hasSelectedCountTarget && this.hasSelectedTemplateValue) {
+      this.selectedCountTarget.textContent = checked > 0
+        ? this.selectedTemplateValue.replace("{count}", checked)
+        : this.hintValue
     }
   }
 }

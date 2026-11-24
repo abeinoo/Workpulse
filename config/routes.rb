@@ -374,10 +374,6 @@ Rails.application.routes.draw do
       member do
         patch :archive
         patch :restore
-        # Nested packaging (Inventory::Packaging::Configurator): up to four
-        # levels, innermost first.
-        get   :packaging, to: "product_packagings#edit"
-        patch :packaging, to: "product_packagings#update"
         # Product availability per warehouse, managed from the product: the
         # section of the Edit page, also standalone for users who manage
         # availability but not product details. One branch card per request
@@ -389,6 +385,13 @@ Rails.application.routes.draw do
         post  :availability_inclusion, to: "warehouse_product_availabilities#include_from_product"
       end
     end
+    # Quick Issue (Inventory::StockIssueQuickIssue) — a single-product popup
+    # in the global modal from every entry point: ?product_id= opens it for
+    # that product; without one, a product-selection step opens it.
+    resource :quick_issue, only: %i[new create]
+    # Stock Issue workflow settings (owner-only; the audited
+    # OrganizationAccess::StockIssueWorkflowSettings).
+    resource :stock_issue_workflow_settings, only: %i[show update]
     resources :barcode_labels, only: [ :index, :show ]
     resources :purchase_requests, only: [ :index, :show, :new, :create, :edit, :update, :destroy ] do
       collection do

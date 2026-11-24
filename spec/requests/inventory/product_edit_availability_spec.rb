@@ -154,7 +154,7 @@ RSpec.describe "Product Edit — availability per warehouse (included by default
         expect(state(w)).to eq("included")
         expect(card(w).at_css("[data-testid='exclude-#{w.id}']")).to be_present
         expect(card(w).at_css("#pws-#{w.id}-low")["value"]).to eq("0") # defaults, never a legacy value
-        expect(card(w).at_css("[data-testid='save-#{w.id}']")).to be_present
+        expect(card(w).at_css("[data-testid='save-#{w.id}']")).to be_nil # saved by the page's one Save
       end
       expect(card(central).text).to include("Central")
       expect(card(central).text).not_to include("77")
@@ -343,7 +343,7 @@ RSpec.describe "Product Edit — availability per warehouse (included by default
       allow_any_instance_of(Inventory::ProductAvailabilityManager).to receive(:log_audit!).and_raise(AuditLoggable::AuditWriteFailed, "down")
       exclude(nasr, reason: "Moved to Shubra")
       expect(doc.at_css("[data-testid='exclusion-error-#{nasr.id}']").text).to eq("Nasr City: #{I18n.t('product_availability.errors.audit_failed')}")
-      expect(card(nasr).at_css("textarea[name='reason']").text).to eq("Moved to Shubra")
+      expect(card(nasr).at_css("#exclusion-reason-#{nasr.id}").text).to eq("Moved to Shubra")
       expect(ProductWarehouseSetting.count).to eq(0)
     end
 

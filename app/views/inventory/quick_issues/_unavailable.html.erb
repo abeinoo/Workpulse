@@ -1,0 +1,13 @@
+<%# The popup was opened for a product that cannot be issued (invalid, archived,
+    or not the user's): an error and a way out — never a picker for another
+    product, since the popup stays tied to the product it was opened for. %>
+<div class="qi" data-testid="quick-issue-unavailable" data-modal-placement="center" role="dialog"
+     aria-modal="<%= in_modal %>" aria-labelledby="quick-issue-title">
+  <%= render "header", in_modal: in_modal %>
+  <div class="flash flash--alert" role="alert" data-testid="quick-issue-error">
+    <%= @error.presence || @product_error.presence || t("inventory.quick_issue.errors.product_unavailable") %>
+  </div>
+  <div class="qi__actions">
+    <%= render "cancel", in_modal: in_modal %>
+  </div>
+</div>

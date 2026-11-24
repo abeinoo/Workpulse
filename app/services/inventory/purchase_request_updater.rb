@@ -63,7 +63,7 @@ module Inventory
     private
 
     def request
-      @request ||= PurchaseRequest.where(business_id: @actor.business_id).find(@purchase_request_id)
+      @request ||= PurchaseRequestPolicy::Scope.new(@actor, PurchaseRequest).resolve.find(@purchase_request_id) # warehouse reach, as PurchaseRequestApproval (Phase 2)
     end
 
     def not_editable_error
@@ -75,23 +75,19 @@ module Inventory
     end
 
     LINE_FIELDS = %w[product_id supplier_id quantity unit_price].freeze
-    # The purchase unit, audited only on lines that use one.
-    UNIT_FIELDS = %w[entered_quantity packaging_level_id entered_unit_price].freeze
 
     # { item_id => { "product_id" => 12, "quantity" => "4.0", … } } — ids as
     # integers, decimals as plain strings.
     def line_snapshot(reload: false)
       items = reload ? request.items.reload : request.items
       items.to_h do |item|
-        plain  = ->(field) { item.public_send(field).then { |v| v.is_a?(BigDecimal) ? v.to_s("F") : v } }
-        fields = LINE_FIELDS + UNIT_FIELDS.select { |field| !item.public_send(field).nil? || !item.attribute_in_database(field).nil? }
-        [ item.id, fields.index_with { |field| plain.(field) } ]
+        [ item.id, LINE_FIELDS.index_with { |field| item.public_send(field).then { |v| v.is_a?(BigDecimal) ? v.to_s("F") : v } } ]
       end
     end
 
     def item_changes(before, after)
       changed = (before.keys & after.keys).filter_map do |id|
-        diff = (before[id].keys | after[id].keys).select { |field| before[id][field] != after[id][field] }
+        diff = LINE_FIELDS.select { |field| before[id][field] != after[id][field] }
         { "item_id" => id, "from" => before[id].slice(*diff), "to" => after[id].slice(*diff) } if diff.any?
       end
       { "added" => (after.keys - before.keys).map { |id| after[id].merge("item_id" => id) },

@@ -23,6 +23,7 @@ module Inventory
     def call
       ActiveRecord::Base.transaction do
         lock_count!
+        return failure(WarehouseReach.message) unless count_reachable?
         return failure(t_error("not_in_progress")) unless @count.in_progress?
 
         cutoff  = Time.current

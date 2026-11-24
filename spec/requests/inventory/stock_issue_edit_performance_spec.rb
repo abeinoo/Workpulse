@@ -7,7 +7,7 @@ require "rails_helper"
 RSpec.describe "Inventory::StockIssues edit performance", type: :request do
   let(:business)  { create(:business) }
   let(:owner)     { create(:user, :super_admin, business: business) }
-  let(:warehouse) { business.warehouses.create!(name: "Main") }
+  let(:warehouse) { branch_warehouse_for(branch, name: "Main") } # the branch's own warehouse
   let(:branch)    { business.branches.create!(name: "B", active: true) }
 
   def products!(count, offset: 0)

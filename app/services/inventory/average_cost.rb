@@ -1,7 +1,6 @@
 module Inventory
   # The single writer of products.average_cost_price (product-level moving
-  # average across all warehouses), with posting-order semantics (W2;
-  # docs/inventory/multi_unit_nested_packaging_design.md §16.9.5):
+  # average across all warehouses), with posting-order semantics (W2):
   #
   #   inflow   (goods receipt, opening balance) at posting:
   #            new = (on_hand × avg + qty × unit_cost) / (on_hand + qty)

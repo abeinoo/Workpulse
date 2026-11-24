@@ -3,8 +3,10 @@ require "rails_helper"
 RSpec.describe Inventory::StockIssueApproval, type: :model do
   let(:business)   { create(:business) }
   let(:owner)      { create(:user, :super_admin, business: business) }
-  let(:requester)  { create(:user, business: business) }
-  let(:approver)   { create(:user, business: business) }
+  # Approving is approve_stock_issues, checked by the service; the requester
+  # also holds it so the self-approval rule (not the permission) is what refuses them.
+  let(:requester)  { stock_issue_user(business, :create_stock_issues, :approve_stock_issues) }
+  let(:approver)   { stock_issue_user(business, :approve_stock_issues) }
   let(:warehouse)  { business.warehouses.create!(name: "Main") }
   let(:branch)     { business.branches.create!(name: "Nasr City", active: true) }
   let(:product)    { business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10) }

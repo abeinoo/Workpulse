@@ -40,7 +40,7 @@ RSpec.describe "Product Edit — image gallery (browser)", type: :system do
     expect(ProductImage.count).to eq(0) # nothing applied before Save
 
     save!
-    expect(page).to have_text(I18n.t("inventory.products.updated"))
+    expect(page).to have_text(I18n.t("inventory.products.all_saved"))
     expect(product.images.reload.map(&:position)).to eq([ 1, 2 ])
   end
 
@@ -64,7 +64,7 @@ RSpec.describe "Product Edit — image gallery (browser)", type: :system do
     expect(ProductImage.where(id: [ a.id, b.id, c.id ]).count).to eq(3) # still saved until Save
 
     save!
-    expect(page).to have_text(I18n.t("inventory.products.updated"))
+    expect(page).to have_text(I18n.t("inventory.products.all_saved"))
     expect(product.images.reload.map(&:id)).to eq([ c.id, a.id ])
     expect(ProductImage.exists?(b.id)).to be(false)
   end
@@ -101,7 +101,7 @@ RSpec.describe "Product Edit — image gallery (browser)", type: :system do
     visit_edit
     fill_in "product_name", with: "Argan Oil Pro"
     save!
-    expect(page).to have_text(I18n.t("inventory.products.updated"))
+    expect(page).to have_text(I18n.t("inventory.products.all_saved"))
     expect(product.reload.name).to eq("Argan Oil Pro")
     expect(product.images.map(&:id)).to eq([ a.id ])
   end

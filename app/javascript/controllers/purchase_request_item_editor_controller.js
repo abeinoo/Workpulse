@@ -1,6 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
 import { ensureProductOption } from "lib/product_option"
-import { refreshUnits } from "lib/packaging_units"
 
 // The Purchase Request page's item editor (_item_editor.html.erb): one modal
 // for "Add Product" and every row's "Edit". This controller only fills the
@@ -47,8 +46,7 @@ export default class extends Controller {
     const product = form.querySelector("[data-product-field]")
     if (line.productId) {
       ensureProductOption(product, { id: line.productId, name: line.productName, sku: line.sku, thumb: line.thumb,
-                                     default_supplier_id: line.defaultSupplierId, measure: line.measure,
-                                     units: line.units ? JSON.parse(line.units) : null })
+                                     default_supplier_id: line.defaultSupplierId })
     }
     product.value = line.productId || ""
     product.dataset.previousValue = product.value
@@ -59,8 +57,6 @@ export default class extends Controller {
     form.querySelector("[data-supplier-kept-note]")?.setAttribute("hidden", "")
     form.querySelector("[data-quantity-field]").value = line.quantity || ""
     form.querySelector("[data-price-field]").value = line.unitPrice || ""
-    // The line's unit (a packaging level, or the base unit) and the product's units.
-    refreshUnits(form.querySelector("[data-line-row]"), line.packagingLevelId || "")
     form.querySelector("[data-purchase-request-form-target='duplicateNotice']")?.setAttribute("hidden", "")
 
     this.modalTarget.style.display = ""

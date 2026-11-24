@@ -1,4 +1,4 @@
-# Display text for costs (Decisions 11 and 18; docs/inventory/multi_unit_nested_packaging_design.md §12).
+# Display text for costs (Decisions 11 and 18).
 # Formatting only: stored precision, calculations and money rounding are
 # never changed by it.
 #

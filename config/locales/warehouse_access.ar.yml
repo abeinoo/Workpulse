@@ -1,0 +1,7 @@
+ar:
+  errors:
+    messages:
+      warehouse_inactive: "المستودع «%{warehouse}» غير نشط — لا يُسمح بأي عملية مخزنية جديدة فيه."
+  inventory:
+    errors:
+      warehouse_not_accessible: "ليست لديك صلاحية الوصول إلى هذا المستودع."

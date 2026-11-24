@@ -8,8 +8,7 @@ class Inventory::StockTransfersController < Inventory::BaseController
   def show
     @stock_transfer = find_transfer
     authorize @stock_transfer
-    @items = @stock_transfer.items.includes(:packaging_level, product: Product::IMAGE_PRELOAD)
-    @packaging_entries = packaging_entries_of(@stock_transfer)
+    @items = @stock_transfer.items.includes(product: Product::IMAGE_PRELOAD)
   end
 
   def new
@@ -25,7 +24,7 @@ class Inventory::StockTransfersController < Inventory::BaseController
     authorize @stock_transfer
     ensure_warehouses_accessible!(@stock_transfer.source_warehouse_id, @stock_transfer.destination_warehouse_id)
 
-    result = Inventory::StockTransferPoster.new(@stock_transfer).call
+    result = Inventory::StockTransferPoster.new(@stock_transfer, actor: current_user).call
     if result.ok?
       redirect_to inventory_stock_transfer_path(@stock_transfer), notice: t("inventory.stock_transfers.created")
     else
@@ -62,7 +61,7 @@ class Inventory::StockTransfersController < Inventory::BaseController
   def transfer_params
     params.require(:stock_transfer).permit(
       :source_warehouse_id, :destination_warehouse_id, :transferred_on, :notes,
-      items_attributes: [ :id, :product_id, :quantity, :entered_quantity, :packaging_level_id, :_destroy ]
+      items_attributes: [ :id, :product_id, :quantity, :_destroy ]
     )
   end
 end

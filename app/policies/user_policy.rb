@@ -13,8 +13,13 @@ class UserPolicy < ApplicationPolicy
     employee_code job_title department_id hire_date employment_type
     allow_mobile_attendance allow_biometric_attendance requires_shift_assignment admin_notes
   ].freeze
-  # Account status and access: never on self, never on the owner.
-  ACCOUNT_ATTRIBUTES = [ :active, { assigned_warehouse_ids: [] } ].freeze
+  # Account status: never on self, never on the owner.
+  ACCOUNT_ATTRIBUTES = [ :active ].freeze
+  # Explicit warehouse assignments: only with manage_warehouse_access, never on
+  # self, only for an account the actor controls (#manage_warehouse_access?).
+  # The assignment service (Inventory::UserWarehouseAssignments) applies the
+  # same rule again, plus the grantor's own warehouse reach.
+  WAREHOUSE_ACCESS_ATTRIBUTES = [ { assigned_warehouse_ids: [] } ].freeze
   # Role: requires manage_roles; the concrete change is further checked by
   # PermissionGrants.can_change_role? in the controller.
   ROLE_ATTRIBUTES = %i[permission_role_id].freeze
@@ -45,6 +50,19 @@ class UserPolicy < ApplicationPolicy
   # the page itself. National ID needs export_employee_identity on top; the
   # salary and insurance columns follow their own view rules
   # (Employee::Export::FieldCatalog).
+  # Changing a user's explicit warehouse assignments (Warehouse Access
+  # hardening, Phase 2): manage_warehouse_access, never one's own access, and
+  # only for a new user or one inside the actor's management scope whom the
+  # actor's own authority covers (OrganizationAccess::PermissionGrants.covers?
+  # — no granting into a higher-privileged account). The owner manages everyone
+  # but themself.
+  def manage_warehouse_access?
+    return false unless can?(:manage_warehouse_access) && !own_record?
+    return true if record.new_record?
+
+    in_management_scope? && OrganizationAccess::PermissionGrants.covers?(user, record)
+  end
+
   def export?          = can?(:export_employees) && index?
   def export_identity? = export? && can?(:export_employee_identity)
 
@@ -54,6 +72,7 @@ class UserPolicy < ApplicationPolicy
 
     attributes += EMPLOYMENT_ATTRIBUTES if managing_other || user.owner?
     attributes += ACCOUNT_ATTRIBUTES    if managing_other && controls_account?
+    attributes += WAREHOUSE_ACCESS_ATTRIBUTES if managing_other && controls_account? && manage_warehouse_access?
     attributes += ROLE_ATTRIBUTES       if can?(:manage_roles) && !own_record? && controls_account?
     # Changing the login identifiers of a user the actor does not cover (the
     # owner, or a higher-privileged administrator) would hand over the account.

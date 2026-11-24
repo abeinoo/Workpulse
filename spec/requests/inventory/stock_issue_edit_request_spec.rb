@@ -2,16 +2,17 @@ require "rails_helper"
 
 RSpec.describe "Inventory::StockIssues Edit Request (pending approval or approved)", type: :request do
   let(:business)  { create(:business) }
-  let(:warehouse) { business.warehouses.create!(name: "Main") }
+  let(:warehouse) { branch_warehouse_for(branch, name: "Main") } # the branch's own warehouse
   let(:branch)    { business.branches.create!(name: "Nasr City", active: true) }
   let(:product)   { business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10) }
   let(:product2)  { business.products.create!(name: "Towel", sku: "TW-1", initial_cost_price: 5, average_cost_price: 5) }
 
-  let(:creator_role)  { create(:permission_role, business: business, permissions: %w[view_inventory manage_stock_issues]) }
+  let(:creator_role)  { create(:permission_role, business: business, permissions: %w[view_inventory view_stock_issues create_stock_issues]) }
   let(:creator)       { create(:user, business: business, permission_role: creator_role) }
-  let(:approver_role) { create(:permission_role, business: business, permissions: %w[view_inventory approve_stock_issues]) }
+  # (approves and, in the "once issued" examples, confirms)
+  let(:approver_role) { create(:permission_role, business: business, permissions: %w[view_inventory view_stock_issues approve_stock_issues confirm_stock_issues]) }
   let(:approver)      { create(:user, business: business, permission_role: approver_role) }
-  let(:viewer_role)   { create(:permission_role, business: business, permissions: %w[view_inventory]) }
+  let(:viewer_role)   { create(:permission_role, business: business, permissions: %w[view_inventory view_stock_issues]) }
   let(:viewer)        { create(:user, business: business, permission_role: viewer_role) }
 
   let(:issue) do
@@ -83,8 +84,8 @@ RSpec.describe "Inventory::StockIssues Edit Request (pending approval or approve
       expect(AuditLog.for_auditable(issue).where(action: %w[reopen_for_editing update])).to be_empty
     end
 
-    it "allows manage_stock_issues and manage_inventory holders" do
-      [ %w[view_inventory manage_stock_issues], %w[view_inventory manage_inventory] ].each do |perms|
+    it "allows create_stock_issues and (transitionally) manage_inventory holders" do
+      [ %w[view_inventory view_stock_issues create_stock_issues], %w[view_inventory manage_inventory] ].each do |perms|
         i = issue
         Inventory::StockIssueSubmission.new(stock_issue_id: i.id, actor: creator).call if i.reload.draft?
         sign_in role_user(perms)
@@ -94,7 +95,7 @@ RSpec.describe "Inventory::StockIssues Edit Request (pending approval or approve
     end
 
     it "refuses viewers, approvers, confirmers, and users with no inventory permission" do
-      [ viewer, approver, role_user(%w[view_inventory confirm_stock_issues]), role_user(%w[view_inventory approve_stock_issues confirm_stock_issues]), role_user([]) ].each do |user|
+      [ viewer, approver, role_user(%w[view_inventory view_stock_issues confirm_stock_issues]), role_user(%w[view_inventory view_stock_issues approve_stock_issues confirm_stock_issues]), role_user([]) ].each do |user|
         sign_in user
         get edit_inventory_stock_issue_path(issue)
         expect(response).not_to have_http_status(:ok)
@@ -126,7 +127,7 @@ RSpec.describe "Inventory::StockIssues Edit Request (pending approval or approve
 
     it "refuses an editor restricted to a different warehouse (not found)" do
       other_wh = business.warehouses.create!(name: "Other")
-      scoped = role_user(%w[view_inventory manage_stock_issues])
+      scoped = role_user(%w[view_inventory view_stock_issues create_stock_issues])
       WarehouseAssignment.create!(user: scoped, warehouse: other_wh)
       sign_in scoped
       begin
@@ -138,17 +139,15 @@ RSpec.describe "Inventory::StockIssues Edit Request (pending approval or approve
       expect_untouched
     end
 
-    it "refuses moving the issue into a warehouse the editor can't access" do
+    it "never moves the issue to a submitted warehouse (the source warehouse is not editable)" do
       other_wh = business.warehouses.create!(name: "Other")
-      scoped = role_user(%w[view_inventory manage_stock_issues])
+      scoped = role_user(%w[view_inventory view_stock_issues create_stock_issues])
       WarehouseAssignment.create!(user: scoped, warehouse: warehouse)
       sign_in scoped
       params = update_params(quantity: 5)
       params[:stock_issue][:warehouse_id] = other_wh.id
       patch inventory_stock_issue_path(issue), params: params
-      expect(response).to redirect_to(root_path).or have_http_status(:forbidden)
-      expect_untouched
-      expect(issue.warehouse_id).to eq(warehouse.id)
+      expect(issue.reload.warehouse_id).to eq(warehouse.id)
     end
 
     it "refuses editing once issued, even with edit permission" do
@@ -172,7 +171,7 @@ RSpec.describe "Inventory::StockIssues Edit Request (pending approval or approve
     it "refuses editing an approved issue for users without edit permission or warehouse access" do
       receive!
       Inventory::StockIssueApproval.new(stock_issue_id: issue.id, actor: approver).approve!
-      scoped = role_user(%w[view_inventory manage_stock_issues])
+      scoped = role_user(%w[view_inventory view_stock_issues create_stock_issues])
       WarehouseAssignment.create!(user: scoped, warehouse: business.warehouses.create!(name: "Other"))
 
       [ approver, viewer, scoped ].each do |user|
@@ -259,7 +258,7 @@ RSpec.describe "Inventory::StockIssues Edit Request (pending approval or approve
       end
       confirmer = create(:user, business: business,
                                 permission_role: create(:permission_role, business: business,
-                                                                          permissions: %w[view_inventory confirm_stock_issues]))
+                                                                          permissions: %w[view_inventory view_stock_issues confirm_stock_issues]))
 
       expect {
         sign_in creator

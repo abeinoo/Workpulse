@@ -13,36 +13,50 @@ module Inventory
   # request can't run twice. Rejection happens only from pending_approval,
   # which never holds a reservation, so it has nothing to release.
   #
-  # Self-approval is blocked (the person who submitted the issue may not
-  # approve or reject their own submission), with the business-owner
-  # exception, via the shared Approvals::SelfApproval rule — mirrors
-  # Inventory::GoodsReceiptApproval.
+  # Enforced here: approve_stock_issues and access to the issue's warehouse
+  # (checked first, and again under the lock — with the warehouse still
+  # active — before reserving).
+  #
+  # Self-approval — the Standard Stock Issue setting
+  # (Business#stock_issue_self_approval_allowed?, changed only through the
+  # audited OrganizationAccess::StockIssueWorkflowSettings):
+  #   forbidden (default) — the person who SUBMITTED the issue may not approve
+  #                         or reject it. Editing an issue does not block its
+  #                         editor; only the submitter of the current
+  #                         submission is compared (re-checked under the lock).
+  #   allowed             — no actor is blocked.
+  # The owner is always exempt.
+  #
+  # The Quick Issue flow (Inventory::StockIssueQuickIssue) passes its private
+  # context: the actor's own submission is approved automatically (Quick Issue
+  # stays usable when standard self-approval is forbidden). It still passes
+  # the same row lock, product locks and availability reservation, never
+  # bypasses warehouse reach, and its "approve" entry — marked quick_issue /
+  # automatic — is mandatory (log_audit!).
   class StockIssueApproval
     include AuditLoggable
 
-    # warnings: packaging the approval could not satisfy right now (Decision 6):
-    # the issue is approved and reserved anyway; posting enforces the packages.
-    Result = Struct.new(:ok, :issue, :error, :warnings, keyword_init: true) do
+    Result = Struct.new(:ok, :issue, :error, keyword_init: true) do
       def ok? = ok
-      def warnings = self[:warnings] || []
     end
 
-    def initialize(stock_issue_id:, actor:)
+    def initialize(stock_issue_id:, actor:, context: nil)
       @stock_issue_id = stock_issue_id
       @actor          = actor
+      @context        = context
     end
 
     # pending_approval -> approved
     def approve!
+      return permission_error unless permitted?
+      return reach_error unless reachable?
+      return visibility_error unless visible?
       return self_approval_error if self_approval?
 
       # Metadata is built after the lock (lazily), from the lines actually approved.
-      transition(to: "approved", action: "approve",
-                 metadata: -> { { reserved: reserved_quantities, packaging_warnings: @warnings.presence }.compact }) do
+      transition(to: "approved", action: "approve", metadata: -> { approval_metadata }) do
         StockAvailability.lock_products!(issue.items.map(&:product_id))
         next issue.errors.full_messages.to_sentence unless StockAvailability.validate!(issue)
-
-        @warnings = packaging_warnings
 
         issue.approved_by = @actor
         issue.approved_at = Time.current
@@ -52,6 +66,9 @@ module Inventory
 
     # pending_approval -> rejected
     def reject!(reason:)
+      return permission_error unless permitted?
+      return reach_error unless reachable?
+      return visibility_error unless visible?
       return self_approval_error if self_approval?
 
       reason = reason.to_s.strip
@@ -70,6 +87,22 @@ module Inventory
 
     private
 
+    def permitted? = StockIssueAuthorization.step_permitted?(@actor, :approve, context: @context)
+
+    def permission_error = Result.new(ok: false, issue: issue, error: StockIssueAuthorization.message)
+
+    # Service-level reach (Phase 2) — applies to Quick Issues too.
+    def reachable? = WarehouseReach.permits?(@actor, issue.warehouse_id)
+
+    def reach_error = Result.new(ok: false, issue: issue, error: WarehouseReach.message)
+
+    # Visibility = access to the issue's warehouse (Inventory::IssueWarehouseReach).
+    def visible? = warehouse_reach.sees?(issue)
+
+    def visibility_error = Result.new(ok: false, issue: issue, error: warehouse_reach.not_visible_message)
+
+    def warehouse_reach = @warehouse_reach ||= IssueWarehouseReach.for(@actor)
+
     def issue
       @issue ||= StockIssue.where(business_id: @actor.business_id).find(@stock_issue_id)
     end
@@ -79,25 +112,29 @@ module Inventory
     # issue returns it to draft under this same row lock
     # (Inventory::StockIssueEditor), so once the lock is held and the status
     # re-checked, the lines are final.
-    # A read-only plan of the issue's lines on today's packaging: full-package
-    # lines the warehouse cannot satisfy now become non-blocking warnings.
-    def packaging_warnings
-      items = issue.items.reject(&:marked_for_destruction?).select(&:product)
-      session = Packaging::Session.new(business: issue.business, product_ids: items.map(&:product_id),
-                                       warehouse_ids: [ issue.warehouse_id ])
-      items.filter_map do |item|
-        session.try(product: item.product, warehouse_id: issue.warehouse_id) do |plan|
-          item.package_line? ? plan.take_packages(item.packaging_level.position, item.entered_quantity) : plan.take_base(item.quantity)
-        end
-      end
-    end
-
     def reserved_quantities
       issue.items.group_by(&:product_id).transform_values { |items| items.sum { |i| i.quantity.to_d }.to_s }
     end
 
+    def approval_metadata
+      metadata = { reserved: reserved_quantities }
+      if @context
+        metadata.merge!(quick_issue: true, automatic: true, workflow: "quick_issue",
+                        issue_reason: issue.issue_reason, issue_reason_note: issue.issue_reason_note)
+      else
+        metadata[:self_approval] = self_approval_setting
+      end
+      metadata.compact
+    end
+
+    def self_approval_setting
+      issue.business.stock_issue_self_approval_allowed? ? "allowed" : "forbidden"
+    end
+
     def self_approval?
       return false if @actor.owner?
+      return false if @context # Quick Issue: automatic approval (see class comment)
+      return false if issue.business.stock_issue_self_approval_allowed?
 
       Approvals::SelfApproval.by_requester?(approver: @actor, requester: issue.submitted_by_id)
     end
@@ -133,19 +170,26 @@ module Inventory
           raise ActiveRecord::Rollback
         end
 
+        # The stored warehouse, re-verified under the issue lock (warehouse
+        # row FOR SHARE) before anything is reserved: active, and still
+        # reached by the actor. Never re-resolved or replaced.
+        if to == "approved" && (error = warehouse_reach.verify_under_lock(issue))
+          raise ActiveRecord::Rollback
+        end
+
         from_status = issue.status
         error = yield
         raise ActiveRecord::Rollback if error
 
         issue.status = to
         issue.save!
-        log_audit(actor: @actor, auditable: issue, action: action,
-                  changes: { status: [ from_status, to ] },
-                  metadata: metadata.respond_to?(:call) ? metadata.call : metadata)
+        audit = { actor: @actor, auditable: issue, action: action, changes: { status: [ from_status, to ] },
+                  metadata: metadata.respond_to?(:call) ? metadata.call : metadata }
+        @context ? log_audit!(**audit) : log_audit(**audit)
       end
       return Result.new(ok: false, issue: issue, error: error) if error
 
-      Result.new(ok: true, issue: issue, warnings: @warnings)
+      Result.new(ok: true, issue: issue)
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, issue: issue, error: e.record.errors.full_messages.to_sentence)
     end

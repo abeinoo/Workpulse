@@ -21,6 +21,7 @@
 # Every transition goes through a service in Inventory::StockCount* — the
 # model only holds derived state and guard rails.
 class StockCount < ApplicationRecord
+  include RequiresActiveWarehouse
   belongs_to :business
   belongs_to :warehouse
   belongs_to :created_by,       class_name: "User", optional: true
@@ -51,6 +52,8 @@ class StockCount < ApplicationRecord
   validate  :has_at_least_one_item
   validate  :products_are_unique
   validate  :warehouse_in_same_business, if: :will_save_change_to_warehouse_id?
+  # Inactive warehouse: no new count, no start, completion or approval.
+  requires_active_warehouse :warehouse, transitions: { status: %w[in_progress completed approved] }
 
   scope :for_business, ->(business) { where(business: business) }
   scope :recent,       -> { order(counted_on: :desc, id: :desc) }

@@ -2,8 +2,12 @@ require "rails_helper"
 
 RSpec.describe Inventory::StockIssueEditor, type: :model do
   let(:business)  { create(:business) }
-  let(:requester) { create(:user, business: business) }
-  let(:approver)  { create(:user, business: business) }
+  # The services check each operation's permission; the approver also edits
+  # and resubmits in the self-approval race example.
+  let(:requester) { stock_issue_user(business, :create_stock_issues) }
+  let(:approver)  do
+    stock_issue_user(business, :create_stock_issues, :approve_stock_issues, :confirm_stock_issues)
+  end
   let(:warehouse) { business.warehouses.create!(name: "Main") }
   let(:branch)    { business.branches.create!(name: "Nasr City", active: true) }
   let(:product)   { business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10) }
@@ -335,6 +339,7 @@ RSpec.describe Inventory::StockIssueEditor, type: :model do
       Warehouse.where(business: business).delete_all
       Branch.where(business: business).delete_all
       User.where(business: business).delete_all
+      PermissionRole.where(business: business).delete_all # the roles stock_issue_user created
       Business.where(id: business.id).delete_all
     end
 
@@ -457,7 +462,7 @@ RSpec.describe Inventory::StockIssueEditor, type: :model do
     end
 
     it "two users saving the same form version: one wins, the other is refused as stale" do
-      other  = create(:user, business: business)
+      other  = stock_issue_user(business, :create_stock_issues) # a second user allowed to edit
       issue  = pending_issue
       token  = issue.lock_token
       signal = Queue.new

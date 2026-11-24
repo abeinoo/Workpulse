@@ -96,7 +96,7 @@ RSpec.describe "Product barcode management", type: :request do
       expect(response).to redirect_to(inventory_product_path(product))
       expect(rows(product)).to be_empty
       follow_redirect!
-      expect(response.body).to include("Product updated.")
+      expect(response.body).to include(I18n.t("inventory.products.all_saved"))
 
       get edit_inventory_product_path(product)
       expect(doc.css("[data-line-items-target='rows'] [data-line-row]")).to be_empty

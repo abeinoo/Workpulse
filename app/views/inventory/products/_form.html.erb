@@ -1,91 +1,117 @@
-<%# availability_section (Edit page only): the product's warehouse cards. The
-    form closes after the product details; the "Inventory Tracking,
-    Notifications & Warehouse Availability" section (checkbox + cards) follows
-    OUTSIDE it (the cards have their own forms), and the checkbox, the notes
-    field and Save / Cancel still belong to it through the HTML form attribute. %>
+<%# Product details, in section cards: Basic Information, Barcodes, Pricing.
+    Edit page only: availability_section (the product's warehouse cards). The
+    <form> element closes after Pricing; the "Inventory Tracking,
+    Notifications & Warehouse Availability" section follows it, and its
+    fields, the notes and the page's ONE Save (the action bar) still belong to
+    the form through the HTML form attribute — everything is saved together
+    (Inventory::ProductEditor). On New (and in the import modal) everything,
+    the action bar included, is inside the form. %>
 <% availability_section = local_assigns[:availability_section] %>
-<%= form_with model: [:inventory, product], class: "form-card #{'form-card--split' if availability_section}", id: "product-form" do |f| %>
+<% lk = "inventory.products.layout" %>
+<%= form_with model: [:inventory, product], class: "product-form #{'product-form--split' if availability_section}", id: "product-form" do |f| %>
   <%= render "shared/error_messages", object: product %>
   <% if local_assigns[:return_to_import_row_id].present? %>
     <%= hidden_field_tag :return_to_import_row_id, return_to_import_row_id %>
   <% end %>
 
-  <%# ── Identity ──────────────────────────────────────────── %>
-  <h2 class="section-title"><%= t("inventory.products.section_identity") %></h2>
-  <div class="form-grid">
-    <div class="form-group" style="grid-column: 1 / -1;">
-      <%= f.label :name, t("inventory.products.name"), class: "form-label" %>
-      <%= f.text_field :name, class: "form-control #{'is-error' if product.errors[:name].any?}" %>
-    </div>
-    <div class="form-group">
-      <%= f.label :sku, t("inventory.products.sku"), class: "form-label" %>
-      <%= f.text_field :sku, class: "form-control #{'is-error' if product.errors[:sku].any?}" %>
-    </div>
-    <%# Amount + Measure, side by side ("355" + "Millilitres (ml)"): the product's
-        size / packaging. Amount is optional; Measure always has a value. %>
-    <%# Once stock has moved the Measure (base unit) is locked (Decision 2); with
-        packaging the Amount is the innermost package's content, set by the
-        packaging editor (Decision 1). Disabled fields are not submitted. %>
-    <% unit_locked = product.base_unit_locked?
-       amount_by_packaging = product.persisted? && product.active_packaging_levels.any? %>
-    <div class="form-group" data-testid="product-measurement">
-      <div class="measure-pair">
-        <div class="measure-pair__amount">
-          <%= f.label :measure_amount, t("inventory.measures.amount"), class: "form-label" %>
-          <%= f.number_field :measure_amount, step: "any", min: 0, inputmode: "decimal", placeholder: "0.00",
-                value: (product.measure_amount && inventory_quantity(product.measure_amount)),
-                class: "form-control #{'is-error' if product.errors[:measure_amount].any?}",
-                disabled: amount_by_packaging,
-                data: { testid: "product-measure-amount" } %>
-        </div>
-        <div class="measure-pair__unit">
-          <%= f.label :unit_of_measure, t("inventory.measures.field"), class: "form-label" %>
-          <%= f.select :unit_of_measure, measure_options,
-                { selected: product.unit_of_measure.presence || Product::DEFAULT_UNIT_OF_MEASURE },
-                class: "form-control #{'is-error' if product.errors[:unit_of_measure].any?}",
-                disabled: unit_locked,
-                data: { testid: "product-measure" } %>
-        </div>
+  <%# ── Basic information ─────────────────────────────────── %>
+  <section class="pe-card" aria-labelledby="pe-basic-title">
+    <header class="pe-card__head">
+      <h2 class="section-title" id="pe-basic-title"><%= t("#{lk}.section_basic") %></h2>
+      <p class="form-hint"><%= t("#{lk}.section_basic_hint") %></p>
+    </header>
+    <div class="pe-grid">
+      <div class="form-group pe-span-4">
+        <%= f.label :name, t("inventory.products.name"), class: "form-label form-label--required" %>
+        <%= f.text_field :name, class: "form-control #{'is-error' if product.errors[:name].any?}",
+              aria: { required: true, invalid: product.errors[:name].any? } %>
       </div>
-      <p class="form-hint"><%= t("inventory.measures.hint") %></p>
-      <% if unit_locked %>
-        <p class="form-hint" data-testid="base-unit-locked"><%= t("inventory.packaging.locked_base_unit") %></p>
-      <% end %>
-      <% if amount_by_packaging %>
-        <p class="form-hint"><%= t("activerecord.errors.messages.managed_by_packaging").upcase_first %>.</p>
-      <% end %>
-      <% if product.errors[:unit_of_measure].any? %>
-        <p class="form-hint text-danger"><%= product.errors.full_messages_for(:unit_of_measure).to_sentence %></p>
-      <% end %>
-    </div>
-    <div class="form-group">
-      <%= f.label :brand_id, t("inventory.products.brand"), class: "form-label" %>
-      <%= f.select :brand_id,
-            options_from_collection_for_select(@brands, :id, :name, product.brand_id),
-            { include_blank: "— #{t('inventory.products.no_brand')}" }, class: "form-control" %>
-    </div>
-    <div class="form-group">
-      <%= f.label :product_category_id, t("inventory.products.category"), class: "form-label" %>
-      <%= f.select :product_category_id,
-            options_from_collection_for_select(@categories, :id, :name, product.product_category_id),
-            { include_blank: "— #{t('inventory.products.no_category')}" }, class: "form-control" %>
-    </div>
-    <div class="form-group">
-      <%= f.label :default_supplier_id, t("inventory.products.default_supplier"), class: "form-label" %>
-      <%= f.select :default_supplier_id,
-            options_from_collection_for_select(@suppliers, :id, :name, product.default_supplier_id),
-            { include_blank: "— #{t('inventory.products.no_default_supplier')}" }, class: "form-control" %>
-      <p class="form-hint"><%= t("inventory.products.default_supplier_hint") %></p>
-    </div>
-  </div>
+      <div class="form-group pe-span-2">
+        <%= f.label :sku, t("inventory.products.sku"), class: "form-label form-label--required" %>
+        <%= f.text_field :sku, class: "form-control #{'is-error' if product.errors[:sku].any?}",
+              aria: { required: true, invalid: product.errors[:sku].any? } %>
+      </div>
 
-  <div class="divider"></div>
+      <div class="form-group pe-span-2">
+        <%= f.label :product_category_id, t("inventory.products.category"), class: "form-label" %>
+        <%= f.select :product_category_id,
+              options_from_collection_for_select(@categories, :id, :name, product.product_category_id),
+              { include_blank: "— #{t('inventory.products.no_category')}" }, class: "form-control" %>
+      </div>
+      <div class="form-group pe-span-2">
+        <%= f.label :brand_id, t("inventory.products.brand"), class: "form-label" %>
+        <%= f.select :brand_id,
+              options_from_collection_for_select(@brands, :id, :name, product.brand_id),
+              { include_blank: "— #{t('inventory.products.no_brand')}" }, class: "form-control" %>
+      </div>
+      <div class="form-group pe-span-2">
+        <%= f.label :default_supplier_id, t("inventory.products.default_supplier"), class: "form-label" %>
+        <%= f.select :default_supplier_id,
+              options_from_collection_for_select(@suppliers, :id, :name, product.default_supplier_id),
+              { include_blank: "— #{t('inventory.products.no_default_supplier')}" }, class: "form-control" %>
+        <p class="form-hint"><%= t("inventory.products.default_supplier_hint") %></p>
+      </div>
+
+      <%# Unit of Measure + Amount, side by side: the product's size ("355 ml",
+          "500 g") — informational only, never a unit of stock. Both editable at
+          any time. The Amount follows the unit (product_measure_controller.js):
+          a whole product (pieces) has none — the field is hidden and a blank is
+          sent, so no stale amount is kept; any other unit shows the Amount with
+          that unit as its suffix. %>
+      <% measure = product.unit_of_measure.presence || Product::DEFAULT_UNIT_OF_MEASURE
+         pieces  = measure == "pieces" %>
+      <div class="form-group measure-group pe-span-3" data-testid="product-measurement" data-controller="product-measure">
+        <div class="measure-pair">
+          <div class="measure-pair__unit">
+            <%= f.label :unit_of_measure, t("inventory.measures.field"), class: "form-label" %>
+            <%= f.select :unit_of_measure, measure_options, { selected: measure },
+                  class: "form-control #{'is-error' if product.errors[:unit_of_measure].any?}",
+                  data: { testid: "product-measure", product_measure_target: "select", action: "product-measure#change" } %>
+          </div>
+          <div class="measure-pair__amount" data-product-measure-target="amountGroup" data-testid="product-measure-amount-group" <%= "hidden" if pieces %>>
+            <%= f.label :measure_amount, t("inventory.measures.amount"), class: "form-label" %>
+            <div class="input-with-suffix">
+              <%= f.number_field :measure_amount, step: "any", min: 0, inputmode: "decimal",
+                    value: (product.measure_amount && !pieces ? inventory_quantity(product.measure_amount) : nil),
+                    class: "form-control #{'is-error' if product.errors[:measure_amount].any?}",
+                    disabled: pieces, data: { testid: "product-measure-amount", product_measure_target: "amount" } %>
+              <span class="input-suffix" data-product-measure-target="suffix" data-testid="product-measure-amount-suffix"><%= measure_short(measure) %></span>
+            </div>
+            <%# Pieces: this blank is sent instead of the hidden Amount. %>
+            <%= hidden_field_tag "product[measure_amount]", "", id: nil, disabled: !pieces, data: { product_measure_target: "amountBlank" } %>
+          </div>
+        </div>
+        <p class="form-hint"><%= t("#{lk}.measure_hint") %></p>
+        <% %i[unit_of_measure measure_amount].each do |attribute| %>
+          <% if product.errors[attribute].any? %>
+            <p class="form-hint text-danger"><%= product.errors.full_messages_for(attribute).to_sentence %></p>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  </section>
 
   <%# ── Barcodes ──────────────────────────────────────────── %>
-  <div data-controller="line-items barcode-list"
-       data-barcode-list-generate-url-value="<%= next_barcode_code_inventory_products_path(format: :json) %>">
-    <h2 class="section-title"><%= t("inventory.products.barcodes") %></h2>
-    <p class="form-hint"><%= t("inventory.products.barcodes_hint") %></p>
+  <section class="pe-card" aria-labelledby="pe-barcodes-title"
+           data-controller="line-items barcode-list"
+           data-barcode-list-generate-url-value="<%= next_barcode_code_inventory_products_path(format: :json) %>">
+    <header class="pe-card__head pe-card__head--actions">
+      <div>
+        <h2 class="section-title" id="pe-barcodes-title"><%= t("inventory.products.barcodes") %></h2>
+        <p class="form-hint"><%= t("inventory.products.barcodes_hint") %></p>
+      </div>
+      <div class="pe-card__tools">
+        <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add">
+          + <%= t("inventory.products.add_barcode") %>
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" data-action="barcode-list#generate">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="4" height="18"/><rect x="9" y="3" width="2" height="18"/><rect x="13" y="3" width="4" height="18"/><rect x="19" y="3" width="2" height="9"/>
+          </svg>
+          <%= t("inventory.products.generate_barcode") %>
+        </button>
+      </div>
+    </header>
 
     <div data-line-items-target="rows" class="barcode-list">
       <%= f.fields_for :product_barcodes do |bc_f| %>
@@ -93,80 +119,76 @@
       <% end %>
     </div>
 
-    <p data-line-items-target="emptyState" class="td-secondary" <%= "hidden" if product.product_barcodes.any? %>>
+    <p data-line-items-target="emptyState" class="td-secondary pe-empty" <%= "hidden" if product.product_barcodes.any? %>>
       <%= t("inventory.products.no_barcodes") %>
     </p>
-
-    <div class="flex items-center" style="gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
-      <button type="button" class="btn btn-ghost btn-sm" data-action="line-items#add">
-        + <%= t("inventory.products.add_barcode") %>
-      </button>
-      <button type="button" class="btn btn-secondary btn-sm" data-action="barcode-list#generate">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3" y="3" width="4" height="18"/><rect x="9" y="3" width="2" height="18"/><rect x="13" y="3" width="4" height="18"/><rect x="19" y="3" width="2" height="9"/>
-        </svg>
-        <%= t("inventory.products.generate_barcode") %>
-      </button>
-    </div>
 
     <template data-line-items-target="template">
       <%= f.fields_for :product_barcodes, ProductBarcode.new, child_index: "NEW_INDEX" do |bc_f| %>
         <%= render "barcode_fields", f: bc_f %>
       <% end %>
     </template>
-  </div>
+  </section>
 
-  <div class="divider"></div>
-
-  <%# ── Pricing & stock ───────────────────────────────────── %>
-  <h2 class="section-title"><%= t("inventory.products.section_pricing") %></h2>
-  <div class="form-grid">
-    <div class="form-group">
-      <%= f.label :initial_cost_price, t("inventory.products.initial_cost_price"), class: "form-label" %>
-      <%= f.number_field :initial_cost_price, step: "0.0001", min: 0, class: "form-control" %>
-      <p class="form-hint"><%= t("inventory.products.initial_cost_hint") %></p>
+  <%# ── Pricing ───────────────────────────────────────────── %>
+  <section class="pe-card" aria-labelledby="pe-pricing-title">
+    <header class="pe-card__head">
+      <h2 class="section-title" id="pe-pricing-title"><%= t("#{lk}.section_pricing") %></h2>
+    </header>
+    <div class="pe-grid">
+      <div class="form-group pe-span-2">
+        <%= f.label :initial_cost_price, t("inventory.products.initial_cost_price"), class: "form-label" %>
+        <%= f.number_field :initial_cost_price, step: "0.0001", min: 0, class: "form-control" %>
+        <p class="form-hint"><%= t("inventory.products.initial_cost_hint") %></p>
+      </div>
+      <div class="form-group pe-span-2">
+        <%= f.label :selling_markup_percentage, t("inventory.products.selling_markup_percentage"), class: "form-label" %>
+        <%= f.number_field :selling_markup_percentage, step: "0.01", min: 0, class: "form-control" %>
+      </div>
+      <%# Read-only figures of the saved product (Product#average_cost_price and
+          Product#selling_price, as on the product page) — not editable here. %>
+      <% if product.persisted? && product.selling_markup_percentage.present? %>
+        <div class="form-group pe-span-2">
+          <span class="form-label"><%= t("inventory.products.selling_price") %></span>
+          <div class="pe-figure" data-testid="product-edit-selling-price">
+            <strong><%= format_currency(product.selling_price) %></strong>
+            <span class="td-secondary"><%= t("#{lk}.average_cost") %>: <%= format_unit_cost_currency(product.average_cost_price) %></span>
+          </div>
+          <p class="form-hint"><%= t("#{lk}.suggested_price_hint") %></p>
+        </div>
+      <% end %>
     </div>
-    <div class="form-group">
-      <%= f.label :selling_markup_percentage, t("inventory.products.selling_markup_percentage"), class: "form-label" %>
-      <%= f.number_field :selling_markup_percentage, step: "0.01", min: 0, class: "form-control" %>
-    </div>
-  </div>
+  </section>
 
   <% unless availability_section %>
-    <div class="divider"></div>
-
     <%# ── Inventory tracking, notifications & warehouse availability ── %>
-    <%= render "inventory/products/inventory_tracking_section", product: product %>
+    <section class="pe-card" aria-labelledby="inventory-tracking-title">
+      <%= render "inventory/products/inventory_tracking_section", product: product %>
+    </section>
 
-    <div class="divider"></div>
+    <section class="pe-card" aria-labelledby="pe-additional-title">
+      <h2 class="section-title" id="pe-additional-title"><%= t("#{lk}.section_additional") %></h2>
+      <div class="form-group pe-notes">
+        <%= f.label :notes, t("inventory.products.notes"), class: "form-label" %>
+        <%= f.text_area :notes, rows: 4, class: "form-control" %>
+      </div>
+    </section>
 
-    <div class="form-group">
-      <%= f.label :notes, t("inventory.products.notes"), class: "form-label" %>
-      <%= f.text_area :notes, rows: 3, class: "form-control" %>
-    </div>
-
-    <div class="form-actions">
-      <%= f.submit t("common.save"), class: "btn btn-primary" %>
-      <%= link_to t("common.cancel"), inventory_products_path, class: "btn btn-ghost" %>
-    </div>
+    <%= render "inventory/products/editor_actions", label: t("common.save"), cancel_path: inventory_products_path %>
   <% end %>
 <% end %>
 
 <% if availability_section %>
   <%# One section, outside the product form (the warehouse cards have their own forms). %>
-  <section class="form-card form-card--split-mid" aria-labelledby="inventory-tracking-title">
+  <section class="pe-card form-card--split-mid" aria-labelledby="inventory-tracking-title">
     <%= render "inventory/products/inventory_tracking_section", product: product, availability_section: availability_section %>
   </section>
 
-  <div class="form-card form-card--split-tail">
-    <div class="form-group">
+  <section class="pe-card" aria-labelledby="pe-additional-title">
+    <h2 class="section-title" id="pe-additional-title"><%= t("#{lk}.section_additional") %></h2>
+    <div class="form-group pe-notes">
       <%= label_tag "product_notes", t("inventory.products.notes"), class: "form-label" %>
-      <%= text_area_tag "product[notes]", product.notes, rows: 3, class: "form-control", id: "product_notes", form: "product-form" %>
+      <%= text_area_tag "product[notes]", product.notes, rows: 4, class: "form-control", id: "product_notes", form: "product-form" %>
     </div>
-    <p class="form-hint"><%= t("product_availability.form.save_hint") %></p>
-    <div class="form-actions">
-      <%= submit_tag t("common.save"), class: "btn btn-primary", form: "product-form", name: nil, data: { testid: "product-save" } %>
-      <%= link_to t("common.cancel"), inventory_products_path, class: "btn btn-ghost" %>
-    </div>
-  </div>
+  </section>
 <% end %>

@@ -59,7 +59,7 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
     @purchase_request = policy_scope(PurchaseRequest)
                         .includes(:supplier, :warehouse, :responsible_employee, :created_by, :submitted_by, :approved_by,
                                   :rejected_by, :cancelled_by,
-                                  items: [ { product: Product::IMAGE_PRELOAD }, :supplier, :packaging_level, { goods_receipt_items: :goods_receipt } ],
+                                  items: [ { product: Product::IMAGE_PRELOAD }, :supplier, { goods_receipt_items: :goods_receipt } ],
                                   goods_receipts: :items)
                         .find(params[:id])
     authorize @purchase_request
@@ -260,7 +260,7 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
   # nested attributes (PurchaseRequest reject_if).
   def form_lines(attrs)
     attrs.fetch(:items_attributes, {}).to_h.values
-         .map { |line| line.symbolize_keys.slice(:product_id, :quantity, :unit_price, :entered_quantity, :packaging_level_id, :entered_unit_price, :supplier_id) }
+         .map { |line| line.symbolize_keys.slice(:product_id, :quantity, :unit_price, :supplier_id) }
          .reject { |line| line[:product_id].blank? }
   end
 
@@ -297,23 +297,21 @@ class Inventory::PurchaseRequestsController < Inventory::BaseController
     return [] unless params[:items].is_a?(Array)
 
     params[:items].map do |item|
-      item.permit(:product_id, :quantity, :unit_price, :entered_quantity, :packaging_level_id, :entered_unit_price,
-                  :supplier_id, :warehouse_id, :notes).to_h
+      item.permit(:product_id, :quantity, :unit_price, :supplier_id, :warehouse_id, :notes).to_h
     end
   end
 
   def purchase_request_form_params
     params.require(:purchase_request).permit(
       :warehouse_id, :responsible_employee_id, :notes,
-      items_attributes: [ :product_id, :quantity, :unit_price, :entered_quantity, :packaging_level_id, :entered_unit_price, :supplier_id ]
+      items_attributes: [ :product_id, :quantity, :unit_price, :supplier_id ]
     )
   end
 
   def purchase_request_update_params
     params.require(:purchase_request).permit(
       :warehouse_id, :responsible_employee_id, :notes,
-      items_attributes: [ :id, :product_id, :quantity, :unit_price, :entered_quantity, :packaging_level_id, :entered_unit_price,
-                          :supplier_id, :notes, :_destroy ]
+      items_attributes: [ :id, :product_id, :quantity, :unit_price, :supplier_id, :notes, :_destroy ]
     )
   end
 

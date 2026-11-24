@@ -1,0 +1,7 @@
+en:
+  errors:
+    messages:
+      warehouse_inactive: "Warehouse “%{warehouse}” is inactive — no new inventory operation is allowed in it."
+  inventory:
+    errors:
+      warehouse_not_accessible: "You do not have access to this warehouse."

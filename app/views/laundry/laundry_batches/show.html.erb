@@ -149,7 +149,7 @@
               <tbody>
                 <% @consumptions.each do |c| %>
                   <tr>
-                    <td><%= c.product.name %> <span class="td-secondary">(<%= measure_short(c.product) %>)</span></td>
+                    <td><%= c.product.name %></td>
                     <td style="text-align: end;"><%= number_with_precision(c.quantity, precision: 3) %></td>
                     <td style="text-align: end;"><%= format_currency(c.total_cost_snapshot) %></td>
                   </tr>

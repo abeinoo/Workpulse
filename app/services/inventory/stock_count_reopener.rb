@@ -40,7 +40,7 @@ module Inventory
       ActiveRecord::Base.transaction do
         lock_count!
         from = @count.status
-        @error = precondition_error
+        @error = count_reachable? ? precondition_error : WarehouseReach.message
         raise ActiveRecord::Rollback if @error
 
         reversed = (reverse_active_adjustment! if @count.approved?)

@@ -89,12 +89,12 @@ module Inventory
         product = line.product
         if line.reserved.positive?
           issue.errors.add(:base, :insufficient_stock_reserved,
-                           product: product.name, sku: product.sku,
+                           product: product.name, sku: product.sku, warehouse: issue.warehouse&.name,
                            available: format_quantity(line.available), requested: format_quantity(line.requested),
                            reserved: format_quantity(line.reserved), on_hand: format_quantity(line.on_hand))
         else
           issue.errors.add(:base, :insufficient_stock,
-                           product: product.name, sku: product.sku,
+                           product: product.name, sku: product.sku, warehouse: issue.warehouse&.name,
                            available: format_quantity(line.available), requested: format_quantity(line.requested))
         end
       end

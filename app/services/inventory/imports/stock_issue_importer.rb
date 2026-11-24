@@ -72,18 +72,27 @@ module Inventory
       # `notes` is the document-level note for the whole issue (the import
       # form's "Stock Issue Notes" field) — saved on StockIssue#notes, never
       # on individual lines. Optional.
-      def initialize(business, rows, warehouse:, branch:, user: nil, notes: nil)
+      # warehouse: the warehouse stock will be issued from — chosen by the
+      # importing user among the warehouses they are authorized to use. It is
+      # never inferred from a branch, and #call re-checks it (active, own
+      # business, reached by the user: Inventory::IssueWarehouseReach). The
+      # issue's cost-attribution branch is derived from it
+      # (StockIssue#assign_cost_attribution_branch).
+      def initialize(business, rows, warehouse:, user: nil, notes: nil)
         @business  = business
         @rows      = rows
-        @warehouse = warehouse
-        @branch    = branch
+        @warehouse = warehouse if warehouse.nil? || warehouse.business_id == business.id
         @user      = user
         @notes     = notes.to_s.strip.presence
       end
 
+      attr_reader :warehouse
+
       # Side-effect-free dry run: exactly the rows #call would build, with the
       # same failure reasons — used by the preview step.
       def preview
+        return [] if @warehouse.nil?
+
         build_rows
       end
 
@@ -93,15 +102,24 @@ module Inventory
       # means the approval step's self-approval rule applies to them.
       def call
         raise ArgumentError, "an importing user is required" if @user.nil?
+        # Importing is part of create_stock_issues — refused like a misuse:
+        # the import screens are already gated by it.
+        raise StockIssueAuthorization::Denied, StockIssueAuthorization.message unless StockIssueAuthorization.permits?(@user, :create)
+        # The warehouse: active, own business, and one the user may use — the
+        # upload form offers only those; anything else is a misuse.
+        reach = IssueWarehouseReach.for(@user)
+        raise WarehouseReach::Denied, reach.message unless @warehouse && reach.issuable?(@warehouse)
 
         rows = build_rows
         clean_rows, failed_rows = rows.partition(&:valid?)
 
         ActiveRecord::Base.transaction do
-          issue = @business.stock_issues.create!(
-            warehouse: @warehouse, branch: @branch, issued_on: Date.current,
-            created_by: @user, status: :draft, notes: @notes
+          issue = @business.stock_issues.build(
+            warehouse: @warehouse, issued_on: Date.current,
+            created_by: @user, status: :draft, notes: @notes, warehouse_source: "selected"
           )
+          issue.assign_cost_attribution_branch
+          issue.save!
           clean_rows.each { |r| issue.items.create!(product: r.product, quantity: r.quantity) }
           log_audit(actor: @user, auditable: issue, action: "create", metadata: { source: "import" })
 
@@ -173,7 +191,7 @@ module Inventory
 
       def build_batch(issue, failed_rows)
         batch = StockIssueImportBatch.create!(
-          business: @business, warehouse: @warehouse, branch: @branch,
+          business: @business, warehouse: @warehouse, branch_id: issue.branch_id,
           created_by: @user, stock_issue: issue, status: :draft
         )
         failed_rows.each do |r|

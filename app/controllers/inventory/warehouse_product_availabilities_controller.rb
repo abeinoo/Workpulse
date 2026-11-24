@@ -350,6 +350,8 @@ class Inventory::WarehouseProductAvailabilitiesController < Inventory::BaseContr
 
   # The reason, prefixed with the product or warehouse it concerns (record).
   def error_message(code, record = nil)
+    return Inventory::ProductAvailabilityManager.message(code, record) if record.is_a?(Warehouse)
+
     name = record.respond_to?(:name) ? record.name : nil
     key  = "product_availability.errors.#{code}"
     warehouse = record.is_a?(Warehouse) ? record : @warehouse

@@ -26,6 +26,9 @@ RSpec.describe "Inventory cross-business references (IP-1)", type: :request do
   let!(:own_warehouse)   { business.warehouses.create!(name: "Own Main") }
   let!(:own_warehouse_2) { business.warehouses.create!(name: "Own Branch") }
   let!(:own_branch)      { create(:branch, business: business) }
+  # A branch warehouse of the business (a foreign warehouse id submitted for a
+  # stock issue is refused by Inventory::IssueWarehouseReach).
+  let!(:own_branch_wh)   { branch_warehouse_for(own_branch) }
   let!(:own_product) do
     business.products.create!(name: "Own Shampoo", sku: "OWN-1", initial_cost_price: 10, average_cost_price: 10)
   end

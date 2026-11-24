@@ -3,7 +3,9 @@
     <%= product_combobox(f, :product_id, selected: f.object.product, select_data: { product_field: true }) %>
   </td>
   <td>
-    <%= render "inventory/shared/line_quantity", f: f %>
+    <div class="qty-with-unit">
+      <%= f.number_field :quantity, step: "0.001", min: 0, class: "form-control", placeholder: "0", data: { quantity_field: true } %>
+    </div>
   </td>
   <td class="td-actions">
     <% if f.object.persisted? %>

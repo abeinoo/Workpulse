@@ -31,6 +31,13 @@ module Inventory
     end
 
     def call
+      # Service-level reach (Phase 2) when a person posts; an actor-less call
+      # is a system/backfill path whose caller authorizes it.
+      if @actor && !WarehouseReach.permits?(@actor, @receipt.warehouse_id)
+        @receipt.errors.add(:base, WarehouseReach.message)
+        return Result.new(ok: false, receipt: @receipt)
+      end
+
       ActiveRecord::Base.transaction do
         @receipt.receipt_number = NumberSequencer.new(@receipt.business, :goods_receipt).next_number if @receipt.receipt_number.blank?
 
@@ -50,8 +57,6 @@ module Inventory
         # read, so two receipts of one product both blend into the average.
         @averages = (StockAvailability.lock_products!(@receipt.items.map(&:product_id)) || []).to_h { |p| [ p.id, p.average_cost_price ] }
         @owner    = @actor ? nil : @receipt.business.owner
-        @packaging = Packaging::Session.new(business: @receipt.business, product_ids: @receipt.items.map(&:product_id),
-                                            warehouse_ids: [ @receipt.warehouse_id ])
 
         # Each line's product, with the barcodes and image its cost update
         # validates, in one go — validations still run; lines of the same
@@ -66,9 +71,6 @@ module Inventory
         return Result.new(ok: true, receipt: @receipt)
       end
 
-      Result.new(ok: false, receipt: @receipt)
-    rescue Packaging::Refused => e
-      @receipt.errors.add(:base, :packaging_refused, message: e.message)
       Result.new(ok: false, receipt: @receipt)
     end
 
@@ -162,12 +164,6 @@ module Inventory
         unit_cost:   item.unit_cost,
         occurred_on: @receipt.received_on
       )
-
-      # Packages arrive sealed at the entered level; base units arrive loose.
-      @packaging.apply!(product: product, warehouse_id: @receipt.warehouse_id, source: @receipt,
-                        occurred_on: @receipt.received_on, movement: movement) do |plan|
-        item.package_line? ? plan.add_packages(item.packaging_level.position, item.entered_quantity) : plan.add_base(item.quantity)
-      end
 
       outcome = ProductCostUpdater.new(product, actor: @actor, owner: @owner, current_average: @averages[product.id]).apply_receipt(
         quantity:       item.quantity,

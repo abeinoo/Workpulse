@@ -45,6 +45,15 @@ module Inventory
       @actor = actor
     end
 
+    # A refusal in words, prefixed with the warehouse it concerns
+    # ("Main: …") — the product page, the warehouse Products tab and the
+    # product Edit page's one Save say it the same way.
+    def self.message(code, warehouse = nil)
+      text = I18n.t("product_availability.errors.#{code}", warehouse: warehouse&.name,
+                                                             default: I18n.t("product_availability.errors.invalid"))
+      warehouse ? I18n.t("product_availability.errors.for_product", product: warehouse.name, message: text) : text
+    end
+
     # items: [{ product_id:, low_stock_level:, reorder_quantity:, receive_low_stock_notification: }]
     def add_many(warehouse_id:, items:, source: "manual")
       return failure(:not_authorized) if @actor.nil?

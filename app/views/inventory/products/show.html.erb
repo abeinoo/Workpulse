@@ -32,6 +32,10 @@
           <% end %>
         <% end %>
       <% end %>
+      <% if @product.active? && policy(StockIssue).quick_issue? %>
+        <%= link_to t("inventory.quick_issue.action"), new_inventory_quick_issue_path(product_id: @product.id),
+              class: "btn btn-secondary btn-sm", data: { turbo_frame: "modal", testid: "product-quick-issue" } %>
+      <% end %>
       <% if current_user.can?(:manage_inventory) || current_user.can?(:manage_products) %>
         <% if @product.archived? %>
           <%= button_to t("inventory.products.restore"), restore_inventory_product_path(@product),
@@ -55,7 +59,7 @@
   <div class="stats-grid" style="margin-bottom: var(--space-6);">
     <div class="stat-card <%= 'stat-card--warning' if @low_stock_warehouse %>">
       <span class="stat-card__label"><%= t("inventory.products.current_stock") %></span>
-      <span class="stat-card__value"><%= with_measure(inventory_quantity(@display_stock), @product) %></span>
+      <span class="stat-card__value"><%= inventory_quantity(@display_stock) %></span>
     </div>
     <div class="stat-card">
       <span class="stat-card__label"><%= t("inventory.products.avg_cost") %></span>
@@ -125,9 +129,6 @@
       <% end %>
     </dl>
   </div>
-
-  <%= render "inventory/products/packaging_card", product: @product, structure: @packaging_structure, balances: @packaging_balances,
-        stock_by_warehouse: @stock_by_warehouse, warehouses: @warehouses %>
 
   <%= render "inventory/products/warehouse_availability", product: @product, pairs: @availability_pairs,
         manage_path: @availability_manage_path %>
@@ -270,7 +271,7 @@
                 </span>
                 <span class="td-secondary"><%= inventory_movement_reason_label(m.reason, source: m.source) %></span>
               </td>
-              <td style="text-align: end;"><%= m.direction_in? ? "+" : "−" %><%= m.quantity.to_i %></td>
+              <td style="text-align: end;" data-testid="recent-movement-quantity"><%= m.direction_in? ? "+" : "−" %><%= m.quantity.to_i %></td>
               <td><%= inventory_source_document_link(m.source, Inventory::Reports::Movements.document_number_for(m.source)) %></td>
             </tr>
           <% end %>

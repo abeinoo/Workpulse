@@ -64,14 +64,14 @@ module Inventory
         before   = running
         if movement.cost_bearing?
           total   = running + quantity
-          average = ((running * average) + (quantity * movement.unit_cost.to_d)) / total if total.positive?
+          average = (((running * average) + (quantity * movement.unit_cost.to_d)) / total).round(8) if total.positive?
           running = total
         elsif movement.direction_in?
           running += quantity
         else
           remaining = running - quantity
           if cost_bearing_reversal?(movement) && remaining.positive?
-            unblended = ((running * average) - (quantity * movement.unit_cost.to_d)) / remaining
+            unblended = (((running * average) - (quantity * movement.unit_cost.to_d)) / remaining).round(8)
             average = unblended unless unblended.negative?
           end
           running = remaining

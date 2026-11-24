@@ -1,6 +1,5 @@
 class PurchaseRequestItem < ApplicationRecord
-  include PackagedLine
-
+  include RequiresActiveWarehouse
   belongs_to :purchase_request
   belongs_to :product
   # LEGACY: the per-line destination warehouse of requests created before the
@@ -27,12 +26,10 @@ class PurchaseRequestItem < ApplicationRecord
   validates :unit_price, numericality: { greater_than: 0 }
   validate  :product_in_same_business
   validate  :source_warehouse_in_same_business, if: :will_save_change_to_source_warehouse_id?
+  requires_active_warehouse :source_warehouse
   validate  :supplier_in_same_business, if: :will_save_change_to_supplier_id?
   validate  :supplier_matches_legacy_request_supplier, if: :will_save_change_to_supplier_id?
 
-  # A price entered per the chosen unit (e.g. 120.00 a carton) is stored per
-  # base unit at 8 dp (unit_price); the line total keeps the entered figures.
-  before_validation :derive_base_unit_price
   before_validation :compute_total_cost
 
   # ── Quantities claimed by Goods Receipts — one definition ─────────────────
@@ -98,29 +95,9 @@ class PurchaseRequestItem < ApplicationRecord
 
   private
 
-  def derive_base_unit_price
-    return if entered_unit_price.blank?
-
-    factor = packaging_level ? packaging_level.base_quantity.to_d : 1.to_d
-    self.unit_price = (entered_unit_price.to_d / factor).round(8)
-  end
-
   def compute_total_cost
-    if entered_unit_price.present? && entered_quantity.present?
-      self.total_cost = (entered_quantity.to_d * entered_unit_price.to_d).round(4)
-    elsif quantity && unit_price
-      self.total_cost = quantity.to_d * unit_price.to_d
-    end
+    self.total_cost = quantity.to_d * unit_price.to_d if quantity && unit_price
   end
-
-  public
-
-  # The price per the unit the user entered (base lines: the base price).
-  def unit_price_per_entered_unit
-    entered_unit_price.presence || unit_price
-  end
-
-  private
 
   def product_in_same_business
     return if product.nil? || purchase_request&.business_id.nil?

@@ -11,6 +11,11 @@ module Inventory
   #
   # Once "issued", an issue can never be cancelled — only voided (which
   # reverses the real posted movements via Inventory::DocumentVoider).
+  #
+  # Enforced here: cancel_stock_issues (the creator may cancel if they hold
+  # it) and warehouse reach. A reason is required, and the "cancel" audit
+  # entry is mandatory (log_audit!): if it cannot be written, the
+  # cancellation rolls back and the issue stays as it was.
   class StockIssueCancellation
     include AuditLoggable
 
@@ -26,6 +31,12 @@ module Inventory
 
     def call
       issue = StockIssue.where(business_id: @actor.business_id).find(@stock_issue_id)
+      unless StockIssueAuthorization.permits?(@actor, :cancel)
+        return Result.new(ok: false, issue: issue, error: StockIssueAuthorization.message)
+      end
+      unless WarehouseReach.permits?(@actor, issue.warehouse_id) # service-level reach (Phase 2)
+        return Result.new(ok: false, issue: issue, error: WarehouseReach.message)
+      end
 
       return invalid_transition_error(issue) unless cancellable?(issue)
 
@@ -43,14 +54,17 @@ module Inventory
         issue.cancelled_at        = Time.current
         issue.cancellation_reason = @reason
         issue.save!
-        log_audit(actor: @actor, auditable: issue, action: "cancel",
-                  changes: { status: [ from_status, "cancelled" ] },
-                  metadata: { reason: @reason, reservation_released: from_status == "approved" })
+        log_audit!(actor: @actor, auditable: issue, action: "cancel",
+                   changes: { status: [ from_status, "cancelled" ] },
+                   metadata: { reason: @reason, reservation_released: from_status == "approved" })
       end
 
       Result.new(ok: true, issue: issue)
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, issue: issue, error: e.record.errors.full_messages.to_sentence)
+    rescue AuditLoggable::AuditWriteFailed
+      issue&.reload
+      Result.new(ok: false, issue: issue, error: I18n.t("inventory.stock_issues.errors.audit_failed"))
     end
 
     private

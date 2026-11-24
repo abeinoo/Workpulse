@@ -1,0 +1,20 @@
+# Stock Issue & Quick Issue — issued from a warehouse the user is authorized
+# to use (Inventory::IssueWarehouseReach).
+en:
+  inventory:
+    stock_issues:
+      cost_branch: "Branch (cost attribution)"
+    reports:
+      unallocated: "Unallocated"
+      unallocated_hint: "Issued from a central warehouse — not attributed to any branch"
+    imports:
+      file_and_warehouse_required: "Please choose a warehouse and a CSV file."
+    issue_warehouse:
+      hint: "Stock is issued from this warehouse. Only warehouses you are authorized to use are listed."
+      errors:
+        none_accessible: "You are not authorized to use any active warehouse, so you cannot issue stock. Ask an administrator for warehouse access."
+        not_allowed: "Choose an active warehouse you are authorized to use."
+        required: "Choose the warehouse to issue from."
+        issue_not_visible: "You are not authorized to use this stock issue's warehouse."
+        missing: "This stock issue's warehouse no longer exists."
+        inactive: "Warehouse “%{warehouse}” is inactive — stock cannot be issued from it."

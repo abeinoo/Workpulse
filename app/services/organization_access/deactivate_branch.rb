@@ -33,12 +33,16 @@ module OrganizationAccess
         return Result.new(ok: false, record: branch, error: :last_active_branch) unless business.branches.active.where.not(id: branch.id).exists?
         return Result.new(ok: false, record: branch, error: :active_assignments) if effective_assignments?(business, branch)
 
+        previous = { branch_manager_id: branch.branch_manager_id, active: branch.active, branch_type: branch.branch_type }
         branch.update!(active: false)
         log_audit!(actor: @actor, auditable: branch, action: "deactivate",
                    changes: { active: [ true, false ] }, metadata: { reason: @reason, branch_name: branch.name })
+        # The manager's automatic access ends with the branch (decision 5); their
+        # explicit assignment to its warehouse is revoked and audited here.
+        BranchManagerLifecycle.branch_changed!(branch: branch, actor: @actor, previous: previous)
         Result.new(ok: true, record: branch)
       end
-    rescue ActiveRecord::RecordInvalid, AuditLoggable::AuditWriteFailed => e
+    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed, AuditLoggable::AuditWriteFailed => e
       Result.new(ok: false, error: :failed, record: e.try(:record))
     end
 

@@ -91,8 +91,6 @@ module ArchitectureTools
       [ %r{\Aapp/lib/phone_number\.rb\z}, OA ],
       [ %r{\Aapp/models/concerns/(voidable|immutable_document)\.rb\z}, SHARED ],
       [ %r{\Aapp/models/concerns/settleable\.rb\z}, FS ],
-      # Document lines entered in a packaging unit (inventory line items only).
-      [ %r{\Aapp/models/concerns/packaged_line\.rb\z}, IP ],
       [ %r{\Aapp/models/concerns/}, INFRA ],
       [ %r{\Aapp/models/(application_record|audit_log)\.rb\z}, INFRA ],
       [ %r{\Aapp/lib/api/}, INFRA ],
@@ -142,7 +140,7 @@ module ArchitectureTools
       [ %r{\Aapp/services/(branch_membership\.rb|dashboard/birthdays\.rb)\z}, WF ],
       [ %r{\Aapp/controllers/(shifts|shift_assignments|employee_requests|employee_data_requests|birthday_celebrations|holidays)_controller\.rb\z}, WF ],
       [ %r{\Aapp/controllers/performance/}, WF ],
-      [ %r{\Aapp/controllers/admin/(users|employee_insurance_profiles|departments|job_titles|evaluation_templates|shifts|shift_templates|shift_rule_profiles)_controller\.rb\z}, WF ],
+      [ %r{\Aapp/controllers/admin/(users|user_stock_issue_branches|employee_insurance_profiles|departments|job_titles|evaluation_templates|shifts|shift_templates|shift_rule_profiles)_controller\.rb\z}, WF ],
       [ %r{\Aapp/controllers/api/v1/(shifts|shift_assignments|employee_requests)_controller\.rb\z}, WF ],
       [ %r{\Aapp/views/(shifts|shift_assignments|employee_requests|employee_data_requests|performance|holidays)/}, WF ],
       [ %r{\Aapp/views/admin/(users|employee_insurance_profiles|departments|job_titles|evaluation_templates|shifts|shift_templates|shift_rule_profiles)/}, WF ],
@@ -173,7 +171,7 @@ module ArchitectureTools
     # Top-level models (app/models/*.rb) → owner, from module-boundaries.md §10
     # (constants, not files: a model file maps through its constant).
     MODEL_OWNERS = {
-      OA => %w[Business Branch User UserAuditLog PermissionRole],
+      OA => %w[Business Branch User UserAuditLog PermissionRole StockIssueBranchAssignment],
       WF => %w[EmployeeDataRequest EmployeeDataRequestEvent EmployeeDataRequestRevision EmployeeInsuranceProfile Department
                JobTitle Shift ShiftAssignment ShiftTemplate ShiftTemplateEntry ShiftRuleProfile EmployeeRequest
                EvaluationTemplate EvaluationCriterion PerformanceReview PerformanceReviewScore PerformanceObservation
@@ -183,7 +181,7 @@ module ArchitectureTools
                PayrollAuditLog PayrollSnapshot PayrollPeriodBranchReview Advance EmployeeObligation ObligationDeduction
                ObligationPostponement SalaryPaymentHold SalaryPaymentWithholding],
       IP => %w[Warehouse WarehouseAssignment WarehouseBranchSupply Product ProductBarcode ProductImage ProductCategory Brand
-               ProductPackagingLevel InventoryPackagingEntry InventoryAverageCostChange
+               InventoryAverageCostChange
                ProductWarehouseSetting InventoryMovement StockIssue StockIssueItem StockIssueImportBatch
                StockIssueImportRow StockTransfer StockTransferItem StockAdjustment StockAdjustmentItem StockCount
                StockCountItem Supplier PurchaseRequest PurchaseRequestItem PurchaseRequestAdvance GoodsReceipt

@@ -10,8 +10,7 @@ module Laundry
   # .lock_products!, the lock every posting takes) and availability, approved
   # reservations and the average are read inside the transaction that writes
   # the movement, so two consumptions — or a consumption and an issue
-  # approval / posting — cannot both take the same stock. A packaged product
-  # is taken loose-first, opening the fewest packages (Inventory::Packaging).
+  # approval / posting — cannot both take the same stock.
   class BatchMaterialConsumer
     Result = Struct.new(:ok, :consumption, :error, keyword_init: true) { def ok? = ok }
 
@@ -44,8 +43,6 @@ module Laundry
 
         unit_cost = Inventory::StockAvailability.locked_averages([ product.id ]).fetch(product.id).to_d
         occurred  = BusinessDay.current(context: @batch.business)
-        packaging = Inventory::Packaging::Session.new(business: @batch.business, product_ids: [ product.id ],
-                                                      warehouse_ids: [ @warehouse.id ])
         movement = InventoryMovement.create!(
           business:    @batch.business,
           product:     product,
@@ -57,8 +54,6 @@ module Laundry
           occurred_on: occurred,
           source:      @batch
         )
-        packaging.apply!(product: product, warehouse_id: @warehouse.id, source: @batch, occurred_on: occurred,
-                         movement: movement) { |plan| plan.take_base(quantity) }
 
         consumption = LaundryBatchConsumption.create!(
           laundry_batch:      @batch,
@@ -73,8 +68,6 @@ module Laundry
       return Result.new(ok: false, error: error) if error
 
       Result.new(ok: true, consumption: consumption)
-    rescue Inventory::Packaging::Refused => e
-      Result.new(ok: false, error: e.message)
     rescue ActiveRecord::RecordInvalid => e
       Result.new(ok: false, error: e.record.errors.full_messages.to_sentence)
     end

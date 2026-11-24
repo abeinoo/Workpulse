@@ -1,0 +1,25 @@
+<%# The ONE warehouse a Stock Issue is issued from (Inventory::IssueWarehouseReach):
+    one usable warehouse → shown and submitted automatically; several → a selector of
+    exactly those; none → a blocking message. The submitted id is re-checked by the
+    services (active, own business, one the user may use) — never trusted.
+    locals: field_name, warehouses, selected_id, notice (nil), error (false) %>
+<% error ||= false %>
+<div class="form-group" data-testid="stock-issue-warehouse-field">
+  <% if warehouses.size == 1 %>
+    <span class="form-label"><%= t("inventory.stock_issues.warehouse") %></span>
+    <p class="form-static" data-testid="stock-issue-warehouse-name" style="margin: 0; font-weight: 600;"><%= warehouses.first.name %></p>
+    <%= hidden_field_tag field_name, warehouses.first.id, id: nil %>
+  <% elsif warehouses.any? %>
+    <%= label_tag field_name, t("inventory.stock_issues.warehouse"), class: "form-label" %>
+    <%= select_tag field_name,
+          options_from_collection_for_select(warehouses, :id, :name, selected_id),
+          include_blank: "— #{t('inventory.stock_issues.select_warehouse')}",
+          class: "form-control #{'is-error' if error}", required: true %>
+  <% end %>
+  <% if warehouses.any? %>
+    <p class="form-hint"><%= t("inventory.issue_warehouse.hint") %></p>
+  <% end %>
+  <% if notice.present? %>
+    <div class="flash flash--alert" role="alert" data-testid="issue-warehouse-notice"><%= notice %></div>
+  <% end %>
+</div>

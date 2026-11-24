@@ -1,17 +1,22 @@
 require "rails_helper"
 
-# BUG-029 (D3) — stock issues at an inactive branch, through the services and
-# the StockIssue model under them (every creation path):
-# * refused: creating one there, moving one there, submitting, approving
-#   (including import-batch completion), and a direct importer call;
-# * allowed: confirming an issue approved before the deactivation, rejecting,
-#   cancelling, deleting a draft, voiding.
-RSpec.describe "Stock issues at an inactive branch (BUG-029)", type: :model do
+# BUG-029 (D3), revised for warehouse-based Stock Issue authorization (Nov 24
+# 2026): a Stock Issue no longer has a consuming branch, so a branch's status
+# no longer gates it — the WAREHOUSE's does (RequiresActiveWarehouse +
+# Inventory::IssueWarehouseReach). The issue's branch is only its cost
+# attribution, recorded as it was.
+#
+# * an inactive branch: its warehouse's issues (and in-progress ones) carry on;
+#   the historical branch attribution is kept;
+# * an inactive warehouse: no new issue, no submission, approval or
+#   confirmation from it (re-checked under lock), no import; rejecting,
+#   cancelling and voiding stay available.
+RSpec.describe "Stock issues at an inactive branch or warehouse (BUG-029, warehouse rule)", type: :model do
   let(:business)  { create(:business) }
-  let(:requester) { create(:user, business: business) }
-  let(:approver)  { create(:user, business: business) }
-  let(:warehouse) { business.warehouses.create!(name: "Main") }
+  let(:requester) { stock_issue_user(business, :create_stock_issues) }
+  let(:approver)  { stock_issue_user(business, :approve_stock_issues, :confirm_stock_issues, :cancel_stock_issues, :void_stock_issues) }
   let(:branch)    { business.branches.create!(name: "Nasr City", active: true) }
+  let(:warehouse) { branch_warehouse_for(branch, name: "Main") }
   let(:product) do
     business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10)
   end
@@ -22,8 +27,8 @@ RSpec.describe "Stock issues at an inactive branch (BUG-029)", type: :model do
     Inventory::GoodsReceiptPoster.new(r).call
   end
 
-  def issue_in(status, at: branch)
-    i = business.stock_issues.build(warehouse: warehouse, branch: at, issued_on: Date.current, created_by: requester)
+  def issue_in(status)
+    i = business.stock_issues.build(warehouse: warehouse, branch: branch, issued_on: Date.current, created_by: requester)
     i.items.build(product: product, quantity: 2)
     i.status = status
     i.submitted_by = requester unless status == :draft
@@ -32,157 +37,91 @@ RSpec.describe "Stock issues at an inactive branch (BUG-029)", type: :model do
     i
   end
 
-  def deactivate(record = branch) = record.update_column(:active, false)
-  def inactive_error?(issue)      = issue.errors.where(:branch, :branch_inactive).present?
+  def deactivate_branch    = branch.update_column(:active, false)
+  def deactivate_warehouse = warehouse.update_column(:status, "inactive")
 
-  describe "creating" do
-    it "is refused at an inactive branch through the draft service" do
-      deactivate
-      issue = business.stock_issues.build(warehouse: warehouse, branch: branch, issued_on: Date.current, created_by: requester)
+  describe "an inactive branch (no longer a gate)" do
+    it "does not block a new issue from an active warehouse, which is attributed as before" do
+      deactivate_branch
+      issue = business.stock_issues.build(warehouse: warehouse, issued_on: Date.current, created_by: requester)
       issue.items.build(product: product, quantity: 1)
 
-      expect { @result = Inventory::StockIssueDraftService.new(issue, actor: requester).call }
-        .not_to change { [ StockIssue.count, AuditLog.where(auditable_type: "StockIssue").count ] }
-      expect(@result).not_to be_ok
-      expect(inactive_error?(issue)).to be(true)
-    end
-  end
-
-  describe "editing" do
-    it "refuses moving an issue to an inactive branch" do
-      issue  = issue_in(:draft)
-      closed = business.branches.create!(name: "Closed", active: true).tap { |b| deactivate(b) }
-
-      result = Inventory::StockIssueEditor.new(stock_issue_id: issue.id, actor: requester,
-                                               attributes: { branch_id: closed.id }).call
-
-      expect(result).not_to be_ok
+      expect(Inventory::StockIssueDraftService.new(issue, actor: requester).call).to be_ok
       expect(issue.reload.branch_id).to eq(branch.id)
     end
 
-    it "still lets an existing draft there be edited without moving it" do
-      issue = issue_in(:draft)
-      deactivate
-
-      result = Inventory::StockIssueEditor.new(stock_issue_id: issue.id, actor: requester,
-                                               attributes: { notes: "corrected" }).call
-
-      expect(result).to be_ok
-      expect(issue.reload.notes).to eq("corrected")
-    end
-  end
-
-  describe "submitting" do
-    it "is refused at an inactive branch" do
-      issue = issue_in(:draft)
-      deactivate
-
-      result = Inventory::StockIssueSubmission.new(stock_issue_id: issue.id, actor: requester).call
-
-      expect(result).not_to be_ok
-      expect(issue.reload).to be_draft
-      expect(AuditLog.where(auditable: issue, action: "submit_for_approval")).to be_empty
-    end
-  end
-
-  describe "approving" do
-    it "is refused at an inactive branch, reserving nothing" do
+    it "lets an in-progress issue finish, keeping its recorded branch" do
       issue = issue_in(:pending_approval)
-      deactivate
+      deactivate_branch
+
+      expect(Inventory::StockIssueApproval.new(stock_issue_id: issue.id, actor: approver).approve!).to be_ok
+      expect(Inventory::StockIssueConfirmationService.new(stock_issue_id: issue.id, actor: approver).call).to be_ok
+      expect(issue.reload).to have_attributes(status: "issued", branch_id: branch.id, warehouse_id: warehouse.id)
+      expect(issue.inventory_movements.pluck(:branch_id)).to eq([ branch.id ])
+    end
+  end
+
+  describe "an inactive warehouse" do
+    it "refuses a new issue from it" do
+      deactivate_warehouse
+      issue = business.stock_issues.build(warehouse: warehouse, issued_on: Date.current, created_by: requester)
+      issue.items.build(product: product, quantity: 1)
+
+      result = nil
+      expect { result = Inventory::StockIssueDraftService.new(issue, actor: requester).call }
+        .not_to change { [ StockIssue.count, AuditLog.where(auditable_type: "StockIssue").count ] }
+      expect(result).not_to be_ok
+    end
+
+    it "refuses submitting" do
+      issue = issue_in(:draft)
+      deactivate_warehouse
+
+      expect(Inventory::StockIssueSubmission.new(stock_issue_id: issue.id, actor: requester).call).not_to be_ok
+      expect(issue.reload).to be_draft
+    end
+
+    it "refuses approving, reserving nothing — and still allows rejecting" do
+      issue = issue_in(:pending_approval)
+      deactivate_warehouse
 
       result = Inventory::StockIssueApproval.new(stock_issue_id: issue.id, actor: approver).approve!
-
-      expect(result).not_to be_ok
+      expect(result.error).to eq(I18n.t("inventory.issue_warehouse.errors.inactive", warehouse: "Main"))
       expect(issue.reload).to be_pending_approval
-      expect(issue.approved_by).to be_nil
       expect(AuditLog.where(auditable: issue, action: "approve")).to be_empty
+
+      expect(Inventory::StockIssueApproval.new(stock_issue_id: issue.id, actor: approver).reject!(reason: "closed")).to be_ok
     end
 
-    it "still allows rejecting it" do
-      issue = issue_in(:pending_approval)
-      deactivate
-
-      result = Inventory::StockIssueApproval.new(stock_issue_id: issue.id, actor: approver).reject!(reason: "closed")
-
-      expect(result).to be_ok
-      expect(issue.reload).to be_rejected
-    end
-  end
-
-  describe "an issue approved before the deactivation" do
-    it "can still be confirmed, posting its stock movement" do
+    it "refuses confirming an issue approved before the deactivation, posting nothing — cancelling stays possible" do
       issue = issue_in(:approved)
-      deactivate
+      deactivate_warehouse
 
-      result = Inventory::StockIssueConfirmationService.new(stock_issue_id: issue.id, actor: approver).call
+      expect(Inventory::StockIssueConfirmationService.new(stock_issue_id: issue.id, actor: approver).call).not_to be_ok
+      expect(issue.reload).to be_approved
+      expect(issue.inventory_movements).to be_empty
 
-      expect(result).to be_ok
-      expect(issue.reload).to be_issued
-      expect(issue.inventory_movements.count).to eq(1)
+      expect(Inventory::StockIssueCancellation.new(stock_issue_id: issue.id, actor: approver, reason: "closed").call).to be_ok
     end
 
-    it "can still be cancelled" do
-      issue = issue_in(:approved)
-      deactivate
-
-      result = Inventory::StockIssueCancellation.new(stock_issue_id: issue.id, actor: approver, reason: "closed").call
-
-      expect(result).to be_ok
-      expect(issue.reload).to be_cancelled
-    end
-
-    it "can be voided once issued" do
+    it "still lets a posted issue be voided (its reversal returns stock to the original warehouse)" do
       issue = issue_in(:approved)
       Inventory::StockIssueConfirmationService.new(stock_issue_id: issue.id, actor: approver).call
-      deactivate
+      deactivate_warehouse
 
-      result = Inventory::DocumentVoider.new(issue.reload, user: approver, reason: "wrong branch").call
-
-      expect(result).to be_ok
+      expect(Inventory::DocumentVoider.new(issue.reload, user: approver, reason: "wrong").call).to be_ok
       expect(issue.reload).to be_voided
+      expect(InventoryMovement.where(source: issue, direction: "in").pluck(:warehouse_id)).to eq([ warehouse.id ])
     end
-  end
 
-  it "lets a draft there be deleted" do
-    issue = issue_in(:draft)
-    deactivate
+    it "refuses a direct importer call, writing nothing" do
+      deactivate_warehouse
+      rows = [ { row_number: 2, "sku" => "SH-1", "quantity" => "1" } ]
 
-    issue.destroy
-
-    expect(StockIssue.exists?(issue.id)).to be(false)
-  end
-
-  describe "CSV import" do
-    let(:rows) { [ { row_number: 2, "sku" => "SH-1", "quantity" => "1" } ] }
-
-    it "refuses a direct importer call for an inactive branch, writing nothing" do
-      deactivate
-
-      expect {
-        Inventory::Imports::StockIssueImporter.new(business, rows, warehouse: warehouse, branch: branch, user: requester).call
-      }.to raise_error(ActiveRecord::RecordInvalid, /#{I18n.t("activerecord.errors.messages.branch_inactive")}/)
+      expect { Inventory::Imports::StockIssueImporter.new(business, rows, warehouse: warehouse, user: requester).call }
+        .to raise_error(Inventory::WarehouseReach::Denied)
       expect(StockIssue.count).to eq(0)
       expect(StockIssueImportBatch.count).to eq(0)
-    end
-
-    it "refuses completing an import batch once its branch is inactive" do
-      mixed = rows + [ { row_number: 3, "sku" => "NOPE", "quantity" => "1" } ]
-      batch = Inventory::Imports::StockIssueImporter.new(business, mixed, warehouse: warehouse, branch: branch,
-                                                                          user: requester).call.batch
-      Inventory::Imports::StockIssueImportRowResolver.new(business, batch.rows.first.id, skip: true).call
-      deactivate
-
-      result = Inventory::Imports::StockIssueImportBatchCompleter.new(business, batch.id, user: requester).call
-
-      expect(result).not_to be_ok
-      expect(batch.reload).not_to be_completed
-      expect(batch.stock_issue.reload).to be_draft
-    end
-
-    it "still imports for an active branch" do
-      result = Inventory::Imports::StockIssueImporter.new(business, rows, warehouse: warehouse, branch: branch,
-                                                                          user: requester).call
-      expect(result.issue).to be_pending_approval
     end
   end
 end

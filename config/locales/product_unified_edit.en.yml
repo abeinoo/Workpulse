@@ -1,0 +1,18 @@
+# The product Edit page's one Save (Inventory::ProductEditor): product details
+# and warehouse availability saved together, or not at all.
+en:
+  inventory:
+    products:
+      save_all: "Save all changes"
+      saving_all: "Saving…"
+      save_all_hint: "Saves everything on this page together — product details and warehouse settings. If any part is refused, nothing is saved."
+      all_saved: "All changes saved."
+      nothing_saved: "Nothing was saved. Correct the highlighted sections and save again — your entries are kept."
+      unsaved_changes: "Unsaved changes"
+  product_availability:
+    section:
+      hint_unified: "Each warehouse's own settings. Saved with the product by “Save all changes”; every change is recorded in the audit log."
+      include_on_save: "Untick to include the product in this warehouse again (with its previous settings) when you save all changes."
+      unsaved_until_save: "Changed — saved with “Save all changes”"
+    exclusion:
+      applied_on_save: "The exclusion is applied when you save all changes. A reason is required."

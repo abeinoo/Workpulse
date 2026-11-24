@@ -29,39 +29,14 @@
     <%= hidden_field_tag "#{f.object_name}[entered]", "0", id: nil, data: { entered_flag: true } %>
   </td>
   <td class="td-secondary"><%= product.barcode.presence || "—" %></td>
-  <td style="text-align: end;"><%= with_measure(inventory_quantity(system_qty), product) %></td>
+  <td style="text-align: end;"><%= inventory_quantity(system_qty) %></td>
   <td>
     <div class="qty-with-unit">
       <%= f.number_field :counted_quantity, step: 1, min: 0, class: "form-control qty-input",
             value: inventory_quantity(entered),
             inputmode: "numeric", pattern: "[0-9]*", placeholder: "—",
             data: { quantity_field: true, action: "input->count-sheet#recalc keydown.enter->count-sheet#focusScanner" } %>
-      <%= measure_label_tag(product) %>
     </div>
-    <%# A packaged product is counted per level — full packages outside larger
-        packages, then loose content; the total is filled in from them and the
-        recorder derives it again (Inventory::StockCountRecorder). %>
-    <% levels = product.association(:active_packaging_levels).loaded? ? product.active_packaging_levels.to_a : product.active_packaging_levels.to_a %>
-    <% if levels.any? %>
-      <% counted_parts = item.counted_breakdown || {} %>
-      <div class="count-breakdown" data-count-breakdown data-testid="count-breakdown">
-        <% levels.reverse_each do |level| %>
-          <label class="count-breakdown__part">
-            <span><%= t("inventory.packaging.units.#{level.package_unit}.name") %></span>
-            <%= number_field_tag "#{f.object_name}[counted_breakdown][#{level.id}]", counted_parts[level.id.to_s],
-                  step: 1, min: 0, inputmode: "numeric", class: "form-control qty-input", placeholder: "0",
-                  data: { breakdown_base: inventory_quantity(level.base_quantity) }, id: nil %>
-          </label>
-        <% end %>
-        <label class="count-breakdown__part">
-          <span><%= t("inventory.packaging.loose") %> (<%= measure_short(product) %>)</span>
-          <%= number_field_tag "#{f.object_name}[counted_breakdown][loose]", counted_parts["loose"],
-                step: 1, min: 0, inputmode: "numeric", class: "form-control qty-input", placeholder: "0",
-                data: { breakdown_base: "1" }, id: nil %>
-        </label>
-        <span class="form-hint count-breakdown__hint"><%= t("inventory.packaging.count_levels_hint") %></span>
-      </div>
-    <% end %>
     <%# Live status of this row's quantity: what it is now, and — once the person
         types in it or confirms it — that saving will record a new physical
         count (count-sheet#markEntered). %>

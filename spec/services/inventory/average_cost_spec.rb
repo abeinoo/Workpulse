@@ -1,7 +1,7 @@
 require "rails_helper"
 
 # Average cost with posting-order semantics (W2) and its audit record
-# (docs/inventory/multi_unit_nested_packaging_design.md §11.1, §11.2, §16.9; Decisions 17, 19).
+# (Decisions 17, 19).
 RSpec.describe "Average cost (W2) and its audit" do
   let(:business)  { create(:business) }
   let(:owner)     { create(:user, :owner, business: business) }
@@ -45,6 +45,15 @@ RSpec.describe "Average cost (W2) and its audit" do
     change = InventoryAverageCostChange.sole
     expect([ change.system, change.actor ]).to eq([ true, owner ])
     expect(AuditLog.find_by!(action: "average_cost_changed").metadata).to include("system" => true, "trigger" => "receipt_posted")
+  end
+
+  it "BUG-071: an issue is valued with the average read under the lock, not a product object loaded earlier" do
+    stale = Product.find(product.id)                  # average 0 in memory
+    receive!(10, 7)                                   # the committed average becomes 7
+    issue = business.stock_issues.build(warehouse: warehouse, branch: branch, issued_on: Date.current)
+    issue.items.build(product: stale, quantity: 2)
+    expect(approve_and_post_stock_issue(issue)).to be_ok
+    expect([ issue.items.sole.unit_cost, InventoryMovement.find_by!(source: issue).unit_cost ]).to eq([ 7, 7 ])
   end
 
   it "writes no record when the average does not change" do

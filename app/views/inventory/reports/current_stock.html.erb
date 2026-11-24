@@ -25,9 +25,9 @@
               <td class="td-secondary"><%= row.product.sku %></td>
               <td style="text-align: end;">
                 <% if row.out_of_stock? %>
-                  <span class="badge badge-danger"><%= with_measure(inventory_quantity(row.on_hand), row.product) %></span>
+                  <span class="badge badge-danger"><%= inventory_quantity(row.on_hand) %></span>
                 <% else %>
-                  <%= with_measure(inventory_quantity(row.on_hand), row.product) %>
+                  <%= inventory_quantity(row.on_hand) %>
                 <% end %>
               </td>
               <td style="text-align: end;"><%= format_currency(row.last_cost) %></td>

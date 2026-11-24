@@ -30,7 +30,7 @@ class Inventory::StockAdjustmentsController < Inventory::BaseController
     authorize @stock_adjustment
     ensure_warehouses_accessible!(@stock_adjustment.warehouse_id)
 
-    result = Inventory::AdjustmentPoster.new(@stock_adjustment).call
+    result = Inventory::AdjustmentPoster.new(@stock_adjustment, actor: current_user).call
     if result.ok?
       redirect_to inventory_stock_adjustment_path(@stock_adjustment), notice: t("inventory.stock_adjustments.created")
     else

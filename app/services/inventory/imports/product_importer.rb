@@ -265,7 +265,7 @@ module Inventory
         openings.each do |o|
           adjustment.items.build(product: o[:product], quantity_difference: o[:quantity], unit_cost: o[:unit_cost])
         end
-        result = AdjustmentPoster.new(adjustment).call
+        result = AdjustmentPoster.new(adjustment, actor: @user).call
         result.ok? ? [ adjustment, nil ] : [ nil, adjustment ]
       end
     end

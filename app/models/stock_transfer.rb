@@ -1,4 +1,5 @@
 class StockTransfer < ApplicationRecord
+  include RequiresActiveWarehouse
   include ImmutableDocument
   include Voidable
 
@@ -19,6 +20,8 @@ class StockTransfer < ApplicationRecord
   validates :transferred_on, presence: true
   validate  :has_at_least_one_item
   validate  :distinct_warehouses
+  # Both ends must be active for a new transfer (it posts on creation).
+  requires_active_warehouse :source_warehouse, :destination_warehouse
   validate  :warehouses_in_same_business,
             if: -> { will_save_change_to_source_warehouse_id? || will_save_change_to_destination_warehouse_id? }
 

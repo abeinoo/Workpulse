@@ -146,10 +146,9 @@ RSpec.describe "Purchase Request with several suppliers → Goods Receipts", typ
 
         expect(doc.css("table[data-testid='gr-items-table'] thead th").map { |th| th.text.squish }).to include(*headings)
         row = doc.at_css("[data-testid='gr-request-line'][data-purchase-request-item-id='#{line(product_a).id}']")
-        pcs = I18n.t("inventory.measures.pieces.short", locale: locale) # each with the product's measure
         expect(%w[ordered received remaining].map { |c| row.at_css("[data-testid='gr-line-#{c}']").text.squish })
-          .to eq([ "10 #{pcs}", "6 #{pcs}", "4 #{pcs}" ])
-        expect(row.at_css("input[name$='[entered_quantity]']")["max"].to_d).to eq(4) # never more than remains
+          .to eq(%w[10 6 4]) # numbers of inventory units, never the product's measure
+        expect(row.at_css("input[name$='[quantity]']")["max"].to_d).to eq(4) # never more than remains
         expect(doc.at_css("html")["dir"]).to eq(locale == "ar" ? "rtl" : "ltr")
       end
     end
@@ -201,7 +200,7 @@ RSpec.describe "Purchase Request with several suppliers → Goods Receipts", typ
       expect(doc.at_css("[data-testid='gr-selected-supplier-name']").text.strip).to eq("Acme")
       expect(doc.at_css('input[type="hidden"][name="goods_receipt[supplier_id]"]')["value"]).to eq(acme.id.to_s)
       expect(prefilled_product_ids).to eq([ product_a.id ])
-      expect(doc.at_css("input[name$='[entered_quantity]']")["value"]).to eq("11")
+      expect(doc.at_css("input[name$='[quantity]']")["value"]).to eq("11")
       expect(doc.css("[data-testid='gr-switch-supplier']").map { |a| a.text.strip }).to include("Beta")
     end
   end

@@ -38,7 +38,7 @@ class Inventory::PurchaseRequestItemsController < Inventory::BaseController
 
   def line_params
     params.require(:purchase_request).require(:items_attributes).require("0")
-          .permit(:product_id, :supplier_id, :quantity, :unit_price, :entered_quantity, :packaging_level_id, :entered_unit_price).to_h
+          .permit(:product_id, :supplier_id, :quantity, :unit_price).to_h
   end
 
   def missing_product

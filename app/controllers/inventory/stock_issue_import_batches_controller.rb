@@ -31,6 +31,8 @@ class Inventory::StockIssueImportBatchesController < Inventory::BaseController
 
   private
 
+  def admitted_without_inventory_view? = current_user.can?(:view_stock_issues)
+
   # Preloads everything the row cards' product-info panel needs (image,
   # barcodes) and shares this same `batch` instance with each row so
   # `row.batch.warehouse` doesn't refetch per card.

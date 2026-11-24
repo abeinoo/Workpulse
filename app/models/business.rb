@@ -251,6 +251,41 @@ class Business < ApplicationRecord
     self.settings = (settings || {}).merge(key => fail_closed)
   end
 
+  # ── Stock Issue workflow settings (JSON settings column) ─────────────────
+  # Independent per workflow (never one global self-approval setting). Like
+  # the warehouse access mode, these keys have no attribute setter and are
+  # kept from the stored hash on every other save (#merge_settings_onto_stored);
+  # the one writer is the audited, owner-only
+  # OrganizationAccess::StockIssueWorkflowSettings.
+  #
+  #   stock_issue_self_approval — Standard Stock Issue: "forbidden" (default,
+  #     today's rule: the submitter may not approve their own submission) or
+  #     "allowed".
+  #   quick_issue_enabled — Quick Issue for employees holding quick_issue_stock:
+  #     enabled unless a stored JSON false (default = today's behaviour). The
+  #     owner may use Quick Issue either way.
+  STOCK_ISSUE_SELF_APPROVAL_SETTING = "stock_issue_self_approval".freeze
+  STOCK_ISSUE_SELF_APPROVAL_VALUES  = %w[forbidden allowed].freeze
+  QUICK_ISSUE_ENABLED_SETTING       = "quick_issue_enabled".freeze
+  STOCK_ISSUE_WORKFLOW_SETTINGS     = [ STOCK_ISSUE_SELF_APPROVAL_SETTING, QUICK_ISSUE_ENABLED_SETTING ].freeze
+
+  def stock_issue_self_approval
+    value = (settings || {})[STOCK_ISSUE_SELF_APPROVAL_SETTING]
+    STOCK_ISSUE_SELF_APPROVAL_VALUES.include?(value) ? value : "forbidden"
+  end
+
+  def stock_issue_self_approval_allowed? = stock_issue_self_approval == "allowed"
+
+  def quick_issue_enabled? = (settings || {})[QUICK_ISSUE_ENABLED_SETTING] != false
+
+  # For OrganizationAccess::StockIssueWorkflowSettings only: stage the values
+  # for the next save (which that service performs under the business row lock).
+  def assign_stock_issue_workflow_settings(self_approval:, quick_issue_enabled:)
+    @stock_issue_workflow_write = true
+    self.settings = (settings || {}).merge(STOCK_ISSUE_SELF_APPROVAL_SETTING => self_approval,
+                                           QUICK_ISSUE_ENABLED_SETTING => quick_issue_enabled)
+  end
+
 private
 
 # Applies only the settings keys THIS copy changed onto the stored hash, read
@@ -270,18 +305,28 @@ def merge_settings_onto_stored
     key = WAREHOUSE_ACCESS_FAIL_CLOSED_SETTING
     stored.key?(key) ? merged[key] = stored[key] : merged.delete(key)
   end
+  unless @stock_issue_workflow_write
+    STOCK_ISSUE_WORKFLOW_SETTINGS.each do |key|
+      stored.key?(key) ? merged[key] = stored[key] : merged.delete(key)
+    end
+  end
   self.settings = merged
 end
 
-# A new business never starts fail-closed except through the mode service.
+# A new business never starts fail-closed except through the mode service,
+# and never starts with Stock Issue workflow settings except through theirs.
 def drop_unauthorized_warehouse_access_mode
-  return if @warehouse_access_mode_write || settings.blank?
+  return if settings.blank?
 
-  self.settings = settings.except(WAREHOUSE_ACCESS_FAIL_CLOSED_SETTING)
+  dropped = []
+  dropped << WAREHOUSE_ACCESS_FAIL_CLOSED_SETTING unless @warehouse_access_mode_write
+  dropped.concat(STOCK_ISSUE_WORKFLOW_SETTINGS) unless @stock_issue_workflow_write
+  self.settings = settings.except(*dropped)
 end
 
 def finish_warehouse_access_mode_write
   @warehouse_access_mode_write = false
+  @stock_issue_workflow_write  = false
 end
 
 def attendance_setting(key)

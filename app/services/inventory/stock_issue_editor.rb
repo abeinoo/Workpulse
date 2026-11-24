@@ -49,6 +49,28 @@ module Inventory
 
     def call
       @issue   = StockIssue.where(business_id: @actor.business_id).find(@stock_issue_id)
+      unless StockIssueAuthorization.permits?(@actor, :create)
+        return Result.new(ok: false, issue: @issue, error: StockIssueAuthorization.message, reopened: false)
+      end
+      # No consuming branch is taken from the request (the issue's branch is
+      # cost attribution, derived from its warehouse — StockIssue#assign_cost_attribution_branch).
+      @attributes = (@attributes.respond_to?(:to_h) ? @attributes.to_h : @attributes).with_indifferent_access.except(:branch_id)
+      # Access to the issue's CURRENT warehouse first (visibility).
+      reach = IssueWarehouseReach.for(@actor)
+      unless reach.sees?(@issue)
+        return Result.new(ok: false, issue: @issue, error: WarehouseReach.message, reopened: false)
+      end
+      # Changing the warehouse: only to an ACTIVE warehouse the actor is
+      # authorized to use — the submitted id is re-checked, never trusted. The
+      # edit returns the issue to draft, so approval reserves (and confirmation
+      # deducts) against the new warehouse only. An unchanged warehouse is
+      # kept as it is, even if it was chosen under an earlier rule.
+      new_warehouse = @attributes[:warehouse_id]
+      if new_warehouse.present? && new_warehouse.to_s != @issue.warehouse_id.to_s
+        return Result.new(ok: false, issue: @issue, error: reach.message, reopened: false) unless reach.issuable?(new_warehouse)
+      else
+        @attributes = @attributes.except(:warehouse_id)
+      end
       reopened    = false
       error       = nil
       from_status = nil
@@ -61,9 +83,12 @@ module Inventory
 
         from_status  = @issue.status
         lines_before = line_snapshot
+        warehouse_before = @issue.warehouse_id
+        branch_before    = @issue.branch_id
         reopen_audit = reopen_metadata if StockIssue::REOPENED_BY_EDIT_STATUSES.include?(from_status)
 
         @issue.assign_attributes(@attributes)
+        @issue.assign_cost_attribution_branch
         preload_line_products
         if reopen_audit
           @issue.status       = :draft
@@ -90,7 +115,8 @@ module Inventory
                     changes: { status: [ from_status, "draft" ] }, metadata: reopen_audit)
         end
         log_audit(actor: @actor, auditable: @issue, action: "update",
-                  changes: { items: [ lines_before, lines_after ] }.reject { |_, (a, b)| a == b })
+                  changes: { items: [ lines_before, lines_after ], warehouse_id: [ warehouse_before, @issue.warehouse_id ],
+                             branch_id: [ branch_before, @issue.branch_id ] }.reject { |_, (a, b)| a == b })
       end
 
       Result.new(ok: error.nil?, issue: @issue, error: error, reopened: reopened,

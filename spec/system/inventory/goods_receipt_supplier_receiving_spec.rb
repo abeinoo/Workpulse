@@ -34,7 +34,7 @@ RSpec.describe "Goods Receipt — supplier receiving (browser)", type: :system d
                                     width: width, height: height, deviceScaleFactor: 1, mobile: width < 768)
   end
 
-  def line_products = all("[data-testid='gr-request-line']").map { |row| row.find("select[name$='[product_id]']", visible: :all).find("option[selected]", visible: :all).text }
+  def line_products = all("[data-testid='gr-request-line']").map { |row| row.find("select", visible: :all).find("option[selected]", visible: :all).text }
 
   def expect_no_overflow
     expect(page.evaluate_script("document.documentElement.scrollWidth - document.documentElement.clientWidth")).to be <= 0
@@ -55,8 +55,8 @@ RSpec.describe "Goods Receipt — supplier receiving (browser)", type: :system d
       expect(line_products).to eq([ "Soap (SO-1)" ])
       within("[data-testid='gr-request-line']") do
         expect(find("[data-testid='gr-line-remaining']").text).to eq("10 #{I18n.t('inventory.measures.pieces.short', locale: locale)}")
-        find("input[name$='[entered_quantity]']").fill_in(with: "4")
-        find("input[name$='[entered_unit_cost]']").fill_in(with: "5")
+        find("input[name$='[quantity]']").fill_in(with: "4")
+        find("input[name$='[unit_cost]']").fill_in(with: "5")
       end
       expect(find("[data-testid='gr-grand-total']").text).to include("20.00")
 
@@ -88,7 +88,7 @@ RSpec.describe "Goods Receipt — supplier receiving (browser)", type: :system d
     sign_in admin
     visit new_inventory_goods_receipt_path(purchase_request_id: pr.id, supplier_id: acme.id)
     choose gr("funding_source_kinds.supplier_credit", :en)
-    within("[data-testid='gr-request-line']") { find("input[name$='[entered_quantity]']").fill_in(with: "3") }
+    within("[data-testid='gr-request-line']") { find("input[name$='[quantity]']").fill_in(with: "3") }
     click_button gr("save_draft", :en)
 
     expect(page).to have_current_path(%r{/inventory/goods_receipts/\d+\z})
@@ -105,7 +105,7 @@ RSpec.describe "Goods Receipt — supplier receiving (browser)", type: :system d
 
     expect(page).to have_css("[data-testid='gr-request-line']")
     expect_no_overflow
-    qty = find("[data-testid='gr-request-line'] input[name$='[entered_quantity]']")
+    qty = find("[data-testid='gr-request-line'] input[name$='[quantity]']")
     expect(qty.native.rect.width).to be >= 120 # never an unusably small input
     expect(page).to have_css("[data-testid='gr-form-actions']", visible: true)
   end

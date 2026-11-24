@@ -4,7 +4,7 @@
 # warehouse-restricted user can only resolve products they may already see.
 class Inventory::BarcodeLookupsController < Inventory::BaseController
   def show
-    authorize Product, :index?
+    authorize Product, :pick?
 
     result = Inventory::BarcodeLookup.new(policy_scope(Product).active, business_id: current_user.business_id).find(params[:code])
     if result
@@ -15,4 +15,9 @@ class Inventory::BarcodeLookupsController < Inventory::BaseController
       render json: { error: "not_found" }, status: :not_found
     end
   end
+
+  private
+
+  # The product pickers serve Stock Issue creation and Quick Issue too.
+  def admitted_without_inventory_view? = policy(Product).pick?
 end

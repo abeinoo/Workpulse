@@ -3,8 +3,8 @@ require "rails_helper"
 RSpec.describe "Stock issue import — CSV and Excel (browser)", type: :system do
   let(:business)   { create(:business) }
   let(:owner)      { create(:user, :super_admin, business: business) }
-  let!(:warehouse) { business.warehouses.create!(name: "Main") }
   let!(:branch)    { business.branches.create!(name: "Main Branch", active: true) }
+  let!(:warehouse) { branch_warehouse_for(branch, name: "Main") } # the business's only warehouse
   let!(:uyn1)      { business.products.create!(name: "أعواد خشبية كبيرة", sku: "UYN1", initial_cost_price: 30, average_cost_price: 30) }
   let!(:abc)       { business.products.create!(name: "Widget", sku: "ABC123", initial_cost_price: 10, average_cost_price: 10) }
 
@@ -32,8 +32,9 @@ RSpec.describe "Stock issue import — CSV and Excel (browser)", type: :system d
   def upload(path, notes: nil)
     visit import_inventory_stock_issues_path
     expect(page).not_to have_select("mapping_sku") # no mapping before a file is uploaded
-    select warehouse.name, from: "warehouse_id"
-    select branch.name,    from: "branch_id"
+    expect(page).to have_no_select("branch_id") # no consuming branch
+    # The user's only usable warehouse is used automatically (shown, not selectable).
+    expect(page).to have_css("[data-testid='stock-issue-warehouse-name']", text: "Main")
     fill_in "notes", with: notes if notes
     attach_file "file", path
     click_button mapping_t("continue_to_mapping")

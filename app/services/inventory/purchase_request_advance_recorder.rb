@@ -52,7 +52,7 @@ module Inventory
     end
 
     def call
-      @purchase_request = PurchaseRequest.where(business_id: @actor.business_id).find(@purchase_request_id)
+      @purchase_request = PurchaseRequestPolicy::Scope.new(@actor, PurchaseRequest).resolve.find(@purchase_request_id) # warehouse reach, as PurchaseRequestApproval (Phase 2)
 
       existing = find_existing
       return Result.new(ok: true, advance: existing) if existing

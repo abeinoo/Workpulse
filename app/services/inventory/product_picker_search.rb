@@ -26,7 +26,7 @@ module Inventory
 
     def call(query)
       q = ProductBarcode.normalize(query).to_s # same trimming as stored / scanned barcodes
-      relation = @scope.includes(:product_barcodes, :active_packaging_levels).with_primary_image
+      relation = @scope.includes(:product_barcodes).with_primary_image
       return relation.order(:name, :id).limit(LIMIT).to_a if q.empty?
 
       like  = "%#{ActiveRecord::Base.sanitize_sql_like(q.downcase)}%"

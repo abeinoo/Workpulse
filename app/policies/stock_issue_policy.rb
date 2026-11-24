@@ -1,7 +1,13 @@
+# Screen-level gates for Stock Issues. The operation permissions come from
+# Inventory::StockIssueAuthorization — the same rule every workflow service
+# enforces itself — so a screen can never allow what its service refuses.
+# Warehouse access is applied by Scope (and re-checked by every service —
+# Inventory::IssueWarehouseReach); an action needs the permission AND access
+# to the issue's warehouse.
 class StockIssuePolicy < ApplicationPolicy
-  def index?   = can?(:view_inventory) || can?(:manage_inventory)
+  def index?   = permits?(:view)
   def show?    = index?
-  def create?  = can?(:manage_inventory) || can?(:manage_stock_issues)
+  def create?  = permits?(:create)
 
   # Editing is allowed while a draft, and while pending approval or approved
   # ("Edit Request") — saving returns the issue to draft (see
@@ -12,38 +18,42 @@ class StockIssuePolicy < ApplicationPolicy
   # only applies once we have an actual instance.
   def update?  = create? && (!record.is_a?(StockIssue) || StockIssue::EDITABLE_STATUSES.include?(record.status))
 
-  # Deleting and submitting stay draft-only.
+  # Deleting a draft is part of create_stock_issues (no reason, no extra
+  # audit entry). Deleting and submitting stay draft-only.
   def destroy? = create? && (!record.is_a?(StockIssue) || record.draft?)
   def submit?  = destroy?
 
-  def approve? = (can?(:manage_inventory) || can?(:approve_stock_issues)) &&
-                 (!record.is_a?(StockIssue) || record.pending_approval?)
+  def approve? = permits?(:approve) && (!record.is_a?(StockIssue) || record.pending_approval?)
   def reject?  = approve?
 
-  # Physical confirmation is its own permission, separate from approval — the
-  # person who approves an issue is not automatically the person trusted to
-  # confirm it was physically handed over.
-  def confirm? = (can?(:manage_inventory) || can?(:confirm_stock_issues)) &&
-                 (!record.is_a?(StockIssue) || record.approved?)
+  # Physical confirmation is its own permission, separate from approval. The
+  # same person may hold both and confirm what they approved.
+  def confirm? = permits?(:confirm) && (!record.is_a?(StockIssue) || record.approved?)
 
-  # Cancellation is only safe before anything is physically issued — draft or
-  # approved, never after (that's #void?'s job, since it reverses real posted
-  # movements). Same permission as create/edit, mirroring GoodsReceiptPolicy's
-  # #cancel?.
-  def cancel?  = create? && (!record.is_a?(StockIssue) || %w[draft approved].include?(record.status))
+  # Cancellation (cancel_stock_issues) is only for an issue not yet posted —
+  # draft or approved, never after. Reversing a posted issue is #void?.
+  def cancel?  = permits?(:cancel) && (!record.is_a?(StockIssue) || %w[draft approved].include?(record.status))
 
-  # A draft (never submitted — including one still tied to an in-progress
-  # import) has no movements to reverse — voiding it would fabricate a
-  # compensating "return" for stock that was never actually taken out. Only
-  # an "issued" record has posted movements.
-  def void?
-    return false unless create?
-    record.is_a?(StockIssue) ? record.issued? : true
-  end
+  # Void (void_stock_issues) reverses a POSTED issue only. A draft (never
+  # submitted — including one still tied to an in-progress import) has no
+  # movements to reverse.
+  def void?    = permits?(:void) && (!record.is_a?(StockIssue) || record.issued?)
 
+  # The Quick Issue workflow (quick_issue_stock + the business setting; the
+  # owner always) — see Inventory::StockIssueQuickIssue.permitted?.
+  def quick_issue? = Inventory::StockIssueQuickIssue.permitted?(user)
+
+  # Every Stock Issue list and lookup: the user's business and the
+  # warehouses they can reach (the approved warehouse-access rule; inactive
+  # ones included, so their history stays visible). No branch filter: a
+  # Stock Issue is authorized by its warehouse.
   class Scope < ApplicationPolicy::Scope
     def resolve
       for_accessible_warehouses(scope.for_business(user.business))
     end
   end
+
+  private
+
+  def permits?(operation) = Inventory::StockIssueAuthorization.permits?(user, operation)
 end

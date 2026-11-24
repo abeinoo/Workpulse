@@ -15,6 +15,11 @@ module Inventory
     #                  branch row ONLY when the branch has exactly one supplying
     #                  warehouse that supplies no other branch; shared stock is
     #                  never repeated per branch (it would imply N× the units).
+    #   UnallocatedRow — consumption attributed to NO branch: Stock Issues
+    #                  from a central (non-branch) warehouse, never attributed
+    #                  to a branch automatically. Its own line (never ranked as
+    #                  a branch), included in the total and the shares; shown
+    #                  only without a branch filter.
     #   WarehouseRow — one per warehouse, stock shown ONCE: opening balance +
     #                  receipts + transfers in + adjustments in − consumption
     #                  − transfers out − adjustments out ± reversals = closing,
@@ -34,6 +39,9 @@ module Inventory
         # Exactly one supplying warehouse that supplies only this branch.
         def exclusive? = warehouses.size == 1 && !shared
       end
+
+      UnallocatedRow = Struct.new(:issued, :reversed, :net_consumption, :consumption_value, :share,
+                                  :avg_daily_consumption, :last_consumed_on, keyword_init: true)
 
       WarehouseRow = Struct.new(:warehouse, :branches, :opening, :receipts, :transfers_in, :transfers_out,
                                 :adjustments_in, :adjustments_out, :consumption, :reversals, :closing,
@@ -65,11 +73,11 @@ module Inventory
         return [] unless ready?
 
         @branch_rows ||= begin
-          totals = consumption_ledger.totals_by(Arel.sql(ConsumptionLedger::BRANCH_SQL))
-          last   = consumption_ledger.last_consumed_by(Arel.sql(ConsumptionLedger::BRANCH_SQL))
+          totals = branch_totals
+          last   = branch_last_consumed
           ids    = (supply_map.branch_ids + totals.keys.compact).uniq
           ids    = ids.select { |id| id == @branch_id } if @branch_id
-          total  = ids.sum { |id| totals.dig(id, :quantity) || 0 }
+          total  = consumption_total(ids)
 
           ids.filter_map do |branch_id|
             branch = branches[branch_id] or next
@@ -133,7 +141,25 @@ module Inventory
       # ── Summary (factual, no ranking language) ────────────────────────────
       def total_stock       = warehouse_rows.sum(&:current_stock)
       def total_value       = warehouse_rows.sum(&:stock_value)
-      def total_consumption = branch_rows.sum(&:net_consumption)
+      def total_consumption = branch_rows.sum(&:net_consumption) + (unallocated_row&.net_consumption || 0)
+
+      # Central-warehouse consumption (no branch), or nil when there is none or
+      # a branch filter is applied.
+      def unallocated_row
+        return nil unless ready? && @branch_id.nil?
+
+        @unallocated_row ||= begin
+          t = branch_totals[nil]
+          if t && (t[:issued].nonzero? || t[:reversed].nonzero?)
+            ids   = (supply_map.branch_ids + branch_totals.keys.compact).uniq
+            total = consumption_total(ids)
+            UnallocatedRow.new(issued: t[:issued], reversed: t[:reversed], net_consumption: t[:quantity],
+                               consumption_value: t[:cost], share: total.positive? ? t[:quantity] / total * 100 : 0,
+                               avg_daily_consumption: t[:quantity] / period_days,
+                               last_consumed_on: branch_last_consumed[nil])
+          end
+        end
+      end
       def consuming_rows    = branch_rows.select(&:consuming?)
       def highest_branch    = consuming_rows.max_by(&:net_consumption)
       def lowest_branch     = consuming_rows.min_by(&:net_consumption)
@@ -156,6 +182,22 @@ module Inventory
 
       private
 
+      # { branch_id (nil = unallocated) => { issued:, reversed:, quantity:, cost: } }
+      def branch_totals
+        @branch_totals ||= consumption_ledger.totals_by(Arel.sql(ConsumptionLedger::BRANCH_SQL))
+      end
+
+      def branch_last_consumed
+        @branch_last_consumed ||= consumption_ledger.last_consumed_by(Arel.sql(ConsumptionLedger::BRANCH_SQL))
+      end
+
+      # The quantity the shares are taken of: the branches shown, plus the
+      # unallocated consumption when it is shown (no branch filter).
+      def consumption_total(branch_ids)
+        total = branch_ids.sum { |id| branch_totals.dig(id, :quantity) || 0 }
+        @branch_id.nil? ? total + (branch_totals.dig(nil, :quantity) || 0) : total
+      end
+
       def consumption_ledger
         @consumption_ledger ||= ConsumptionLedger.new(@business, reasons: ConsumptionLedger::ALL_CONSUMPTION,
                                                                  product_id: product.id, warehouse_ids: @warehouse_ids,
@@ -163,9 +205,7 @@ module Inventory
       end
 
       def branches
-        @branches ||= @business.branches.where(id: supply_map.branch_ids +
-                                                   consumption_ledger.totals_by(Arel.sql(ConsumptionLedger::BRANCH_SQL)).keys)
-                                        .index_by(&:id)
+        @branches ||= @business.branches.where(id: supply_map.branch_ids + branch_totals.keys.compact).index_by(&:id)
       end
 
       def warehouses

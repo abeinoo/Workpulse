@@ -25,6 +25,11 @@ module Inventory
 
       def call
         @batch = StockIssueImportBatch.where(business_id: @business.id).find(@batch_id)
+        # Completing an import is part of create_stock_issues.
+        return Result.new(ok: false, batch: @batch) unless StockIssueAuthorization.permits?(@user, :create)
+        # Service-level reach (Phase 2): the completing user must reach the
+        # import's warehouse (the submission it triggers checks it again).
+        return Result.new(ok: false, batch: @batch) unless WarehouseReach.permits?(@user, @batch.warehouse_id)
         # A repeat "Complete Import" (double click, refresh) is a no-op — the
         # issue was already submitted exactly once.
         return Result.new(ok: true, batch: @batch) if @batch.completed?

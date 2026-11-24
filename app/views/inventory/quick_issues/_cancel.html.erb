@@ -1,0 +1,7 @@
+<%# Cancel: closes the popup (modal), or returns to where the user came from (page). %>
+<% if in_modal %>
+  <button type="button" class="btn btn-ghost" data-action="click->modal#close" data-testid="quick-issue-cancel"><%= t("common.cancel") %></button>
+<% else %>
+  <%= link_to t("common.cancel"), (@return_to == new_inventory_quick_issue_path ? root_path : @return_to),
+        class: "btn btn-ghost", data: { testid: "quick-issue-cancel" } %>
+<% end %>

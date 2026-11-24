@@ -41,12 +41,19 @@ class PermissionRole < ApplicationRecord
                                manage_suppliers manage_products manage_product_availability manage_stock_receipts
                                create_goods_receipts approve_goods_receipts
                                confirm_goods_receipts void_goods_receipts
-                               manage_stock_issues approve_stock_issues confirm_stock_issues
                                manage_stock_transfers
                                manage_stock_counts post_stock_counts view_stock_count_reports
                                create_purchase_requests approve_purchase_requests
                                manage_purchase_request_advances confirm_purchase_request_advances
-                               access_all_warehouses],
+                               access_all_warehouses manage_warehouse_access],
+    # Stock Issue & Quick Issue — one permission per operation
+    # (Inventory::StockIssueAuthorization). quick_issue_stock is independent
+    # of the standard ones. manage_stock_issues is kept ONLY so saved roles
+    # that hold it stay valid and editable: it grants nothing any more
+    # (replaced by create_stock_issues, never copied to the new keys).
+    stock_issues:          %w[view_stock_issues create_stock_issues approve_stock_issues confirm_stock_issues
+                               cancel_stock_issues void_stock_issues quick_issue_stock
+                               manage_stock_issues],
     performance:           %w[view_performance_dashboard view_notes view_monthly_reviews
                                view_performance_reports manage_evaluation_templates
                                create_observations manage_reviews finalize_reviews],
@@ -356,9 +363,18 @@ class PermissionRole < ApplicationRecord
     "approve_goods_receipts" => %w[view_inventory],
     "confirm_goods_receipts" => %w[view_inventory],
     "void_goods_receipts"    => %w[view_inventory],
+    # Stock Issues: every standard operation needs the Stock Issue view —
+    # never view_inventory (the product pickers are opened to these
+    # operations by ProductPolicy#pick?). Quick Issue needs no other
+    # permission. manage_stock_issues (legacy, grants nothing) keeps its old
+    # dependency so saved roles stay valid.
     "manage_stock_issues"    => %w[view_inventory],
-    "approve_stock_issues"   => %w[view_inventory],
-    "confirm_stock_issues"   => %w[view_inventory],
+    "create_stock_issues"    => %w[view_stock_issues],
+    "approve_stock_issues"   => %w[view_stock_issues],
+    "confirm_stock_issues"   => %w[view_stock_issues],
+    "cancel_stock_issues"    => %w[view_stock_issues],
+    "void_stock_issues"      => %w[view_stock_issues],
+
     "manage_stock_transfers" => %w[view_inventory],
     "create_purchase_requests" => %w[view_inventory],
     "approve_purchase_requests" => %w[view_inventory],
@@ -369,6 +385,11 @@ class PermissionRole < ApplicationRecord
     # Company-wide warehouse access (every warehouse of the business). Never in
     # a default role; granted explicitly only (Warehouse Architecture PR 5).
     "access_all_warehouses"  => %w[view_inventory],
+    # Granting / revoking a user's explicit warehouse assignments
+    # (Inventory::UserWarehouseAssignments) — only warehouses the grantor can
+    # reach, never their own access, only for users they control. Never in a
+    # default role.
+    "manage_warehouse_access" => %w[view_inventory],
     "manage_evaluation_templates" => %w[view_performance_dashboard],
     "create_observations"         => %w[view_notes],
     "manage_reviews"              => %w[view_monthly_reviews],
@@ -394,6 +415,16 @@ class PermissionRole < ApplicationRecord
     "confirm_towel_receipt"       => %w[view_towel_balances],
     "adjust_towel_balances"       => %w[view_towel_balances],
     "manage_laundry_cost_settings"       => %w[view_laundry_cost_reports]
+  }.freeze
+
+  # Prerequisites added to an EXISTING permission (Stock Issue authorization:
+  # approve / confirm used to need view_inventory, now view_stock_issues).
+  # A saved role that already held the permission before stays valid and
+  # editable without the new prerequisite (its data is never rewritten); the
+  # prerequisite applies when the permission is newly added to a role.
+  GRANDFATHERED_DEPENDENCIES = {
+    "approve_stock_issues" => %w[view_stock_issues],
+    "confirm_stock_issues" => %w[view_stock_issues]
   }.freeze
 
   # Reverse index: given a permission, which permissions depend on it?
@@ -461,8 +492,10 @@ class PermissionRole < ApplicationRecord
   end
 
   def dependencies_satisfied
+    previously = persisted? ? Array(attribute_in_database(:permissions)) : []
     Array(permissions).each do |perm|
       missing = PERMISSION_DEPENDENCIES.fetch(perm, []) - permissions
+      missing -= GRANDFATHERED_DEPENDENCIES.fetch(perm, []) if previously.include?(perm)
       missing.each do |dep|
         errors.add(
           :permissions,

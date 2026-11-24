@@ -58,7 +58,7 @@ RSpec.describe "Inventory::Reports", type: :request do
       get inventory_movements_report_path, params: { warehouse_id: wh_a.id }
       first_row = response.body[/<tbody>.*?<\/tr>/m]
       expect(first_row).to include(I18n.t("inventory.movements.reasons.stock_issue"))
-      expect(first_row).to match(%r{>-3</td>\s*<td[^>]*>7</td>})
+      expect(first_row).to match(%r{>-3</td>\s*<td[^>]*>7</td>}) # numbers of inventory units, no measure
     end
 
     it "a date-filtered window continues from the opening balance, not zero" do

@@ -136,16 +136,16 @@ RSpec.describe "Purchase Request creation form", type: :system do
 
     choose_product(rows.first, "Stocked Shampoo")
     expect(supplier_select(rows.first).value).to eq(supplier.id.to_s) # product default
-    rows.first.find("input[name*='[entered_quantity]']").fill_in(with: "10")
-    rows.first.find("input[name*='[entered_unit_price]']").fill_in(with: "20")
+    rows.first.find("input[name*='[quantity]']").fill_in(with: "10")
+    rows.first.find("input[name*='[unit_price]']").fill_in(with: "20")
 
     click_button I18n.t("inventory.purchase_requests.form.add_item")
     expect(rows.size).to eq(2)
     choose_product(rows.last, "Low Conditioner")
     expect(supplier_select(rows.last).value).to eq("") # no default supplier: left unselected
     supplier_select(rows.last).select("Supplier 2")      # manual choice
-    rows.last.find("input[name*='[entered_quantity]']").fill_in(with: "5")
-    rows.last.find("input[name*='[entered_unit_price]']").fill_in(with: "30")
+    rows.last.find("input[name*='[quantity]']").fill_in(with: "5")
+    rows.last.find("input[name*='[unit_price]']").fill_in(with: "30")
 
     find("select[name='purchase_request[responsible_employee_id]']").select(responsible.full_name)
 
@@ -176,8 +176,8 @@ RSpec.describe "Purchase Request creation form", type: :system do
     expect(supplier_select(rows.first).value).to eq(supplier.id.to_s)
 
     supplier_select(rows.first).select("Supplier 2")
-    rows.first.find("input[name*='[entered_quantity]']").fill_in(with: "1")
-    rows.first.find("input[name*='[entered_unit_price]']").fill_in(with: "20")
+    rows.first.find("input[name*='[quantity]']").fill_in(with: "1")
+    rows.first.find("input[name*='[unit_price]']").fill_in(with: "20")
     select "Main WH", from: "purchase_request[warehouse_id]"
     find("select[name='purchase_request[responsible_employee_id]']").select(responsible.full_name)
     click_button I18n.t("inventory.purchase_requests.form.create_submit")
@@ -193,7 +193,7 @@ RSpec.describe "Purchase Request creation form", type: :system do
     visit new_inventory_purchase_request_path
 
     choose_product(rows.first, "Stocked Shampoo")
-    rows.first.find("input[name*='[entered_quantity]']").fill_in(with: "7")
+    rows.first.find("input[name*='[quantity]']").fill_in(with: "7")
 
     click_button I18n.t("inventory.purchase_requests.form.add_item", locale: "ar")
     supplier_select(rows.last).select("Supplier 2") # a different supplier doesn't make it a new line
@@ -202,7 +202,7 @@ RSpec.describe "Purchase Request creation form", type: :system do
     expect(page).to have_content(I18n.t("inventory.purchase_requests.form.duplicate_line", locale: "ar"))
     expect(rows.last.find("select[name*='[product_id]']", visible: :all).value).to eq("")
     expect(rows.first.find("select[name*='[product_id]']", visible: :all).value).to eq(stocked_product.id.to_s)
-    expect(rows.first.find("input[name*='[entered_quantity]']").value).to eq("7")
+    expect(rows.first.find("input[name*='[quantity]']").value).to eq("7")
   end
 
   it "keeps Low Stock rows of another warehouse out of the request" do
@@ -239,8 +239,8 @@ RSpec.describe "Purchase Request creation form", type: :system do
 
     click_button I18n.t("inventory.purchase_requests.form.add_item")
     choose_product(rows.last, "Stocked Shampoo")
-    rows.last.find("input[name*='[entered_quantity]']").fill_in(with: "3")
-    rows.last.find("input[name*='[entered_unit_price]']").fill_in(with: "20")
+    rows.last.find("input[name*='[quantity]']").fill_in(with: "3")
+    rows.last.find("input[name*='[unit_price]']").fill_in(with: "20")
     select "Main WH", from: "purchase_request[warehouse_id]"
 
     find("select[name='purchase_request[responsible_employee_id]']").select(responsible.full_name)

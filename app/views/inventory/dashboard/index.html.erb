@@ -14,6 +14,10 @@
       <% if policy(StockIssue).create? %>
         <%= link_to t("inventory.stock_issues.new_action"), new_inventory_stock_issue_path, class: "btn btn-secondary btn-sm" %>
       <% end %>
+      <% if policy(StockIssue).quick_issue? %>
+        <%= link_to t("inventory.quick_issue.action"), new_inventory_quick_issue_path, class: "btn btn-secondary btn-sm",
+              data: { turbo_frame: "modal", testid: "dashboard-quick-issue" } %>
+      <% end %>
       <% if policy(PurchaseRequest).create? %>
         <%= link_to t("#{ov}.quick.purchase_request"), new_inventory_purchase_request_path, class: "btn btn-ghost btn-sm" %>
       <% end %>
@@ -51,6 +55,10 @@
           <%= link_to t("#{ov}.quick.product_movements"), inventory_movements_report_path(product_id: @quick_product.id), class: "btn btn-secondary btn-sm" %>
           <% if policy(StockIssue).create? %>
             <%= link_to t("inventory.stock_issues.new_action"), new_inventory_stock_issue_path, class: "btn btn-ghost btn-sm" %>
+          <% end %>
+          <% if @quick_product.active? && policy(StockIssue).quick_issue? %>
+            <%= link_to t("inventory.quick_issue.action"), new_inventory_quick_issue_path(product_id: @quick_product.id), class: "btn btn-ghost btn-sm",
+                  data: { turbo_frame: "modal", testid: "dashboard-product-quick-issue" } %>
           <% end %>
           <% if policy(GoodsReceipt).create? %>
             <%= link_to t("inventory.goods_receipts.new_action"), new_inventory_goods_receipt_path, class: "btn btn-ghost btn-sm" %>

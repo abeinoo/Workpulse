@@ -22,8 +22,10 @@ module OrganizationAccess
   # transferred by UserPolicy#toggle_active? / #transfer_ownership?. This module
   # adds the account-level invariants every caller relies on — the same business,
   # only account fields, never the owner's status — and raises instead of
-  # writing when one is broken. No audit is written (none was before; adding one
-  # is a behaviour change outside D1).
+  # writing when one is broken. The status change itself is not audited (none
+  # was before); deactivating a branch manager is — with the revocation of their
+  # explicit branch-warehouse access (OrganizationAccess::BranchManagerLifecycle,
+  # run by User#account_actor's callback in the same save).
   module Accounts
     # users columns this interface owns (module-boundaries.md §3.2, OA rows).
     STATUS_FIELDS = %w[active].freeze
@@ -57,6 +59,7 @@ module OrganizationAccess
       same_business!(actor, user)
       refuse!("the owner's account status cannot change") if attributes.key?("active") && user.persisted? && user.owner?
 
+      user.account_actor = actor if attributes.key?("active") # a deactivation is attributed (User callback)
       user.assign_attributes(attributes)
       user
     end
@@ -81,6 +84,7 @@ module OrganizationAccess
       same_business!(actor, user)
       refuse!("the owner's account status cannot change") if user.owner?
 
+      user.account_actor = actor # a deactivation is attributed (User callback)
       user.update!(active: !user.active?)
       user.active?
     end

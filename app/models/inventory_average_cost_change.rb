@@ -1,5 +1,5 @@
 # The audit record of every change to a product's stored average cost
-# (Decision 17; docs/inventory/multi_unit_nested_packaging_design.md §11.1). Written by
+# (Decision 17). Written by
 # Inventory::AverageCost in the same transaction as the change; append-only
 # (database trigger). system = true marks automated runs (no user, or a job).
 class InventoryAverageCostChange < ApplicationRecord

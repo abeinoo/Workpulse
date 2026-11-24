@@ -107,8 +107,8 @@
         <p style="margin: 0 0 var(--space-4);"><%= t("inventory.stock_issues.confirm_issue_question") %></p>
         <dl class="detail-list">
           <div class="detail-list__row"><dt><%= t("inventory.stock_issues.number") %></dt><dd><%= @stock_issue.issue_number %></dd></div>
-          <div class="detail-list__row"><dt><%= t("inventory.stock_issues.branch") %></dt><dd><%= @stock_issue.branch&.name || "—" %></dd></div>
           <div class="detail-list__row"><dt><%= t("inventory.stock_issues.warehouse") %></dt><dd><%= @stock_issue.warehouse.name %></dd></div>
+          <div class="detail-list__row"><dt><%= t("inventory.stock_issues.cost_branch") %></dt><dd><%= @stock_issue.branch&.name || "—" %></dd></div>
           <div class="detail-list__row"><dt><%= t("inventory.stock_issues.items_count") %></dt><dd><%= @items.size %></dd></div>
           <div class="detail-list__row"><dt><%= t("inventory.stock_issues.total_quantity") %></dt><dd><%= @items.sum { |i| i.quantity.to_i } %></dd></div>
           <div class="detail-list__row"><dt><%= t("inventory.stock_issues.total") %></dt><dd><%= format_currency(@stock_issue.total_value) %></dd></div>
@@ -160,10 +160,20 @@
   <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
     <dl class="detail-list">
       <div class="detail-list__row"><dt><%= t("inventory.stock_issues.date") %></dt><dd><%= local_date(@stock_issue.issued_on) %></dd></div>
-      <div class="detail-list__row"><dt><%= t("inventory.stock_issues.branch") %></dt><dd><%= @stock_issue.branch&.name || "—" %></dd></div>
       <div class="detail-list__row"><dt><%= t("inventory.stock_issues.warehouse") %></dt><dd><%= @stock_issue.warehouse.name %></dd></div>
-      <% if @stock_issue.notes.present? %>
-        <div class="detail-list__row"><dt><%= t("inventory.stock_issues.notes") %></dt><dd><%= simple_format(@stock_issue.notes) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.stock_issues.cost_branch") %></dt><dd><%= @stock_issue.branch&.name || "—" %></dd></div>
+      <% if @stock_issue.quick_issue? %>
+        <div class="detail-list__row" data-testid="stock-issue-workflow"><dt><%= t("inventory.stock_issues.workflow") %></dt>
+          <dd><span class="badge badge-warning"><%= t("inventory.stock_issues.workflows.quick_issue") %></span></dd></div>
+      <% end %>
+      <% if @stock_issue.issue_reason.present? %>
+        <div class="detail-list__row" data-testid="stock-issue-reason"><dt><%= t("inventory.stock_issues.reason") %></dt>
+          <dd><%= stock_issue_reason_text(@stock_issue) %></dd></div>
+      <% end %>
+      <%# A Quick Issue for "Other" records its Notes as the reason's explanation —
+          already shown with the reason above, so it is not repeated here. %>
+      <% if @stock_issue.notes.present? && @stock_issue.notes != @stock_issue.issue_reason_note %>
+        <div class="detail-list__row" data-testid="stock-issue-notes"><dt><%= t("inventory.stock_issues.notes") %></dt><dd><%= simple_format(@stock_issue.notes) %></dd></div>
       <% end %>
     </dl>
   </div>
@@ -190,10 +200,10 @@
             <% @availability_lines.each do |line| %>
               <tr data-product-id="<%= line.product.id %>">
                 <td data-label="<%= t('inventory.stock_issues.product') %>"><%= product_identity(line.product) %></td>
-                <td data-label="<%= t('inventory.stock_issues.availability.on_hand') %>" style="text-align: end;"><%= with_measure(stock_quantity(line.on_hand), line.product) %></td>
-                <td data-label="<%= t('inventory.stock_issues.availability.reserved') %>" style="text-align: end;"><%= with_measure(stock_quantity(line.reserved), line.product) %></td>
-                <td data-label="<%= t('inventory.stock_issues.availability.available') %>" style="text-align: end; font-weight: 600;"><%= with_measure(stock_quantity(line.available), line.product) %></td>
-                <td data-label="<%= t('inventory.stock_issues.availability.requested') %>" style="text-align: end;"><%= with_measure(stock_quantity(line.requested), line.product) %></td>
+                <td data-label="<%= t('inventory.stock_issues.availability.on_hand') %>" style="text-align: end;"><%= stock_quantity(line.on_hand) %></td>
+                <td data-label="<%= t('inventory.stock_issues.availability.reserved') %>" style="text-align: end;"><%= stock_quantity(line.reserved) %></td>
+                <td data-label="<%= t('inventory.stock_issues.availability.available') %>" style="text-align: end; font-weight: 600;"><%= stock_quantity(line.available) %></td>
+                <td data-label="<%= t('inventory.stock_issues.availability.requested') %>" style="text-align: end;"><%= stock_quantity(line.requested) %></td>
                 <td data-label="<%= t('inventory.stock_issues.availability.status') %>">
                   <% if line.shortfall? %>
                     <span class="badge badge-danger"><%= t("inventory.stock_issues.availability.insufficient") %></span>
@@ -223,14 +233,7 @@
           <tr>
             <td><%= product_identity(item.product, link: inventory_product_path(item.product)) %></td>
             <td class="td-secondary"><%= item.product.sku %></td>
-            <td style="text-align: end;" data-testid="line-quantity">
-              <%= packaged_line_quantity(item) %>
-              <% if (preview = @packaging_preview[item.id]) %>
-                <div class="form-hint <%= 'text-danger' if preview.error %>" data-testid="packaging-preview">
-                  <%= t("inventory.packaging.preview_title") %>: <%= packaging_preview_text(item, preview) %>
-                </div>
-              <% end %>
-            </td>
+            <td style="text-align: end;"><%= inventory_quantity(item.quantity) %></td>
             <% if item.cost_unavailable? %>
               <td colspan="2" style="text-align: end;"><span class="badge badge-warning"><%= t("inventory.stock_issues.cost_unavailable") %></span></td>
             <% else %>
@@ -251,13 +254,9 @@
         <% if @stock_issue.cost_unavailable? %>
           <tr><td colspan="5" class="td-secondary" style="text-align: start; font-size: var(--text-xs);"><%= t("inventory.stock_issues.cost_unavailable_hint") %></td></tr>
         <% end %>
-        <% if @packaging_preview.any? %>
-          <tr><td colspan="5" class="td-secondary" style="text-align: start; font-size: var(--text-xs);"><%= t("inventory.packaging.preview_hint") %></td></tr>
-        <% end %>
       </tfoot>
     </table>
   </div>
-  <%= render "inventory/shared/packaging_effects", entries: @packaging_entries %>
 
   <div class="card" style="margin-top: var(--space-5);">
     <div class="card-header">

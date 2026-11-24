@@ -107,10 +107,10 @@ RSpec.describe "Searchable product picker", type: :system do
     find(".pcombo__option", text: "Wide Comb").click
     expect([ product_value(first_row), product_value(second_row) ]).to eq([ argan.id.to_s, comb.id.to_s ])
 
-    first_row.find("input[name$='[entered_quantity]']").fill_in(with: "2")
-    first_row.find("input[name$='[entered_unit_cost]']").fill_in(with: "12")
-    second_row.find("input[name$='[entered_quantity]']").fill_in(with: "5")
-    second_row.find("input[name$='[entered_unit_cost]']").fill_in(with: "3")
+    first_row.find("input[name$='[quantity]']").fill_in(with: "2")
+    first_row.find("input[name$='[unit_cost]']").fill_in(with: "12")
+    second_row.find("input[name$='[quantity]']").fill_in(with: "5")
+    second_row.find("input[name$='[unit_cost]']").fill_in(with: "3")
     click_button I18n.t("inventory.goods_receipts.save_draft")
 
     expect(page).to have_current_path(%r{/inventory/goods_receipts/\d+})

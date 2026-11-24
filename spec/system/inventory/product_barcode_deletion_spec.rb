@@ -17,7 +17,7 @@ RSpec.describe "Product Edit — barcode deletion (browser)", type: :system do
   def row_css = "[data-line-items-target='rows'] .barcode-list__row"
   def visible_rows = all(row_css, visible: true)
   def visible_values = visible_rows.map { |row| row.find("input[name$='[barcode]']").value }
-  def empty_state = find("[data-line-items-target='emptyState']", visible: :all)
+  def empty_state = find("[data-controller~='barcode-list'] [data-line-items-target='emptyState']", visible: :all) # the barcode list's own
   def remove(row) = row.find("button[data-action='line-items#remove']").click
   def save! = find("[data-testid='product-save']").click
   def saved_barcodes = ProductBarcode.where(product_id: product.id).order(:id).pluck(:barcode)
@@ -40,7 +40,7 @@ RSpec.describe "Product Edit — barcode deletion (browser)", type: :system do
       expect(ProductBarcode.exists?(saved.id)).to be(true)           # nothing written before Save
 
       save!
-      expect(page).to have_text(I18n.t("inventory.products.updated", locale: "ar"))
+      expect(page).to have_text(I18n.t("inventory.products.all_saved", locale: "ar"))
       expect(ProductBarcode.exists?(saved.id)).to be(false)          # the record itself is destroyed
       expect(saved_barcodes).to be_empty
 
@@ -59,7 +59,7 @@ RSpec.describe "Product Edit — barcode deletion (browser)", type: :system do
     expect(visible_values).to eq(%w[111 333])
     expect(empty_state).not_to be_visible
     save!
-    expect(page).to have_text("Product updated.")
+    expect(page).to have_text("All changes saved.")
     expect(saved_barcodes).to eq(%w[111 333])
   end
 
@@ -70,7 +70,7 @@ RSpec.describe "Product Edit — barcode deletion (browser)", type: :system do
     remove(visible_rows.first)
     expect(visible_values).to eq(%w[222])
     save!
-    expect(page).to have_text("Product updated.")
+    expect(page).to have_text("All changes saved.")
     expect(ProductBarcode.where(product_id: product.id).pluck(:barcode, :is_primary)).to eq([ [ "222", false ] ])
   end
 
@@ -82,7 +82,7 @@ RSpec.describe "Product Edit — barcode deletion (browser)", type: :system do
     expect(page).to have_no_css(row_css, visible: true)
     expect(empty_state).to be_visible
     save!
-    expect(page).to have_text("Product updated.")
+    expect(page).to have_text("All changes saved.")
     expect(saved_barcodes).to be_empty
     expect(product.reload).to be_valid
   end
@@ -95,7 +95,7 @@ RSpec.describe "Product Edit — barcode deletion (browser)", type: :system do
     visible_rows.last.find("input[name$='[barcode]']").fill_in(with: "999")
     remove(visible_rows.last)
     expect(visible_values).to eq(%w[111])
-    expect { save!; expect(page).to have_text("Product updated.") }.not_to change(ProductBarcode, :count)
+    expect { save!; expect(page).to have_text("All changes saved.") }.not_to change(ProductBarcode, :count)
     expect(saved_barcodes).to eq(%w[111])
   end
 
@@ -114,7 +114,7 @@ RSpec.describe "Product Edit — barcode deletion (browser)", type: :system do
 
     fill_in "product_name", with: "Foot Scrubber"
     save!
-    expect(page).to have_text("Product updated.")
+    expect(page).to have_text("All changes saved.")
     expect(saved_barcodes).to eq(%w[111])
   end
 end

@@ -83,8 +83,13 @@ module Inventory
                                          reason: reason))
     end
 
+    # Service-level reach (Phase 2): the advance's purchase request must be in
+    # the actor's warehouse scope (PurchaseRequestPolicy::Scope, the rule
+    # PurchaseRequestApproval uses) — otherwise it is not found.
     def advance
-      @advance ||= PurchaseRequestAdvance.where(business_id: @actor.business_id).find(@advance_id)
+      @advance ||= PurchaseRequestAdvance.where(business_id: @actor.business_id)
+                                         .where(purchase_request_id: PurchaseRequestPolicy::Scope.new(@actor, PurchaseRequest).resolve.select(:id))
+                                         .find(@advance_id)
     end
 
     def purchase_request = advance.purchase_request

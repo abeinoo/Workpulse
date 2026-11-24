@@ -11,9 +11,13 @@ module Inventory
     class StockIssueImportRowResolver
       Result = Struct.new(:ok, :row, keyword_init: true) { def ok? = ok }
 
-      def initialize(business, row_id, product_id: nil, sku: nil, quantity: nil, skip: false)
+      # user: the person resolving the row (required) — resolving a row edits
+      # the import's draft issue, so it needs create_stock_issues and reach to
+      # the import's warehouse, checked here whoever the caller.
+      def initialize(business, row_id, user:, product_id: nil, sku: nil, quantity: nil, skip: false)
         @business   = business
         @row_id     = row_id
+        @user       = user
         @product_id = product_id
         @sku        = sku
         @quantity   = quantity
@@ -24,6 +28,7 @@ module Inventory
         @row = StockIssueImportRow.joins(:batch)
                                   .where(stock_issue_import_batches: { business_id: @business.id })
                                   .find(@row_id)
+        return Result.new(ok: false, row: @row) unless authorized?
         return skip_row! if @skip
 
         apply_edits
@@ -31,6 +36,11 @@ module Inventory
       end
 
       private
+
+      def authorized?
+        Inventory::StockIssueAuthorization.permits?(@user, :create) &&
+          Inventory::WarehouseReach.permits?(@user, @row.batch.warehouse_id)
+      end
 
       def apply_edits
         @row.sku = @sku.strip if @sku.present?

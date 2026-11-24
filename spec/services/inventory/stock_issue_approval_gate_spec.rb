@@ -6,16 +6,16 @@ require "rails_helper"
 # anything that isn't approved, whatever the caller or creation path.
 RSpec.describe "Stock issue approval gate" do
   let(:business)  { create(:business) }
-  let(:warehouse) { business.warehouses.create!(name: "Main") }
+  let(:warehouse) { branch_warehouse_for(branch, name: "Main") } # the branch's own warehouse
   let(:branch)    { business.branches.create!(name: "Nasr City", active: true) }
   let(:product) do
     business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 10, average_cost_price: 10)
   end
 
-  let(:importer_user) { create(:user, business: business) }
-  let(:approver_role) { create(:permission_role, business: business, permissions: %w[view_inventory approve_stock_issues]) }
+  let(:importer_user) { stock_issue_user(business, :create_stock_issues) }
+  let(:approver_role) { create(:permission_role, business: business, permissions: %w[view_inventory view_stock_issues approve_stock_issues]) }
   let(:approver)      { create(:user, business: business, permission_role: approver_role) }
-  let(:confirmer_role) { create(:permission_role, business: business, permissions: %w[view_inventory confirm_stock_issues]) }
+  let(:confirmer_role) { create(:permission_role, business: business, permissions: %w[view_inventory view_stock_issues confirm_stock_issues]) }
   let(:confirmer)      { create(:user, business: business, permission_role: confirmer_role) }
 
   before do
@@ -26,8 +26,7 @@ RSpec.describe "Stock issue approval gate" do
 
   def import_issue(qty: 5)
     rows = [ { :row_number => 2, "sku" => product.sku, "quantity" => qty.to_s } ]
-    Inventory::Imports::StockIssueImporter.new(business, rows, warehouse: warehouse, branch: branch,
-                                               user: importer_user).call.issue
+    Inventory::Imports::StockIssueImporter.new(business, rows, warehouse: warehouse, user: importer_user).call.issue
   end
 
   def issue_in(status, qty: 5)
@@ -116,8 +115,8 @@ RSpec.describe "Stock issue approval gate" do
     end
 
     it "keeps the self-approval rule: the importing user cannot approve their own import" do
-      importer_user.update!(permission_role: approver_role)
-      issue = import_issue
+      issue = import_issue # imported (and submitted) with create_stock_issues…
+      importer_user.update!(permission_role: approver_role) # …then the same user is given approval
 
       result = Inventory::StockIssueApproval.new(stock_issue_id: issue.id, actor: importer_user).approve!
 

@@ -5,12 +5,23 @@ class Inventory::BaseController < ApplicationController
   private
 
   def require_inventory_access!
+    return if admitted_without_inventory_view?
     return if current_user.can?(:view_inventory)    ||
               current_user.can?(:manage_inventory)   ||
               current_user.can?(:view_inventory_reports)
 
     redirect_to root_path, alert: t("flash.not_authorized")
   end
+
+  # Screens that admit an operation permission on its own, without the
+  # inventory view: the Stock Issue screens (view_stock_issues), the Quick
+  # Issue popup (quick_issue_stock — it shows only the chosen product's
+  # available quantity in the warehouses of the user's own issue branches) and
+  # the product pickers (ProductPolicy#pick?). Every other inventory screen
+  # keeps its gate, so these permissions never expose other stock levels or
+  # inventory pages. Each such controller still
+  # authorizes its own action.
+  def admitted_without_inventory_view? = false
 
   # Active warehouses the current user may use — all of them, or only the ones
   # they're assigned to. Used to populate every warehouse dropdown.
@@ -60,14 +71,8 @@ class Inventory::BaseController < ApplicationController
     return if records.empty?
 
     ActiveRecord::Associations::Preloader.new(
-      records: records, associations: { product: [ :product_barcodes, :active_packaging_levels, Product::IMAGE_PRELOAD ] }
+      records: records, associations: { product: [ :product_barcodes, Product::IMAGE_PRELOAD ] }
     ).call
-  end
-
-  # A posted document's packaging entries for its show page (one query; none
-  # for documents of products without packaging).
-  def packaging_entries_of(document)
-    InventoryPackagingEntry.where(source: document).includes(:packaging_level, :warehouse, :product).order(:id).to_a
   end
 
   # The one product payload of the searchable product pickers and the barcode
@@ -77,9 +82,8 @@ class Inventory::BaseController < ApplicationController
   def product_picker_json(product)
     barcodes = product.product_barcodes.map(&:barcode)
     { id: product.id, name: product.name, sku: product.sku, barcode: product.barcode, barcodes: barcodes,
-      default_supplier_id: product.default_supplier_id, measure: helpers.measure_short(product),
-      thumb: helpers.product_thumbnail_url(product, preloaded_only: true),
-      units: helpers.packaging_units(product) }
+      default_supplier_id: product.default_supplier_id,
+      thumb: helpers.product_thumbnail_url(product, preloaded_only: true) }
   end
 
   # Eligible Purchase Request responsible employees (purchasing permission +

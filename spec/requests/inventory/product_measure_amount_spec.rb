@@ -34,7 +34,7 @@ RSpec.describe "Product amount and measure", type: :request do
     it "shows Amount beside Measure in both languages" do
       get new_inventory_product_path
       pair = doc.at_css("[data-testid='product-measurement'] .measure-pair")
-      expect(pair.css("input[name='product[measure_amount]'], select[name='product[unit_of_measure]']").size).to eq(2)
+      expect(pair.css("input[type='number'][name='product[measure_amount]'], select[name='product[unit_of_measure]']").size).to eq(2)
       expect(pair.text).to include("Amount", "Measure")
 
       owner.update!(preferred_locale: "ar")

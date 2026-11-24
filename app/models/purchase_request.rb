@@ -1,4 +1,5 @@
 class PurchaseRequest < ApplicationRecord
+  include RequiresActiveWarehouse
   include ImmutableDocument
   # Its FinancialSettlement ledger holds the CONFIRMED advance payments made to
   # the supplier against this request (see PurchaseRequestAdvance); reversals
@@ -91,6 +92,10 @@ class PurchaseRequest < ApplicationRecord
   validates :request_number, uniqueness: { scope: :business_id, case_sensitive: false }, allow_nil: true
   validate :supplier_in_same_business
   validate :warehouse_in_same_business, if: :will_save_change_to_warehouse_id?
+  # Inactive warehouse: no new request for it, no submission or approval —
+  # neither for the destination nor for any line's source warehouse.
+  requires_active_warehouse :warehouse, transitions: { status: %w[pending_approval approved] }
+  validate :line_source_warehouses_active, if: -> { will_save_change_to_status?(to: "pending_approval") || will_save_change_to_status?(to: "approved") }
   validate :responsible_employee_in_same_business, if: :will_save_change_to_responsible_employee_id?
   validate :has_at_least_one_item
 
@@ -374,5 +379,13 @@ class PurchaseRequest < ApplicationRecord
     return if warehouse.nil? || business_id.nil?
 
     errors.add(:warehouse, :invalid) if warehouse.business_id != business_id
+  end
+
+  # Submitting or approving a request whose line sources from an inactive
+  # warehouse (RequiresActiveWarehouse covers the destination).
+  def line_source_warehouses_active
+    items.reject(&:marked_for_destruction?).filter_map(&:source_warehouse).uniq.each do |source|
+      errors.add(:base, :warehouse_inactive, warehouse: source.name) unless source.active?
+    end
   end
 end

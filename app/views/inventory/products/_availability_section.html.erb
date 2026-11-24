@@ -20,6 +20,7 @@
 <% row_errors       = local_assigns[:row_errors] || {} %>
 <% row_values       = local_assigns[:row_values] || {} %>
 <% exclusion_errors = local_assigns[:exclusion_errors] || {} %>
+<% exclusion_values = local_assigns[:exclusion_values] || {} %>
 <%# Cards follow the SAVED tracking state (a refused "untick" re-renders the
     form with the box off while the product is still tracked). On Product Edit
     the whole section is hidden while the box is off — on load, and live via
@@ -36,7 +37,8 @@
   <%= turbo_frame_tag "product-availability", target: "_top", class: "availability-frame" do %>
     <div class="availability-section__head">
       <%= content_tag(embedded ? :h3 : :h2, t("product_availability.section.title"), class: "section-title", id: "availability-title") %>
-      <p class="form-hint"><%= t("product_availability.section.hint") %></p>
+      <%# On Product Edit the cards are saved with everything else by the page's one Save. %>
+      <p class="form-hint"><%= t(embedded ? "product_availability.section.hint_unified" : "product_availability.section.hint") %></p>
       <% if tracked %><p class="form-hint"><%= t("product_availability.section.threshold_hint") %></p><% end %>
     </div>
 
@@ -85,7 +87,8 @@
             <% group_pairs.each do |pair| %>
               <%= render "inventory/products/availability_card", pair: pair, product: product, availability: availability,
                     return_to: return_to, tracked: tracked, row_error: row_errors[pair.warehouse.id],
-                    typed: row_values[pair.warehouse.id] || {}, refused_exclusion: exclusion_errors[pair.warehouse.id] %>
+                    typed: row_values[pair.warehouse.id] || {}, refused_exclusion: exclusion_errors[pair.warehouse.id],
+                    submitted: exclusion_values[pair.warehouse.id] %>
             <% end %>
           </div>
         <% end %>

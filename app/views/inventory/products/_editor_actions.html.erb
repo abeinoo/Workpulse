@@ -1,0 +1,27 @@
+<%#
+  The page's ONE Save, in an action bar that stays at the bottom of the
+  screen while the page scrolls. On Edit it sits outside the <form> element
+  and submits it through the form attribute (Inventory::ProductEditor saves
+  everything together); on New it is inside the form.
+
+  locals: label, cancel_path, hint (optional), outside_form (Edit), testid (optional)
+%>
+<% outside_form = local_assigns[:outside_form] %>
+<div class="pe-actions product-save-bar" role="region" aria-label="<%= label %>">
+  <div class="pe-actions__status">
+    <span class="badge badge-warning product-save-bar__unsaved" data-unsaved-changes-target="badge" data-testid="unsaved-changes" hidden>
+      <%= t("inventory.products.unsaved_changes") %></span>
+    <% if local_assigns[:hint].present? %>
+      <p class="pe-actions__hint form-hint"><%= hint %></p>
+    <% end %>
+  </div>
+  <div class="pe-actions__buttons">
+    <%= link_to t("common.cancel"), cancel_path, class: "btn btn-ghost" %>
+    <% if outside_form %>
+      <%= submit_tag label, class: "btn btn-primary", form: "product-form", name: nil,
+            data: { testid: "product-save", turbo_submits_with: t("inventory.products.saving_all") } %>
+    <% else %>
+      <%= submit_tag label, class: "btn btn-primary", name: nil, data: { turbo_submits_with: t("inventory.products.saving_all") } %>
+    <% end %>
+  </div>
+</div>

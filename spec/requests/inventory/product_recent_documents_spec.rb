@@ -241,7 +241,8 @@ RSpec.describe "Product page — recent goods receipts and stock issues", type: 
       issue_mine   = issue(on: 2.days.ago.to_date)
       issue_theirs = issue(on: Date.current, wh: other_warehouse)
 
-      visit_product(viewer("view_inventory", warehouses: [ warehouse ]))
+      # view_stock_issues is its own permission (independent of view_inventory).
+      visit_product(viewer("view_inventory", "view_stock_issues", warehouses: [ warehouse ]))
       expect(numbers("recent-goods-receipts")).to eq([ mine.receipt_number ])
       expect(numbers("recent-stock-issues")).to eq([ issue_mine.issue_number ])
       new_sections = section("recent-goods-receipts").to_html + section("recent-stock-issues").to_html

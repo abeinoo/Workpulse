@@ -12,12 +12,7 @@ module Inventory
   #     (Inventory::AverageCost, audited); every other void leaves the average
   #     as it is.
   #
-  # Packaging (Decision 5): an inflow's sealed packages still free leave as
-  # packages, the rest of its quantity leaves as base quantity (loose first,
-  # fewest packages opened) — never resealed; an outflow's packages come back
-  # as the same packages and its base quantity comes back loose; a stock
-  # count's packaging corrections are negated. Removals protect approved
-  # reservations (on-hand − removal >= reserved).
+  # Removals protect approved reservations (on-hand − removal >= reserved).
   #
   # Guards: a document can't be voided twice, a reason is required, and a void is
   # refused if reversing it would drive any warehouse negative (e.g. receipt goods
@@ -57,6 +52,23 @@ module Inventory
     # nothing. Callers that already hold the lock (GoodsReceiptVoider) re-lock the
     # same row harmlessly.
     def call
+      # A stock issue's void is its own operation (void_stock_issues), checked
+      # here, not only by the controller. Other document types keep their
+      # caller's authorization, unchanged.
+      if @document.is_a?(StockIssue) && !StockIssueAuthorization.permits?(@user, :void)
+        @document.errors.add(:base, StockIssueAuthorization.message)
+        return failure
+      end
+
+      # Service-level reach (Phase 2): every warehouse the document touches
+      # (both ends of a transfer) — the rule StockTransferPolicy#void? applies.
+      # A void of a document in a now-inactive warehouse stays possible: its
+      # compensating "reversal" movements are accepted by the ledger.
+      unless WarehouseReach.permits?(@user, *document_warehouse_ids)
+        @document.errors.add(:base, WarehouseReach.message)
+        return failure
+      end
+
       ActiveRecord::Base.transaction do
         @document.lock!
         StockAvailability.lock_products!(@document.affected_products.map(&:id))
@@ -67,23 +79,30 @@ module Inventory
         post_reversal!
         @document.update!(voided_at: Time.current, voided_by: @user, void_reason: @reason)
 
-        if @audit
-          log_audit(actor: @user, auditable: @document, action: "void",
-                    changes: { voided_at: [ nil, @document.voided_at.iso8601 ] },
-                    metadata: { reason: @reason, reversal: @document.reversal_entries.map { |e| reversal_audit(e) } })
-        end
+        write_void_audit if @audit
 
         Result.new(ok: true, document: @document)
       end
     rescue AuditLoggable::AuditWriteFailed
-      @document.errors.add(:base, :average_cost_audit_failed)
-      failure
-    rescue Packaging::Refused => e
-      @document.errors.add(:base, :packaging_refused, message: e.message)
+      @document.errors.add(:base, @void_audit_failed ? :void_audit_failed : :average_cost_audit_failed)
       failure
     end
 
     private
+
+    # A stock issue's "void" entry is mandatory (fail-closed): if it cannot be
+    # written, the reversal and the void roll back together. Other document
+    # types keep the fail-open entry they had.
+    def write_void_audit
+      attributes = { actor: @user, auditable: @document, action: "void",
+                     changes: { voided_at: [ nil, @document.voided_at.iso8601 ] },
+                     metadata: { reason: @reason, reversal: @document.reversal_entries.map { |e| reversal_audit(e) } } }
+      return log_audit(**attributes) unless @document.is_a?(StockIssue)
+
+      @void_audit_failed = true
+      log_audit!(**attributes)
+      @void_audit_failed = false
+    end
 
     # The existing guards, in their original order and with their original
     # messages, on the locked row.
@@ -128,64 +147,21 @@ module Inventory
     end
 
     def post_reversal!
-      entries  = @document.reversal_entries
       occurred = BusinessDay.current(context: @document.business)
-      session  = Packaging::Session.new(business: @document.business, product_ids: entries.map { |e| e[:product].id },
-                                        warehouse_ids: entries.map { |e| e[:warehouse].id })
-      movements = entries.map do |entry|
-        # A packaging-only stock-count line moved no quantity: nothing to
-        # reverse in the ledger, only its packaging corrections (below).
-        next [ entry, nil ] unless entry[:quantity].to_d.positive?
+      @document.reversal_entries.each do |entry|
+        next unless entry[:quantity].to_d.positive?
 
         on_hand_before = entry[:product].current_stock if cost_bearing_reversal?(entry)
         movement = @document.inventory_movements.create!(
           entry.merge(business: @document.business, reason: :reversal, occurred_on: occurred)
         )
-        if cost_bearing_reversal?(entry)
-          AverageCost.new(entry[:product], actor: @user).reverse_inflow!(
-            quantity: entry[:quantity], unit_cost: entry[:unit_cost], on_hand_before: on_hand_before,
-            source: @document, movement: movement
-          )
-        end
-        [ entry, movement ]
+        next unless cost_bearing_reversal?(entry)
+
+        AverageCost.new(entry[:product], actor: @user).reverse_inflow!(
+          quantity: entry[:quantity], unit_cost: entry[:unit_cost], on_hand_before: on_hand_before,
+          source: @document, movement: movement
+        )
       end
-
-      original = InventoryPackagingEntry.where(source: @document).to_a.group_by { |e| [ e.product_id, e.warehouse_id ] }
-      movements.group_by { |entry, _| [ entry[:product].id, entry[:warehouse].id ] }.each do |(product_id, warehouse_id), group|
-        product = group.first.first[:product]
-        recorded = original.fetch([ product_id, warehouse_id ], [])
-        session.apply!(product: product, warehouse_id: warehouse_id, source: @document, occurred_on: occurred,
-                       movement: group.filter_map(&:last).first) do |plan|
-          reverse_packaging(plan, group.map(&:first), recorded)
-        end
-      end
-    end
-
-    def reverse_packaging(plan, entries, recorded)
-      out_quantity = entries.select { |e| e[:direction] == :out }.sum { |e| e[:quantity].to_d }
-      in_quantity  = entries.select { |e| e[:direction] == :in }.sum { |e| e[:quantity].to_d }
-      corrections  = recorded.select { |e| e.kind == "count_correction" }
-      position_of  = ->(entry) { plan.structure.level(entry.packaging_level_id)&.position || -1 }
-
-      if corrections.any?
-        # A stock count reopened: its counted packaging is taken back exactly.
-        corrections.each { |e| plan.negate("count_correction", position_of.(e), e.package_delta) }
-        plan.adjust_total(in_quantity - out_quantity)
-        return
-      end
-
-      if out_quantity.positive?
-        arrived = recorded.select { |e| e.kind == "moved" && e.package_delta.positive? }
-        arrived.each { |e| plan.remove_inflow(position_of.(e), e.package_delta) }
-        as_packages = arrived.sum(0.to_d) { |e| e.package_delta * plan.structure.level(e.packaging_level_id).base_quantity }
-        plan.take_base(out_quantity - as_packages)
-      end
-
-      return unless in_quantity.positive?
-
-      plan.add_base(in_quantity)
-      recorded.select { |e| e.kind == "moved" && e.package_delta.negative? }
-              .each { |e| plan.negate("moved", position_of.(e), e.package_delta) }
     end
 
     def cost_bearing_reversal?(entry)
@@ -213,6 +189,12 @@ module Inventory
 
     def failure
       Result.new(ok: false, document: @document)
+    end
+
+    def document_warehouse_ids
+      %i[warehouse_id source_warehouse_id destination_warehouse_id]
+        .select { |attribute| @document.respond_to?(attribute) }
+        .map { |attribute| @document.public_send(attribute) }
     end
   end
 end

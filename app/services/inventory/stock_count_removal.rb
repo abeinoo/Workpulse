@@ -60,7 +60,7 @@ module Inventory
 
       ActiveRecord::Base.transaction do
         lock_count!
-        @error = yield
+        @error = count_reachable? ? yield : WarehouseReach.message
         raise ActiveRecord::Rollback if @error
       end
       @error ? failure(@error) : success

@@ -50,7 +50,7 @@ here only so its stable ID and history are kept.
 | BUG-026 | Deleting a branch hard-deletes its attendance, device punches and legacy payroll periods | Organization & Access (branches) | **High — critical (irreversible data loss)** | Confirmed (characterization spec) | **In Progress** (adopted lifecycle committed on `fix/inventory-isolation-branch-lifecycle`, `bc47ad7` + `b82c6b8`; tests and full suite run; not reviewed, not merged — **Escalated**) | Review and merge |
 | BUG-027 | Remaining models take business-owned foreign keys without a same-business guard | Cross-domain (≈33 models) | Medium (tenant isolation, per path) | Suspected (static inventory; inventory paths fixed under BUG-025) | Open | Before multi-business use |
 | BUG-028 | `registrations_spec.rb` "invitation just inside the 7 days" fails locally when 7 calendar days cross a DST change | Test suite (sign-up) | Low (local runs in a DST time zone, a few days a year) | Confirmed (reproduced 2026-10-29; time-travel arithmetic shown) | **Resolved — obsolete** (2026-11-15: the invitation link and its 7-day example were removed) | — |
-| BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by spec (2026-10-30: 21 refusal examples fail on the unchanged code) | **Resolved** (`ce40a61`, `ad5e9dc`, `4d5b442`, `1e6feb3`, PR #88) | — |
+| BUG-029 | Laundry and stock-issue entry points accept an inactive branch for new operations | Laundry (towels), Inventory & Purchasing (stock issues) | Low–Medium (crafted request only; pickers list active branches) | Confirmed by spec (2026-10-30: 21 refusal examples fail on the unchanged code) | **Resolved** (`ce40a61`, `ad5e9dc`, `4d5b442`, `1e6feb3`, PR #88); stock-issue part (D3) **revised 2026-11-24**: warehouse status decides (uncommitted) | — |
 | BUG-030 | Imported stock issues (and product-import opening balances) are dated with the UTC calendar date, not the business day | Inventory & Purchasing | Low (date-boundary window; period attribution in reports) | Confirmed (code; formula evaluated outside the app, no spec) | Open | Next Inventory & Purchasing fix |
 | BUG-031 | Shift templates and template-applied assignments accept another business's shift or rule profile | Workforce (shifts; feeds attendance penalties / payroll) | **High** (cross-business config drives payroll deductions; needs a second business) | Confirmed (reproduced 2026-10-30, rolled-back transaction; regression specs fail on the unchanged code) | **Resolved** (`857506e`, PR #90) | — |
 | BUG-032 | Remaining-deposit settlement writes a foreign, inactive or missing payment method into the append-only ledger | Finance & Sales (remaining deposit balances) | Medium (immutable ledger row; name disclosure; 500 on a missing id) | Confirmed (reproduced 2026-10-30) | **Resolved** (`c866b64`, PR #90) | — |
@@ -1094,6 +1094,24 @@ here only so its stable ID and history are kept.
     dashboard) still reports an inactive branch. Receipt shortfalls are not shown (they are in no balance).
   * The stock-issue importer's `issued_on: Date.current` (not the business day) is a separate defect, not part of this
     fix.
+* **D3 revised — stock issues follow the WAREHOUSE status (owner decision 2026-11-24; branch
+  `feature/multi-unit-packaging`, uncommitted, specs not run):** Stock Issues are now authorized by warehouse access
+  (`Inventory::IssueWarehouseReach`) and have no consuming branch; `stock_issues.branch_id` is only cost attribution
+  derived from the warehouse (a branch warehouse → its branch; a central warehouse → none, Unallocated). The
+  stock-issue half of D3 is therefore replaced; the laundry decisions (D1, D2, D4–D6) are unchanged.
+  * Removed: the `StockIssue` `branch_active` validation, the branch presence requirement, and the import's
+    inactive-branch refusal (`inventory.imports.branch_inactive`). A branch's status no longer gates any Stock Issue
+    or Quick Issue operation.
+  * The warehouse decides: an **inactive warehouse** takes no new issue (draft, import, Quick Issue) and no
+    confirmation — re-checked under the warehouse row lock (`IssueWarehouseReach#verify_under_lock`, FOR SHARE) and
+    by `RequiresActiveWarehouse`, which also keeps refusing submission and approval from an inactive warehouse.
+    Rejecting, cancelling and deleting a draft stay available.
+  * **Void** reverses into the exact original warehouse (`StockIssue#reversal_entries` → the issue's own warehouse,
+    never redirected); the ledger guard accepts reversal movements into an inactive warehouse, as before.
+  * Historical issues and their movements, branch attribution and audit history are kept exactly as recorded.
+  * Tests: `spec/services/inventory/stock_issue_inactive_branch_spec.rb` (rewritten: an inactive branch no longer
+    gates; inactive-warehouse refusals; void into the original warehouse), `spec/requests/inactive_branch_operations_spec.rb`
+    (stock-issue part rewritten), `spec/services/inventory/stock_issue_warehouse_authorization_spec.rb`.
 * **Review milestone:** — (resolved).
 
 ## BUG-030 — Imported stock issues (and product-import opening balances) are dated with the UTC calendar date, not the business day

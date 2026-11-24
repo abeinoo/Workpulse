@@ -1,0 +1,34 @@
+en:
+  inventory:
+    products:
+      index:
+        count:
+          one: "1 product"
+          other: "%{count} products"
+        status_tabs: "Product status"
+        catalogue_settings: "Catalogue settings"
+        search_label: "Search by name, SKU or barcode"
+        clear_filters: "Clear filters"
+        active_filters: "Active filters"
+        remove_filter: "Remove filter: %{filter}"
+        chip_search: "Search: “%{term}”"
+        empty_filtered: "No products match these filters."
+        stock_on_hand: "Stock on hand"
+        not_tracked: "Not tracked"
+        select_hint: "Select products to print their barcodes."
+        selected_count: "Selected: {count}"
+        clear_selection: "Clear selection"
+        summary:
+          total: "Products"
+          low_stock: "Low stock"
+          out_of_stock: "Out of stock"
+        stock_status:
+          label: "Stock status"
+          all: "All stock statuses"
+          in_stock: "In stock"
+          low_stock: "Low stock"
+          out_of_stock: "Out of stock"
+        actions:
+          view: "View product"
+          movements: "View stock movements"
+          delete: "Delete product"

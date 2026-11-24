@@ -12,11 +12,6 @@ module Inventory
   #   The average moves at posting time only (W2, Inventory::AverageCost,
   #   audited); nothing is replayed from history.
   #
-  # Packaging: a decrease takes loose content first, then opens the fewest
-  # packages; an increase arrives loose. A stock-count line carries the
-  # counted packaging difference (packaging_differences: { level id => Δ }):
-  # its count_correction entries replace the recorded packaging, and a line
-  # whose base difference is zero posts no movement at all (Decision 4).
   # Removals protect approved reservations (on-hand − removal >= reserved).
   #
   # Concurrency: the products are row-locked (StockAvailability.lock_products!,
@@ -40,12 +35,20 @@ module Inventory
       def ok? = ok
     end
 
-    def initialize(adjustment)
+    # actor: the person posting; defaults to the adjustment's created_by. With
+    # neither (a system path) the caller is responsible for authorization.
+    def initialize(adjustment, actor: nil)
       @adjustment = adjustment
+      @actor      = actor || adjustment.created_by
     end
 
     def call
       return failure if foreign_references?
+      # Service-level reach (Phase 2).
+      if @actor && !WarehouseReach.permits?(@actor, @adjustment.warehouse_id)
+        @adjustment.errors.add(:base, WarehouseReach.message)
+        return failure
+      end
 
       result = ActiveRecord::Base.transaction do
         StockAvailability.lock_products!(@adjustment.items.reject(&:marked_for_destruction?).map(&:product_id))
@@ -53,9 +56,6 @@ module Inventory
         next failure unless opening_balance_allowed?
         next failure unless availability_ok?
         next failure unless reservations_protected?
-
-        @packaging = Packaging::Session.new(business: @adjustment.business, product_ids: @adjustment.items.map(&:product_id),
-                                            warehouse_ids: [ @adjustment.warehouse_id ])
 
         @adjustment.adjustment_number = NumberSequencer.new(@adjustment.business, :stock_adjustment).next_number if @adjustment.adjustment_number.blank?
 
@@ -69,9 +69,6 @@ module Inventory
       result || failure
     rescue AuditLoggable::AuditWriteFailed
       @adjustment.errors.add(:base, :average_cost_audit_failed)
-      failure
-    rescue Packaging::Refused => e
-      @adjustment.errors.add(:base, :packaging_refused, message: e.message)
       failure
     end
 
@@ -92,10 +89,7 @@ module Inventory
           warehouse_id:      @adjustment.warehouse_id,
           stock_count_id:    @adjustment.stock_count_id,
           stock_count_number: @adjustment.stock_count&.count_number,
-          lines: @adjustment.items.map do |i|
-            { product_id: i.product_id, quantity_difference: i.quantity_difference.to_s,
-              packaging_differences: i.packaging_differences.presence }.compact
-          end
+          lines: @adjustment.items.map { |i| { product_id: i.product_id, quantity_difference: i.quantity_difference.to_s } }
         }.compact
       )
     end
@@ -174,31 +168,16 @@ module Inventory
       reason    = (@adjustment.cost_bearing? && diff.positive?) ? :opening_balance : :adjustment
       on_hand_before = item.product.current_stock if reason == :opening_balance
 
-      movement = if diff.nonzero?
-        @adjustment.inventory_movements.create!(
-          business:    @adjustment.business,
-          product:     item.product,
-          warehouse:   @adjustment.warehouse,
-          direction:   direction,
-          reason:      reason,
-          quantity:    diff.abs,
-          unit_cost:   item.unit_cost,
-          occurred_on: @adjustment.adjusted_on
-        )
-      end
-
-      @packaging.apply!(product: item.product, warehouse_id: @adjustment.warehouse_id, source: @adjustment,
-                        occurred_on: @adjustment.adjusted_on, movement: movement) do |plan|
-        corrections = item.packaging_level_differences
-        if corrections.any?
-          plan.adjust_total(diff)
-          corrections.each { |level_id, delta| plan.correct(plan.structure.level(level_id)&.position || -1, delta) }
-        elsif diff.positive?
-          plan.add_base(diff)
-        else
-          plan.take_base(diff.abs)
-        end
-      end
+      movement = @adjustment.inventory_movements.create!(
+        business:    @adjustment.business,
+        product:     item.product,
+        warehouse:   @adjustment.warehouse,
+        direction:   direction,
+        reason:      reason,
+        quantity:    diff.abs,
+        unit_cost:   item.unit_cost,
+        occurred_on: @adjustment.adjusted_on
+      )
 
       return unless reason == :opening_balance
 

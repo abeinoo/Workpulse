@@ -3,8 +3,8 @@ require "rails_helper"
 # Stock count approval / reopen under real concurrency — TWO database
 # connections (a second connection is the only thing a row lock can block).
 # The first operation is paused (blocking Queue handshake, no sleeps) inside its
-# transaction on its first Inventory::Packaging::Session#apply! — i.e. after its
-# movements are written, before commit, while it holds the count and product
+# transaction right after it writes its first movement (AdjustmentPoster#post_item
+# for an approval, DocumentVoider#post_reversal! for a reopen) — before commit, while it holds the count and product
 # row locks — and the competing operation is started and observed waiting on a
 # lock (pg_stat_activity). Each example asserts the SAFE outcome.
 #
@@ -94,20 +94,22 @@ RSpec.describe "Stock count concurrency (two connections)" do
     end
   end
 
-  # Pauses the first packaging step (inside the first operation's transaction,
-  # after its locks and first movement) until released.
+  # Pauses the first operation right after its first movement is written
+  # (inside its transaction, holding its locks) until released.
   def pause_first_recompute
     reached = Queue.new
     release = Queue.new
     calls   = 0
-    allow_any_instance_of(Inventory::Packaging::Session).to receive(:apply!).and_wrap_original do |original, *args, **kwargs, &block|
+    pause = lambda do |result|
       calls += 1
       if calls == 1
         reached << true
         release.pop
       end
-      original.call(*args, **kwargs, &block)
+      result
     end
+    allow_any_instance_of(Inventory::AdjustmentPoster).to receive(:post_item).and_wrap_original { |original, *args| pause.(original.call(*args)) }
+    allow_any_instance_of(Inventory::DocumentVoider).to receive(:post_reversal!).and_wrap_original { |original| pause.(original.call) }
     @releases = (@releases || []) << release
     [ reached, release ]
   end
@@ -115,7 +117,10 @@ RSpec.describe "Stock count concurrency (two connections)" do
   let(:business)  { create(:business) }
   let(:counter)   { user_with_stock_permissions(business, :view_inventory, :manage_stock_counts, name: "Counter") }
   let(:approver)  { user_with_stock_permissions(business, :view_inventory, :post_stock_counts, name: "Approver") }
-  let(:approver2) { user_with_stock_permissions(business, :view_inventory, :post_stock_counts, name: "Approver 2") }
+  let(:approver2) do
+    user_with_stock_permissions(business, :view_inventory, :post_stock_counts, :view_stock_issues, :confirm_stock_issues,
+                                name: "Approver 2")
+  end
   let(:main)      { business.warehouses.create!(name: "Main") }
   let(:branch)    { business.branches.create!(name: "Branch", active: true) }
   let(:product)   { business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 5, average_cost_price: 5) }
@@ -180,7 +185,7 @@ RSpec.describe "Stock count concurrency (two connections)" do
     expect(count.reload).to be_in_progress
   end
 
-  # Reservation protection (docs/inventory/multi_unit_nested_packaging_design.md §10): a count
+  # Reservation protection: a count
   # approval may not leave on-hand below what approved issues reserve — it is
   # refused (naming the issue), stock is unchanged, and the issue still posts.
   it "an approval that would leave less than the approved reservations is refused; the issue still posts", :aggregate_failures do

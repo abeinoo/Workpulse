@@ -11,7 +11,9 @@ RSpec.describe StockIssueImportBatch, type: :model do
   describe "associations" do
     it { is_expected.to belong_to(:business) }
     it { is_expected.to belong_to(:warehouse) }
-    it { is_expected.to belong_to(:branch) }
+    # Cost attribution copied from the issue — none for a central warehouse
+    # (migration 20261124110000 made the column nullable).
+    it { is_expected.to belong_to(:branch).optional }
     it { is_expected.to belong_to(:stock_issue) }
     it { is_expected.to have_many(:rows) }
   end

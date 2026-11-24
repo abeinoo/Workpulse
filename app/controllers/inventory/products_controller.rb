@@ -1,21 +1,52 @@
 class Inventory::ProductsController < Inventory::BaseController
+  # Stock-status filter of the index. in_stock / out_of_stock are the Current
+  # Stock report's definitions (Inventory::Reports::CurrentStock: on-hand > 0
+  # vs <= 0, inventory-tracked products only); low_stock is the list's own
+  # low-stock badge (Inventory::LowStockQuery, per-warehouse thresholds).
+  STOCK_STATUSES = %w[in_stock low_stock out_of_stock].freeze
+
   def index
     authorize Product
-    wh_ids    = accessible_warehouse_ids
-    @products = policy_scope(Product).ordered
-                  .includes(:brand, :product_category, Product::IMAGE_PRELOAD)
+    wh_ids = accessible_warehouse_ids
 
-    # ── Status filter (active / archived / all) — default: active ──────────
+    # ── Status tab (active / archived / all) — default: active ─────────────
     @status_filter = params[:status].presence&.inquiry || "active"
-    @products = case @status_filter.to_s
-    when "archived" then @products.archived
-    when "all"      then @products
-    else                 @products.active
+    base = policy_scope(Product)
+    base = case @status_filter.to_s
+    when "archived" then base.archived
+    when "all"      then base
+    else                 base.active
     end
+
+    # ── Stock totals (warehouse-scoped) ─────────────────────────────────────
+    @stock_totals = Inventory::StockLevels.totals_for(current_user.business,
+                                                       warehouse_ids: wh_ids)
+    @low_stock_product_ids = low_stock_product_ids(warehouse_ids: wh_ids)
+    in_stock_ids = @stock_totals.select { |_, quantity| quantity.to_d.positive? }.keys
+
+    # ── Summary — on the tab's base set, before search / filters, so the
+    #    header always reflects the whole (authorized, warehouse-scoped)
+    #    catalogue. Three COUNT queries; no product is loaded for them.
+    @summary = {
+      total:        base.count,
+      low_stock:    base.where(id: @low_stock_product_ids.to_a).count,
+      out_of_stock: base.inventory_tracked.where.not(id: in_stock_ids).count
+    }
+
+    @products = base.ordered.includes(:brand, :product_category, Product::IMAGE_PRELOAD)
 
     # ── Attribute filters ───────────────────────────────────────────────────
     @products = @products.where(brand_id: params[:brand_id])               if params[:brand_id].present?
     @products = @products.where(product_category_id: params[:category_id]) if params[:category_id].present?
+
+    # ── Stock status ────────────────────────────────────────────────────────
+    @stock_status = params[:stock_status].presence_in(STOCK_STATUSES)
+    @products = case @stock_status
+    when "in_stock"     then @products.inventory_tracked.where(id: in_stock_ids)
+    when "low_stock"    then @products.where(id: @low_stock_product_ids.to_a)
+    when "out_of_stock" then @products.inventory_tracked.where.not(id: in_stock_ids)
+    else                     @products
+    end
 
     # ── Text / barcode search: name, SKU or any barcode ─────────────────────
     if params[:q].present?
@@ -25,12 +56,6 @@ class Inventory::ProductsController < Inventory::BaseController
         t: "%#{ProductBarcode.normalize(params[:q]).to_s.downcase}%"
       )
     end
-
-    # ── Stock totals (warehouse-scoped) ─────────────────────────────────────
-    @stock_totals = Inventory::StockLevels.totals_for(current_user.business,
-                                                       warehouse_ids: wh_ids)
-
-    @low_stock_product_ids = low_stock_product_ids(warehouse_ids: wh_ids)
 
     @brands     = current_user.business.brands.ordered
     @categories = current_user.business.product_categories.active.ordered
@@ -49,7 +74,6 @@ class Inventory::ProductsController < Inventory::BaseController
 
     load_warehouse_availability
     @low_stock_warehouse = @availability_pairs.any?(&:low_stock?)
-    load_packaging
 
     @display_stock       = @stock_by_warehouse.values.sum
     @display_stock_value = @display_stock * @product.average_cost_price
@@ -100,10 +124,7 @@ class Inventory::ProductsController < Inventory::BaseController
     authorize @product
     # Barcodes are optional: a product without any shows the empty state (and
     # "Add barcode"), never a spare blank row that looks like a barcode.
-    load_options
-    # The availability section below the form (its own forms and actions —
-    # never part of the product form submission).
-    @availability = Inventory::ProductAvailabilityOverview.new(@product, user: current_user)
+    load_edit_sections
   end
 
   # The availability section on its own page — for users who manage
@@ -115,15 +136,24 @@ class Inventory::ProductsController < Inventory::BaseController
     @availability = Inventory::ProductAvailabilityOverview.new(@product, user: current_user)
   end
 
+  # The Edit page's one Save: product details, gallery and the warehouse
+  # availability cards in ONE transaction (Inventory::ProductEditor) — all
+  # saved, or nothing.
   def update
     @product = find_product
     authorize @product
     refuse_nested_warehouse_settings!
-    if save_with_gallery { @product.update(product_params) }
-      redirect_to inventory_product_path(@product), notice: t("inventory.products.updated")
+    result = Inventory::ProductEditor.new(
+      actor: current_user, product_id: @product.id, attributes: product_params,
+      gallery: (gallery_entries if gallery_submitted?),
+      availability: availability_param
+    ).call
+    if result.ok?
+      redirect_to inventory_product_path(@product), notice: t("inventory.products.all_saved")
     else
-      load_options
-      @availability = Inventory::ProductAvailabilityOverview.new(@product, user: current_user)
+      @product = result.product
+      load_edit_sections(result)
+      flash.now[:alert] = t("inventory.products.nothing_saved")
       render :edit, status: :unprocessable_entity
     end
   end
@@ -206,18 +236,6 @@ class Inventory::ProductsController < Inventory::BaseController
   end
 
   private
-
-  # The product's packaging chain and, per warehouse with stock, its sealed
-  # packages and loose content (two queries; none without packaging).
-  def load_packaging
-    @packaging_structure = Inventory::Packaging::Structure.for(@product)
-    @packaging_balances  = if @packaging_structure.packaged?
-      Inventory::Packaging::Balance.load(structures: { @product.id => @packaging_structure },
-                                         warehouse_ids: @stock_by_warehouse.keys)
-    else
-      {}
-    end
-  end
 
   def load_purchase_history
     # Single query: all non-voided GR items for this product, newest first —
@@ -306,6 +324,35 @@ class Inventory::ProductsController < Inventory::BaseController
     policy_scope(Product).find(params[:id])
   end
 
+  # Everything the Edit page shows besides the product form: the options and
+  # the warehouse availability cards (with each card's refusal and typed values).
+  def load_edit_sections(result = nil)
+    load_options
+    @availability = Inventory::ProductAvailabilityOverview.new(@product, user: current_user)
+    if result
+      @availability_view = { row_errors: result.availability_errors, exclusion_errors: result.exclusion_errors,
+                             row_values: availability_param.transform_keys(&:to_i)
+                                                           .transform_values { |v| v.slice("low_stock_level", "reorder_quantity") },
+                             exclusion_values: availability_param.transform_keys(&:to_i) }
+    else
+      @availability_view = {}
+    end
+  end
+
+  # { "<warehouse id>" => { "low_stock_level", "reorder_quantity", "excluded", "reason" } } — the
+  # warehouse ids are only candidates: Inventory::ProductAvailabilityManager
+  # loads and authorizes each one.
+  def availability_param
+    raw = params[:availability]
+    return {} unless raw.respond_to?(:each_pair)
+
+    raw.to_unsafe_h.each_with_object({}) do |(warehouse_id, values), acc|
+      next unless values.is_a?(Hash)
+
+      acc[warehouse_id.to_s] = values.slice("low_stock_level", "reorder_quantity", "excluded", "reason").transform_values(&:to_s)
+    end
+  end
+
   # Products low in at least one of the viewer's warehouses, by each
   # warehouse's own threshold (never a product-level one) — the list badges.
   def low_stock_product_ids(warehouse_ids:)
@@ -386,7 +433,7 @@ class Inventory::ProductsController < Inventory::BaseController
   # that row (and the batch summary) in place instead of navigating away.
   def resolve_import_row_and_respond
     result = Inventory::Imports::StockIssueImportRowResolver.new(
-      current_user.business, params[:return_to_import_row_id], product_id: @product.id
+      current_user.business, params[:return_to_import_row_id], user: current_user, product_id: @product.id
     ).call
     @row = result.row
     preload_product_images([ @row.product ]) # the re-rendered row's thumbnail

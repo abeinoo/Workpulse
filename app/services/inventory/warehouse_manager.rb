@@ -33,7 +33,6 @@ module Inventory
     # stock_issues also covers reservations (an approved issue reserves stock).
     REFERENCES = {
       inventory_movements:        ->(id) { InventoryMovement.where(warehouse_id: id) },
-      inventory_packaging_entries: ->(id) { InventoryPackagingEntry.where(warehouse_id: id) },
       stock_issues:               ->(id) { StockIssue.where(warehouse_id: id) },
       goods_receipts:             ->(id) { GoodsReceipt.where(warehouse_id: id) },
       stock_adjustments:          ->(id) { StockAdjustment.where(warehouse_id: id) },

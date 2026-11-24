@@ -29,7 +29,7 @@ class Laundry::Reports::CostSummaryController < Laundry::BaseController
   private
 
   # Stock-issue line details are shown only for issues the viewer may open
-  # themselves: the StockIssuePolicy permission (view_inventory /
+  # themselves: the StockIssuePolicy permission (view_stock_issues; transitionally
   # manage_inventory) AND the issue inside policy_scope(StockIssue), which
   # applies the accessible-warehouse restriction. One query for the batch.
   # The aggregate material cost stays on the summary regardless.

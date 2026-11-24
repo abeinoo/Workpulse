@@ -31,6 +31,10 @@ module Inventory
 
     # { product_id => on_hand } in the count's warehouse — the ledger
     # (InventoryMovement) on-hand, the quantity a physical count is compared to.
+    # Service-level reach (Phase 2): the count's warehouse must be one the
+    # actor can reach — the same rule as the controller and StockCountPolicy.
+    def count_reachable? = WarehouseReach.permits?(@actor, @count&.warehouse_id)
+
     def on_hand_for(product_ids)
       return {} if product_ids.empty?
 

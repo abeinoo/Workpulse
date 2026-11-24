@@ -1,0 +1,26 @@
+<%# Products index "Stock on hand" cell.
+    locals: product, stock, low_stock
+    The quantity is inventory units over the viewer's warehouses, shown
+    exactly (never truncated). Low = the per-warehouse low-stock badge
+    (.badge-warning carries the quantity only); Out = on-hand <= 0. %>
+<% state = product_stock_state(product, stock, low_stock) %>
+<td id="<%= dom_id(product, :stock) %>" class="products-table__stock" data-stock-state="<%= state %>">
+  <% case state %>
+  <% when :untracked %>
+    <span class="td-secondary"><%= t("inventory.products.index.not_tracked") %></span>
+  <% when :out %>
+    <span class="products-stock">
+      <span class="badge badge-danger" dir="ltr"><%= inventory_quantity(stock) %></span>
+      <span class="products-stock__label products-stock__label--out"><%= t("inventory.products.index.stock_status.out_of_stock") %></span>
+    </span>
+  <% when :low %>
+    <span class="products-stock">
+      <span class="badge badge-warning" dir="ltr"><%= inventory_quantity(stock) %></span>
+      <span class="products-stock__label products-stock__label--low"><%= t("inventory.products.index.stock_status.low_stock") %></span>
+    </span>
+  <% else %>
+    <span class="products-stock">
+      <span class="products-stock__qty" dir="ltr"><%= inventory_quantity(stock) %></span>
+    </span>
+  <% end %>
+</td>

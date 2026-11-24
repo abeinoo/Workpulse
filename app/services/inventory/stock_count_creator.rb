@@ -19,6 +19,8 @@ module Inventory
     end
 
     def call
+      return failure(WarehouseReach.message) unless WarehouseReach.permits?(@actor, @warehouse_id) # Phase 2 reach
+
       @count = @actor.business.stock_counts.build(
         warehouse_id: @warehouse_id, counted_on: @counted_on, notes: @notes, created_by: @actor
       )

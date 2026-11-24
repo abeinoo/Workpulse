@@ -99,7 +99,6 @@ export default class extends Controller {
       .replace(/__SKU__/g, this.#escape(product.sku))
       .replace(/__BARCODE__/g, this.#escape(product.barcode || ""))
       .replace(/__BARCODES__/g, this.#escape(allBarcodes.join("|")))
-      .replace(/__MEASURE__/g, this.#escape(product.measure || ""))
     this.#rowsContainer().insertAdjacentHTML("beforeend", html)
     this.#focusRow(this.#rowsContainer().lastElementChild)
     this.#reset()

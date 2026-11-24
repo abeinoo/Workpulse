@@ -5,8 +5,7 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   # (PurchaseRequestItem#received_quantity reads loaded receipt lines) — never
   # one query per line.
   RECEIVING_INCLUDES = [ :warehouse, :responsible_employee,
-                         { items: [ :supplier, :packaging_level, { product: :active_packaging_levels },
-                                    { goods_receipt_items: :goods_receipt } ] } ].freeze
+                         { items: [ :product, :supplier, { goods_receipt_items: :goods_receipt } ] } ].freeze
 
   def index
     authorize GoodsReceipt
@@ -34,8 +33,7 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
                  { purchase_request: [ :supplier, { items: :supplier } ] } ]
     )
     authorize @goods_receipt
-    @items           = @goods_receipt.items.includes(:packaging_level, product: Product::IMAGE_PRELOAD)
-    @packaging_entries = packaging_entries_of(@goods_receipt)
+    @items           = @goods_receipt.items.includes(product: Product::IMAGE_PRELOAD)
     @settlements     = @goods_receipt.financial_settlements.chronological
                                      .includes(:created_by, :custody_transaction, :funding_source,
                                                { reversal: :created_by }, :reverses_settlement).to_a
@@ -226,7 +224,7 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     request_lines = lines.select(&:purchase_request_item_id).reject { |line| line.association(:purchase_request_item).loaded? }
     if request_lines.any?
       ActiveRecord::Associations::Preloader.new(
-        records: request_lines, associations: { purchase_request_item: [ :packaging_level, { goods_receipt_items: :goods_receipt } ] }
+        records: request_lines, associations: { purchase_request_item: { goods_receipt_items: :goods_receipt } }
       ).call
     end
     @product_barcodes = Product.barcode_lookup(lines.map(&:product_id))
@@ -243,8 +241,7 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
   def receipt_params
     params.require(:goods_receipt).permit(
       :warehouse_id, :supplier_id, :received_on, :notes, :funding_source_kind, :purchase_request_id, invoices: [],
-      items_attributes: [ :id, :product_id, :quantity, :unit_cost, :entered_quantity, :packaging_level_id, :entered_unit_cost,
-                          :purchase_request_item_id, :_destroy ]
+      items_attributes: [ :id, :product_id, :quantity, :unit_cost, :purchase_request_item_id, :_destroy ]
     )
   end
 
@@ -282,21 +279,8 @@ class Inventory::GoodsReceiptsController < Inventory::BaseController
     @goods_receipt.warehouse_id     = purchase_request.receiving_warehouse_id
 
     purchase_request.outstanding_items_for_supplier(supplier_id).each do |item|
-      @goods_receipt.items.build(prefilled_line(item))
-    end
-  end
-
-  # A request line ordered in a packaging unit is pre-filled in that unit while
-  # its remaining quantity is a whole number of those packages (2 cartons);
-  # otherwise in the base unit (60 pcs). The user may change unit and amount.
-  def prefilled_line(item)
-    level = item.packaging_level
-    if level && (item.remaining_quantity % level.base_quantity).zero?
-      { product_id: item.product_id, purchase_request_item: item, packaging_level: level,
-        entered_quantity: item.remaining_quantity / level.base_quantity,
-        entered_unit_cost: item.entered_unit_price.presence || (item.unit_price.to_d * level.base_quantity).round(8) }
-    else
-      { product_id: item.product_id, quantity: item.remaining_quantity, unit_cost: item.unit_price, purchase_request_item: item }
+      @goods_receipt.items.build(product_id: item.product_id, quantity: item.remaining_quantity,
+                                 unit_cost: item.unit_price, purchase_request_item: item)
     end
   end
 

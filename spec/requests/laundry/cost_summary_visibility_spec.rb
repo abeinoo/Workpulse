@@ -273,7 +273,7 @@ RSpec.describe "Laundry cost summary — visibility", type: :request do
     end
 
     it "shows a warehouse-A user only A's details, with the aggregate and a withheld notice" do
-      sign_in user_with("view_laundry_cost_reports", "view_inventory", warehouses: [ wh_a ])
+      sign_in user_with("view_laundry_cost_reports", "view_inventory", "view_stock_issues", warehouses: [ wh_a ])
       get_report
 
       expect(response.body).to include(issue_a.issue_number, inventory_stock_issue_path(issue_a), "Alpha Soap",
@@ -282,6 +282,13 @@ RSpec.describe "Laundry cost summary — visibility", type: :request do
                                   quantity: 2)
       expect(response.body).to include("143.00") # aggregate material cost still includes B
       expect(response.body).to include(t_cost("material_details.withheld"))
+    end
+
+    it "shows a view_inventory-only user no stock-issue details (Stock Issue view is its own permission)" do
+      sign_in user_with("view_laundry_cost_reports", "view_inventory")
+      get_report
+
+      expect(response.body).not_to include(inventory_stock_issue_path(issue_a))
     end
 
     it "shows a view_inventory_reports-only user no stock-issue details or links" do
@@ -334,8 +341,8 @@ RSpec.describe "Laundry cost summary — visibility", type: :request do
                                   quantity: 2)
     end
 
-    it "shows an unrestricted view_inventory user every line and no withheld notice" do
-      sign_in user_with("view_laundry_cost_reports", "view_inventory")
+    it "shows an unrestricted view_stock_issues user every line and no withheld notice" do
+      sign_in user_with("view_laundry_cost_reports", "view_inventory", "view_stock_issues")
       get_report
 
       expect(response.body).to include(issue_a.issue_number, issue_b.issue_number, "Alpha Soap", "Bravo Bleach")

@@ -1,0 +1,26 @@
+# Product New / Edit page layout: header, section titles, the summary panel
+# and the action bar. Presentation only.
+ar:
+  inventory:
+    products:
+      layout:
+        products: "المنتجات"
+        edit: "تعديل"
+        back_to_product: "العودة إلى المنتج"
+        back_to_products: "العودة إلى المنتجات"
+        required_hint: "الحقول المعلّمة بـ * مطلوبة."
+        section_basic: "المعلومات الأساسية"
+        section_basic_hint: "اسم المنتج وطريقة تعريفه ووصفه."
+        section_barcodes_hint: "امسح الرمز بالكاميرا أو اكتبه يدويًا، وحدّد رمزًا واحدًا كرمز أساسي."
+        section_pricing: "التسعير"
+        section_additional: "معلومات إضافية"
+        measure_hint: "يصف محتوى الوحدة الواحدة (مثل 355 مل). للعلم فقط: يُحسب المخزون دائمًا بعدد الوحدات."
+        average_cost: "متوسط التكلفة الحالي"
+        suggested_price_hint: "محسوب من متوسط التكلفة الحالي ونسبة الربح."
+        summary_title: "ملخص المنتج"
+        status: "الحالة"
+        size: "الحجم"
+        on_hand: "الكمية المتوفرة (وحدات)"
+        not_tracked: "غير متتبَّع"
+        last_updated: "آخر تحديث"
+        view_product: "عرض المنتج"

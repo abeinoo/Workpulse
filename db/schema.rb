@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -859,6 +859,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     t.decimal "entered_quantity", precision: 12, scale: 3
     t.bigint "packaging_level_id"
     t.decimal "entered_unit_cost", precision: 16, scale: 8
+    t.string "unit_of_measure"
     t.index ["goods_receipt_id"], name: "index_goods_receipt_items_on_goods_receipt_id"
     t.index ["packaging_level_id"], name: "index_goods_receipt_items_on_packaging_level_id"
     t.index ["product_id"], name: "index_goods_receipt_items_on_product_id"
@@ -939,7 +940,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     t.index ["product_id"], name: "index_inventory_average_cost_changes_on_product_id"
     t.index ["source_type", "source_id"], name: "index_inventory_average_cost_changes_on_source"
     t.check_constraint "actor_id IS NOT NULL OR system", name: "inventory_average_cost_changes_actor_or_system"
-    t.check_constraint "trigger::text = ANY (ARRAY['receipt_posted'::character varying, 'opening_balance_posted'::character varying, 'document_voided'::character varying, 'manual_recalculation'::character varying, 'batch_replay'::character varying]::text[])", name: "inventory_average_cost_changes_trigger_check"
+    t.check_constraint "trigger::text = ANY (ARRAY['receipt_posted'::character varying, 'opening_balance_posted'::character varying, 'document_voided'::character varying, 'manual_recalculation'::character varying, 'batch_replay'::character varying, 'unit_conversion'::character varying]::text[])", name: "inventory_average_cost_changes_trigger_check"
   end
 
   create_table "inventory_movements", force: :cascade do |t|
@@ -956,6 +957,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "branch_id"
+    t.string "unit_of_measure"
     t.index ["branch_id", "occurred_on"], name: "index_inventory_movements_on_branch_id_and_occurred_on"
     t.index ["business_id", "occurred_on"], name: "index_inventory_movements_on_business_id_and_occurred_on"
     t.index ["business_id"], name: "index_inventory_movements_on_business_id"
@@ -983,6 +985,66 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     t.index ["source_type", "source_id"], name: "index_inventory_packaging_entries_on_source"
     t.check_constraint "kind::text = ANY (ARRAY['moved'::character varying, 'breakdown'::character varying, 'count_correction'::character varying, 'conversion'::character varying]::text[])", name: "inventory_packaging_entries_kind_check"
     t.check_constraint "package_delta <> 0", name: "inventory_packaging_entries_delta_nonzero"
+  end
+
+  create_table "inventory_unit_conversion_lines", force: :cascade do |t|
+    t.bigint "inventory_unit_conversion_id", null: false
+    t.bigint "warehouse_id", null: false
+    t.decimal "quantity_before", precision: 14, scale: 3, null: false
+    t.decimal "quantity_after", precision: 14, scale: 3, null: false
+    t.jsonb "packages", default: {}, null: false
+    t.bigint "out_movement_id"
+    t.bigint "in_movement_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["in_movement_id"], name: "index_inventory_unit_conversion_lines_on_in_movement_id"
+    t.index ["inventory_unit_conversion_id", "warehouse_id"], name: "index_unit_conversion_lines_on_conversion_and_warehouse", unique: true
+    t.index ["inventory_unit_conversion_id"], name: "idx_on_inventory_unit_conversion_id_d12e5de889"
+    t.index ["out_movement_id"], name: "index_inventory_unit_conversion_lines_on_out_movement_id"
+    t.index ["warehouse_id"], name: "index_inventory_unit_conversion_lines_on_warehouse_id"
+  end
+
+  create_table "inventory_unit_conversions", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "product_id", null: false
+    t.string "conversion_number", null: false
+    t.string "from_unit", null: false
+    t.string "to_unit", null: false
+    t.decimal "factor", precision: 20, scale: 10, null: false
+    t.text "reason", null: false
+    t.string "status", default: "posted", null: false
+    t.decimal "stock_before", precision: 14, scale: 3, default: "0.0", null: false
+    t.decimal "stock_after", precision: 14, scale: 3, default: "0.0", null: false
+    t.decimal "value_before", precision: 16, scale: 4, default: "0.0", null: false
+    t.decimal "value_after", precision: 16, scale: 4, default: "0.0", null: false
+    t.decimal "previous_average_cost", precision: 16, scale: 8, null: false
+    t.decimal "new_average_cost", precision: 16, scale: 8, null: false
+    t.decimal "previous_last_purchase_price", precision: 16, scale: 8
+    t.decimal "new_last_purchase_price", precision: 16, scale: 8
+    t.decimal "previous_measure_amount", precision: 12, scale: 3
+    t.decimal "new_measure_amount", precision: 12, scale: 3
+    t.datetime "previous_unit_converted_at"
+    t.bigint "movements_before_id"
+    t.bigint "movements_after_id"
+    t.jsonb "packaging_snapshot", default: {}, null: false
+    t.jsonb "thresholds_snapshot", default: {}, null: false
+    t.bigint "posted_by_id", null: false
+    t.datetime "posted_at", null: false
+    t.bigint "voided_by_id"
+    t.datetime "voided_at"
+    t.text "void_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "conversion_number"], name: "idx_on_business_id_conversion_number_307901ba45", unique: true
+    t.index ["business_id"], name: "index_inventory_unit_conversions_on_business_id"
+    t.index ["posted_by_id"], name: "index_inventory_unit_conversions_on_posted_by_id"
+    t.index ["product_id"], name: "index_inventory_unit_conversions_on_product_id"
+    t.index ["voided_by_id"], name: "index_inventory_unit_conversions_on_voided_by_id"
+    t.check_constraint "(status::text = 'voided'::text) = (voided_at IS NOT NULL)", name: "inventory_unit_conversions_voided_at"
+    t.check_constraint "factor > 0::numeric", name: "inventory_unit_conversions_factor_positive"
+    t.check_constraint "from_unit::text <> to_unit::text", name: "inventory_unit_conversions_units_differ"
+    t.check_constraint "length(btrim(reason)) > 0", name: "inventory_unit_conversions_reason_present"
+    t.check_constraint "status::text = ANY (ARRAY['posted'::character varying, 'voided'::character varying]::text[])", name: "inventory_unit_conversions_status_check"
   end
 
   create_table "job_titles", force: :cascade do |t|
@@ -1662,6 +1724,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     t.datetime "archived_at"
     t.string "unit_of_measure", default: "pieces", null: false
     t.decimal "measure_amount", precision: 12, scale: 3
+    t.datetime "unit_converted_at"
     t.index "business_id, lower((barcode)::text)", name: "index_products_on_business_id_and_lower_barcode", unique: true, where: "((barcode IS NOT NULL) AND ((barcode)::text <> ''::text))"
     t.index "business_id, lower((sku)::text)", name: "index_products_on_business_id_and_lower_sku", unique: true
     t.index ["brand_id"], name: "index_products_on_brand_id"
@@ -1731,6 +1794,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     t.decimal "entered_quantity", precision: 12, scale: 3
     t.bigint "packaging_level_id"
     t.decimal "entered_unit_price", precision: 16, scale: 8
+    t.string "unit_of_measure"
     t.index ["packaging_level_id"], name: "index_purchase_request_items_on_packaging_level_id"
     t.index ["product_id"], name: "index_purchase_request_items_on_product_id"
     t.index ["purchase_request_id"], name: "index_purchase_request_items_on_purchase_request_id"
@@ -2238,6 +2302,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "packaging_differences"
+    t.string "unit_of_measure"
     t.index ["product_id"], name: "index_stock_adjustment_items_on_product_id"
     t.index ["stock_adjustment_id"], name: "index_stock_adjustment_items_on_stock_adjustment_id"
   end
@@ -2317,7 +2382,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
   create_table "stock_issue_import_batches", force: :cascade do |t|
     t.bigint "business_id", null: false
     t.bigint "warehouse_id", null: false
-    t.bigint "branch_id", null: false
+    t.bigint "branch_id"
     t.bigint "created_by_id"
     t.bigint "stock_issue_id", null: false
     t.string "status", default: "draft", null: false
@@ -2359,6 +2424,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     t.datetime "updated_at", null: false
     t.decimal "entered_quantity", precision: 12, scale: 3
     t.bigint "packaging_level_id"
+    t.string "unit_of_measure"
     t.index ["packaging_level_id"], name: "index_stock_issue_items_on_packaging_level_id"
     t.index ["product_id"], name: "index_stock_issue_items_on_product_id"
     t.index ["stock_issue_id"], name: "index_stock_issue_items_on_stock_issue_id"
@@ -2391,6 +2457,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     t.bigint "cancelled_by_id"
     t.datetime "cancelled_at"
     t.text "cancellation_reason"
+    t.string "workflow", default: "standard", null: false
+    t.string "issue_reason"
+    t.text "issue_reason_note"
+    t.string "warehouse_source", default: "selected", null: false
     t.index ["approved_by_id"], name: "index_stock_issues_on_approved_by_id"
     t.index ["branch_id"], name: "index_stock_issues_on_branch_id"
     t.index ["business_id", "issue_number"], name: "index_stock_issues_on_business_id_and_issue_number", unique: true
@@ -2403,6 +2473,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     t.index ["submitted_by_id"], name: "index_stock_issues_on_submitted_by_id"
     t.index ["voided_by_id"], name: "index_stock_issues_on_voided_by_id"
     t.index ["warehouse_id"], name: "index_stock_issues_on_warehouse_id"
+    t.check_constraint "issue_reason IS NULL OR (issue_reason::text = ANY (ARRAY['internal_use'::character varying, 'damaged'::character varying, 'expired'::character varying, 'lost'::character varying, 'other'::character varying]::text[]))", name: "stock_issues_issue_reason_check"
+    t.check_constraint "issue_reason::text IS DISTINCT FROM 'other'::text OR btrim(COALESCE(issue_reason_note, ''::text)) <> ''::text", name: "stock_issues_other_reason_note_required"
+    t.check_constraint "warehouse_source::text = ANY (ARRAY['selected'::character varying, 'branch_warehouse'::character varying]::text[])", name: "stock_issues_warehouse_source_check"
+    t.check_constraint "workflow::text <> 'quick_issue'::text OR issue_reason IS NOT NULL", name: "stock_issues_quick_issue_reason_required"
+    t.check_constraint "workflow::text = ANY (ARRAY['standard'::character varying, 'quick_issue'::character varying]::text[])", name: "stock_issues_workflow_check"
   end
 
   create_table "stock_transfer_items", force: :cascade do |t|
@@ -2415,6 +2490,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     t.datetime "updated_at", null: false
     t.decimal "entered_quantity", precision: 12, scale: 3
     t.bigint "packaging_level_id"
+    t.string "unit_of_measure"
     t.index ["packaging_level_id"], name: "index_stock_transfer_items_on_packaging_level_id"
     t.index ["product_id"], name: "index_stock_transfer_items_on_product_id"
     t.index ["stock_transfer_id"], name: "index_stock_transfer_items_on_stock_transfer_id"
@@ -2921,6 +2997,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
   add_foreign_key "inventory_packaging_entries", "product_packaging_levels", column: ["packaging_level_id", "product_id"], primary_key: ["id", "product_id"], name: "fk_inventory_packaging_entries_level_same_product"
   add_foreign_key "inventory_packaging_entries", "products"
   add_foreign_key "inventory_packaging_entries", "warehouses"
+  add_foreign_key "inventory_unit_conversion_lines", "inventory_movements", column: "in_movement_id"
+  add_foreign_key "inventory_unit_conversion_lines", "inventory_movements", column: "out_movement_id"
+  add_foreign_key "inventory_unit_conversion_lines", "inventory_unit_conversions"
+  add_foreign_key "inventory_unit_conversion_lines", "warehouses"
+  add_foreign_key "inventory_unit_conversions", "businesses"
+  add_foreign_key "inventory_unit_conversions", "products"
+  add_foreign_key "inventory_unit_conversions", "users", column: "posted_by_id"
+  add_foreign_key "inventory_unit_conversions", "users", column: "voided_by_id"
   add_foreign_key "job_titles", "businesses"
   add_foreign_key "laundry_batch_consumptions", "branches", column: "laundry_branch_id"
   add_foreign_key "laundry_batch_consumptions", "inventory_movements"
@@ -3240,36 +3324,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     $function$
   SQL
   execute <<~'SQL'
-    CREATE OR REPLACE FUNCTION public.inventory_check_packaging_structure(p_product_id bigint)
-     RETURNS void
-     LANGUAGE plpgsql
-    AS $function$
-    DECLARE
-      level_count integer;
-      max_position integer;
-      inner_content numeric;
-      amount numeric;
-    BEGIN
-      SELECT count(*), max(position) INTO level_count, max_position
-        FROM product_packaging_levels WHERE product_id = p_product_id AND status = 'active';
-      IF level_count = 0 THEN
-        RETURN;
-      END IF;
-      IF max_position <> level_count THEN
-        RAISE EXCEPTION 'packaging levels of product % must be contiguous from 1', p_product_id
-          USING ERRCODE = 'check_violation', CONSTRAINT = 'product_packaging_levels_contiguous';
-      END IF;
-      SELECT contains_quantity INTO inner_content
-        FROM product_packaging_levels WHERE product_id = p_product_id AND status = 'active' AND position = 1;
-      SELECT measure_amount INTO amount FROM products WHERE id = p_product_id;
-      IF amount IS NULL OR amount <> inner_content THEN
-        RAISE EXCEPTION 'measure_amount of product % must equal its innermost packaging content', p_product_id
-          USING ERRCODE = 'check_violation', CONSTRAINT = 'products_measure_amount_matches_innermost_level';
-      END IF;
-    END
-    $function$
-  SQL
-  execute <<~'SQL'
     CREATE OR REPLACE FUNCTION public.inventory_packaging_entries_append_only()
      RETURNS trigger
      LANGUAGE plpgsql
@@ -3310,17 +3364,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     $function$
   SQL
   execute <<~'SQL'
-    CREATE OR REPLACE FUNCTION public.product_packaging_levels_check_structure()
-     RETURNS trigger
-     LANGUAGE plpgsql
-    AS $function$
-    BEGIN
-      PERFORM inventory_check_packaging_structure(NEW.product_id);
-      RETURN NULL;
-    END
-    $function$
-  SQL
-  execute <<~'SQL'
     CREATE OR REPLACE FUNCTION public.product_packaging_levels_immutable()
      RETURNS trigger
      LANGUAGE plpgsql
@@ -3337,19 +3380,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
           USING ERRCODE = 'check_violation', CONSTRAINT = 'product_packaging_levels_immutable';
       END IF;
       RETURN NEW;
-    END
-    $function$
-  SQL
-  execute <<~'SQL'
-    CREATE OR REPLACE FUNCTION public.products_check_packaging_structure()
-     RETURNS trigger
-     LANGUAGE plpgsql
-    AS $function$
-    BEGIN
-      IF NEW.measure_amount IS DISTINCT FROM OLD.measure_amount THEN
-        PERFORM inventory_check_packaging_structure(NEW.id);
-      END IF;
-      RETURN NULL;
     END
     $function$
   SQL
@@ -3372,12 +3402,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_092000) do
     CREATE TRIGGER pending_audit_events_guard BEFORE DELETE OR UPDATE ON public.pending_audit_events FOR EACH ROW EXECUTE FUNCTION pending_audit_events_guard();
   SQL
   execute <<~'SQL'
-    CREATE CONSTRAINT TRIGGER product_packaging_levels_check_structure AFTER INSERT OR UPDATE ON public.product_packaging_levels DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION product_packaging_levels_check_structure();
-  SQL
-  execute <<~'SQL'
     CREATE TRIGGER product_packaging_levels_immutable BEFORE UPDATE ON public.product_packaging_levels FOR EACH ROW EXECUTE FUNCTION product_packaging_levels_immutable();
-  SQL
-  execute <<~'SQL'
-    CREATE CONSTRAINT TRIGGER products_check_packaging_structure AFTER UPDATE OF measure_amount ON public.products DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION products_check_packaging_structure();
   SQL
 end

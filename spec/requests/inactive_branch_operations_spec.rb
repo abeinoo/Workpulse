@@ -1,8 +1,10 @@
 require "rails_helper"
 
 # BUG-029 — crafted requests naming an inactive branch (the pickers list active
-# branches only) are refused by every laundry / stock-issue entry point, write
-# nothing, and history at the inactive branch stays readable.
+# branches only) are refused by every laundry entry point, write nothing, and
+# history at the inactive branch stays readable. Stock Issues no longer take a
+# branch (warehouse-based authorization, Nov 24 2026): a submitted branch is
+# ignored and the WAREHOUSE's status decides.
 RSpec.describe "New operations at an inactive branch (BUG-029)", type: :request do
   let(:business)   { create(:business) }
   let!(:owner)     { create(:user, :owner, business: business) }
@@ -66,8 +68,8 @@ RSpec.describe "New operations at an inactive branch (BUG-029)", type: :request 
     end
   end
 
-  describe "stock issues" do
-    it "refuses a manual stock issue at an inactive branch" do
+  describe "stock issues (warehouse-based: the branch is not an input)" do
+    it "ignores a submitted inactive branch — the issue is made for the selected warehouse" do
       deactivate(sales)
 
       expect {
@@ -75,31 +77,44 @@ RSpec.describe "New operations at an inactive branch (BUG-029)", type: :request 
           warehouse_id: warehouse.id, branch_id: sales.id, issued_on: Date.current.to_s,
           items_attributes: { "0" => { product_id: product.id, quantity: 1 } }
         } }
+      }.to change(StockIssue, :count).by(1)
+      expect(StockIssue.last).to have_attributes(warehouse_id: warehouse.id, branch_id: nil)
+    end
+
+    it "refuses a manual stock issue from an inactive warehouse" do
+      warehouse.update_column(:status, "inactive")
+
+      expect {
+        post inventory_stock_issues_path, params: { stock_issue: {
+          warehouse_id: warehouse.id, issued_on: Date.current.to_s,
+          items_attributes: { "0" => { product_id: product.id, quantity: 1 } }
+        } }
       }.not_to change(StockIssue, :count)
       expect(response).to have_http_status(:unprocessable_content)
     end
 
-    describe "CSV import" do
+    describe "CSV import from an inactive warehouse" do
       def upload(path)
         file = Rack::Test::UploadedFile.new(StringIO.new("SKU,Quantity\n#{product.sku},1\n"), "text/csv",
                                             original_filename: "issue.csv")
-        post path, params: { file: file, warehouse_id: warehouse.id, branch_id: sales.id }
+        post path, params: { file: file, warehouse_id: warehouse.id }
       end
 
-      before { deactivate(sales) }
+      before { warehouse.update_column(:status, "inactive") }
 
-      it "refuses the preview for an inactive branch" do
+      it "refuses the preview" do
         upload(preview_import_inventory_stock_issues_path)
 
         expect(response).to redirect_to(import_inventory_stock_issues_path)
-        expect(flash[:alert]).to eq(I18n.t("inventory.imports.branch_inactive"))
+        # "not allowed", or "none accessible" when it was the business's only warehouse
+        expect(flash[:alert]).to be_in([ I18n.t("inventory.issue_warehouse.errors.not_allowed"),
+                                         I18n.t("inventory.issue_warehouse.errors.none_accessible") ])
       end
 
-      it "refuses the import for an inactive branch, writing nothing" do
+      it "refuses the import, writing nothing" do
         expect { upload(run_import_inventory_stock_issues_path) }
           .not_to change { [ StockIssue.count, StockIssueImportBatch.count ] }
         expect(response).to redirect_to(import_inventory_stock_issues_path)
-        expect(flash[:alert]).to eq(I18n.t("inventory.imports.branch_inactive"))
       end
     end
   end

@@ -19,6 +19,9 @@ module Inventory
 
     def call
       @receipt = GoodsReceipt.where(business_id: @actor.business_id).find(@goods_receipt_id)
+      unless WarehouseReach.permits?(@actor, @receipt.warehouse_id) # service-level reach (Phase 2)
+        return Result.new(ok: false, receipt: @receipt, error: WarehouseReach.message)
+      end
 
       @receipt.with_lock do
         return already_processed_error if @receipt.voided?

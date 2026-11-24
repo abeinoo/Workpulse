@@ -101,129 +101,29 @@ module InventoryHelper
   # Inventory quantities exactly as stored (4.004 stays 4.004; 7.000 shows 7).
   def inventory_quantity(value) = Inventory::QuantityFormat.plain(value)
 
-  # ── Measure (Product#unit_of_measure) ─────────────────────────────────────
+  # ── Measure (Product#unit_of_measure) — informational only ──────────────
+  # It describes the contents of one inventory unit; it is never shown as the
+  # unit of an inventory quantity (those are plain numbers of units).
   # "Millilitres (ml)" — the dropdown label.
   def measure_name(code) = t("inventory.measures.#{code.presence || Product::DEFAULT_UNIT_OF_MEASURE}.name")
-  # "ml" / "مل" — shown beside a quantity.
+  # "ml" / "مل" — beside the product's Amount.
   def measure_short(product_or_code)
     code = product_or_code.respond_to?(:unit_of_measure) ? product_or_code.unit_of_measure : product_or_code
     t("inventory.measures.#{code.presence || Product::DEFAULT_UNIT_OF_MEASURE}.short")
   end
 
-  def measure_options = Product::UNITS_OF_MEASURE.map { |code| [ measure_name(code), code ] }
+  # The short label rides along for the form's Amount suffix (product_measure_controller.js).
+  def measure_options = Product::UNITS_OF_MEASURE.map { |code| [ measure_name(code), code, { "data-short" => measure_short(code) } ] }
 
-  # The product's size / packaging: Amount + Measure ("355 ml", "0.5 kg"), or
-  # nil without an amount.
+  # The contents of one unit: Amount + Measure ("355 ml", "0.5 kg"), or nil
+  # without an amount.
   def product_measurement(product)
     return nil if product&.measure_amount.blank?
 
     "#{inventory_quantity(product.measure_amount)} #{measure_short(product)}"
   end
 
-  # A displayed quantity followed by its product's measure: "250 ml".
-  def with_measure(quantity, product)
-    return quantity if product.nil?
-
-    safe_join([ quantity, " ", content_tag(:span, measure_short(product), class: "qty-unit") ])
-  end
-
-  # The measure beside a quantity INPUT; updated in the browser when the line's
-  # product changes (data-measure-label, application.js).
-  def measure_label_tag(product)
-    content_tag(:span, product ? measure_short(product) : "", class: "qty-unit", data: { measure_label: true })
-  end
   def inventory_signed_quantity(value) = Inventory::QuantityFormat.signed(value)
-
-  # ── Packaging (ProductPackagingLevel; docs/inventory/multi_unit_nested_packaging_design.md) ──
-
-  # The units a document line can be entered in: the base unit, then every
-  # active packaging level innermost first —
-  #   [{ id: nil, label: "pcs", base: "1" }, { id: 7, label: "Box (10 pcs)", unit: "box", base: "10" }, …]
-  # Read by the line unit selector (packaging_unit_controller.js).
-  # preloaded_only: long option lists never query per product — a product
-  # whose levels weren't preloaded simply offers its base unit there.
-  def packaging_units(product, preloaded_only: false)
-    return [] if product.nil?
-
-    loaded = product.association(:active_packaging_levels).loaded?
-    return [ { id: nil, label: measure_short(product), base: "1" } ] if preloaded_only && !loaded
-
-    levels = loaded ? product.active_packaging_levels : product.active_packaging_levels.to_a
-    [ { id: nil, label: measure_short(product), base: "1" } ] + levels.map do |level|
-      { id: level.id, unit: level.package_unit, base: inventory_quantity(level.base_quantity),
-        label: "#{t("inventory.packaging.units.#{level.package_unit}.name")} (#{inventory_quantity(level.base_quantity)} #{measure_short(product)})" }
-    end
-  end
-
-  # nil for a product without packaging (no selector needed).
-  def packaging_units_json(product, preloaded_only: false)
-    units = packaging_units(product, preloaded_only: preloaded_only)
-    units.size > 1 ? units.to_json : nil
-  end
-
-  # A purchase request line's quantity (ordered / received / remaining) in its
-  # purchase unit: "0.5 carton" with the base equivalent beside it
-  # ("60 pcs"); "0.941 carton" for 113 of 120 pcs (truncated, never
-  # overstated). Base-unit lines: "60 pcs".
-  def purchase_unit_quantity(line, base_quantity)
-    product = line.product
-    base    = with_measure(inventory_quantity(base_quantity), product)
-    level   = line.packaging_level
-    return base if level.nil?
-
-    amount = Inventory::Packaging::Format.in_purchase_unit(base_quantity, level)
-    safe_join([ Inventory::Packaging::Format.packages(level.package_unit, amount), " ",
-                content_tag(:span, base, class: "td-secondary qty-base-equivalent") ])
-  end
-
-  # "3 boxes (30 pcs)" for a package line, "30 pcs" for a base line.
-  def packaged_line_quantity(item)
-    product = item.product
-    return with_measure(inventory_quantity(item.quantity), product) if product.nil? || item.packaging_level.nil?
-
-    Inventory::Packaging::Format.line(product, quantity: item.quantity, entered_quantity: item.entered_quantity, level: item.packaging_level)
-  end
-
-  # A stocktake packaging difference ({ level id => Δ packages }) as text:
-  # "−1 bottle · +11 boxes". Nil when there is none.
-  def packaging_differences_text(product, differences)
-    return nil if differences.blank?
-
-    levels = product.packaging_levels.index_by(&:id)
-    differences.filter_map do |level_id, delta|
-      level = levels[level_id.to_i]
-      next unless level
-
-      sign = delta.to_i.positive? ? "+" : "−"
-      "#{sign}#{Inventory::Packaging::Format.packages(level.package_unit, delta.to_i.abs)}"
-    end.join(" · ").presence
-  end
-
-  # A posting preview line ("opens 1 carton · takes 3 boxes sealed"), or its
-  # refusal message.
-  def packaging_preview_text(item, preview)
-    return preview.error if preview.error
-
-    structure = Inventory::Packaging::Structure.for(item.product)
-    Inventory::Packaging::Format.steps(Inventory::Packaging::IssuePreview.step_data(preview, structure)) ||
-      t("inventory.packaging.preview_none")
-  end
-
-  # Recorded packaging entries of a document, per warehouse and product:
-  # [[warehouse, product, "opens 1 carton · takes 3 boxes sealed"], …].
-  def packaging_effect_rows(entries)
-    entries.group_by { |e| [ e.warehouse, e.product ] }.filter_map do |(warehouse, product), list|
-      text = Inventory::Packaging::Format.steps(list.map { |e| [ e.kind, e.packaging_level.package_unit, e.package_delta ] })
-      [ warehouse, product, text ] if text
-    end
-  end
-
-  # A product's packaging in one warehouse: "1 carton · 2 boxes · 5 pcs (145 pcs)".
-  def packaging_balance_text(product, balance)
-    return nil if balance.nil?
-
-    Inventory::Packaging::Format.balance(product, balance)
-  end
 
   # Unit cost for display (Decisions 11, 18): up to 8 dp, trailing zeros and
   # point removed, never scientific — 25.00000000 → "25", 0.70400000 → "0.704".
@@ -278,6 +178,7 @@ module InventoryHelper
     created: "activity-timeline__marker--neutral", submitted: "activity-timeline__marker--warning",
     reopened: "activity-timeline__marker--neutral",
     approved: "activity-timeline__marker--success", rejected: "activity-timeline__marker--danger",
+    quick_issue_approved: "activity-timeline__marker--warning",
     settled: "activity-timeline__marker--accent", received: "activity-timeline__marker--success",
     voided: "activity-timeline__marker--danger", settlement_reversed: "activity-timeline__marker--warning"
   }.freeze
@@ -428,6 +329,15 @@ module InventoryHelper
     STOCK_ISSUE_TIMELINE_MARKER_CLASSES.fetch(type, "activity-timeline__marker--neutral")
   end
 
+  # A Quick Issue's fixed reason (and the description of "other"), for the
+  # issue page, its timeline and the reports. nil when no reason was recorded.
+  def stock_issue_reason_text(issue)
+    return nil if issue.issue_reason.blank?
+
+    label = t("inventory.stock_issues.reasons.#{issue.issue_reason}")
+    issue.issue_reason_note.present? ? "#{label} — #{issue.issue_reason_note}" : label
+  end
+
   STOCK_ISSUE_TIMELINE_ICONS = {
     created:   "M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
     submitted: "M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5",
@@ -440,6 +350,9 @@ module InventoryHelper
   # issued_legacy reuses the exact same icon as issued (see #stock_issue_timeline_icon) —
   # only the label differs (see the timeline.issued_legacy locale key).
   STOCK_ISSUE_TIMELINE_ICONS[:issued_legacy] = STOCK_ISSUE_TIMELINE_ICONS[:issued]
+  # A quick-issue self-approval keeps the approval tick; the warning marker
+  # and its own label set it apart from an independent approval.
+  STOCK_ISSUE_TIMELINE_ICONS[:quick_issue_approved] = STOCK_ISSUE_TIMELINE_ICONS[:approved]
   # Pencil — returned to draft for editing.
   STOCK_ISSUE_TIMELINE_ICONS[:approval_revoked] = STOCK_ISSUE_TIMELINE_ICONS[:rejected]
   STOCK_ISSUE_TIMELINE_ICONS[:reopened] = "m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"
@@ -476,9 +389,7 @@ module InventoryHelper
           "data-barcode"             => barcode,
           "data-barcodes"            => all.join("|"),
           "data-sku"                 => p.sku,
-          "data-measure"             => measure_short(p),
-          "data-default-supplier-id" => p.default_supplier_id,
-          "data-units"               => packaging_units_json(p, preloaded_only: true)
+          "data-default-supplier-id" => p.default_supplier_id
         } ]
       }
     )
@@ -512,9 +423,7 @@ module InventoryHelper
           "data-barcode"             => all_barcodes.first,
           "data-barcodes"            => all_barcodes.join("|"),
           "data-sku"                 => p.sku,
-          "data-measure"             => measure_short(p),
-          "data-default-supplier-id" => p.default_supplier_id,
-          "data-units"               => packaging_units_json(p, preloaded_only: true)
+          "data-default-supplier-id" => p.default_supplier_id
         } ]
       },
       selected_id

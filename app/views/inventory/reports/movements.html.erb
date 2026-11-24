@@ -51,12 +51,17 @@
                 </span>
                 <span class="td-secondary"><%= inventory_movement_reason_label(row.reason, source: row.source) %></span>
               </td>
-              <td style="text-align: end;"><%= row.in_quantity.positive? ? "+#{row.in_quantity.to_i}" : "—" %></td>
-              <td style="text-align: end;"><%= row.out_quantity.positive? ? "-#{row.out_quantity.to_i}" : "—" %></td>
+              <td style="text-align: end;" data-testid="movement-in"><%= row.in_quantity.positive? ? "+#{row.in_quantity.to_i}" : "—" %></td>
+              <td style="text-align: end;" data-testid="movement-out"><%= row.out_quantity.positive? ? "-#{row.out_quantity.to_i}" : "—" %></td>
               <td style="text-align: end; font-weight: 600;"><%= row.balance_after.to_i %></td>
               <td style="text-align: end;"><%= format_currency(row.unit_cost) %></td>
               <td style="text-align: end;"><%= format_currency(row.total_value) %></td>
-              <td><%= inventory_source_document_link(row.source, row.document_number) %></td>
+              <td>
+                <%= inventory_source_document_link(row.source, row.document_number) %>
+                <% if row.source.is_a?(StockIssue) && row.source.issue_reason.present? %>
+                  <div class="td-secondary" style="font-size: var(--text-xs);" data-testid="movement-issue-reason"><%= stock_issue_reason_text(row.source) %></div>
+                <% end %>
+              </td>
             </tr>
           <% end %>
         </tbody>

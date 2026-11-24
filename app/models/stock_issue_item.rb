@@ -1,6 +1,4 @@
 class StockIssueItem < ApplicationRecord
-  include PackagedLine
-
   # touch: any line write (form, import resolver, poster) advances the parent's
   # updated_at — the edit form's lock_token (StockIssue#lock_token) — so a
   # stale form is detected even when only lines changed.

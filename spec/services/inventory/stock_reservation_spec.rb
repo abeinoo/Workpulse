@@ -6,8 +6,10 @@ require "rails_helper"
 # warehouse.
 RSpec.describe "Stock issue reservations", type: :model do
   let(:business)  { create(:business) }
-  let(:requester) { create(:user, business: business) }
-  let(:approver)  { create(:user, business: business) }
+  # Each service checks its own operation permission (and the creator's
+  # consuming branch).
+  let(:requester) { stock_issue_user(business, :create_stock_issues, :cancel_stock_issues) }
+  let(:approver)  { stock_issue_user(business, :approve_stock_issues, :confirm_stock_issues, :void_stock_issues) }
   let(:warehouse) { business.warehouses.create!(name: "Main") }
   let(:branch)    { business.branches.create!(name: "Nasr City", active: true) }
   let(:sugar)     { business.products.create!(name: "Sugar", sku: "SUG-1", initial_cost_price: 10, average_cost_price: 10) }
@@ -99,7 +101,7 @@ RSpec.describe "Stock issue reservations", type: :model do
 
       result = approve(issue)
       expect(result).not_to be_ok
-      expect(result.error).to include("Not enough stock for Shampoo (SH-1): 0 available, 1 requested")
+      expect(result.error).to include("Not enough stock for Shampoo (SH-1) in Main: 0 available, 1 requested")
       expect(issue.reload).to be_pending_approval
       expect(reserved).to eq(0)
     end
@@ -322,6 +324,7 @@ RSpec.describe "Stock issue reservations", type: :model do
       Warehouse.where(business: business).delete_all
       Branch.where(business: business).delete_all
       User.where(business: business).delete_all
+      PermissionRole.where(business: business).delete_all # the roles stock_issue_user created
       Business.where(id: business.id).delete_all
     end
 

@@ -2,9 +2,10 @@ require "rails_helper"
 
 RSpec.describe Inventory::Imports::StockIssueImporter do
   let(:business)   { create(:business) }
-  let(:warehouse)  { business.warehouses.create!(name: "Main") }
+  let(:warehouse)  { branch_warehouse_for(branch, name: "Main") } # the branch's own warehouse
   let(:branch)     { business.branches.create!(name: "Main Branch", active: true) }
-  let(:user)       { create(:user, business: business) }
+  # Importing is create_stock_issues, into a warehouse the importer may use.
+  let(:user)       { stock_issue_user(business, :create_stock_issues) }
 
   def csv_for(sku, qty = 5)
     "SKU,Quantity\n#{sku},#{qty}\n"
@@ -14,7 +15,7 @@ RSpec.describe Inventory::Imports::StockIssueImporter do
   # auto-suggestion exactly as the controller does for a standard template.
   def importer(csv_data)
     mapper = Inventory::Imports::CsvColumnMapper.new(csv_data, fields: described_class::COLUMNS)
-    described_class.new(business, mapper.rows(mapper.suggested_mapping), warehouse: warehouse, branch: branch, user: user)
+    described_class.new(business, mapper.rows(mapper.suggested_mapping), warehouse: warehouse, user: user)
   end
 
   def receive(product, qty:)
@@ -97,7 +98,7 @@ RSpec.describe Inventory::Imports::StockIssueImporter do
 
     it "refuses to run without an importing user" do
       mapper = Inventory::Imports::CsvColumnMapper.new(csv_for(product.sku), fields: described_class::COLUMNS)
-      bare = described_class.new(business, mapper.rows(mapper.suggested_mapping), warehouse: warehouse, branch: branch)
+      bare = described_class.new(business, mapper.rows(mapper.suggested_mapping), warehouse: warehouse)
 
       expect { bare.call }.to raise_error(ArgumentError)
       expect(StockIssue.count).to eq(0)
@@ -121,7 +122,7 @@ RSpec.describe Inventory::Imports::StockIssueImporter do
     def importer_with_notes(csv_data, notes)
       mapper = Inventory::Imports::CsvColumnMapper.new(csv_data, fields: described_class::COLUMNS)
       described_class.new(business, mapper.rows(mapper.suggested_mapping),
-                          warehouse: warehouse, branch: branch, user: user, notes: notes)
+                          warehouse: warehouse, user: user, notes: notes)
     end
 
     it "has only SKU and Quantity as file columns — no Notes column" do
