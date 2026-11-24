@@ -1,0 +1,40 @@
+# Product Show page layout: section titles and the read-only photo gallery.
+# Presentation only.
+en:
+  inventory:
+    products:
+      show_layout:
+        section_details: "Product Details"
+        group_inventory: "Inventory"
+        group_purchasing: "Purchasing & Consumption"
+        group_activity: "Inventory Activity"
+        no_photos: "No photos for this product yet."
+        add_photos_in_edit: "Add photos"
+        thumbs_label: "Product photos"
+        photo_alt: "%{name} — photo %{index} of %{count}"
+        photo_position: "%{index} of %{count}"
+        show_photo: "Show photo %{index} of %{count}"
+        enlarge: "View larger"
+        image_unavailable: "Image unavailable"
+        previous: "Previous"
+        next: "Next"
+        previous_photo: "Previous photo"
+        next_photo: "Next photo"
+        close: "Close"
+        transfers:
+          title: "Branch Transfers"
+          hint: "Stock transfers that moved this product between warehouses. A transfer posts when it is created; voiding it returns the stock to the source warehouse."
+          empty: "This product has not been transferred between warehouses yet."
+          total: "Total transfers"
+          from: "From"
+          to: "To"
+          direction: "Direction"
+          created_by: "Created by"
+          directions:
+            outgoing: "Outgoing"
+            incoming: "Incoming"
+            internal: "Between your warehouses"
+          stock_effects:
+            posted: "Moved between warehouses"
+            reversed: "Reversed (voided)"
+          showing_latest: "Showing the latest %{shown} of %{total} transfers."

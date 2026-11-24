@@ -1,0 +1,119 @@
+<%#
+  Product Show page: stock transfers carrying this product (Inventory::
+  ProductRecentDocuments#stock_transfers / #stock_transfer_summary). Read-only.
+  Rows and counts come from the same policy-scoped relation: a transfer is
+  listed when the viewer reaches either of its warehouses, exactly as on the
+  Stock Transfers pages; the branch of an end the viewer does not reach is
+  never shown (Row#transfer_end_reachable?). A transfer posts when created and can only be voided
+  (its movements reversed), so Posted and Voided are its only states.
+
+  locals: rows (ProductRecentDocuments::Row), summary (ProductRecentDocuments::TransferSummary)
+%>
+<% tk = "inventory.products.show_layout.transfers" %>
+<% show_direction = rows.any?(&:direction) %>
+<section id="recent-stock-transfers" aria-labelledby="recent-stock-transfers-title" data-testid="product-stock-transfers">
+  <h2 class="section-title" id="recent-stock-transfers-title"><%= t("#{tk}.title") %></h2>
+  <p class="form-hint"><%= t("#{tk}.hint") %></p>
+
+  <div class="pshow-stats pshow-stats--three" data-testid="stock-transfer-summary">
+    <div class="stat-card">
+      <span class="stat-card__label"><%= t("#{tk}.total") %></span>
+      <span class="stat-card__value" data-testid="stock-transfer-total"><%= summary.total %></span>
+    </div>
+    <div class="stat-card stat-card--success">
+      <span class="stat-card__label"><%= t("inventory.stock_transfers.status_posted") %></span>
+      <span class="stat-card__value" data-testid="stock-transfer-posted"><%= summary.posted %></span>
+    </div>
+    <div class="stat-card <%= 'stat-card--danger' if summary.voided.positive? %>">
+      <span class="stat-card__label"><%= t("inventory.void.status_voided") %></span>
+      <span class="stat-card__value" data-testid="stock-transfer-voided"><%= summary.voided %></span>
+    </div>
+  </div>
+
+  <% if rows.empty? %>
+    <div class="empty-state empty-state--compact"><p class="empty-state__text"><%= t("#{tk}.empty") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table class="ptransfers-table">
+        <thead><tr>
+          <th><%= t("inventory.stock_transfers.number") %></th>
+          <th><%= t("inventory.stock_transfers.date") %></th>
+          <th><%= t("#{tk}.from") %></th>
+          <th><%= t("#{tk}.to") %></th>
+          <% if show_direction %><th><%= t("#{tk}.direction") %></th><% end %>
+          <th style="text-align: end;"><%= t("inventory.products.recent_documents.quantity") %></th>
+          <th><%= t("#{tk}.created_by") %></th>
+          <th><%= t("inventory.products.recent_documents.status") %></th>
+        </tr></thead>
+        <tbody>
+          <% rows.each do |row| %>
+            <% transfer = row.document %>
+            <tr data-recent-document="<%= transfer.transfer_number %>">
+              <td>
+                <%= link_to transfer.transfer_number, inventory_stock_transfer_path(transfer),
+                      class: "link", style: "font-weight: 700; display: inline-block; padding: var(--space-1) 0; white-space: nowrap;" %>
+              </td>
+              <td class="td-secondary"><%= local_date(transfer.transferred_on) %></td>
+              <% [ [ transfer.source_warehouse, :from, :source ], [ transfer.destination_warehouse, :to, :destination ] ].each do |warehouse, side, transfer_end| %>
+                <td style="overflow-wrap: anywhere;">
+                  <div class="ptransfers-end ptransfers-end--<%= side %>">
+                    <span class="ptransfers-end__mark" aria-hidden="true">
+                      <% if side == :from %>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                      <% else %>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+                      <% end %>
+                    </span>
+                    <span class="ptransfers-end__text">
+                      <span class="ptransfers-end__warehouse"><bdi><%= warehouse.name %></bdi></span>
+                      <%# The branch (or Central badge) only for an end the viewer reaches. %>
+                      <% if row.transfer_end_reachable?(transfer_end) %>
+                        <span class="td-secondary ptransfers-end__branch" data-testid="transfer-<%= transfer_end %>-branch">
+                          <% if warehouse.owning_branch %>
+                            <bdi><%= warehouse_branch_label(warehouse) %></bdi>
+                          <% else %>
+                            <%= warehouse_kind_badge(warehouse) %>
+                          <% end %>
+                        </span>
+                      <% end %>
+                    </span>
+                  </div>
+                </td>
+              <% end %>
+              <% if show_direction %>
+                <td>
+                  <% if row.direction %>
+                    <span class="badge <%= { outgoing: 'badge-neutral', incoming: 'badge-success', internal: 'badge-accent' }.fetch(row.direction) %>">
+                      <%= t("#{tk}.directions.#{row.direction}") %>
+                    </span>
+                  <% end %>
+                </td>
+              <% end %>
+              <td style="text-align: end;">
+                <div class="recent-document-quantity" data-stock-effect="<%= row.stock_effect %>">
+                  <% if row.reversed? %>
+                    <s style="color: var(--text-2);"><%= inventory_quantity(row.quantity) %></s>
+                  <% else %>
+                    <span style="font-weight: 700;"><%= inventory_quantity(row.quantity) %></span>
+                  <% end %>
+                  <div class="td-secondary" style="font-size: var(--text-xs);"><%= t("#{tk}.stock_effects.#{row.stock_effect}") %></div>
+                </div>
+              </td>
+              <td class="td-secondary" style="overflow-wrap: anywhere;"><%= transfer.created_by&.full_name || "—" %></td>
+              <td>
+                <span class="badge <%= transfer.voided? ? 'badge-danger' : 'badge-success' %>">
+                  <%= transfer.voided? ? t("inventory.void.status_voided") : t("inventory.stock_transfers.status_posted") %>
+                </span>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <% if summary.total > rows.size %>
+      <p class="form-hint ptransfers-more" data-testid="stock-transfer-more">
+        <%= t("#{tk}.showing_latest", shown: rows.size, total: summary.total) %>
+      </p>
+    <% end %>
+  <% end %>
+</section>

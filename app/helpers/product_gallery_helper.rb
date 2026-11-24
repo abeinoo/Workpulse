@@ -23,6 +23,20 @@ module ProductGalleryHelper
     end
   end
 
+  # The Product Show page's read-only gallery (_show_gallery.html.erb): the
+  # product's saved images in their order (the first is the primary image),
+  # read from the already-loaded association — preload
+  # `images: { file_attachment: :blob }`. An image without a usable file is
+  # left out rather than shown broken.
+  def product_show_gallery_items(product)
+    product.images.filter_map do |image|
+      next unless image.file.attached?
+
+      item = gallery_item_for_image(image)
+      item if item.main_url && item.thumb_url
+    end
+  end
+
   private
 
   def gallery_item_for_image(image)

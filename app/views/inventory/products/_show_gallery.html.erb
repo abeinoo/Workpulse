@@ -1,0 +1,96 @@
+<%#
+  Product Show page: the product's photos, read-only. The same images, order
+  and variants as the New / Edit gallery (ProductGalleryHelper, ProductImage
+  positions — the first is the primary image); nothing here uploads, reorders
+  or removes. Picking a thumbnail shows it as the main image; the main image
+  opens a full-screen viewer (native <dialog>, the ID photo viewer's
+  convention). product_photo_viewer_controller.js.
+
+  locals: product, items (ProductGalleryHelper::GalleryItem, in order), edit_path (nil: no edit link)
+%>
+<% g  = "inventory.products.gallery" %>
+<% sl = "inventory.products.show_layout" %>
+<% count = items.size %>
+<% alt_for = ->(index) { count > 1 ? t("#{sl}.photo_alt", name: product.name, index: index + 1, count: count) : product.name } %>
+<section class="pgallery pgallery--view" aria-labelledby="pshow-gallery-title" data-testid="product-show-gallery"
+         data-controller="product-photo-viewer"
+         data-product-photo-viewer-photos-value="<%= items.each_with_index.map { |item, i| { url: item.main_url, alt: alt_for.call(i) } }.to_json %>"
+         data-product-photo-viewer-position-value="<%= t("#{sl}.photo_position", index: "%{index}", count: "%{count}") %>">
+  <div class="pgallery__head">
+    <h2 class="section-title" id="pshow-gallery-title"><%= t("#{g}.title") %></h2>
+    <% if count > 1 %>
+      <span class="pgallery__count td-secondary" data-product-photo-viewer-target="counter" aria-live="polite">
+        <%= t("#{sl}.photo_position", index: 1, count: count) %>
+      </span>
+    <% end %>
+  </div>
+
+  <% if (first = items.first) %>
+    <button type="button" class="pgallery__main pgallery__main--zoom" data-testid="gallery-main"
+            data-action="product-photo-viewer#open" aria-label="<%= t("#{sl}.enlarge") %>" title="<%= t("#{sl}.enlarge") %>">
+      <img src="<%= first.main_url %>" alt="<%= alt_for.call(0) %>" class="pgallery__main-img" decoding="async"
+           data-product-photo-viewer-target="main" data-action="error->product-photo-viewer#broken">
+      <span class="pgallery__broken" data-product-photo-viewer-target="broken" hidden>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+        <span><%= t("#{sl}.image_unavailable") %></span>
+      </span>
+      <span class="pgallery__zoom-hint" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+      </span>
+    </button>
+
+    <% if count > 1 %>
+      <ul class="pgallery__thumbs pgallery__thumbs--view" aria-label="<%= t("#{sl}.thumbs_label") %>"
+          data-action="keydown->product-photo-viewer#navigate">
+        <% items.each_with_index do |item, index| %>
+          <li>
+            <button type="button" class="pgallery__pick<%= ' is-selected' if index.zero? %>" aria-pressed="<%= index.zero? %>"
+                    aria-label="<%= t("#{sl}.show_photo", index: index + 1, count: count) %>"
+                    data-product-photo-viewer-target="thumb" data-index="<%= index %>"
+                    data-action="product-photo-viewer#select" data-testid="gallery-thumb">
+              <img src="<%= item.thumb_url %>" alt="" class="pgallery__thumb-img" loading="lazy" decoding="async"
+                   data-action="error->product-photo-viewer#thumbBroken">
+            </button>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+
+    <dialog class="edr-viewer pgallery-viewer" aria-labelledby="pshow-viewer-title"
+            data-product-photo-viewer-target="dialog"
+            data-action="click->product-photo-viewer#backdrop keydown->product-photo-viewer#viewerKey">
+      <div class="edr-viewer__bar">
+        <span class="edr-viewer__title" id="pshow-viewer-title">
+          <bdi><%= product.name %></bdi>
+          <% if count > 1 %><span class="td-secondary" data-product-photo-viewer-target="viewerCounter"></span><% end %>
+        </span>
+        <div class="edr-viewer__tools">
+          <% if count > 1 %>
+            <button type="button" class="btn btn-sm btn-secondary" data-action="product-photo-viewer#previous" aria-label="<%= t("#{sl}.previous_photo") %>">
+              <svg class="pgallery__dir" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+              <%= t("#{sl}.previous") %>
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" data-action="product-photo-viewer#next" aria-label="<%= t("#{sl}.next_photo") %>">
+              <%= t("#{sl}.next") %>
+              <svg class="pgallery__dir" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          <% end %>
+          <button type="button" class="btn btn-sm btn-primary" data-action="product-photo-viewer#close"><%= t("#{sl}.close") %></button>
+        </div>
+      </div>
+      <div class="edr-viewer__stage">
+        <img alt="" class="edr-viewer__img" data-product-photo-viewer-target="viewerImage">
+      </div>
+    </dialog>
+  <% else %>
+    <div class="pgallery__main" data-testid="gallery-main">
+      <div class="pgallery__empty" data-testid="gallery-empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <p><%= t("#{sl}.no_photos") %></p>
+        <% if edit_path %>
+          <%= link_to t("#{sl}.add_photos_in_edit"), edit_path, class: "link" %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</section>
