@@ -1,25 +1,59 @@
-<%= form_with model: [:inventory, stock_transfer], class: "form-card", data: { controller: "line-items" } do |f| %>
+<%#
+  Stock transfer form (draft create / edit, and an approver's pending edit).
+  Presentation only: availability figures come from the server
+  (StockTransfersController#availability — Inventory::StockAvailability /
+  TransferIncoming), suggestions from #replenishment; submission re-validates
+  everything under lock. The request date is not an input (a draft carries the
+  current Business Day; dispatch sets the posting day). Once submitted the
+  warehouses are fixed (the reservation lives in the source).
+%>
+<% warehouses_fixed = stock_transfer.persisted? && !stock_transfer.draft? %>
+<% scope = "inventory.stock_transfers.form" %>
+<%= form_with model: [:inventory, stock_transfer], class: "form-card stf", id: "stock-transfer-form",
+      data: { controller: "line-items stock-transfer-form",
+              stock_transfer_form_availability_url_value: availability_inventory_stock_transfers_path,
+              stock_transfer_form_replenishment_url_value: replenishment_inventory_stock_transfers_path,
+              stock_transfer_form_transfer_id_value: (stock_transfer.persisted? && !stock_transfer.draft? ? stock_transfer.id : ""),
+              stock_transfer_form_short_label_value: t("#{scope}.short_by", quantity: "__QTY__"),
+              stock_transfer_form_no_warnings_value: t("#{scope}.no_warnings"),
+              stock_transfer_form_warning_line_value: t("#{scope}.warning_line", product: "__PRODUCT__", quantity: "__QTY__"),
+              stock_transfer_form_load_failed_value: t("#{scope}.load_failed"),
+              stock_transfer_form_loading_value: t("#{scope}.loading"),
+              stock_transfer_form_merged_value: t("#{scope}.merged_duplicate") } do |f| %>
   <%= render "shared/error_messages", object: stock_transfer %>
+  <% if stock_transfer.persisted? %>
+    <%= hidden_field_tag :lock_token, stock_transfer.lock_token %>
+  <% end %>
 
   <h2 class="section-title"><%= t("inventory.stock_transfers.section_header") %></h2>
   <div class="form-grid">
     <div class="form-group">
-      <%= f.label :source_warehouse_id, t("inventory.stock_transfers.source_warehouse"), class: "form-label" %>
-      <%= f.select :source_warehouse_id,
-            options_from_collection_for_select(@warehouses, :id, :name, stock_transfer.source_warehouse_id),
-            { include_blank: "— #{t('inventory.stock_transfers.select_warehouse')}" },
-            class: "form-control #{'is-error' if stock_transfer.errors[:source_warehouse_id].any?}" %>
+      <%= f.label :source_warehouse_id, t("inventory.stock_transfers.source_warehouse"), class: "form-label form-label--required" %>
+      <% if warehouses_fixed %>
+        <p class="td-secondary" data-stock-transfer-form-target="sourceFixed" data-warehouse-id="<%= stock_transfer.source_warehouse_id %>"><%= transfer_warehouse_label(stock_transfer.source_warehouse) %></p>
+      <% else %>
+        <%= f.select :source_warehouse_id, transfer_warehouse_options(@warehouses, stock_transfer.source_warehouse_id),
+              { include_blank: "— #{t('inventory.stock_transfers.select_warehouse')}" },
+              class: "form-control #{'is-error' if stock_transfer.errors[:source_warehouse_id].any?}",
+              data: { stock_transfer_form_target: "source", action: "change->stock-transfer-form#warehousesChanged" } %>
+      <% end %>
     </div>
     <div class="form-group">
-      <%= f.label :destination_warehouse_id, t("inventory.stock_transfers.destination_warehouse"), class: "form-label" %>
-      <%= f.select :destination_warehouse_id,
-            options_from_collection_for_select(@warehouses, :id, :name, stock_transfer.destination_warehouse_id),
-            { include_blank: "— #{t('inventory.stock_transfers.select_warehouse')}" },
-            class: "form-control #{'is-error' if stock_transfer.errors[:destination_warehouse_id].any?}" %>
+      <%= f.label :destination_warehouse_id, t("inventory.stock_transfers.destination_warehouse"), class: "form-label form-label--required" %>
+      <% if warehouses_fixed %>
+        <p class="td-secondary" data-stock-transfer-form-target="destinationFixed" data-warehouse-id="<%= stock_transfer.destination_warehouse_id %>"><%= transfer_warehouse_label(stock_transfer.destination_warehouse) %></p>
+      <% else %>
+        <%= f.select :destination_warehouse_id, transfer_warehouse_options(@warehouses, stock_transfer.destination_warehouse_id),
+              { include_blank: "— #{t('inventory.stock_transfers.select_warehouse')}" },
+              class: "form-control #{'is-error' if stock_transfer.errors[:destination_warehouse_id].any?}",
+              data: { stock_transfer_form_target: "destination", action: "change->stock-transfer-form#warehousesChanged" } %>
+      <% end %>
+      <p class="form-hint" data-stock-transfer-form-target="sameWarehouse" hidden><%= t("#{scope}.same_warehouse") %></p>
     </div>
     <div class="form-group">
-      <%= f.label :transferred_on, t("inventory.stock_transfers.date"), class: "form-label" %>
-      <%= f.date_field :transferred_on, class: "form-control" %>
+      <span class="form-label"><%= t("inventory.stock_transfers.date") %></span>
+      <p class="td-secondary"><%= local_date(stock_transfer.transferred_on) if stock_transfer.transferred_on %></p>
+      <p class="form-hint"><%= t("#{scope}.date_hint") %></p>
     </div>
     <div class="form-group" style="grid-column: 1 / -1;">
       <%= f.label :notes, t("inventory.stock_transfers.notes"), class: "form-label" %>
@@ -29,17 +63,34 @@
 
   <div class="divider"></div>
 
-  <h2 class="section-title"><%= t("inventory.stock_transfers.section_items") %></h2>
-  <p class="form-hint"><%= t("inventory.stock_transfers.availability_note") %></p>
-  <%= render "inventory/shared/barcode_scanner" %>
+  <div class="stf__items-head">
+    <h2 class="section-title"><%= t("inventory.stock_transfers.section_items") %></h2>
+    <% unless warehouses_fixed %>
+      <button type="button" class="btn btn-secondary btn-sm" disabled data-testid="replenishment-button"
+              data-stock-transfer-form-target="replenishButton" data-action="stock-transfer-form#openReplenishment">
+        <%= t("#{scope}.low_stock_button") %>
+      </button>
+    <% end %>
+  </div>
+  <p class="form-hint"><%= t("#{scope}.availability_hint") %></p>
+  <%= render "inventory/shared/barcode_scanner", increment_on_repeat: true %>
+  <p class="form-hint stf__notice" data-stock-transfer-form-target="notice" role="status" hidden></p>
+
   <div class="table-wrap table-wrap--form-cards">
-    <table class="line-items-table">
+    <table class="line-items-table stf__table">
       <thead><tr>
-        <th style="width: 60%;"><%= t("inventory.stock_transfers.product") %></th>
-        <th><%= t("inventory.stock_transfers.quantity") %></th>
+        <th class="stf__col-product"><%= t("inventory.stock_transfers.product") %></th>
+        <th class="stf__num"><%= t("#{scope}.on_hand") %></th>
+        <th class="stf__num"><%= t("#{scope}.reserved") %></th>
+        <th class="stf__num"><%= t("#{scope}.available") %></th>
+        <th class="stf__qty"><%= t("inventory.stock_transfers.quantity") %></th>
+        <th class="stf__num"><%= t("#{scope}.destination_on_hand") %></th>
+        <th class="stf__num"><%= t("#{scope}.incoming") %></th>
+        <th class="stf__num"><%= t("#{scope}.after_transfer") %></th>
         <th></th>
       </tr></thead>
-      <tbody data-line-items-target="rows">
+      <tbody data-line-items-target="rows" data-stock-transfer-form-target="rows"
+             data-action="change->stock-transfer-form#rowsChanged input->stock-transfer-form#quantityChanged">
         <%= f.fields_for :items do |item_f| %>
           <%= render "item_fields", f: item_f %>
         <% end %>
@@ -61,8 +112,44 @@
     <% end %>
   </template>
 
+  <section class="card stf__summary" aria-labelledby="stf-summary-title" data-testid="transfer-summary">
+    <h3 class="card-title" id="stf-summary-title"><%= t("#{scope}.summary_title") %></h3>
+    <dl class="detail-list">
+      <div class="detail-list__row"><dt><%= t("inventory.stock_transfers.source_warehouse") %></dt><dd data-stock-transfer-form-target="summarySource">—</dd></div>
+      <div class="detail-list__row"><dt><%= t("inventory.stock_transfers.destination_warehouse") %></dt><dd data-stock-transfer-form-target="summaryDestination">—</dd></div>
+      <div class="detail-list__row"><dt><%= t("#{scope}.summary_lines") %></dt><dd data-stock-transfer-form-target="summaryLines">0</dd></div>
+      <div class="detail-list__row"><dt><%= t("#{scope}.summary_quantity") %></dt><dd data-stock-transfer-form-target="summaryQuantity">0</dd></div>
+    </dl>
+    <ul class="stf__warnings" data-stock-transfer-form-target="summaryWarnings" role="status" aria-live="polite">
+      <li class="td-secondary"><%= t("#{scope}.no_warnings") %></li>
+    </ul>
+    <p class="form-hint"><%= t("#{scope}.server_checks") %></p>
+  </section>
+
   <div class="form-actions">
-    <%= f.submit t("inventory.stock_transfers.post"), class: "btn btn-primary" %>
-    <%= link_to t("common.cancel"), inventory_stock_transfers_path, class: "btn btn-ghost" %>
+    <% if stock_transfer.pending_approval? %>
+      <%= f.submit t("forms.save"), class: "btn btn-primary" %>
+    <% else %>
+      <%= f.submit t("inventory.stock_transfers.save_draft"), class: "btn btn-secondary" %>
+      <%= f.button t("#{scope}.save_and_submit"), type: "submit", name: "submit_after_save", value: "1", class: "btn btn-primary",
+            data: { turbo_confirm: t("#{scope}.submit_confirm") } %>
+    <% end %>
+    <%= link_to t("common.cancel"), stock_transfer.persisted? ? inventory_stock_transfer_path(stock_transfer) : inventory_stock_transfers_path, class: "btn btn-ghost" %>
+  </div>
+
+  <div class="modal-overlay lsp-overlay" style="display:none" data-stock-transfer-form-target="modal"
+       data-action="click->stock-transfer-form#closeOnBackdrop keydown.esc@window->stock-transfer-form#closeReplenishment">
+    <div class="modal-card lsp stf__modal" role="dialog" aria-modal="true" aria-labelledby="replenishment-title">
+      <header class="lsp__header">
+        <h3 class="modal-card__title lsp__title" id="replenishment-title"><%= t("#{scope}.low_stock_title") %></h3>
+        <p class="lsp__subtitle"><%= t("#{scope}.low_stock_intro") %></p>
+      </header>
+      <div data-stock-transfer-form-target="modalBody" data-testid="replenishment-body"></div>
+      <footer class="lsp__footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-action="stock-transfer-form#refreshReplenishment"><%= t("#{scope}.refresh") %></button>
+        <button type="button" class="btn btn-ghost btn-sm" data-action="stock-transfer-form#closeReplenishment"><%= t("common.cancel") %></button>
+        <button type="button" class="btn btn-primary btn-sm" data-testid="replenishment-add" data-action="stock-transfer-form#addSelected"><%= t("#{scope}.add_selected") %></button>
+      </footer>
+    </div>
   </div>
 <% end %>

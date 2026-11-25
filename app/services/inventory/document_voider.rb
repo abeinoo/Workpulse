@@ -112,6 +112,14 @@ module Inventory
         return false
       end
 
+      # Only a posted (approved) transfer has movements to reverse; a draft
+      # or pending transfer is cancelled instead, a rejected / cancelled one
+      # never moved anything (Inventory::StockTransferCancellation).
+      if @document.is_a?(StockTransfer) && !@document.approved?
+        @document.errors.add(:base, :void_not_posted)
+        return false
+      end
+
       if @reason.blank?
         @document.errors.add(:void_reason, :blank)
         return false

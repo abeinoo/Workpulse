@@ -1,0 +1,49 @@
+<%#
+  Discrepancy resolution (D3): per line, what remains of the reported
+  shortfall can be returned to the source warehouse or written off as lost —
+  a reason is mandatory. Never more than the remainder; resolutions are
+  permanent (append-only).
+  Locals: transfer, progress
+%>
+<% scope = "inventory.stock_transfers.resolve" %>
+<section class="card stt__panel" aria-labelledby="resolve-title" data-testid="resolve-form">
+  <h2 class="card-title" id="resolve-title"><%= t("#{scope}.title") %></h2>
+  <p class="form-hint"><%= t("#{scope}.intro", source: transfer_warehouse_label(transfer.source_warehouse)) %></p>
+  <%= form_with url: resolve_inventory_stock_transfer_path(transfer), method: :patch,
+        data: { turbo_confirm: t("#{scope}.confirm") } do |f| %>
+    <div class="table-wrap table-wrap--form-cards">
+      <table class="line-items-table">
+        <thead><tr>
+          <th><%= t("inventory.stock_transfers.product") %></th>
+          <th class="stf__num"><%= t("inventory.stock_transfers.progress.remaining") %></th>
+          <th class="stf__qty"><%= t("#{scope}.return_to_source") %></th>
+          <th class="stf__qty"><%= t("#{scope}.write_off") %></th>
+        </tr></thead>
+        <tbody>
+          <% progress.lines.select { |line| line.remaining.positive? }.each do |line| %>
+            <tr>
+              <td data-label="<%= t("inventory.stock_transfers.product") %>"><%= line.item.product.name %> <span class="td-secondary"><%= line.item.product.sku %></span></td>
+              <td class="stf__num" data-label="<%= t("inventory.stock_transfers.progress.remaining") %>"><%= inventory_quantity(line.remaining) %></td>
+              <td class="stf__qty" data-label="<%= t("#{scope}.return_to_source") %>">
+                <%= number_field_tag "resolve[#{line.item.id}][return_to_source]", nil, min: 0, max: inventory_quantity(line.remaining),
+                      step: "0.001", inputmode: "decimal", class: "form-control",
+                      aria: { label: t("#{scope}.return_for", product: line.item.product.name) } %>
+              </td>
+              <td class="stf__qty" data-label="<%= t("#{scope}.write_off") %>">
+                <%= number_field_tag "resolve[#{line.item.id}][write_off]", nil, min: 0, max: inventory_quantity(line.remaining),
+                      step: "0.001", inputmode: "decimal", class: "form-control",
+                      aria: { label: t("#{scope}.write_off_for", product: line.item.product.name) } %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <div class="form-group">
+      <%= label_tag :resolution_reason, t("#{scope}.reason"), class: "form-label form-label--required" %>
+      <%= text_area_tag :resolution_reason, nil, rows: 2, required: true, class: "form-control" %>
+      <p class="form-hint"><%= t("#{scope}.reason_hint") %></p>
+    </div>
+    <%= f.submit t("#{scope}.submit"), class: "btn btn-danger", data: { testid: "resolve-submit" } %>
+  <% end %>
+</section>

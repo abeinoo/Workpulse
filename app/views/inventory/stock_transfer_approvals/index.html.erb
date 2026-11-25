@@ -1,0 +1,65 @@
+<% content_for :title, t("inventory.stock_transfer_approvals.title") %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">
+        <%= t("inventory.stock_transfer_approvals.title") %>
+        <span class="badge badge-warning" data-testid="approvals-queue-count"><%= @stock_transfers.size %></span>
+      </h1>
+      <p class="td-secondary"><%= t("inventory.stock_transfer_approvals.subtitle") %></p>
+    </div>
+  </div>
+
+  <% if @stock_transfers.empty? %>
+    <div class="empty-state" data-testid="approvals-queue-empty">
+      <p class="empty-state__title"><%= t("inventory.stock_transfer_approvals.empty") %></p>
+    </div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table data-testid="approvals-queue">
+        <thead><tr>
+          <th><%= t("inventory.stock_transfers.number") %></th>
+          <th><%= t("inventory.stock_transfers.source_warehouse") %></th>
+          <th><%= t("inventory.stock_transfers.destination_warehouse") %></th>
+          <th><%= t("inventory.stock_transfers.requested_by") %></th>
+          <th><%= t("inventory.stock_transfers.submitted_at") %></th>
+          <th><%= t("inventory.stock_transfer_approvals.lines") %></th>
+          <th><%= t("inventory.void.status") %></th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          <% @stock_transfers.each do |transfer| %>
+            <tr data-transfer="<%= transfer.transfer_number %>">
+              <td data-label="<%= t("inventory.stock_transfers.number") %>"><%= link_to transfer.transfer_number, inventory_stock_transfer_path(transfer), class: "link" %></td>
+              <% [ transfer.source_warehouse, transfer.destination_warehouse ].each_with_index do |warehouse, i| %>
+                <td data-label="<%= t(i.zero? ? "inventory.stock_transfers.source_warehouse" : "inventory.stock_transfers.destination_warehouse") %>">
+                  <span>
+                    <%= warehouse.name %>
+                    <% if warehouse.branch %>
+                      <span class="td-secondary" style="display: block;"><%= warehouse.branch.name %></span>
+                    <% end %>
+                  </span>
+                </td>
+              <% end %>
+              <td class="td-secondary" data-label="<%= t("inventory.stock_transfers.requested_by") %>"><%= transfer.created_by&.full_name || "—" %></td>
+              <td class="td-secondary" data-label="<%= t("inventory.stock_transfers.submitted_at") %>">
+                <span>
+                  <%= transfer.submitted_at ? l(transfer.submitted_at, format: :short) : "—" %>
+                  <% if transfer.submitted_by && transfer.submitted_by != transfer.created_by %>
+                    <span style="display: block;"><%= transfer.submitted_by.full_name %></span>
+                  <% end %>
+                </span>
+              </td>
+              <td data-label="<%= t("inventory.stock_transfer_approvals.lines") %>"><%= transfer.items.size %></td>
+              <td data-label="<%= t("inventory.void.status") %>"><%= stock_transfer_status_badge(transfer) %></td>
+              <td class="td-actions">
+                <%= link_to t("inventory.stock_transfer_approvals.review"), inventory_stock_transfer_path(transfer), class: "btn btn-primary btn-sm" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

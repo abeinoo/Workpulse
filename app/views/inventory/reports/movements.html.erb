@@ -44,7 +44,7 @@
               </td>
               <td class="td-wrap"><%= product_identity(row.product, link: inventory_product_path(row.product)) %></td>
               <td class="td-secondary"><%= row.product.sku %></td>
-              <td class="td-secondary"><%= row.warehouse.name %></td>
+              <td class="td-secondary"><%= row.warehouse.display_name %></td>
               <td>
                 <span class="badge <%= row.direction == 'in' ? 'badge-success' : 'badge-neutral' %>">
                   <%= t("inventory.movements.directions.#{row.direction}") %>

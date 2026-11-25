@@ -1,5 +1,8 @@
 require "rails_helper"
 
+# The physical posting step (internal to Inventory::StockTransferApproval),
+# exercised through the post_stock_transfer fixture helper, which drives a
+# transfer through draft -> pending -> approved with this poster.
 RSpec.describe Inventory::StockTransferPoster, type: :model do
   let(:business) { create(:business) }
   let(:source)   { business.warehouses.create!(name: "Main") }
@@ -19,7 +22,7 @@ RSpec.describe Inventory::StockTransferPoster, type: :model do
     t = business.stock_transfers.build(source_warehouse: from, destination_warehouse: to,
                                        transferred_on: Date.current)
     t.items.build(product: product, quantity: qty)
-    described_class.new(t).call
+    post_stock_transfer(t)
   end
 
   before { receive(qty: 10, cost: 10, wh: source) }
@@ -30,6 +33,8 @@ RSpec.describe Inventory::StockTransferPoster, type: :model do
     expect(product.stock_in(source)).to eq(6)
     expect(product.stock_in(dest)).to eq(4)
     expect(product.current_stock).to eq(10)
+    expect(result.transfer.reload).to be_approved # the fixture helper ends in the posted state
+    expect(result.transfer.inventory_movements.count).to eq(2)
   end
 
   it "records a paired OUT and IN movement per item" do
@@ -67,7 +72,7 @@ RSpec.describe Inventory::StockTransferPoster, type: :model do
       t = business.stock_transfers.build(source_warehouse: source, destination_warehouse: dest, transferred_on: Date.current)
       t.items.build(product: product, quantity: 2)
       t.items.build(product: product, quantity: 3)
-      expect(described_class.new(t).call.ok?).to be(true)
+      expect(post_stock_transfer(t).ok?).to be(true)
       expect(t.inventory_movements.group(:direction).sum(:quantity)).to eq("out" => 5, "in" => 5)
     end
 
@@ -106,6 +111,36 @@ RSpec.describe Inventory::StockTransferPoster, type: :model do
       second = transfer(qty: 7)
       expect(second.ok?).to be(false)
       expect(product.stock_in(source)).to eq(3)
+    end
+  end
+
+  describe "internal posting step only" do
+    def built_transfer(qty: 1)
+      business.stock_transfers.build(source_warehouse: source, destination_warehouse: dest,
+                                     transferred_on: Date.current).tap { |t| t.items.build(product: product, quantity: qty) }
+    end
+
+    it "refuses an unsaved transfer — creating a transfer never posts it" do
+      expect { described_class.new(built_transfer, posted_on: Date.current).post! }.to raise_error(ArgumentError)
+      expect(product.inventory_movements.where(reason: %w[transfer_in transfer_out])).to be_empty
+    end
+
+    it "refuses a draft, an approved and a rejected transfer" do
+      draft = save_stock_transfer_in_status!(built_transfer, :draft)
+      approved = save_stock_transfer_in_status!(built_transfer, :approved)
+      rejected = save_stock_transfer_in_status!(built_transfer, :rejected)
+      [ draft, approved, rejected ].each do |t|
+        expect { ActiveRecord::Base.transaction { described_class.new(t, posted_on: Date.current).post! } }
+          .to raise_error(ArgumentError)
+      end
+    end
+
+    it "refuses to run outside a transaction" do
+      pending = save_stock_transfer_in_status!(built_transfer, :pending_approval)
+      # This file's `receive(qty:, cost:, wh:)` helper shadows RSpec's.
+      rspec_receive = RSpec::Mocks::ExampleMethods.instance_method(:receive).bind_call(self, :transaction_open?)
+      allow(StockTransfer.connection).to rspec_receive.and_return(false)
+      expect { described_class.new(pending, posted_on: Date.current).post! }.to raise_error(ArgumentError)
     end
   end
 

@@ -118,6 +118,9 @@
         <div class="stat-card <%= 'stat-card--warning' if @low_stock_warehouse %>">
           <span class="stat-card__label"><%= t("inventory.products.current_stock") %></span>
           <span class="stat-card__value"><%= inventory_quantity(@display_stock) %></span>
+          <% if @stock_in_transit.positive? %>
+            <span class="td-secondary" data-testid="product-stock-in-transit"><%= t("inventory.products.in_transit_share", quantity: inventory_quantity(@stock_in_transit)) %></span>
+          <% end %>
         </div>
         <div class="stat-card">
           <span class="stat-card__label"><%= t("inventory.products.avg_cost") %></span>
@@ -362,7 +365,7 @@
               <% @recent_movements.each do |m| %>
                 <tr>
                   <td class="td-secondary"><%= local_date(m.occurred_on) %></td>
-                  <td class="td-secondary"><%= m.warehouse.name %></td>
+                  <td class="td-secondary"><%= m.warehouse.display_name %></td>
                   <td>
                     <span class="badge <%= m.direction_in? ? 'badge-success' : 'badge-neutral' %>">
                       <%= t("inventory.movements.directions.#{m.direction}") %>

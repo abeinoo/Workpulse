@@ -127,7 +127,7 @@
             <div class="form-group" style="margin: 0; min-width: 160px;">
               <%= label_tag :warehouse_id, t("laundry.batches.warehouse"), class: "form-label" %>
               <%= select_tag :warehouse_id,
-                    options_from_collection_for_select(current_user.business.warehouses.order(:name), :id, :name, laundry_warehouse&.id),
+                    options_from_collection_for_select(current_user.business.warehouses.operational.order(:name), :id, :name, laundry_warehouse&.id),
                     class: "form-control", required: true %>
             </div>
             <div class="form-group" style="margin: 0;">

@@ -457,8 +457,31 @@ Rails.application.routes.draw do
         end
       end
     end
-    resources :stock_transfers, only: [ :index, :show, :new, :create ] do
-      member { patch :void }
+    # Read-only queue of the transfers waiting for the current user's approval
+    # (Inventory::PendingStockTransferApprovals — the same relation as the
+    # workspace badge).
+    resources :stock_transfer_approvals, only: :index
+    # Transfers in Transit / Receiving workspace (to dispatch, to receive,
+    # discrepancies, in transit) — Inventory::StockTransferQueues.
+    resources :transfers_in_transit, only: :index
+    # Draft -> Pending Approval -> Awaiting Dispatch -> In Transit -> Received,
+    # Discrepancy -> resolved (Inventory::StockTransfer* services). Direct
+    # (legacy) transfers: approval posts at once. No destroy: drafts are cancelled.
+    resources :stock_transfers, only: [ :index, :show, :new, :create, :edit, :update ] do
+      collection do
+        get :availability
+        get :replenishment
+      end
+      member do
+        patch :submit
+        patch :approve
+        patch :reject
+        patch :cancel
+        patch :dispatch_goods
+        patch :receive
+        patch :resolve
+        patch :void
+      end
     end
     resources :stock_adjustments, only: [ :index, :show, :new, :create ] do
       member { patch :void }

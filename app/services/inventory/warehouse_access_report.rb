@@ -41,7 +41,7 @@ module Inventory
     def inventory_permissions = @inventory_permissions ||= OrganizationAccess::PermissionCatalog.group(:inventory)
 
     def section_for(business)
-      warehouse_ids = Warehouse.where(business_id: business.id).order(:id).pluck(:id)
+      warehouse_ids = Warehouse.where(business_id: business.id).operational.order(:id).pluck(:id)
       users = User.includes(:permission_role, :business).where(business_id: business.id).order(:id).to_a
       role_types = OrganizationAccess::PermissionCatalog.role_types(users.filter_map(&:permission_role_id).uniq)
       assigned   = WarehouseAssignment.where(user_id: users.map(&:id)).group(:user_id).pluck(:user_id, Arel.sql("ARRAY_AGG(warehouse_id ORDER BY warehouse_id)")).to_h

@@ -60,7 +60,7 @@ RSpec.describe Inventory::IncomingAvailabilityGuard, type: :model do
   def transfer(from:, to:, product: shampoo, qty: 2)
     t = business.stock_transfers.build(source_warehouse: from, destination_warehouse: to, transferred_on: Date.current)
     t.items.build(product: product, quantity: qty)
-    Inventory::StockTransferPoster.new(t).call
+    post_stock_transfer(t)
   end
 
   def adjust(warehouse:, reason:, qty:, product: shampoo, cost: 10)

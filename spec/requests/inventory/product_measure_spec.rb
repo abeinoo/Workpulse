@@ -97,7 +97,7 @@ RSpec.describe "Product measure", type: :request do
       other = business.warehouses.create!(name: "Annex")
       transfer = business.stock_transfers.build(source_warehouse: warehouse, destination_warehouse: other, transferred_on: Date.current)
       transfer.items.build(product: shampoo, quantity: 30)
-      expect(Inventory::StockTransferPoster.new(transfer).call).to be_ok
+      expect(post_stock_transfer(transfer)).to be_ok
       get inventory_stock_transfer_path(transfer)
       expect(cell_texts).to include("30")
       no_measure_label!

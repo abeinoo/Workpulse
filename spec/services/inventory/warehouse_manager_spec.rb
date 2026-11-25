@@ -346,7 +346,7 @@ RSpec.describe Inventory::WarehouseManager do
       transfer = business.stock_transfers.build(source_warehouse: warehouse, destination_warehouse: destination,
                                                 transferred_on: Date.new(2026, 1, 6))
       transfer.items.build(product: product, quantity: 5)
-      expect(Inventory::StockTransferPoster.new(transfer).call).to be_ok
+      expect(post_stock_transfer(transfer)).to be_ok
 
       expect_refused(destroy, :stock_transfers)
       expect(destroy(destination).blockers).to include(:stock_transfers, :stock_on_hand)

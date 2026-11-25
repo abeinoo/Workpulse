@@ -111,7 +111,7 @@ RSpec.describe "Inactive warehouses on inventory write paths" do
                                                 transferred_on: Date.current, created_by: owner)
       transfer.items.build(product: product, quantity: 1)
 
-      expect { expect(Inventory::StockTransferPoster.new(transfer).call).not_to be_ok }
+      expect { expect(post_stock_transfer(transfer)).not_to be_ok }
         .not_to change(InventoryMovement, :count)
     end
 

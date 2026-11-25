@@ -183,7 +183,8 @@ module ArchitectureTools
       IP => %w[Warehouse WarehouseAssignment WarehouseBranchSupply Product ProductBarcode ProductImage ProductCategory Brand
                InventoryAverageCostChange
                ProductWarehouseSetting InventoryMovement StockIssue StockIssueItem StockIssueImportBatch
-               StockIssueImportRow StockTransfer StockTransferItem StockAdjustment StockAdjustmentItem StockCount
+               StockIssueImportRow StockTransfer StockTransferItem StockTransferReceipt StockTransferReceiptLine
+               StockTransferResolution StockAdjustment StockAdjustmentItem StockCount
                StockCountItem Supplier PurchaseRequest PurchaseRequestItem PurchaseRequestAdvance GoodsReceipt
                GoodsReceiptItem TowelType TowelLedgerEntry TowelTransfer TowelTransferItem TowelAdjustment LaundryBatch
                LaundryBatchConsumption LaundryStandardCostRate Service],

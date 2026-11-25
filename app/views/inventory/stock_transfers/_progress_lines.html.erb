@@ -1,0 +1,46 @@
+<%#
+  Lines of a dispatched (via-transit) transfer: what was requested, dispatched,
+  received, returned and written off, and what is still in transit — all
+  derived from the append-only ledgers (Inventory::StockTransferProgress).
+  Locals: transfer, progress
+%>
+<% scope = "inventory.stock_transfers" %>
+<div class="table-wrap table-wrap--cards">
+  <table data-testid="progress-lines">
+    <thead><tr>
+      <th><%= t("#{scope}.product") %></th>
+      <th class="stf__num"><%= t("#{scope}.progress.requested") %></th>
+      <th class="stf__num"><%= t("#{scope}.progress.dispatched") %></th>
+      <th class="stf__num"><%= t("#{scope}.progress.received") %></th>
+      <th class="stf__num"><%= t("#{scope}.progress.returned") %></th>
+      <th class="stf__num"><%= t("#{scope}.progress.written_off") %></th>
+      <th class="stf__num"><%= t("#{scope}.progress.remaining") %></th>
+      <th class="stf__num"><%= t("#{scope}.unit_cost") %></th>
+    </tr></thead>
+    <tbody>
+      <% progress.lines.each do |line| %>
+        <tr data-progress-line="<%= line.item.id %>">
+          <td data-label="<%= t("#{scope}.product") %>"><%= product_identity(line.item.product, link: inventory_product_path(line.item.product)) %></td>
+          <td class="stf__num" data-label="<%= t("#{scope}.progress.requested") %>"><%= line.requested ? inventory_quantity(line.requested) : "—" %></td>
+          <td class="stf__num" data-label="<%= t("#{scope}.progress.dispatched") %>"><%= inventory_quantity(line.dispatched) %></td>
+          <td class="stf__num" data-label="<%= t("#{scope}.progress.received") %>"><%= inventory_quantity(line.received) %></td>
+          <td class="stf__num" data-label="<%= t("#{scope}.progress.returned") %>"><%= inventory_quantity(line.returned) %></td>
+          <td class="stf__num" data-label="<%= t("#{scope}.progress.written_off") %>"><%= inventory_quantity(line.written_off) %></td>
+          <td class="stf__num <%= 'text-danger' if line.remaining.positive? %>" data-label="<%= t("#{scope}.progress.remaining") %>" data-remaining><strong><%= inventory_quantity(line.remaining) %></strong></td>
+          <td class="stf__num" data-label="<%= t("#{scope}.unit_cost") %>"><%= format_unit_cost_currency(line.item.unit_cost) %></td>
+        </tr>
+      <% end %>
+    </tbody>
+    <tfoot>
+      <tr>
+        <td><strong><%= t("#{scope}.total") %></strong></td>
+        <td></td>
+        <td class="stf__num"><%= inventory_quantity(progress.dispatched_total) %></td>
+        <td class="stf__num"><%= inventory_quantity(progress.received_total) %></td>
+        <td class="stf__num" colspan="2"><%= inventory_quantity(progress.resolved_total) %></td>
+        <td class="stf__num"><strong><%= inventory_quantity(progress.remaining_total) %></strong></td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>

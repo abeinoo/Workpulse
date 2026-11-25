@@ -1,0 +1,61 @@
+<%#
+  Lines of a draft / pending / approved-not-dispatched transfer: the original
+  request (requested_quantity, fixed at submission) next to the current
+  quantity, what changed, and the source's live figures (reserved = by OTHER
+  documents; this transfer's own reservation excluded).
+  Locals: transfer, items, availability ({ product_id => StockAvailability::Line }), removed ([[product, quantity]])
+%>
+<% scope = "inventory.stock_transfers" %>
+<% submitted = transfer.submitted_at.present? %>
+<div class="table-wrap table-wrap--cards">
+  <table data-testid="review-lines">
+    <thead><tr>
+      <th><%= t("#{scope}.product") %></th>
+      <% if submitted %><th class="stf__num"><%= t("#{scope}.review.requested") %></th><% end %>
+      <th class="stf__num"><%= submitted ? t("#{scope}.review.current") : t("#{scope}.quantity") %></th>
+      <% if submitted %><th><%= t("#{scope}.review.change") %></th><% end %>
+      <th class="stf__num"><%= t("#{scope}.form.on_hand") %></th>
+      <th class="stf__num"><%= t("#{scope}.form.reserved") %></th>
+      <th class="stf__num"><%= t("#{scope}.form.available") %></th>
+    </tr></thead>
+    <tbody>
+      <% items.each do |item| %>
+        <% line = availability[item.product_id] %>
+        <% short = line && line.shortfall? %>
+        <tr class="<%= 'stf__row--short' if short %>" data-review-line="<%= item.product_id %>">
+          <td data-label="<%= t("#{scope}.product") %>">
+            <%= product_identity(item.product, link: inventory_product_path(item.product)) %>
+            <% if short %><p class="stf__line-warning" role="alert"><%= t("#{scope}.review.short", available: inventory_quantity(line.available)) %></p><% end %>
+          </td>
+          <% if submitted %>
+            <td class="stf__num" data-label="<%= t("#{scope}.review.requested") %>"><%= item.requested_quantity ? inventory_quantity(item.requested_quantity) : "—" %></td>
+          <% end %>
+          <td class="stf__num" data-label="<%= t("#{scope}.review.current") %>"><strong><%= inventory_quantity(item.quantity) %></strong></td>
+          <% if submitted %>
+            <td data-label="<%= t("#{scope}.review.change") %>">
+              <% if item.requested_quantity.nil? %>
+                <span class="badge badge-accent badge-xs" data-change="added"><%= t("#{scope}.review.added") %></span>
+              <% elsif item.requested_quantity.to_d != item.quantity.to_d %>
+                <span class="badge badge-warning badge-xs" data-change="changed"><%= t("#{scope}.review.changed") %></span>
+              <% else %>
+                <span class="td-secondary">—</span>
+              <% end %>
+            </td>
+          <% end %>
+          <td class="stf__num" data-label="<%= t("#{scope}.form.on_hand") %>"><%= line ? inventory_quantity(line.on_hand) : "—" %></td>
+          <td class="stf__num" data-label="<%= t("#{scope}.form.reserved") %>"><%= line ? inventory_quantity(line.reserved) : "—" %></td>
+          <td class="stf__num" data-label="<%= t("#{scope}.form.available") %>"><%= line ? inventory_quantity(line.available) : "—" %></td>
+        </tr>
+      <% end %>
+      <% removed.each do |product, quantity| %>
+        <tr class="stt__removed" data-review-line="<%= product.id %>">
+          <td data-label="<%= t("#{scope}.product") %>"><s><%= product.name %></s></td>
+          <td class="stf__num" data-label="<%= t("#{scope}.review.requested") %>"><%= inventory_quantity(quantity.to_d) %></td>
+          <td class="stf__num" data-label="<%= t("#{scope}.review.current") %>">0</td>
+          <td data-label="<%= t("#{scope}.review.change") %>"><span class="badge badge-danger badge-xs" data-change="removed"><%= t("#{scope}.review.removed") %></span></td>
+          <td colspan="3"></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

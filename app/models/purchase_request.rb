@@ -64,6 +64,8 @@ class PurchaseRequest < ApplicationRecord
   # check the actor's warehouse scope); nil only on a legacy request whose
   # lines named no single warehouse — see #receiving_warehouse_id.
   belongs_to :warehouse, optional: true
+  include OperationalWarehouseReference
+  operational_warehouse :warehouse # never the system transit warehouse
   # "الموظف المسؤول عن الشراء": accountable for purchasing and receiving, and
   # the custody every advance on this request funds (PurchaseRequestAdvance).
   # Optional when the request is created; assigned later through

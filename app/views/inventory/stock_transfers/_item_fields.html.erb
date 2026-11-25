@@ -1,12 +1,21 @@
-<tr data-line-row>
-  <td>
+<% scope = "inventory.stock_transfers.form" %>
+<tr data-line-row data-stock-transfer-line>
+  <td data-label="<%= t("inventory.stock_transfers.product") %>">
     <%= product_combobox(f, :product_id, selected: f.object.product, select_data: { product_field: true }) %>
+    <p class="stf__line-warning" data-cell="warning" role="alert" hidden></p>
   </td>
-  <td>
+  <td class="stf__num" data-label="<%= t("#{scope}.on_hand") %>" data-cell="source_on_hand">—</td>
+  <td class="stf__num" data-label="<%= t("#{scope}.reserved") %>" data-cell="source_reserved">—</td>
+  <td class="stf__num" data-label="<%= t("#{scope}.available") %>" data-cell="source_available">—</td>
+  <td class="stf__qty" data-label="<%= t("inventory.stock_transfers.quantity") %>">
     <div class="qty-with-unit">
-      <%= f.number_field :quantity, step: "0.001", min: 0, class: "form-control", placeholder: "0", data: { quantity_field: true } %>
+      <%= f.number_field :quantity, step: "0.001", min: 0, class: "form-control", placeholder: "0", inputmode: "decimal",
+            data: { quantity_field: true }, aria: { label: t("inventory.stock_transfers.quantity") } %>
     </div>
   </td>
+  <td class="stf__num" data-label="<%= t("#{scope}.destination_on_hand") %>" data-cell="destination_on_hand">—</td>
+  <td class="stf__num" data-label="<%= t("#{scope}.incoming") %>" data-cell="destination_incoming">—</td>
+  <td class="stf__num" data-label="<%= t("#{scope}.after_transfer") %>" data-cell="after_transfer">—</td>
   <td class="td-actions">
     <% if f.object.persisted? %>
       <%= f.hidden_field :_destroy, value: "0", data: { destroy_field: true } %>

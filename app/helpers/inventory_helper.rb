@@ -1,4 +1,36 @@
 module InventoryHelper
+  STOCK_TRANSFER_BADGE_CLASSES = {
+    "draft" => "badge-neutral", "pending_approval" => "badge-warning", "approved" => "badge-success",
+    "posted_direct" => "badge-success", "awaiting_dispatch" => "badge-accent", "in_transit" => "badge-warning",
+    "partially_received" => "badge-warning", "discrepancy" => "badge-danger", "received" => "badge-success",
+    "rejected" => "badge-danger", "cancelled" => "badge-neutral"
+  }.freeze
+
+  # A warehouse as offered on the transfer form: its name with the owning
+  # branch's ("North Store — North Branch"); central / unclassified by name only.
+  def transfer_warehouse_label(warehouse)
+    branch = warehouse.owning_branch
+    branch ? "#{warehouse.display_name} — #{branch.name}" : warehouse.display_name
+  end
+
+  def transfer_warehouse_options(warehouses, selected_id)
+    options_for_select(warehouses.map { |w| [ transfer_warehouse_label(w), w.id ] }, selected_id)
+  end
+
+  # A transfer's workflow status — a voided (reversed) posted transfer shows as voided.
+  def stock_transfer_status_badge(transfer)
+    if transfer.voided?
+      return tag.span(t("inventory.void.status_voided"), class: "badge badge-danger")
+    end
+
+    key = transfer.status
+    key = "partially_received" if transfer.in_transit? && transfer.receipts.any?
+    key = "posted_direct" if transfer.approved? && transfer.direct?
+    tag.span(t("inventory.stock_transfers.statuses.#{key}"),
+             class: "badge #{STOCK_TRANSFER_BADGE_CLASSES.fetch(key, 'badge-neutral')}",
+             data: { transfer_status: key })
+  end
+
   # Badge colour for a stock-count session status.
   STOCK_COUNT_STATUS_BADGES = {
     "draft" => "badge-neutral", "in_progress" => "badge-warning",
@@ -7,7 +39,8 @@ module InventoryHelper
 
   # Badge colour for a warehouse type (kind; NULL = unclassified).
   WAREHOUSE_KIND_BADGES = {
-    "central" => "badge-accent", "branch" => "badge-neutral", "unclassified" => "badge-warning"
+    "central" => "badge-accent", "branch" => "badge-neutral", "unclassified" => "badge-warning",
+    "transit" => "badge-neutral"
   }.freeze
 
   # Links a ledger movement's source document by its number — the document a
@@ -316,6 +349,17 @@ module InventoryHelper
   # Marker colour + icon for one Activity Timeline entry (built by
   # Inventory::StockIssuesController#build_timeline_events). Reuses the exact
   # same icon set as goods receipts for the events they share.
+  STOCK_TRANSFER_TIMELINE_MARKER_CLASSES = {
+    submitted: "warning", edited: "warning", draft_edited: "neutral", approved: "success", approved_posted: "success",
+    rejected: "danger", cancelled: "neutral", dispatched: "warning", received_partially: "warning",
+    received_in_full: "success", received_with_shortfall: "danger", resolved: "warning", voided: "danger",
+    posted: "success", legacy_posted: "success"
+  }.freeze
+
+  def stock_transfer_timeline_marker_class(type)
+    "activity-timeline__marker--#{STOCK_TRANSFER_TIMELINE_MARKER_CLASSES.fetch(type, 'neutral')}"
+  end
+
   STOCK_ISSUE_TIMELINE_MARKER_CLASSES = {
     created: "activity-timeline__marker--neutral", submitted: "activity-timeline__marker--warning",
     reopened: "activity-timeline__marker--neutral",

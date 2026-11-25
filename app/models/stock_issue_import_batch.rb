@@ -9,6 +9,8 @@ class StockIssueImportBatch < ApplicationRecord
   include RequiresActiveWarehouse
   belongs_to :business
   belongs_to :warehouse
+  include OperationalWarehouseReference
+  operational_warehouse :warehouse # never the system transit warehouse
   # Cost attribution copied from the import's StockIssue (nil for a
   # non-branch warehouse — allowed once the pending migration
   # 20261124110000 relaxes the column). Not a user input.

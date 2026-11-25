@@ -1,0 +1,42 @@
+<%#
+  The transfer's activity timeline (Inventory::StockTransferTimeline — durable
+  records only, chronological). Locals: events, products ({ id => Product })
+%>
+<% scope = "inventory.stock_transfers.timeline" %>
+<section class="card" style="margin-top: var(--space-5);" aria-labelledby="timeline-title">
+  <div class="card-header">
+    <h2 class="card-title" id="timeline-title" style="font-size: var(--text-lg);"><%= t("#{scope}.title") %></h2>
+  </div>
+  <% if events.any? %>
+    <ul class="activity-timeline" style="padding: var(--space-5);" data-testid="transfer-timeline">
+      <% events.each do |event| %>
+        <li class="activity-timeline__item" data-timeline-event="<%= event.type %>">
+          <div class="activity-timeline__marker-col">
+            <span class="activity-timeline__marker <%= stock_transfer_timeline_marker_class(event.type) %>"></span>
+            <span class="activity-timeline__line"></span>
+          </div>
+          <div class="activity-timeline__content">
+            <p class="activity-timeline__title"><%= t("#{scope}.events.#{event.type}") %></p>
+            <p class="activity-timeline__meta">
+              <%= event.actor&.full_name || t("#{scope}.unknown_actor") %> · <%= event.time ? l(event.time, format: :short) : "—" %>
+            </p>
+            <% if event.lines.present? %>
+              <p class="activity-timeline__meta">
+                <%= event.lines.map { |line|
+                      name = products[line[:product_id].to_i]&.name || "##{line[:product_id]}"
+                      label = line[:kind] ? " (#{t("inventory.stock_transfers.ledger.kinds.#{line[:kind]}")})" : ""
+                      "#{name}: #{line[:quantity]}#{label}"
+                    }.join(" · ") %>
+              </p>
+            <% end %>
+            <% if event.detail.present? %>
+              <p class="activity-timeline__meta"><%= t("#{scope}.detail", detail: event.detail) %></p>
+            <% end %>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="td-secondary" style="padding: var(--space-4);"><%= t("inventory.stock_transfers.history_empty") %></p>
+  <% end %>
+</section>

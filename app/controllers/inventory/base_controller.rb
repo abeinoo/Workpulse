@@ -23,10 +23,27 @@ class Inventory::BaseController < ApplicationController
   # authorizes its own action.
   def admitted_without_inventory_view? = false
 
+  # Pending transfers waiting for the current user's approval — the transfer
+  # list's link and the dashboard's "Needs action" item. ONE count per request,
+  # from the approvals queue's own relation (Inventory::PendingStockTransferApprovals);
+  # pages that already loaded those rows set @pending_stock_transfer_approvals_count
+  # first, so they cost no extra query. 0, with no query, without approve_stock_transfers.
+  def pending_stock_transfer_approvals_count
+    return @pending_stock_transfer_approvals_count if defined?(@pending_stock_transfer_approvals_count)
+
+    @pending_stock_transfer_approvals_count =
+      if Inventory::StockTransferAuthorization.permits?(current_user, :approve)
+        Inventory::PendingStockTransferApprovals.for(current_user).count
+      else
+        0
+      end
+  end
+  helper_method :pending_stock_transfer_approvals_count
+
   # Active warehouses the current user may use — all of them, or only the ones
   # they're assigned to. Used to populate every warehouse dropdown.
   def accessible_warehouses
-    relation = current_user.business.warehouses.active.ordered
+    relation = current_user.business.warehouses.operational.active.ordered
     ids = current_user.inventory_warehouse_ids
     ids ? relation.where(id: ids) : relation
   end
@@ -79,6 +96,8 @@ class Inventory::BaseController < ApplicationController
   # scanner (product-combobox / lib/product_option.js): everything a line's
   # existing listeners read from the product's <option>. Images / barcodes
   # should be preloaded by the caller.
+  helper_method :product_picker_json
+
   def product_picker_json(product)
     barcodes = product.product_barcodes.map(&:barcode)
     { id: product.id, name: product.name, sku: product.sku, barcode: product.barcode, barcodes: barcodes,

@@ -5,10 +5,13 @@ class ProductPolicy < ApplicationPolicy
   # The product PICKERS (search by name / SKU / barcode, returning only the
   # picker payload — id, name, SKU, barcodes, thumbnail; no stock figures, no
   # catalogue pages): anyone who may browse the catalogue, and anyone whose
-  # operation needs to pick products — Stock Issue creation and Quick Issue —
-  # so those operation permissions do not have to require view_inventory.
+  # operation needs to pick products — Stock Issue creation, Quick Issue,
+  # Stock Transfer creation and pending-transfer editing — so those operation
+  # permissions do not have to require view_inventory.
   def pick? = index? || Inventory::StockIssueAuthorization.permits?(user, :create) ||
-              Inventory::StockIssueQuickIssue.permitted?(user)
+              Inventory::StockIssueQuickIssue.permitted?(user) ||
+              Inventory::StockTransferAuthorization.permits?(user, :create) ||
+              Inventory::StockTransferAuthorization.permits?(user, :edit_pending)
   def create?  = can?(:manage_inventory) || can?(:manage_products)
   def update?  = create?
   def archive? = create?

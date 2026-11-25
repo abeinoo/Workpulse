@@ -31,6 +31,8 @@ class GoodsReceipt < ApplicationRecord
 
   belongs_to :business
   belongs_to :warehouse
+  include OperationalWarehouseReference
+  operational_warehouse :warehouse # never the system transit warehouse
   belongs_to :supplier,   optional: true
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :confirmed_by, class_name: "User", optional: true

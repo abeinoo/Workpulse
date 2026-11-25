@@ -156,7 +156,7 @@ module Inventory
     def warehouses_allowed?
       ids = @items.map { |item| item[:warehouse_id].to_s }.uniq
 
-      candidates = @require_active_warehouse ? @business.warehouses.active : @business.warehouses
+      candidates = @require_active_warehouse ? @business.warehouses.operational.active : @business.warehouses.operational
       allowed = candidates.where(id: ids).pluck(:id).map(&:to_s)
       scoped  = @actor.inventory_warehouse_ids
       allowed &= scoped.map(&:to_s) if scoped

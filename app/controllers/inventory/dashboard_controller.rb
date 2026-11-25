@@ -34,10 +34,15 @@ class Inventory::DashboardController < Inventory::BaseController
     load_responsible_options # the review modal's responsible employee
 
     @warehouses        = accessible_warehouses.to_a
+    # Goods in transit belong to the business total of a viewer of every
+    # warehouse (Current Stock includes them): shown as their own row.
+    transit = Inventory::TransitWarehouse.find_for(business) if wh_ids.nil?
     @warehouse_summary = Inventory::Reports::WarehouseSummary.new(business, warehouses: @warehouses, movement_summary: @movements,
-                                                                            low_stock_alerts: @low_stock_alerts)
+                                                                            low_stock_alerts: @low_stock_alerts,
+                                                                            transit_warehouse: transit)
 
     load_pending_counts
+    load_transfer_counts
     @action_items = build_action_items
     load_recent_movements(business, wh_ids)
     load_quick_product
@@ -68,6 +73,21 @@ class Inventory::DashboardController < Inventory::BaseController
     @counts_in_progress       = counts.where(status: "in_progress").count
   end
 
+  # Stock transfers: the stage overview of what the viewer may see, and what
+  # waits for THEM (the same relations as the workspace badges).
+  def load_transfer_counts
+    return unless policy(StockTransfer).index?
+
+    @transfer_overview = Inventory::Reports::TransferOverview.new(policy_scope(StockTransfer))
+    queues = Inventory::StockTransferQueues.for(current_user)
+    @transfer_actions = {
+      transfer_approvals:     [ pending_stock_transfer_approvals_count, inventory_stock_transfer_approvals_path ],
+      transfers_to_dispatch:  [ queues.to_dispatch.count, inventory_transfers_in_transit_index_path(tab: "to_dispatch") ],
+      transfers_to_receive:   [ queues.to_receive.count, inventory_transfers_in_transit_index_path(tab: "to_receive") ],
+      transfer_discrepancies: [ queues.discrepancies.count, inventory_transfers_in_transit_index_path(tab: "discrepancies") ]
+    }
+  end
+
   # "يحتاج إلى إجراء" — only categories with something to do.
   def build_action_items
     items = [
@@ -90,6 +110,9 @@ class Inventory::DashboardController < Inventory::BaseController
       (ActionItem.new(key: :counts_in_progress, level: :warning, count: @counts_in_progress,
                       path: inventory_stock_counts_path(status: "in_progress")) if @counts_in_progress)
     ]
+    (@transfer_actions || {}).each do |key, (count, path)|
+      items << ActionItem.new(key: key, level: key == :transfer_discrepancies ? :serious : :warning, count: count, path: path)
+    end
     items.compact.select { |item| item.count.positive? }
   end
 

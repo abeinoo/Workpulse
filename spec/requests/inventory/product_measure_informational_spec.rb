@@ -39,7 +39,7 @@ RSpec.describe "Product Unit of Measure and Amount are informational only", type
   def transfer!(quantity)
     transfer = business.stock_transfers.build(source_warehouse: main, destination_warehouse: annex, transferred_on: Date.current, created_by: owner)
     transfer.items.build(product: product, quantity: quantity)
-    expect(Inventory::StockTransferPoster.new(transfer).call).to be_ok
+    expect(post_stock_transfer(transfer)).to be_ok
   end
 
   def edit_measure!(unit, amount)
@@ -111,7 +111,7 @@ RSpec.describe "Product Unit of Measure and Amount are informational only", type
 
       transfer = business.stock_transfers.build(source_warehouse: main, destination_warehouse: annex, transferred_on: Date.current, created_by: owner)
       transfer.items.build(product: product, quantity: 4)  # 10 on hand − 4 < 7 reserved
-      expect(Inventory::StockTransferPoster.new(transfer).call).not_to be_ok
+      expect(post_stock_transfer(transfer)).not_to be_ok
       expect(product.reload.stock_in(main)).to eq(10)
     end
 

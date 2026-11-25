@@ -1,6 +1,8 @@
 class WarehousePolicy < ApplicationPolicy
   def index?   = can?(:view_inventory) || can?(:manage_inventory)
-  def show?    = index?
+  # The system transit warehouse is never shown, edited, classified or
+  # removed as a warehouse (it is left out of Scope too).
+  def show?    = index? && operational_record?
 
   # Creating a warehouse is company-wide inventory structure (D4): only a
   # business owner or a holder of access_all_warehouses may do it — on top of
@@ -13,16 +15,22 @@ class WarehousePolicy < ApplicationPolicy
   # Classifying an unclassified warehouse (kind NULL -> central / branch) is
   # the same company-wide structural decision as creating one (D4). The record
   # must also be reachable (it is loaded through Scope).
-  def classify? = create?
+  def classify? = create? && operational_record?
 
   # Unchanged: editing and deleting stay a manage_inventory action, on a
   # warehouse the user can reach (records are loaded through Scope).
-  def update?  = can?(:manage_inventory)
+  def update?  = can?(:manage_inventory) && operational_record?
   def destroy? = update?
 
   class Scope < ApplicationPolicy::Scope
     def resolve
-      for_accessible_warehouses(scope.for_business(user.business), column: :id)
+      # Never the system transit warehouse (Warehouse.operational).
+      for_accessible_warehouses(scope.for_business(user.business).operational, column: :id)
     end
   end
+
+  private
+
+  # `record` may be the class itself for a bare permission check.
+  def operational_record? = !record.is_a?(Warehouse) || record.operational?
 end

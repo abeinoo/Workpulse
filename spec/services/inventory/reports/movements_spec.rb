@@ -32,7 +32,7 @@ RSpec.describe Inventory::Reports::Movements, type: :model do
   def transfer(qty:, on: d2)
     t = business.stock_transfers.build(source_warehouse: main, destination_warehouse: outlet, transferred_on: on)
     t.items.build(product: product, quantity: qty)
-    Inventory::StockTransferPoster.new(t).call.tap { |res| expect(res.ok?).to be(true) }
+    post_stock_transfer(t).tap { |res| expect(res.ok?).to be(true) }
   end
 
   def adjust(diff:, on: d2)

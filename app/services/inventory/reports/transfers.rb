@@ -1,9 +1,10 @@
 module Inventory
   module Reports
-    # Transfer report: one row per transferred product line. Transfers post
-    # (move stock) the moment they are saved — there is no draft stage — so
-    # the only states are posted and voided. Voided transfers are excluded
-    # unless status: "voided" or "all" is asked for explicitly.
+    # Transfer report: one row per transferred product line of a POSTED
+    # (approved) transfer — drafts, pending, rejected and cancelled transfers
+    # never moved stock and never appear (Inventory::StockTransferApproval
+    # posts them). Posted transfers are then posted or voided; voided ones are
+    # excluded unless status: "voided" or "all" is asked for explicitly.
     class Transfers
       STATUSES = %w[posted voided all].freeze
 
@@ -33,7 +34,7 @@ module Inventory
       private
 
       def items
-        transfers = @business.stock_transfers
+        transfers = @business.stock_transfers.posted
         transfers = case @status
         when "posted" then transfers.active
         when "voided" then transfers.voided

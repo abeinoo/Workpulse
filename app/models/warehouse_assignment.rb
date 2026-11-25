@@ -13,6 +13,8 @@ class WarehouseAssignment < ApplicationRecord
 
   belongs_to :user
   belongs_to :warehouse
+  include OperationalWarehouseReference
+  operational_warehouse :warehouse # never the system transit warehouse
 
   # The user making the change; not persisted.
   attr_accessor :audit_actor

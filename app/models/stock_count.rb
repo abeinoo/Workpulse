@@ -24,6 +24,8 @@ class StockCount < ApplicationRecord
   include RequiresActiveWarehouse
   belongs_to :business
   belongs_to :warehouse
+  include OperationalWarehouseReference
+  operational_warehouse :warehouse # never the system transit warehouse
   belongs_to :created_by,       class_name: "User", optional: true
   belongs_to :completed_by,     class_name: "User", optional: true
   belongs_to :approved_by,      class_name: "User", optional: true

@@ -1,62 +1,130 @@
 <% content_for :title, @stock_transfer.transfer_number %>
+<% transfer_policy = policy(@stock_transfer) %>
+<% scope = "inventory.stock_transfers" %>
+<% transfer = @stock_transfer %>
 
-<div class="admin-page">
+<div class="admin-page stt">
   <%= link_to inventory_stock_transfers_path, class: "back-link" do %>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
     <%= t("forms.back") %>
   <% end %>
 
   <div class="page-header">
-    <h1 class="page-title">
-      <%= @stock_transfer.transfer_number %>
-      <span class="badge <%= @stock_transfer.voided? ? 'badge-danger' : 'badge-success' %>">
-        <%= @stock_transfer.voided? ? t("inventory.void.status_voided") : t("inventory.stock_transfers.status_posted") %>
-      </span>
-    </h1>
+    <div>
+      <h1 class="page-title">
+        <%= transfer.transfer_number %>
+        <%= stock_transfer_status_badge(transfer) %>
+      </h1>
+      <p class="td-secondary" data-testid="posting-mode"><%= t("#{scope}.posting_modes.#{transfer.posting_mode}") %></p>
+    </div>
+    <div class="flex" style="gap: var(--space-2); flex-wrap: wrap;">
+      <% if transfer_policy.edit? || transfer_policy.edit_pending? %>
+        <%= link_to t("#{scope}.edit_action"), edit_inventory_stock_transfer_path(transfer), class: "btn btn-ghost btn-sm" %>
+      <% end %>
+      <% if transfer_policy.submit? %>
+        <%= button_to t("#{scope}.submit_action"), submit_inventory_stock_transfer_path(transfer), method: :patch,
+              class: "btn btn-primary btn-sm", form: { data: { turbo_confirm: t("#{scope}.form.submit_confirm") } } %>
+      <% end %>
+      <% if transfer_policy.approve? %>
+        <%= button_to transfer.via_transit? ? t("#{scope}.approve_action_transit") : t("#{scope}.approve_action"),
+              approve_inventory_stock_transfer_path(transfer), method: :patch, class: "btn btn-primary btn-sm",
+              form: { data: { turbo_confirm: t("#{scope}.confirm.approve") } } %>
+      <% end %>
+      <% if transfer_policy.dispatch? %>
+        <%= button_to t("#{scope}.dispatch_action"), dispatch_goods_inventory_stock_transfer_path(transfer), method: :patch,
+              class: "btn btn-primary btn-sm", data: { testid: "dispatch-button" },
+              form: { data: { turbo_confirm: t("#{scope}.confirm.dispatch") } } %>
+      <% end %>
+    </div>
   </div>
 
-  <%= render "inventory/shared/void_panel",
-        document: @stock_transfer,
-        void_path: void_inventory_stock_transfer_path(@stock_transfer),
-        can_void: policy(@stock_transfer).void? %>
+  <% if transfer.via_transit? && transfer.awaiting_dispatch? && !transfer_policy.dispatch? %>
+    <p class="alert alert-info"><%= t("#{scope}.awaiting_dispatch_hint", warehouse: transfer_warehouse_label(transfer.source_warehouse)) %></p>
+  <% elsif transfer.in_transit? && !transfer_policy.receive? %>
+    <p class="alert alert-info"><%= t("#{scope}.in_transit_hint", warehouse: transfer_warehouse_label(transfer.destination_warehouse)) %></p>
+  <% elsif transfer.discrepancy? && !transfer_policy.resolve? %>
+    <p class="alert alert-warning"><%= t("#{scope}.discrepancy_hint") %></p>
+  <% end %>
 
-  <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-5);">
+  <% if transfer.approved? %>
+    <%= render "inventory/shared/void_panel", document: transfer, void_path: void_inventory_stock_transfer_path(transfer),
+          can_void: transfer_policy.void? %>
+  <% end %>
+
+  <div class="card stt__details">
     <dl class="detail-list">
-      <div class="detail-list__row"><dt><%= t("inventory.stock_transfers.date") %></dt><dd><%= local_date(@stock_transfer.transferred_on) %></dd></div>
-      <div class="detail-list__row"><dt><%= t("inventory.stock_transfers.source_warehouse") %></dt><dd><%= @stock_transfer.source_warehouse.name %></dd></div>
-      <div class="detail-list__row"><dt><%= t("inventory.stock_transfers.destination_warehouse") %></dt><dd><%= @stock_transfer.destination_warehouse.name %></dd></div>
-      <% if @stock_transfer.notes.present? %>
-        <div class="detail-list__row"><dt><%= t("inventory.stock_transfers.notes") %></dt><dd><%= simple_format(@stock_transfer.notes) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("#{scope}.source_warehouse") %></dt><dd><%= transfer_warehouse_label(transfer.source_warehouse) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("#{scope}.destination_warehouse") %></dt><dd><%= transfer_warehouse_label(transfer.destination_warehouse) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("#{scope}.date") %></dt><dd><%= local_date(transfer.transferred_on) %></dd></div>
+      <div class="detail-list__row"><dt><%= t("#{scope}.requested_by") %></dt><dd><%= transfer.created_by&.full_name || "—" %> · <%= l(transfer.created_at, format: :short) %></dd></div>
+      <% if transfer.submitted_at %>
+        <div class="detail-list__row"><dt><%= t("#{scope}.submitted_at") %></dt><dd><%= l(transfer.submitted_at, format: :short) %> — <%= transfer.submitted_by&.full_name %></dd></div>
+      <% end %>
+      <% if transfer.legacy_posting? %>
+        <div class="detail-list__row"><dt><%= t("#{scope}.approved_by") %></dt><dd><%= t("#{scope}.legacy_posting") %></dd></div>
+      <% elsif transfer.approved_at %>
+        <div class="detail-list__row"><dt><%= t("#{scope}.approved_by") %></dt><dd><%= transfer.approved_by&.full_name %> — <%= l(transfer.approved_at, format: :short) %></dd></div>
+      <% end %>
+      <% if transfer.dispatched_at %>
+        <div class="detail-list__row"><dt><%= t("#{scope}.dispatched_by") %></dt><dd><%= transfer.dispatched_by&.full_name %> — <%= l(transfer.dispatched_at, format: :short) %> (<%= local_date(transfer.dispatched_on) %>)</dd></div>
+      <% end %>
+      <% if transfer.received_at %>
+        <div class="detail-list__row"><dt><%= t("#{scope}.completed_at") %></dt><dd><%= l(transfer.received_at, format: :short) %></dd></div>
+      <% end %>
+      <% if transfer.rejected? %>
+        <div class="detail-list__row"><dt><%= t("#{scope}.rejected_by") %></dt><dd><%= transfer.rejected_by&.full_name %> — <%= l(transfer.rejected_at, format: :short) %></dd></div>
+        <div class="detail-list__row"><dt><%= t("#{scope}.rejection_reason") %></dt><dd><%= transfer.rejection_reason %></dd></div>
+      <% end %>
+      <% if transfer.cancelled? %>
+        <div class="detail-list__row"><dt><%= t("#{scope}.cancelled_by") %></dt><dd><%= transfer.cancelled_by&.full_name %> — <%= l(transfer.cancelled_at, format: :short) %></dd></div>
+        <div class="detail-list__row"><dt><%= t("#{scope}.cancellation_reason") %></dt><dd><%= transfer.cancellation_reason %></dd></div>
+      <% end %>
+      <% if transfer.notes.present? %>
+        <div class="detail-list__row"><dt><%= t("#{scope}.notes") %></dt><dd><%= simple_format(transfer.notes) %></dd></div>
       <% end %>
     </dl>
   </div>
 
-  <div class="table-wrap table-wrap--cards">
-    <table>
-      <thead><tr>
-        <th><%= t("inventory.stock_transfers.product") %></th>
-        <th><%= t("inventory.products.sku") %></th>
-        <th style="text-align: end;"><%= t("inventory.stock_transfers.quantity") %></th>
-        <th style="text-align: end;"><%= t("inventory.stock_transfers.unit_cost") %></th>
-        <th style="text-align: end;"><%= t("inventory.stock_transfers.total") %></th>
-      </tr></thead>
-      <tbody>
-        <% @items.each do |item| %>
-          <tr>
-            <td><%= product_identity(item.product, link: inventory_product_path(item.product)) %></td>
-            <td class="td-secondary"><%= item.product.sku %></td>
-            <td style="text-align: end;"><%= inventory_quantity(item.quantity) %></td>
-            <td style="text-align: end;"><%= format_unit_cost_currency(item.unit_cost) %></td>
-            <td style="text-align: end;"><%= format_currency(item.total_cost) %></td>
-          </tr>
-        <% end %>
-      </tbody>
-      <tfoot>
-        <tr>
-          <td colspan="4" style="text-align: end; font-weight: 600;"><%= t("inventory.stock_transfers.total") %></td>
-          <td style="text-align: end; font-weight: 600;"><%= format_currency(@stock_transfer.total_value) %></td>
-        </tr>
-      </tfoot>
-    </table>
-  </div>
+  <% if @progress %>
+    <%= render "progress_lines", transfer: transfer, progress: @progress %>
+  <% elsif @availability_lines %>
+    <%= render "review_lines", transfer: transfer, items: @items, availability: @availability_lines, removed: @removed_lines %>
+  <% else %>
+    <%= render "posted_lines", transfer: transfer, items: @items %>
+  <% end %>
+
+  <% if transfer_policy.receive? %>
+    <%= render "receive_form", transfer: transfer, progress: @progress %>
+  <% end %>
+  <% if transfer_policy.resolve? %>
+    <%= render "resolve_form", transfer: transfer, progress: @progress %>
+  <% end %>
+
+  <% if transfer_policy.reject? %>
+    <div class="card stt__panel">
+      <%= form_with url: reject_inventory_stock_transfer_path(transfer), method: :patch, data: { turbo_confirm: t("#{scope}.confirm.reject") } do |f| %>
+        <%= f.label :rejection_reason, t("#{scope}.rejection_reason"), class: "form-label form-label--required" %>
+        <%= f.text_area :rejection_reason, rows: 2, required: true, class: "form-control" %>
+        <p class="form-hint"><%= t("#{scope}.reason_required_hint") %></p>
+        <%= f.submit t("#{scope}.reject_action"), class: "btn btn-danger btn-sm" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if transfer_policy.cancel? %>
+    <div class="card stt__panel">
+      <%= form_with url: cancel_inventory_stock_transfer_path(transfer), method: :patch, data: { turbo_confirm: t("#{scope}.confirm.cancel") } do |f| %>
+        <%= f.label :cancellation_reason, t("#{scope}.cancellation_reason"), class: "form-label form-label--required" %>
+        <%= f.text_area :cancellation_reason, rows: 2, required: true, class: "form-control" %>
+        <p class="form-hint"><%= t("#{scope}.reason_required_hint") %></p>
+        <%= f.submit t("#{scope}.cancel_action"), class: "btn btn-ghost btn-sm text-danger" %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if @receipts.any? || @resolutions.any? %>
+    <%= render "ledger_history", receipts: @receipts, resolutions: @resolutions %>
+  <% end %>
+
+  <%= render "timeline", events: @timeline, products: @products_by_id %>
 </div>

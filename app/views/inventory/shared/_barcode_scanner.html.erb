@@ -8,8 +8,10 @@
   input and drive it through the existing barcode-scanner pipeline on scan.
 %>
 <% scanner_mode = local_assigns.fetch(:scanner_mode, "select") %>
+<% increment_on_repeat = local_assigns.fetch(:increment_on_repeat, false) %>
 <div class="form-group" data-controller="barcode-scanner camera-scanner"
      data-barcode-scanner-mode-value="<%= scanner_mode %>"
+     data-barcode-scanner-increment-value="<%= increment_on_repeat %>"
      data-barcode-scanner-lookup-url-value="<%= inventory_barcode_lookup_path %>"
      data-camera-scanner-mode-value="fill"
      data-camera-scanner-i18n-title="<%= t('inventory.camera_scanner.title') %>"

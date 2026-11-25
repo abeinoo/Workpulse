@@ -201,6 +201,10 @@
     </section>
   </div>
 
+  <% if @transfer_overview %>
+    <%= render "inventory/dashboard/transfer_overview", overview: @transfer_overview, low_stock_count: @overview.low_stock_count %>
+  <% end %>
+
   <%# ── Purchase recommendations (existing low-stock purchasing flow) ──── %>
   <%= render "inventory/shared/low_stock_purchasing", rows: @low_stock_rows.first(Inventory::DashboardController::PURCHASE_ROWS),
              total: @low_stock_rows.size, suppliers: @suppliers, warehouses: @warehouses,
@@ -249,8 +253,9 @@
   </section>
 
   <%# ── Warehouse summary ─────────────────────────────────────────────── %>
-  <% if @warehouses.size > 1 %>
-    <section class="card inv-dash__section">
+  <% transit_row = @warehouse_summary.transit_row %>
+  <% if @warehouses.size > 1 || transit_row %>
+    <section class="card inv-dash__section" data-testid="warehouse-summary">
       <div class="inv-dash__panel-head"><h2 class="section-title--exec"><%= t("#{ov}.warehouse_summary") %></h2></div>
       <div class="table-wrap table-wrap--cards">
         <table class="report-table">
@@ -273,7 +278,25 @@
                 <td style="text-align: end;"><%= row.movements %></td>
               </tr>
             <% end %>
+            <% if transit_row %>
+              <%# Goods dispatched, not yet received: never a warehouse to open or manage. %>
+              <tr data-testid="warehouse-summary-transit">
+                <td class="td-wrap"><%= t("inventory.transit_warehouse.name") %> <span class="td-secondary"><%= t("#{ov}.in_transit_hint") %></span></td>
+                <td style="text-align: end;"><%= format_currency(transit_row.stock_value) %></td>
+                <td style="text-align: end;"><%= transit_row.products_in_stock %></td>
+                <td style="text-align: end;">—</td>
+                <td style="text-align: end;">—</td>
+                <td style="text-align: end;"><%= transit_row.movements %></td>
+              </tr>
+            <% end %>
           </tbody>
+          <tfoot>
+            <tr data-testid="warehouse-summary-total">
+              <td><strong><%= t("#{ov}.summary_total") %></strong></td>
+              <td style="text-align: end;"><strong><%= format_currency(@warehouse_summary.total_value) %></strong></td>
+              <td colspan="4"></td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </section>
@@ -314,7 +337,7 @@
                 <td class="td-wrap"><%= product_identity(row.product, link: inventory_product_path(row.product)) %></td>
                 <td><%= inventory_movement_badge(row.reason, source: row.source) %></td>
                 <td style="text-align: end; font-weight: 600;"><%= row.signed_quantity.positive? ? "+" : "−" %><%= qty.(row.quantity) %></td>
-                <td class="td-secondary"><%= row.warehouse.name %></td>
+                <td class="td-secondary"><%= row.warehouse.display_name %></td>
                 <td class="td-secondary"><%= @recent_branches[branch_id]&.name || "—" %></td>
                 <td><%= inventory_source_document_link(row.source, row.document_number) %></td>
               </tr>

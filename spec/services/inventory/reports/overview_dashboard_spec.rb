@@ -26,7 +26,7 @@ RSpec.describe "Inventory overview dashboard services", type: :model do
   def transfer(product, qty, on: today)
     t = business.stock_transfers.build(source_warehouse: main, destination_warehouse: outlet, transferred_on: on)
     t.items.build(product: product, quantity: qty)
-    Inventory::StockTransferPoster.new(t).call.tap { |res| expect(res.ok?).to be(true) }.transfer
+    post_stock_transfer(t).tap { |res| expect(res.ok?).to be(true) }.transfer
   end
 
   def adjust(product, diff, on: today)

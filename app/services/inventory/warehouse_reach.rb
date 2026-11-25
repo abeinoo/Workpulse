@@ -6,7 +6,8 @@ module Inventory
   # (Inventory::BaseController#ensure_warehouses_accessible! and the policy
   # scopes), so the two layers can never disagree:
   #
-  #   * every warehouse belongs to the actor's business, and
+  #   * every warehouse is an operational warehouse of the actor's business
+  #     (never the system transit warehouse), and
   #   * the actor can reach it: User#inventory_warehouse_ids (nil = every
   #     warehouse of the business; an Array — possibly empty — otherwise).
   #
@@ -29,7 +30,10 @@ module Inventory
       ids   = warehouses.flatten.compact.map { |w| w.respond_to?(:id) ? w.id : Integer(w) }.uniq
       reach = actor.inventory_warehouse_ids
       return allow_none && reach.nil? if ids.empty?
-      return false unless Warehouse.where(id: ids, business_id: actor.business_id).count == ids.size
+      # The system transit warehouse is never a warehouse an actor works in
+      # (Warehouse.operational): transfer legs reach it only inside their own
+      # workflow service, never through a caller-supplied id.
+      return false unless Warehouse.operational.where(id: ids, business_id: actor.business_id).count == ids.size
 
       reach.nil? || (ids - reach).empty?
     rescue ArgumentError, TypeError

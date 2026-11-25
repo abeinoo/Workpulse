@@ -6,8 +6,10 @@ require "rails_helper"
 # StockTransferPolicy::Scope (a transfer is listed when the viewer reaches
 # either end); the branch of an end the viewer does not reach is not shown.
 #
-# Transfers are built directly (no StockTransferPoster): the section reads
-# documents only, and no stock is needed to display them.
+# Transfers are built directly (no posting): the section reads documents
+# only, and no stock is needed to display them. They are stored as posted
+# (status approved) — the section lists posted transfers only; drafts,
+# pending, rejected and cancelled transfers never moved stock.
 RSpec.describe "Product page — branch transfers section", type: :request do
   let(:business) { create(:business) }
   let!(:owner)   { create(:user, :owner, business: business) }
@@ -22,12 +24,14 @@ RSpec.describe "Product page — branch transfers section", type: :request do
   let!(:product) { business.products.create!(name: "Hair Color", sku: "HC-1", initial_cost_price: 0, average_cost_price: 0) }
   let!(:other)   { business.products.create!(name: "Shampoo", sku: "SH-1", initial_cost_price: 0, average_cost_price: 0) }
 
-  def transfer!(from, to, lines: { product => 2 }, on: Date.current, voided: false, by: creator)
+  def transfer!(from, to, lines: { product => 2 }, on: Date.current, voided: false, by: creator, status: "approved")
     @seq = (@seq || 0) + 1
     t = business.stock_transfers.build(source_warehouse: from, destination_warehouse: to, transferred_on: on,
                                        transfer_number: "TR-#{format('%04d', @seq)}", created_by: by)
     lines.each_pair { |p, qty| Array(qty).each { |q| t.items.build(product: p, quantity: q, unit_cost: 1) } }
     t.save!
+    reason = { "rejected" => { rejection_reason: "fixture" }, "cancelled" => { cancellation_reason: "fixture" } }.fetch(status, {})
+    t.update_columns(status: status, **reason) unless status == "draft"
     t.update_columns(voided_at: Time.current) if voided
     t
   end
@@ -50,6 +54,18 @@ RSpec.describe "Product page — branch transfers section", type: :request do
   def numbers = section.css("tbody tr[data-recent-document]").map { |tr| tr["data-recent-document"] }
   def row(number) = section.at_css("tr[data-recent-document='#{number}']")
   def summary(key) = section.at_css("[data-testid='stock-transfer-#{key}']").text.squish
+
+  describe "workflow status" do
+    it "lists posted transfers only — never drafts or pending, rejected or cancelled requests" do
+      posted = transfer!(north_wh, south_wh)
+      transfer!(north_wh, south_wh, status: "draft")
+      transfer!(central, north_wh, status: "pending_approval")
+      transfer!(central, south_wh, status: "cancelled")
+      transfer!(south_wh, central, status: "rejected")
+      visit_product(owner)
+      expect(numbers).to eq([ posted.transfer_number ])
+    end
+  end
 
   describe "an unrestricted viewer" do
     let!(:out_t)  { transfer!(north_wh, south_wh, on: Date.current - 2) }

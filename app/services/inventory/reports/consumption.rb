@@ -27,7 +27,7 @@ module Inventory
           totals   = @ledger.totals_by_branch_product
           products = Product.where(id: totals.keys.map(&:last)).index_by(&:id)
           branches = @business.branches.where(id: totals.keys.map(&:first).compact).index_by(&:id)
-          warehouses = @business.warehouses.index_by(&:id)
+          warehouses = @business.warehouses.operational.index_by(&:id)
           totals.map do |(branch_id, product_id), t|
             links = @supply_map.links_for_branch(branch_id)
             Row.new(product: products[product_id], branch: branches[branch_id],

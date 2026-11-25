@@ -145,6 +145,15 @@ RSpec.describe "Durable audit database guards" do
                           # (db/migrate/20261123091000, 20261123092000); the packaging structure
                           # checks were dropped by 20261123110000 (measurement is informational).
                           "inventory_packaging_entries_append_only", "inventory_average_cost_changes_append_only",
-                          "product_packaging_levels_immutable")
+                          "product_packaging_levels_immutable",
+                          # Stock Transfer redesign, Phase A (migration 20261125100000): the system
+                          # transit warehouse guards and the receipt / resolution ledgers.
+                          *%w[goods_receipts purchase_requests purchase_request_items stock_adjustments stock_counts
+                              stock_issues stock_issue_import_batches stock_transfers warehouse_assignments
+                              warehouse_branch_supplies product_warehouse_settings inventory_packaging_entries
+                              inventory_unit_conversion_lines].map { "#{_1}_operational_warehouse_only" },
+                          "inventory_movements_transit_legs",
+                          "stock_transfer_receipts_append_only", "stock_transfer_receipt_lines_append_only",
+                          "stock_transfer_resolutions_append_only")
   end
 end

@@ -80,8 +80,8 @@ class Laundry::LaundryBatchesController < Laundry::BaseController
   end
 
   def laundry_warehouse
-    current_user.business.warehouses.find_by(name: "Laundry Warehouse") ||
-      current_user.business.warehouses.first
+    current_user.business.warehouses.operational.find_by(name: "Laundry Warehouse") ||
+      current_user.business.warehouses.operational.first
   end
   helper_method :laundry_warehouse
 

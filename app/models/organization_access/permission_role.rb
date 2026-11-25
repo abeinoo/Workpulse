@@ -54,6 +54,14 @@ class PermissionRole < ApplicationRecord
     stock_issues:          %w[view_stock_issues create_stock_issues approve_stock_issues confirm_stock_issues
                                cancel_stock_issues void_stock_issues quick_issue_stock
                                manage_stock_issues],
+    # Stock Transfers — one permission per operation
+    # (Inventory::StockTransferAuthorization). Independent of each other and
+    # of manage_stock_transfers (legacy: still view + create only, never
+    # approve / edit pending / reject / cancel). None of them grants
+    # warehouse access.
+    stock_transfers:       %w[view_stock_transfers create_stock_transfers approve_stock_transfers
+                               edit_pending_stock_transfers reject_stock_transfers cancel_stock_transfers
+                               dispatch_stock_transfers receive_stock_transfers resolve_stock_transfer_discrepancies],
     performance:           %w[view_performance_dashboard view_notes view_monthly_reviews
                                view_performance_reports manage_evaluation_templates
                                create_observations manage_reviews finalize_reviews],
@@ -376,6 +384,19 @@ class PermissionRole < ApplicationRecord
     "void_stock_issues"      => %w[view_stock_issues],
 
     "manage_stock_transfers" => %w[view_inventory],
+    # Stock Transfers: every operation needs the Stock Transfer view — never
+    # view_inventory and never manage_stock_transfers, so approval can be
+    # granted on its own.
+    "create_stock_transfers"       => %w[view_stock_transfers],
+    "approve_stock_transfers"      => %w[view_stock_transfers],
+    "edit_pending_stock_transfers" => %w[view_stock_transfers],
+    "reject_stock_transfers"       => %w[view_stock_transfers],
+    "cancel_stock_transfers"       => %w[view_stock_transfers],
+    # Transit workflow (Stock Transfer redesign): dispatch = source side,
+    # receive = destination side, resolve = discrepancies (both ends).
+    "dispatch_stock_transfers"             => %w[view_stock_transfers],
+    "receive_stock_transfers"              => %w[view_stock_transfers],
+    "resolve_stock_transfer_discrepancies" => %w[view_stock_transfers],
     "create_purchase_requests" => %w[view_inventory],
     "approve_purchase_requests" => %w[view_inventory],
     "manage_purchase_request_advances"  => %w[view_inventory],

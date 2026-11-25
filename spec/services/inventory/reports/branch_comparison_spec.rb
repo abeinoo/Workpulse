@@ -38,7 +38,7 @@ RSpec.describe Inventory::Reports::BranchComparison, type: :model do
   def transfer(qty:, on: from + 2)
     t = business.stock_transfers.build(source_warehouse: main, destination_warehouse: outlet, transferred_on: on)
     t.items.build(product: product, quantity: qty)
-    Inventory::StockTransferPoster.new(t).call.tap { |res| expect(res.ok?).to be(true) }.transfer
+    post_stock_transfer(t).tap { |res| expect(res.ok?).to be(true) }.transfer
   end
 
   def adjust(diff:, wh: main, on: from + 3)

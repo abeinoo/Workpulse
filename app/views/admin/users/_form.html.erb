@@ -155,7 +155,7 @@
         assignments outside that reach are kept by the assignment service, and
         an inactive warehouse can be removed but not newly granted. %>
     <% reach = current_user.inventory_warehouse_ids %>
-    <% warehouses = current_user.business.warehouses.ordered %>
+    <% warehouses = current_user.business.warehouses.operational.ordered %>
     <% warehouses = warehouses.where(id: reach) if reach %>
     <% if warehouses.any? && permitted.include?(assigned_warehouse_ids: []) %>
       <div class="form-group" style="grid-column: 1 / -1;">

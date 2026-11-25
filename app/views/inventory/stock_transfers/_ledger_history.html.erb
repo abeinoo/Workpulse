@@ -1,0 +1,30 @@
+<%# Receipts and resolutions of a via-transit transfer, as recorded (append-only). Locals: receipts, resolutions %>
+<% scope = "inventory.stock_transfers.ledger" %>
+<section class="card stt__panel" aria-labelledby="ledger-title" data-testid="ledger-history">
+  <h2 class="card-title" id="ledger-title"><%= t("#{scope}.title") %></h2>
+  <% receipts.each do |receipt| %>
+    <div class="stt__ledger-entry" data-receipt="<%= receipt.id %>">
+      <p>
+        <strong><%= t("#{scope}.receipt") %></strong> — <%= receipt.received_by&.full_name %>,
+        <%= l(receipt.received_at, format: :short) %> (<%= local_date(receipt.received_on) %>)
+        <% if receipt.closes_with_shortfall %><span class="badge badge-danger badge-xs"><%= t("#{scope}.closed_with_shortfall") %></span><% end %>
+      </p>
+      <ul>
+        <% receipt.lines.each do |line| %>
+          <li><%= line.stock_transfer_item.product.name %>: <%= inventory_quantity(line.quantity) %></li>
+        <% end %>
+      </ul>
+      <% if receipt.notes.present? %><p class="td-secondary"><%= receipt.notes %></p><% end %>
+    </div>
+  <% end %>
+  <% resolutions.each do |resolution| %>
+    <div class="stt__ledger-entry" data-resolution="<%= resolution.id %>">
+      <p>
+        <strong><%= t("#{scope}.kinds.#{resolution.kind}") %></strong> — <%= resolution.resolved_by&.full_name %>,
+        <%= l(resolution.resolved_at, format: :short) %> (<%= local_date(resolution.resolved_on) %>)
+      </p>
+      <p><%= resolution.stock_transfer_item.product.name %>: <%= inventory_quantity(resolution.quantity) %></p>
+      <p class="td-secondary"><%= t("#{scope}.reason", reason: resolution.reason) %></p>
+    </div>
+  <% end %>
+</section>

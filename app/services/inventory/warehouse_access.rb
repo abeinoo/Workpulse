@@ -52,7 +52,7 @@ module Inventory
       business_id = @user.business_id
       return [] if business_id.nil?
 
-      own = Warehouse.where(business_id: business_id)
+      own = Warehouse.where(business_id: business_id).operational
       assigned = own.where(id: WarehouseAssignment.where(user_id: @user.id).select(:warehouse_id))
       current  = Branch.where(business_id: business_id, branch_manager_id: @user.id, active: true, branch_type: "sales")
       managed  = own.where(kind: "branch", branch_id: current.select(:id))

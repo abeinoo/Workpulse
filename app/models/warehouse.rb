@@ -23,8 +23,28 @@ class Warehouse < ApplicationRecord
   #           made later, never inferred. The database enforces the same
   #           shape (warehouses_kind_known / warehouses_branch_only_for_branch_kind
   #           / index_warehouses_one_per_branch).
+  #
+  # transit — the ONE system-managed "In Transit" warehouse of a business
+  #           (Stock Transfer redesign, decision D2): dispatched transfer stock
+  #           sits here, in the normal movement ledger, until it is received
+  #           or resolved — so business totals and the moving average stay
+  #           correct during transit. It is never an operational warehouse:
+  #           created only by Inventory::TransitWarehouse, always active,
+  #           never renamed, assigned, configured, counted, issued from,
+  #           received into or chosen on any document, and left out of every
+  #           warehouse list (.operational). The database enforces the same
+  #           (warehouses_kind_known / warehouses_transit_always_active /
+  #           index_warehouses_one_transit_per_business and the
+  #           *_operational_warehouse_only triggers).
+  #
+  # KINDS are the classifiable (operational) kinds only.
   KINDS = %w[central branch].freeze
-  enum :kind, KINDS.index_with(&:itself), prefix: true, validate: { allow_nil: true }
+  TRANSIT_KIND = "transit".freeze
+  enum :kind, (KINDS + [ TRANSIT_KIND ]).index_with(&:itself), prefix: true, validate: { allow_nil: true }
+
+  # The stored name of every transit warehouse — a reserved token no ordinary
+  # warehouse may use; it is displayed through #display_name.
+  TRANSIT_NAME = "__system_transit__".freeze
 
   validates :name, presence: true, length: { maximum: 120 }
   validates :name, uniqueness: { scope: :business_id, case_sensitive: false }
@@ -43,6 +63,10 @@ class Warehouse < ApplicationRecord
   # warehouse (kind nil -> central/branch) is left open for the explicit,
   # audited classification step.
   validate  :structural_identity_unchanged, on: :update
+  validate  :transit_name_reserved
+  validate  :transit_only_through_provisioning, on: :create
+  validate  :transit_never_changes, on: :update
+  before_destroy :prevent_transit_destruction
 
   # Warehouse names are unique per business only through the validation above
   # (the database index is not unique). Two writers checking the same name at
@@ -80,6 +104,20 @@ class Warehouse < ApplicationRecord
 
   scope :for_business, ->(business) { where(business: business) }
   scope :ordered,      -> { order(:name) }
+  # Every warehouse a user can see, pick, be assigned to or put a document in
+  # — all but the system transit warehouse. Apply it wherever "the
+  # warehouses" are meant.
+  scope :operational,  -> { where("warehouses.kind IS DISTINCT FROM ?", TRANSIT_KIND) }
+  scope :transit,      -> { where(kind: TRANSIT_KIND) }
+
+  def transit? = kind_transit?
+  def operational? = !transit?
+
+  # The name to show: the transit warehouse's is translated.
+  def display_name = transit? ? I18n.t("inventory.transit_warehouse.name") : name
+
+  # Set only by Inventory::TransitWarehouse while it creates the row.
+  attr_accessor :system_provisioning
 
   # The Warehouses page type filter (read-only). Each value maps to the stored
   # kind exactly — never to a name; "unclassified" is kind NULL (warehouses
@@ -158,6 +196,31 @@ class Warehouse < ApplicationRecord
 
   def lock_name_for_uniqueness
     self.class.connection.execute(self.class.name_lock_statement(business_id, name))
+  end
+
+  def transit_name_reserved
+    if transit?
+      errors.add(:name, :reserved) unless name == TRANSIT_NAME
+    elsif name.to_s.casecmp?(TRANSIT_NAME)
+      errors.add(:name, :reserved)
+    end
+  end
+
+  def transit_only_through_provisioning
+    errors.add(:kind, :system_only) if transit? && !system_provisioning
+  end
+
+  def transit_never_changes
+    return unless kind_in_database == TRANSIT_KIND
+
+    errors.add(:base, :transit_warehouse_locked) if (changes_to_save.keys - %w[updated_at]).any?
+  end
+
+  def prevent_transit_destruction
+    return unless kind_in_database == TRANSIT_KIND
+
+    errors.add(:base, :transit_warehouse_locked)
+    throw :abort
   end
 
   def structural_identity_unchanged
