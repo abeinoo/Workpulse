@@ -1,0 +1,373 @@
+# Stock Transfer approval workflow and transfer reservations
+# (Inventory::StockTransfer* services, Inventory::StockAvailability).
+ar:
+  admin:
+    permission_roles:
+      groups:
+        stock_transfers: تحويلات المخزون
+      permissions:
+        view_stock_transfers: عرض تحويلات المخزون
+        create_stock_transfers: إنشاء تحويلات المخزون
+        approve_stock_transfers: اعتماد تحويلات المخزون (ترحيل حركة المخزون)
+        edit_pending_stock_transfers: تعديل تحويلات المخزون بانتظار الاعتماد
+        reject_stock_transfers: رفض تحويلات المخزون
+        cancel_stock_transfers: إلغاء تحويلات المخزون
+        dispatch_stock_transfers: إرسال تحويلات المخزون
+        receive_stock_transfers: استلام تحويلات المخزون
+        resolve_stock_transfer_discrepancies: معالجة فروقات التحويلات
+      permission_descriptions:
+        view_stock_transfers: عرض تحويلات المخزون وسجلها، ضمن المستودعات التي يمكنك الوصول إليها
+        create_stock_transfers: إنشاء مسودات التحويل وتعديلها وإرسالها للاعتماد — الإرسال يحجز الكميات المطلوبة في المستودع المصدر، ولا ينتقل شيء قبل الاعتماد
+        approve_stock_transfers: اعتماد تحويل بانتظار الاعتماد — يرحّل حركة المخزون من المصدر إلى الوجهة. يمكنك اعتماد طلباتك. يتطلب الوصول إلى المستودعين
+        edit_pending_stock_transfers: تغيير منتجات وكميات وملاحظات تحويل بانتظار الاعتماد — يُحدَّث حجزه مع التعديل
+        reject_stock_transfers: رفض تحويل بانتظار الاعتماد وتحرير حجزه — يلزم ذكر السبب
+        cancel_stock_transfers: إلغاء مسودة أو تحويل بانتظار الاعتماد وتحرير أي حجز — يلزم ذكر السبب. التحويلات المرحّلة تُلغى بالعكس (Void)
+        dispatch_stock_transfers: تسليم تحويل معتمد للتوصيل — يخرج مخزونه من المستودع المصدر إلى البضاعة بالطريق. يتطلب الوصول إلى المستودع المصدر
+        receive_stock_transfers: تأكيد الكميات التي وصلت فعلًا (يُسمح بالاستلام الجزئي) — تنتقل من البضاعة بالطريق إلى المستودع الوجهة. يتطلب الوصول إلى المستودع الوجهة
+        resolve_stock_transfer_discrepancies: 'تسوية الكميات المبلّغ عن عدم استلامها: إرجاعها إلى المستودع المصدر أو شطبها كمفقودة — يلزم ذكر السبب. يتطلب الوصول إلى المستودعين'
+  activerecord:
+    attributes:
+      stock_transfer:
+        status: الحالة
+        rejection_reason: سبب الرفض
+        cancellation_reason: سبب الإلغاء
+    errors:
+      messages:
+        reserved: محجوز لمستودع النقل الخاص بالنظام
+        system_only: نوع مستودع خاص بالنظام يُنشأ تلقائيًا
+        transit_warehouse_locked: مستودع البضاعة بالطريق يديره النظام تلقائيًا ولا يمكن تغييره أو حذفه
+        transit_warehouse: لا يمكن أن يكون مستودع البضاعة بالطريق الخاص بالنظام
+        transit_leg_mismatch: 'غير مسموح في هذا المستودع: مستودع البضاعة بالطريق لا يقبل إلا حركات النقل، وحركات النقل لا تذهب إلا إليه'
+        transit_direction_mismatch: لا يطابق حركة التحويل هذه
+        void_not_posted: لا يمكن عكس إلا تحويل مرحّل (معتمد). ألغِ المسودة أو التحويل بانتظار الاعتماد بدلًا من ذلك.
+        reserved_stock_conflict_documents: "%{product} (%{sku}) في %{warehouse}: سحب %{removal} سيترك أقل من %{reserved} المحجوزة لـ %{documents} (المتوفر: %{on_hand}). أكمل تلك المستندات أو ارفضها أو ألغها أولًا، أو اسحب كمية أقل."
+        immutable: لا يمكن تغييره
+      models:
+        stock_transfer:
+          attributes:
+            base:
+              insufficient_stock_reserved: 'الكمية المتاحة من %{product} (%{sku}) في %{warehouse} غير كافية. المتاح: %{available}، المطلوب: %{requested}. %{reserved} من %{on_hand} المتوفرة محجوزة مسبقًا لـ %{documents}.'
+              warehouses_fixed: لا يمكن تغيير مستودعات تحويل تم إرساله
+              decided_transfer_locked: تم البت في هذا التحويل ولا يمكن تغييره
+            status:
+              invalid_transition: لا يمكن تغييرها من %{from} إلى %{to}
+        stock_transfer_item:
+          attributes:
+            base:
+              transfer_locked: لا يمكن تغيير بنود تحويل تم البت فيه
+        stock_issue:
+          attributes:
+            base:
+              insufficient_stock_reserved_documents: 'الكمية المتاحة من %{product} (%{sku}) في %{warehouse} غير كافية. المتاح للصرف: %{available}، المطلوب: %{requested}. %{reserved} من %{on_hand} المتوفرة محجوزة مسبقًا لـ %{documents}.'
+  inventory:
+    transit_warehouse:
+      name: بالطريق
+    warehouses:
+      kinds:
+        transit: بالطريق (النظام)
+    movements:
+      reasons:
+        transit_in: دخول إلى النقل
+        transit_out: خروج من النقل
+        transfer_loss: فقد في التحويل (شطب)
+        transfer_return: إرجاع التحويل إلى المصدر
+    stock_transfer_approvals:
+      title: اعتماد التحويلات
+      subtitle: تحويلات المخزون بانتظار اعتمادك، في المستودعات التي يمكنك الوصول إليها. افتح الطلب لمراجعته أو تعديله أو اعتماده أو رفضه.
+      empty: لا توجد تحويلات بانتظار اعتمادك.
+      lines: البنود
+      review: مراجعة
+    stock_availability:
+      holders:
+        stock_issues: أذونات صرف معتمدة %{numbers}
+        stock_transfers: تحويلات مخزون بانتظار الاعتماد %{numbers}
+    stock_transfers:
+      statuses:
+        draft: مسودة
+        pending_approval: بانتظار الاعتماد
+        approved: معتمد
+        rejected: مرفوض
+        cancelled: ملغى
+        awaiting_dispatch: معتمد — بانتظار الإرسال
+        in_transit: بالطريق
+        partially_received: مستلم جزئيًا
+        discrepancy: فرق في الاستلام
+        received: تم الاستلام
+        posted_direct: مُرحّل
+      legacy_posting: رُحّل عند الإنشاء (قبل مسار الاعتماد)
+      all_statuses: الكل
+      pending_approval_count: 'بانتظار اعتمادك: %{count}'
+      save_draft: حفظ كمسودة
+      edit_action: تعديل
+      edit_title: تعديل تحويل المخزون
+      edit_pending_title: تعديل تحويل بانتظار الاعتماد
+      submit_action: إرسال للاعتماد
+      approve_action: اعتماد وترحيل
+      reject_action: رفض
+      cancel_action: إلغاء التحويل
+      rejection_reason: سبب الرفض
+      cancellation_reason: سبب الإلغاء
+      reason_required_hint: يلزم ذكر السبب.
+      draft_saved: تم حفظ مسودة التحويل. أرسلها للاعتماد لحجز المخزون.
+      updated: تم تحديث تحويل المخزون.
+      submitted: تم إرسال التحويل للاعتماد — الكميات المطلوبة محجوزة الآن.
+      approved: تم اعتماد التحويل — انتقل المخزون بين المستودعات.
+      rejected: تم رفض التحويل — حُرّر حجزه.
+      cancelled: تم إلغاء التحويل — حُرّر أي حجز.
+      requested_by: مقدّم الطلب
+      submitted_at: تاريخ الإرسال
+      approved_by: اعتمده
+      rejected_by: رفضه
+      cancelled_by: ألغاه
+      source_on_hand: المتوفر في المصدر
+      source_reserved: محجوز لمستندات أخرى
+      source_available: المتاح
+      history:
+        status_filter: التصفية حسب الحالة
+        search: بحث
+        search_placeholder: رقم التحويل أو المنتج أو SKU
+        any: الكل
+        person: الشخص
+        from: من
+        to: إلى
+        apply: تصفية
+        clear: مسح
+        no_match: لا يوجد تحويل يطابق هذه التصفية.
+        count:
+          zero: لا توجد تحويلات
+          one: تحويل واحد
+          two: تحويلان
+          few: "%{count} تحويلات"
+          many: "%{count} تحويلًا"
+          other: "%{count} تحويل"
+      history_empty: لا يوجد نشاط مسجل.
+      audit_actions:
+        create: إنشاء مسودة
+        update: تعديل المسودة
+        submit_for_approval: إرسال للاعتماد
+        update_pending: تعديل تحويل بانتظار الاعتماد
+        approve: اعتماد وترحيل
+        reject: رفض
+        cancel: إلغاء
+        void: عكس
+        post: ترحيل
+      errors:
+        not_permitted: ليست لديك صلاحية تنفيذ هذا الإجراء على تحويلات المخزون.
+        invalid_transition: لم يعد هذا التحويل في حالة تسمح بهذا الإجراء. أعد تحميل الصفحة لمعرفة حالته الحالية.
+        not_editable: لا يمكن تعديل إلا مسودة التحويل هنا.
+        stale_edit: عدّل مستخدم آخر هذا التحويل بعد فتحك له. أعد تحميل الصفحة وطبّق تعديلاتك مجددًا.
+        warehouses_fixed: لا يمكن تغيير مستودعات تحويل تم إرساله.
+        warehouse_missing: أحد مستودعات هذا التحويل لم يعد موجودًا.
+        warehouse_inactive: المستودع %{warehouse} غير نشط.
+        audit_failed: تعذر تسجيل التغيير في سجل التدقيق، لذلك لم يُحفظ شيء. حاول مرة أخرى؛ وإذا تكرر الخطأ فتواصل مع الدعم.
+        invalid_quantity: أدخل كميات صحيحة (صفر أو أكثر).
+        unknown_line: أُدخلت كمية لسطر ليس ضمن هذا التحويل.
+        nothing_to_receive: أدخل كمية مستلمة واحدة على الأقل.
+        receive_exceeds_remaining: "%{product}: %{requested} أكثر من %{remaining} المتبقية بالطريق. سجّل أي زيادة بتسوية مخزون في الوجهة."
+        transit_missing: لا يوجد لهذا التحويل مخزون بالطريق.
+        transit_balance_short: مخزون البضاعة بالطريق لا يغطي هذه الكميات. أعد تحميل الصفحة — ربما سُجّل استلام آخر.
+        resolution_reason_required: يلزم ذكر سبب لمعالجة الفرق.
+        nothing_to_resolve: أدخل كمية واحدة على الأقل للإرجاع أو الشطب.
+        resolve_exceeds_remaining: "%{product}: %{requested} أكثر من %{remaining} المتبقية."
+      posting_modes:
+        direct: مُرحّل مباشرة (بدون نقل)
+        via_transit: 'عبر النقل: اعتماد ← إرسال ← استلام'
+      approve_action_transit: اعتماد
+      dispatch_action: إرسال
+      dispatched: تم إرسال التحويل — خرج المخزون من المستودع المصدر وأصبح بالطريق.
+      outcomes:
+        awaiting_dispatch: تم اعتماد التحويل — تبقى الكميات محجوزة حتى الإرسال.
+        approved: تم اعتماد التحويل — انتقل المخزون بين المستودعات.
+        in_transit: تم تسجيل الاستلام — بقية التحويل ما زالت بالطريق.
+        discrepancy: تم تسجيل الاستلام مع نقص — الكميات الناقصة بانتظار المعالجة.
+        received: اكتمل التحويل — كل وحدة مُرسلة استُلمت أو سُوّيت.
+      confirm:
+        approve: اعتماد هذا التحويل؟ تبقى كمياته محجوزة حتى يُرسل.
+        dispatch: إرسال هذا التحويل الآن؟ يخرج مخزونه من المستودع المصدر إلى البضاعة بالطريق، ولا يمكن إلغاؤه بعد ذلك.
+        reject: رفض هذا التحويل؟ يُحرّر حجزه.
+        cancel: إلغاء هذا التحويل؟ يُحرّر أي حجز.
+      awaiting_dispatch_hint: معتمد. بانتظار الإرسال من %{warehouse}.
+      in_transit_hint: في الطريق. بانتظار الاستلام في %{warehouse}.
+      discrepancy_hint: أبلغ المستلم عن كميات ناقصة. يجب على مستخدم مخوّل بمعالجة الفروقات إرجاعها أو شطبها.
+      dispatched_by: أرسله
+      completed_at: اكتمل
+      legacy_short: رُحّل عند الإنشاء
+      form:
+        short_by: 'المتاح أقل: ينقص %{quantity}'
+        no_warnings: لا توجد تنبيهات مخزون.
+        warning_line: "%{product}: أكثر من المتاح بمقدار %{quantity}"
+        load_failed: تعذر تحميل الأرقام. حاول مرة أخرى.
+        loading: جارٍ التحميل…
+        merged_duplicate: هذا المنتج موجود في التحويل — دُمجت الكميات في سطر واحد.
+        same_warehouse: اختر مستودعين مختلفين.
+        date_hint: 'يُحدد تلقائيًا: يؤرخ التحويل بيوم إرساله.'
+        low_stock_button: جلب المنتجات منخفضة المخزون
+        availability_hint: 'الأرقام للمستودع المصدر: المتوفر، والمحجوز لمستندات أخرى، والمتاح. امسح الباركود مرة أخرى لإضافة وحدة.'
+        on_hand: المتوفر
+        reserved: المحجوز
+        available: المتاح
+        destination_on_hand: المتوفر في الوجهة
+        incoming: الوارد
+        after_transfer: الوجهة بعد التحويل
+        summary_title: ملخص التحويل
+        summary_lines: المنتجات
+        summary_quantity: إجمالي الكمية
+        server_checks: يُعاد فحص المخزون مع القفل عند إرسال التحويل للاعتماد واعتماده وإرساله.
+        save_and_submit: حفظ وإرسال للاعتماد
+        submit_confirm: إرسال هذا التحويل للاعتماد؟ ستُحجز كمياته في المستودع المصدر.
+        low_stock_title: منتجات منخفضة المخزون في الوجهة
+        low_stock_intro: منتجات عند حد المخزون المنخفض أو دونه، مع احتساب ما هو في الطريق. الكميات محدودة بما يمكن للمصدر توفيره.
+        refresh: تحديث
+        add_selected: إضافة المحدد
+      replenishment:
+        empty: لا يوجد منتج في الوجهة عند حد المخزون المنخفض أو دونه.
+        select_all: تحديد كل المتاح
+        on_hand: المتوفر
+        reserved: المحجوز
+        incoming: الوارد
+        position: الموقف
+        low_stock_level: حد المخزون المنخفض
+        suggested: المقترح
+        source_available: المتاح في المصدر
+        quantity: الكمية
+        select_product: تحديد %{product}
+        quantity_for: كمية %{product}
+        unavailable: لا يتوفر لدى المصدر
+        partial: يمكن للمصدر توفير %{available} فقط
+        footnote: الموقف = المتوفر − المحجوز + الوارد. المقترح = كمية إعادة الطلب، أو ما يلزم لبلوغ حد المخزون المنخفض.
+        select: تحديد
+      review:
+        requested: المطلوب
+        current: الحالي
+        change: التغيير
+        short: المتاح %{available} فقط
+        added: أضافه المعتمد
+        changed: تم تغييره
+        removed: حُذف
+      progress:
+        requested: المطلوب
+        dispatched: المُرسل
+        received: المستلم
+        returned: المُرجع
+        written_off: المشطوب
+        remaining: بالطريق
+      receive:
+        title: الاستلام
+        intro: أدخل ما وصل فعلًا. يمكنك استلام جزء الآن والباقي لاحقًا.
+        receive_now: المستلم الآن
+        receive_now_for: كمية %{product} المستلمة الآن
+        notes: ملاحظات الاستلام
+        close_shortfall: لن يصل شيء آخر — أغلق هذا الاستلام مع نقص
+        close_shortfall_hint: تبقى الكميات غير المستلمة بالطريق حتى تُرجع إلى المصدر أو تُشطب.
+        excess_hint: استلمت أكثر مما أُرسل؟ سجّل الزيادة بتسوية مخزون في الوجهة.
+        submit: تأكيد الاستلام
+        confirm: تأكيد هذه الكميات المستلمة؟ ستُضاف إلى المستودع الوجهة.
+      resolve:
+        title: معالجة الفرق
+        intro: 'سوِّ ما لن يُستلم: أرجعه إلى %{source}، أو اشطبه كمفقود.'
+        return_to_source: إرجاع إلى المصدر
+        write_off: شطب
+        return_for: كمية %{product} المُرجعة إلى المصدر
+        write_off_for: كمية %{product} المشطوبة
+        reason: السبب
+        reason_hint: مطلوب، ويُحفظ مع المعالجة بشكل دائم.
+        submit: تسجيل المعالجة
+        confirm: تسجيل هذه المعالجة؟ لا يمكن تغييرها أو التراجع عنها.
+      ledger:
+        title: الاستلامات والمعالجات
+        receipt: استلام
+        closed_with_shortfall: أُغلق مع نقص
+        reason: 'السبب: %{reason}'
+        kinds:
+          return_to_source: أُرجع إلى المصدر
+          write_off: شُطب
+      timeline:
+        title: النشاط
+        unknown_actor: غير معروف
+        detail: 'ملاحظة: %{detail}'
+        events:
+          created: إنشاء مسودة
+          draft_edited: تعديل المسودة
+          submitted: إرسال للاعتماد
+          edited: تعديل من المعتمد
+          approved: اعتماد
+          approved_posted: اعتماد وترحيل
+          rejected: رفض
+          cancelled: إلغاء
+          dispatched: إرسال — بالطريق
+          received_partially: استلام جزئي
+          received_in_full: استلام كامل
+          received_with_shortfall: استلام مع نقص
+          resolved: معالجة الفرق
+          voided: عكس
+          posted: ترحيل
+          legacy_posted: رُحّل عند الإنشاء (قبل مسار الاعتماد)
+    transfers_in_transit:
+      title: التحويلات بالطريق
+      subtitle: تحويلات بانتظار الإرسال، وبضاعة بالطريق، والاستلامات والفروقات — في المستودعات التي يمكنك الوصول إليها.
+      tabs:
+        to_receive: للاستلام
+        to_dispatch: للإرسال
+        discrepancies: الفروقات
+        in_transit: بالطريق
+        completed: المكتملة (30 يومًا)
+      hints:
+        to_receive: تحويلات في طريقها إلى مستودع يمكنك الاستلام فيه. افتح التحويل لتأكيد الكميات التي وصلت.
+        to_dispatch: تحويلات معتمدة بانتظار خروجها من مستودع ترسل منه. الإرسال ينقل المخزون إلى البضاعة بالطريق.
+        discrepancies: تحويلات أبلغ المستلم فيها عن كميات ناقصة. أرجعها إلى المصدر أو اشطبها.
+        in_transit: كل تحويل مُرسل لم يُستلم بالكامل بعد، من مستودعاتك أو إليها.
+        completed: التحويلات المستلمة أو المسوّاة بالكامل خلال آخر 30 يومًا.
+      empty:
+        to_receive: لا يوجد ما يُستلم.
+        to_dispatch: لا يوجد ما ينتظر الإرسال.
+        discrepancies: لا توجد فروقات للمعالجة.
+        in_transit: لا توجد تحويلات بالطريق.
+        completed: لا توجد تحويلات مكتملة خلال آخر 30 يومًا.
+      dispatched: الإرسال
+      last_receipt: آخر استلام
+      actions:
+        to_receive: استلام
+        to_dispatch: إرسال
+        discrepancies: معالجة
+        open: فتح
+    dashboard:
+      transfers:
+        title: تحويلات المخزون
+        history: سجل التحويلات
+        stages:
+          pending_approval: بانتظار الاعتماد
+          awaiting_dispatch: بانتظار الإرسال
+          in_transit: بالطريق
+          partially_received: مستلم جزئيًا
+          discrepancy: الفروقات
+          completed: المكتملة (30 يومًا)
+        replenishment:
+          zero: لا توجد منتجات عند حد المخزون المنخفض أو دونه.
+          one: منتج واحد عند حد المخزون المنخفض أو دونه.
+          two: منتجان عند حد المخزون المنخفض أو دونه.
+          few: "%{count} منتجات عند حد المخزون المنخفض أو دونه."
+          many: "%{count} منتجًا عند حد المخزون المنخفض أو دونه."
+          other: "%{count} منتج عند حد المخزون المنخفض أو دونه."
+        replenishment_cta: التزويد بتحويل
+      overview:
+        actions:
+          transfer_approvals:
+            title: تحويلات للاعتماد
+            desc: طلبات بانتظار اعتمادك
+            cta: مراجعة
+          transfers_to_dispatch:
+            title: تحويلات للإرسال
+            desc: تحويلات معتمدة بانتظار خروجها من مستودعك
+            cta: إرسال
+          transfers_to_receive:
+            title: تحويلات للاستلام
+            desc: بضاعة في طريقها إلى مستودعك
+            cta: استلام
+          transfer_discrepancies:
+            title: فروقات التحويلات
+            desc: كميات ناقصة بانتظار المعالجة
+            cta: معالجة
+        in_transit_hint: "(مُرسل ولم يُستلم بعد)"
+        summary_total: الإجمالي
+    products:
+      in_transit_share: منها %{quantity} بالطريق بين المستودعات

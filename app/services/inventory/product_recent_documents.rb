@@ -15,11 +15,13 @@ module Inventory
   # document type (filtered by an item-level subquery, ordered and limited in
   # SQL) plus one grouped SUM for this product's quantities.
   #
-  # Stock transfers have no workflow: a transfer posts on creation (out of the
-  # source, into the destination) and can only be voided, which reverses both
-  # movements. #stock_transfer_summary counts every transfer of the product the
-  # viewer may open — the same scoped relation as the rows, not just the
-  # latest STOCK_TRANSFERS_LIMIT shown.
+  # Stock transfers: only POSTED (approved) transfers are documents of the
+  # product's stock history — a transfer moves stock (out of the source, into
+  # the destination) at approval and can afterwards only be voided, which
+  # reverses both movements. Drafts, pending, rejected and cancelled transfers
+  # moved nothing and are left out. #stock_transfer_summary counts every
+  # posted transfer of the product the viewer may open — the same scoped
+  # relation as the rows, not just the latest STOCK_TRANSFERS_LIMIT shown.
   class ProductRecentDocuments
     GOODS_RECEIPTS_LIMIT = 1
     STOCK_ISSUES_LIMIT   = 5
@@ -107,7 +109,7 @@ module Inventory
     def transfers_with_product
       raise ArgumentError, "stock_transfers relation not given" if @stock_transfers.nil?
 
-      @stock_transfers.where(id: StockTransferItem.where(product_id: @product.id).select(:stock_transfer_id))
+      @stock_transfers.posted.where(id: StockTransferItem.where(product_id: @product.id).select(:stock_transfer_id))
     end
 
     def transfer_direction(transfer)

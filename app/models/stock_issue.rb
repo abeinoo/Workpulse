@@ -48,6 +48,8 @@ class StockIssue < ApplicationRecord
 
   belongs_to :business
   belongs_to :warehouse
+  include OperationalWarehouseReference
+  operational_warehouse :warehouse # never the system transit warehouse
   # Cost attribution for branch profitability / consumption reports (copied to
   # each OUT movement by Inventory::StockIssuePoster). NOT a user input and not
   # required: a new issue takes it from its warehouse

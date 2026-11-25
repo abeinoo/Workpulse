@@ -1,0 +1,53 @@
+<%#
+  Receipt form (destination side): per line, what is still in transit and
+  what arrives now (default: all of it). A receipt may be partial; the
+  server refuses more than what is in transit (D4: excess goes through a
+  destination Stock Adjustment). "Close with a shortfall" declares that
+  nothing more will arrive — the remainder then awaits a resolution.
+  Locals: transfer, progress
+%>
+<% scope = "inventory.stock_transfers.receive" %>
+<section class="card stt__panel" aria-labelledby="receive-title" data-testid="receive-form">
+  <h2 class="card-title" id="receive-title"><%= t("#{scope}.title") %></h2>
+  <p class="form-hint"><%= t("#{scope}.intro") %></p>
+  <%= form_with url: receive_inventory_stock_transfer_path(transfer), method: :patch,
+        data: { turbo_confirm: t("#{scope}.confirm") } do |f| %>
+    <div class="table-wrap table-wrap--form-cards">
+      <table class="line-items-table">
+        <thead><tr>
+          <th><%= t("inventory.stock_transfers.product") %></th>
+          <th class="stf__num"><%= t("inventory.stock_transfers.progress.dispatched") %></th>
+          <th class="stf__num"><%= t("inventory.stock_transfers.progress.received") %></th>
+          <th class="stf__num"><%= t("inventory.stock_transfers.progress.remaining") %></th>
+          <th class="stf__qty"><%= t("#{scope}.receive_now") %></th>
+        </tr></thead>
+        <tbody>
+          <% progress.lines.each do |line| %>
+            <tr>
+              <td data-label="<%= t("inventory.stock_transfers.product") %>"><%= line.item.product.name %> <span class="td-secondary"><%= line.item.product.sku %></span></td>
+              <td class="stf__num" data-label="<%= t("inventory.stock_transfers.progress.dispatched") %>"><%= inventory_quantity(line.dispatched) %></td>
+              <td class="stf__num" data-label="<%= t("inventory.stock_transfers.progress.received") %>"><%= inventory_quantity(line.received + line.resolved) %></td>
+              <td class="stf__num" data-label="<%= t("inventory.stock_transfers.progress.remaining") %>"><%= inventory_quantity(line.remaining) %></td>
+              <td class="stf__qty" data-label="<%= t("#{scope}.receive_now") %>">
+                <%= number_field_tag "receive[#{line.item.id}]", (inventory_quantity(line.remaining) if line.remaining.positive?),
+                      min: 0, max: inventory_quantity(line.remaining), step: "0.001", inputmode: "decimal", class: "form-control",
+                      disabled: !line.remaining.positive?, aria: { label: t("#{scope}.receive_now_for", product: line.item.product.name) } %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <div class="form-group">
+      <%= label_tag :receipt_notes, t("#{scope}.notes"), class: "form-label" %>
+      <%= text_area_tag :receipt_notes, nil, rows: 2, class: "form-control" %>
+    </div>
+    <label class="form-check">
+      <%= check_box_tag :close_shortfall, "1", false %>
+      <span class="form-check-label"><%= t("#{scope}.close_shortfall") %></span>
+    </label>
+    <p class="form-hint"><%= t("#{scope}.close_shortfall_hint") %></p>
+    <p class="form-hint"><%= t("#{scope}.excess_hint") %></p>
+    <%= f.submit t("#{scope}.submit"), class: "btn btn-primary", data: { testid: "receive-submit" } %>
+  <% end %>
+</section>

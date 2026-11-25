@@ -51,7 +51,7 @@ module Inventory
           movement.created_at.in_time_zone(@zone).strftime("%H:%M"),
           row.product.name,
           row.product.sku,
-          row.warehouse.name,
+          row.warehouse.display_name,
           I18n.t(row.stock_count ? "inventory.movements.stock_count_reasons.#{row.reason}" : "inventory.movements.reasons.#{row.reason}",
                  default: I18n.t("inventory.movements.reasons.#{row.reason}")),
           row.in_quantity.to_d,

@@ -1,0 +1,34 @@
+<%# Lines of a direct (legacy / Phase 2) posted transfer, or a rejected / cancelled one. Locals: transfer, items %>
+<% scope = "inventory.stock_transfers" %>
+<div class="table-wrap table-wrap--cards">
+  <table data-testid="posted-lines">
+    <thead><tr>
+      <th><%= t("#{scope}.product") %></th>
+      <th><%= t("inventory.products.sku") %></th>
+      <% if items.any?(&:requested_quantity) %><th class="stf__num"><%= t("#{scope}.review.requested") %></th><% end %>
+      <th class="stf__num"><%= t("#{scope}.quantity") %></th>
+      <th class="stf__num"><%= t("#{scope}.unit_cost") %></th>
+      <th class="stf__num"><%= t("#{scope}.total") %></th>
+    </tr></thead>
+    <tbody>
+      <% items.each do |item| %>
+        <tr>
+          <td data-label="<%= t("#{scope}.product") %>"><%= product_identity(item.product, link: inventory_product_path(item.product)) %></td>
+          <td class="td-secondary" data-label="<%= t("inventory.products.sku") %>"><%= item.product.sku %></td>
+          <% if items.any?(&:requested_quantity) %>
+            <td class="stf__num" data-label="<%= t("#{scope}.review.requested") %>"><%= item.requested_quantity ? inventory_quantity(item.requested_quantity) : "—" %></td>
+          <% end %>
+          <td class="stf__num" data-label="<%= t("#{scope}.quantity") %>"><%= inventory_quantity(item.quantity) %></td>
+          <td class="stf__num" data-label="<%= t("#{scope}.unit_cost") %>"><%= format_unit_cost_currency(item.unit_cost) %></td>
+          <td class="stf__num" data-label="<%= t("#{scope}.total") %>"><%= format_currency(item.total_cost) %></td>
+        </tr>
+      <% end %>
+    </tbody>
+    <% if transfer.approved? %>
+      <tfoot><tr>
+        <td colspan="<%= items.any?(&:requested_quantity) ? 5 : 4 %>" style="text-align: end; font-weight: 600;"><%= t("#{scope}.total") %></td>
+        <td class="stf__num" style="font-weight: 600;"><%= format_currency(transfer.total_value) %></td>
+      </tr></tfoot>
+    <% end %>
+  </table>
+</div>

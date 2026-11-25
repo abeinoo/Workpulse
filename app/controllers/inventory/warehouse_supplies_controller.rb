@@ -18,7 +18,7 @@ class Inventory::WarehouseSuppliesController < Inventory::BaseController
     business  = current_user.business
     map       = Inventory::BranchSupplyMap.new(business, warehouse_ids: accessible_warehouse_ids)
     supplies  = policy_scope(WarehouseBranchSupply).includes(:warehouse, :updated_by).index_by(&:branch_id)
-    warehouses = business.warehouses.index_by(&:id)
+    warehouses = business.warehouses.operational.index_by(&:id)
     scoped    = !accessible_warehouse_ids.nil?
 
     @rows = business.branches.where(active: true).order(:name).filter_map do |branch|
@@ -35,7 +35,7 @@ class Inventory::WarehouseSuppliesController < Inventory::BaseController
 
   def update
     branch    = current_user.business.branches.find(params[:id])
-    warehouse = current_user.business.warehouses.find(params.require(:warehouse_id))
+    warehouse = current_user.business.warehouses.operational.find(params.require(:warehouse_id))
     current   = WarehouseBranchSupply.find_by(branch_id: branch.id)&.warehouse
     raise Pundit::NotAuthorizedError unless policy(WarehouseBranchSupply).assign?(warehouse, current)
 

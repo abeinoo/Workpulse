@@ -123,7 +123,7 @@ RSpec.describe "Incoming stock vs deactivation (two connections)" do
     t = business.stock_transfers.build(source_warehouse: Warehouse.find(main.id), destination_warehouse: Warehouse.find(nasr_wh.id),
                                        transferred_on: Date.current)
     t.items.build(product: Product.find(shampoo.id), quantity: 2)
-    Inventory::StockTransferPoster.new(t).call
+    post_stock_transfer(t)
   end
 
   def nasr_stock = Product.find(shampoo.id).stock_in(Warehouse.find(nasr_wh.id))

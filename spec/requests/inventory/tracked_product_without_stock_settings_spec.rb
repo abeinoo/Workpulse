@@ -116,7 +116,7 @@ RSpec.describe "Tracked product without low-stock or reorder settings (chairs, e
       receive!(central, 6)
       transfer = business.stock_transfers.build(source_warehouse: central, destination_warehouse: branch_wh, transferred_on: Date.current)
       transfer.items.build(product: chair, quantity: 4)
-      expect(Inventory::StockTransferPoster.new(transfer).call).to be_ok
+      expect(post_stock_transfer(transfer)).to be_ok
 
       issue = business.stock_issues.build(warehouse: branch_wh, branch: branch_record, issued_on: Date.current)
       issue.items.build(product: chair, quantity: 1)

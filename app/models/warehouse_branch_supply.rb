@@ -10,6 +10,8 @@
 class WarehouseBranchSupply < ApplicationRecord
   belongs_to :business
   belongs_to :warehouse
+  include OperationalWarehouseReference
+  operational_warehouse :warehouse # never the system transit warehouse
   belongs_to :branch
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true

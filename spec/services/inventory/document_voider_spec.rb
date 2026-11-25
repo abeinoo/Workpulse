@@ -102,7 +102,7 @@ RSpec.describe Inventory::DocumentVoider, type: :model do
       receipt(qty: 10, cost: 100, wh: main)
       t = business.stock_transfers.build(source_warehouse: main, destination_warehouse: branch, transferred_on: Date.current)
       t.items.build(product: product, quantity: 6)
-      Inventory::StockTransferPoster.new(t).call
+      post_stock_transfer(t)
       expect(product.stock_in(main)).to eq(4)
       expect(product.stock_in(branch)).to eq(6)
 
@@ -116,7 +116,7 @@ RSpec.describe Inventory::DocumentVoider, type: :model do
       receipt(qty: 10, cost: 100, wh: main)
       t = business.stock_transfers.build(source_warehouse: main, destination_warehouse: branch, transferred_on: Date.current)
       t.items.build(product: product, quantity: 6)
-      Inventory::StockTransferPoster.new(t).call
+      post_stock_transfer(t)
       issue(qty: 5, wh: branch)                    # only 1 left in branch
 
       result = void(t)

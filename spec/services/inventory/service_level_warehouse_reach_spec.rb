@@ -134,14 +134,33 @@ RSpec.describe "Service-level warehouse reach" do
   end
 
   describe "Stock Transfers and Adjustments" do
-    it "refuses a transfer touching an unreachable warehouse — by the explicit actor or the creator" do
-      transfer = business.stock_transfers.build(source_warehouse: main_wh, destination_warehouse: other_wh,
-                                                transferred_on: Date.current, created_by: outsider)
-      transfer.items.build(product: product, quantity: 1)
+    # The transfer workflow (draft, submission, approval, edit, rejection,
+    # cancellation) checks reach to BOTH ends itself; posting happens only
+    # inside approval, never on its own.
+    it "refuses every transfer workflow step touching an unreachable warehouse" do
+      outsider.permission_role.update!(permissions: outsider.permission_role.permissions +
+                                         PermissionRole::PERMISSION_GROUPS[:stock_transfers])
+      result = Inventory::StockTransferDraftService.new(
+        actor: outsider,
+        attributes: { source_warehouse_id: main_wh.id, destination_warehouse_id: other_wh.id,
+                      items_attributes: [ { product_id: product.id, quantity: 1 } ] }
+      ).call
+      expect(result).not_to be_ok
+      expect(result.error).to eq(denied)
+      expect(StockTransfer.count).to eq(0)
 
-      expect { expect(Inventory::StockTransferPoster.new(transfer).call).not_to be_ok }
-        .not_to change(InventoryMovement, :count)
-      expect(transfer.errors[:base]).to include(denied)
+      pending = business.stock_transfers.build(source_warehouse: main_wh, destination_warehouse: other_wh, created_by: owner)
+      pending.items.build(product: product, quantity: 1)
+      save_stock_transfer_in_status!(pending, :pending_approval, actor: owner)
+
+      expect do
+        expect(Inventory::StockTransferApproval.new(stock_transfer_id: pending.id, actor: outsider).call.error).to eq(denied)
+        expect(Inventory::StockTransferEditor.new(stock_transfer_id: pending.id, actor: outsider,
+                                                  attributes: { notes: "x" }).call.error).to eq(denied)
+        expect(Inventory::StockTransferRejection.new(stock_transfer_id: pending.id, actor: outsider, reason: "x").call.error).to eq(denied)
+        expect(Inventory::StockTransferCancellation.new(stock_transfer_id: pending.id, actor: outsider, reason: "x").call.error).to eq(denied)
+      end.not_to change(InventoryMovement, :count)
+      expect(pending.reload).to be_pending_approval
     end
 
     it "refuses an adjustment in an unreachable warehouse" do

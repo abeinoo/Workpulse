@@ -69,15 +69,21 @@ class Inventory::ProductsController < Inventory::BaseController
                  .find(params[:id])
     authorize @product
     wh_ids      = accessible_warehouse_ids
-    @warehouses = current_user.business.warehouses.ordered.index_by(&:id)
+    # Operational warehouses only: stock in the system transit warehouse is
+    # not a warehouse's stock. For a viewer of every warehouse it is shown as
+    # "in transit" and stays in the total (the business still owns it).
+    @warehouses = current_user.business.warehouses.operational.ordered.index_by(&:id)
 
-    all_by_warehouse    = Inventory::StockLevels.new(@product).by_warehouse
+    by_warehouse        = Inventory::StockLevels.new(@product).by_warehouse
+    all_by_warehouse    = by_warehouse.slice(*@warehouses.keys)
     @stock_by_warehouse = wh_ids ? all_by_warehouse.slice(*wh_ids) : all_by_warehouse
+    transit = Inventory::TransitWarehouse.find_for(current_user.business) if wh_ids.nil?
+    @stock_in_transit = transit ? by_warehouse[transit.id].to_d : 0
 
     load_warehouse_availability
     @low_stock_warehouse = @availability_pairs.any?(&:low_stock?)
 
-    @display_stock       = @stock_by_warehouse.values.sum
+    @display_stock       = @stock_by_warehouse.values.sum + @stock_in_transit
     @display_stock_value = @display_stock * @product.average_cost_price
 
     movements = @product.inventory_movements.includes(:warehouse, :source)

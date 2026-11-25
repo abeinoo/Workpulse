@@ -83,6 +83,27 @@ RSpec.describe "Inventory workspace navigation", type: :request do
       expect(doc.at_css(".ws__more-menu a.is-active")["href"]).to eq(inventory_stock_transfers_path)
     end
 
+    # Transfer Approvals and Transfers in Transit are not navigation entries:
+    # their pages open from the dashboard ("Needs action", Stock Transfers card)
+    # and the Stock Transfers page. Stock Transfers itself stays in the menu.
+    %w[en ar].each do |locale|
+      it "keeps Stock Transfers and lists neither Transfer Approvals nor Transfers in Transit (#{locale})" do
+        super_admin.update_column(:preferred_locale, locale)
+        [ inventory_root_path, inventory_stock_transfer_approvals_path, inventory_transfers_in_transit_index_path ].each do |path|
+          get path
+          expect(response).to have_http_status(:ok)
+          nav = rail_hrefs + tab_hrefs + more_hrefs
+          expect(nav).to include(inventory_stock_transfers_path)
+          expect(nav).not_to include(inventory_stock_transfer_approvals_path)
+          expect(nav).not_to include(inventory_transfers_in_transit_index_path)
+        end
+        labels = doc.css(".ws__rail a.ws__rail-item, .ws__tabs a.ws__tab, .ws__more-menu a.ws__more-item").map { |a| a.text.squish }.join(" ")
+        expect(labels).to include(I18n.t("nav.inventory_stock_transfers", locale: locale))
+        expect(labels).not_to include(I18n.t("inventory.stock_transfer_approvals.title", locale: locale))
+        expect(labels).not_to include(I18n.t("inventory.transfers_in_transit.title", locale: locale))
+      end
+    end
+
     {
       inventory_brands_path:             :inventory_settings_path,
       inventory_product_categories_path: :inventory_settings_path,

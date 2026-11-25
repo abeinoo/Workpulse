@@ -34,7 +34,7 @@ module Inventory
     def warehouses
       return Warehouse.none if @actor&.business_id.nil?
 
-      relation = Warehouse.where(business_id: @actor.business_id).active.ordered
+      relation = Warehouse.where(business_id: @actor.business_id).operational.active.ordered
       ids = @actor.inventory_warehouse_ids
       ids.nil? ? relation : relation.where(id: ids)
     end
@@ -53,7 +53,7 @@ module Inventory
       id = warehouse_or_id.respond_to?(:id) ? warehouse_or_id.id : warehouse_or_id
       return false if @actor.nil? || id.blank? || !id.to_s.match?(/\A\d+\z/)
 
-      Warehouse.where(business_id: @actor.business_id, id: id.to_i).active.exists? &&
+      Warehouse.where(business_id: @actor.business_id, id: id.to_i).operational.active.exists? &&
         WarehouseReach.permits?(@actor, id.to_i)
     end
 

@@ -115,7 +115,7 @@ RSpec.describe "Product Family removed", type: :request do
 
       transfer = business.stock_transfers.build(source_warehouse: central, destination_warehouse: branch_wh, transferred_on: Date.current)
       transfer.items.build(product: former_parent, quantity: 3)
-      expect(Inventory::StockTransferPoster.new(transfer).call).to be_ok
+      expect(post_stock_transfer(transfer)).to be_ok
 
       issue = business.stock_issues.build(warehouse: branch_wh, branch: branch_wh.branch, issued_on: Date.current)
       issue.items.build(product: former_parent, quantity: 1)

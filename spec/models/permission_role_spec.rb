@@ -113,12 +113,12 @@ RSpec.describe PermissionRole, type: :model do
 
   # ── Constants ───────────────────────────────────────────────────────────────
   describe "PERMISSION_GROUPS" do
-    it "covers exactly 25 groups" do
-      expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(25)
+    it "covers exactly 26 groups (stock_transfers added)" do
+      expect(PermissionRole::PERMISSION_GROUPS.keys.size).to eq(26)
     end
 
-    it "has 149 total permissions (manage_branch_access retired)" do
-      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(149)
+    it "has 158 total permissions (manage_branch_access retired; 9 stock transfer permissions added)" do
+      expect(PermissionRole::ALL_PERMISSIONS.size).to eq(158)
     end
 
     # Stock Issue & Quick Issue authorization: one permission per operation.

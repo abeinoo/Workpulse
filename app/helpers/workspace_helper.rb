@@ -146,7 +146,8 @@ module WorkspaceHelper
                      current_user.can?(:manage_inventory)
     {
       # Mirrors Inventory::BaseController#require_inventory_access!
-      access:   reports_access || current_user.can?(:view_stock_issues) || policy(StockIssue).quick_issue?,
+      access:   reports_access || current_user.can?(:view_stock_issues) || policy(StockIssue).quick_issue? ||
+                policy(StockTransfer).index?,
       title:    t("nav.inventory_workspace"),
       subtitle: t("inventory.workspace.subtitle"),
       groups:   { catalog: "inventory.workspace.groups.catalog", purchasing: "inventory.workspace.groups.purchasing",

@@ -1,0 +1,32 @@
+<%#
+  Stock Transfers card (Inventory::Reports::TransferOverview): transfers per
+  stage that the viewer may see, each linking to its list; plus the
+  replenishment entry point (low-stock products → a new transfer).
+  Locals: overview, low_stock_count
+%>
+<% scope = "inventory.dashboard.transfers" %>
+<section class="card inv-dash__section" id="stock-transfers" data-testid="dashboard-transfers">
+  <div class="inv-dash__panel-head">
+    <h2 class="section-title--exec"><%= t("#{scope}.title") %></h2>
+    <%= link_to t("#{scope}.history"), inventory_stock_transfers_path, class: "link" %>
+  </div>
+  <div class="stat-grid stt__stage-grid">
+    <% { "pending_approval" => inventory_stock_transfers_path(status: "pending_approval"),
+         "awaiting_dispatch" => inventory_stock_transfers_path(status: "awaiting_dispatch"),
+         "in_transit" => inventory_stock_transfers_path(status: "in_transit"),
+         "partially_received" => inventory_stock_transfers_path(status: "partially_received"),
+         "discrepancy" => inventory_stock_transfers_path(status: "discrepancy"),
+         "completed" => inventory_stock_transfers_path(status: "received") }.each do |stage, path| %>
+      <%= link_to path, class: "stat-card stt__stage stt__stage--#{stage}", data: { stage: stage } do %>
+        <span class="stat-card__label"><%= t("#{scope}.stages.#{stage}") %></span>
+        <span class="stat-card__value"><%= overview.counts[stage] %></span>
+      <% end %>
+    <% end %>
+  </div>
+  <% if policy(StockTransfer).create? && low_stock_count.positive? %>
+    <p class="stt__replenish-hint">
+      <%= t("#{scope}.replenishment", count: low_stock_count) %>
+      <%= link_to t("#{scope}.replenishment_cta"), new_inventory_stock_transfer_path, class: "btn btn-secondary btn-sm" %>
+    </p>
+  <% end %>
+</section>

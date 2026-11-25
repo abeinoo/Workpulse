@@ -48,7 +48,7 @@ module Inventory
 
       def warehouses
         @warehouses ||= begin
-          scope = business.warehouses.includes(:branch).ordered
+          scope = business.warehouses.operational.includes(:branch).ordered
           scope = scope.where(id: @warehouse_ids) if @warehouse_ids
           scope.to_a
         end

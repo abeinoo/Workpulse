@@ -6,6 +6,8 @@ class PurchaseRequestItem < ApplicationRecord
   # warehouse moved to the request (PurchaseRequest#warehouse). Never written
   # for new lines; kept for those historical requests.
   belongs_to :source_warehouse, class_name: "Warehouse", optional: true
+  include OperationalWarehouseReference
+  operational_warehouse :source_warehouse # never the system transit warehouse
   # Who this line is bought from — optional (unknown or decided later).
   # Pre-filled from product.default_supplier in the form, but it belongs to the
   # line: changing it never touches the product. A Goods Receipt may receive

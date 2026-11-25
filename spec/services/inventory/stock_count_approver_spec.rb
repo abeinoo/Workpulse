@@ -27,7 +27,7 @@ RSpec.describe Inventory::StockCountApprover, type: :model do
   def transfer_out!(product, qty)
     t = business.stock_transfers.build(source_warehouse: warehouse, destination_warehouse: outlet, transferred_on: Date.current)
     t.items.build(product: product, quantity: qty)
-    expect(Inventory::StockTransferPoster.new(t).call.ok?).to be(true)
+    expect(post_stock_transfer(t).ok?).to be(true)
   end
 
   def completed_count(*lines)

@@ -108,7 +108,7 @@ module Inventory
     def warehouse_allowed?
       return true unless request.will_save_change_to_warehouse_id?
 
-      candidates = request.business.warehouses.active.where(id: request.warehouse_id)
+      candidates = request.business.warehouses.operational.active.where(id: request.warehouse_id)
       scoped     = @actor.inventory_warehouse_ids
       candidates = candidates.where(id: scoped) if scoped
       candidates.exists?

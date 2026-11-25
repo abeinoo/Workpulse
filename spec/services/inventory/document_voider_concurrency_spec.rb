@@ -185,7 +185,7 @@ RSpec.describe "Inventory::DocumentVoider concurrency (two connections, BUG-017)
     stock!(10)
     transfer = business.stock_transfers.build(source_warehouse: main, destination_warehouse: branch, transferred_on: Date.current)
     transfer.items.build(product: product, quantity: 6)
-    Inventory::StockTransferPoster.new(transfer).call
+    post_stock_transfer(transfer)
     expect([ product.stock_in(main), product.stock_in(branch) ]).to eq([ 4, 6 ])
 
     first, second = race_two_voids(transfer)

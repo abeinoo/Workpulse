@@ -116,7 +116,7 @@ RSpec.describe "Warehouse-based access control", type: :request do
       # Owner moves stock from B into A.
       t = business.stock_transfers.build(source_warehouse: wh_b, destination_warehouse: wh_a, transferred_on: Date.current)
       t.items.build(product: product, quantity: 2)
-      Inventory::StockTransferPoster.new(t).call
+      post_stock_transfer(t)
 
       sign_in manager_a
       get inventory_stock_transfers_path

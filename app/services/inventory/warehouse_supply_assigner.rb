@@ -21,7 +21,7 @@ module Inventory
 
     def call
       branch    = Branch.where(business_id: @actor.business_id).find(@branch_id)
-      warehouse = Warehouse.where(business_id: @actor.business_id).find(@warehouse_id)
+      warehouse = Warehouse.operational.where(business_id: @actor.business_id).find(@warehouse_id)
       # Service-level authorization (Phase 2): the controller's exact rule —
       # manage_inventory and reach to the new AND the current supplying
       # warehouse — so a direct call is no bypass.

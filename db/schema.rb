@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -2491,10 +2491,57 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_120000) do
     t.decimal "entered_quantity", precision: 12, scale: 3
     t.bigint "packaging_level_id"
     t.string "unit_of_measure"
+    t.decimal "requested_quantity", precision: 12, scale: 3
     t.index ["packaging_level_id"], name: "index_stock_transfer_items_on_packaging_level_id"
     t.index ["product_id"], name: "index_stock_transfer_items_on_product_id"
     t.index ["stock_transfer_id"], name: "index_stock_transfer_items_on_stock_transfer_id"
     t.check_constraint "entered_quantity IS NULL OR entered_quantity > 0::numeric", name: "stock_transfer_items_entered_quantity_positive"
+    t.check_constraint "requested_quantity IS NULL OR requested_quantity > 0::numeric", name: "stock_transfer_items_requested_quantity_positive"
+  end
+
+  create_table "stock_transfer_receipt_lines", force: :cascade do |t|
+    t.bigint "stock_transfer_receipt_id", null: false
+    t.bigint "stock_transfer_item_id", null: false
+    t.decimal "quantity", precision: 12, scale: 3, null: false
+    t.datetime "created_at", null: false
+    t.index ["stock_transfer_item_id"], name: "index_stock_transfer_receipt_lines_on_stock_transfer_item_id"
+    t.index ["stock_transfer_receipt_id", "stock_transfer_item_id"], name: "index_receipt_lines_one_per_item", unique: true
+    t.index ["stock_transfer_receipt_id"], name: "idx_on_stock_transfer_receipt_id_5f89d66fcd"
+    t.check_constraint "quantity > 0::numeric", name: "stock_transfer_receipt_lines_quantity_positive"
+  end
+
+  create_table "stock_transfer_receipts", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "stock_transfer_id", null: false
+    t.bigint "received_by_id", null: false
+    t.datetime "received_at", null: false
+    t.date "received_on", null: false
+    t.boolean "closes_with_shortfall", default: false, null: false
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.index ["business_id"], name: "index_stock_transfer_receipts_on_business_id"
+    t.index ["received_by_id"], name: "index_stock_transfer_receipts_on_received_by_id"
+    t.index ["stock_transfer_id"], name: "index_stock_transfer_receipts_on_stock_transfer_id"
+  end
+
+  create_table "stock_transfer_resolutions", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "stock_transfer_id", null: false
+    t.bigint "stock_transfer_item_id", null: false
+    t.bigint "resolved_by_id", null: false
+    t.string "kind", null: false
+    t.decimal "quantity", precision: 12, scale: 3, null: false
+    t.text "reason", null: false
+    t.datetime "resolved_at", null: false
+    t.date "resolved_on", null: false
+    t.datetime "created_at", null: false
+    t.index ["business_id"], name: "index_stock_transfer_resolutions_on_business_id"
+    t.index ["resolved_by_id"], name: "index_stock_transfer_resolutions_on_resolved_by_id"
+    t.index ["stock_transfer_id"], name: "index_stock_transfer_resolutions_on_stock_transfer_id"
+    t.index ["stock_transfer_item_id"], name: "index_stock_transfer_resolutions_on_stock_transfer_item_id"
+    t.check_constraint "btrim(reason) <> ''::text", name: "stock_transfer_resolutions_reason_present"
+    t.check_constraint "kind::text = ANY (ARRAY['return_to_source'::character varying, 'write_off'::character varying]::text[])", name: "stock_transfer_resolutions_kind_valid"
+    t.check_constraint "quantity > 0::numeric", name: "stock_transfer_resolutions_quantity_positive"
   end
 
   create_table "stock_transfers", force: :cascade do |t|
@@ -2510,12 +2557,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_120000) do
     t.datetime "voided_at"
     t.bigint "voided_by_id"
     t.text "void_reason"
+    t.string "status", default: "draft", null: false
+    t.datetime "submitted_at"
+    t.bigint "submitted_by_id"
+    t.datetime "approved_at"
+    t.bigint "approved_by_id"
+    t.datetime "rejected_at"
+    t.bigint "rejected_by_id"
+    t.text "rejection_reason"
+    t.datetime "cancelled_at"
+    t.bigint "cancelled_by_id"
+    t.text "cancellation_reason"
+    t.string "posting_mode", default: "direct", null: false
+    t.datetime "dispatched_at"
+    t.bigint "dispatched_by_id"
+    t.date "dispatched_on"
+    t.datetime "received_at"
+    t.index ["approved_by_id"], name: "index_stock_transfers_on_approved_by_id"
+    t.index ["business_id", "posting_mode", "status"], name: "index_stock_transfers_on_business_mode_status"
+    t.index ["business_id", "status"], name: "index_stock_transfers_on_business_id_and_status"
     t.index ["business_id", "transfer_number"], name: "index_stock_transfers_on_business_id_and_transfer_number", unique: true
     t.index ["business_id"], name: "index_stock_transfers_on_business_id"
+    t.index ["cancelled_by_id"], name: "index_stock_transfers_on_cancelled_by_id"
     t.index ["created_by_id"], name: "index_stock_transfers_on_created_by_id"
     t.index ["destination_warehouse_id"], name: "index_stock_transfers_on_destination_warehouse_id"
+    t.index ["dispatched_by_id"], name: "index_stock_transfers_on_dispatched_by_id"
+    t.index ["rejected_by_id"], name: "index_stock_transfers_on_rejected_by_id"
     t.index ["source_warehouse_id"], name: "index_stock_transfers_on_source_warehouse_id"
+    t.index ["submitted_by_id"], name: "index_stock_transfers_on_submitted_by_id"
     t.index ["voided_by_id"], name: "index_stock_transfers_on_voided_by_id"
+    t.check_constraint "(status::text <> ALL (ARRAY['in_transit'::character varying, 'discrepancy'::character varying, 'received'::character varying]::text[])) OR dispatched_at IS NOT NULL AND dispatched_by_id IS NOT NULL AND dispatched_on IS NOT NULL", name: "stock_transfers_dispatch_recorded"
+    t.check_constraint "posting_mode::text = 'direct'::text AND (status::text = ANY (ARRAY['draft'::character varying, 'pending_approval'::character varying, 'approved'::character varying, 'rejected'::character varying, 'cancelled'::character varying]::text[])) OR posting_mode::text = 'via_transit'::text AND (status::text = ANY (ARRAY['draft'::character varying, 'pending_approval'::character varying, 'awaiting_dispatch'::character varying, 'in_transit'::character varying, 'discrepancy'::character varying, 'received'::character varying, 'rejected'::character varying, 'cancelled'::character varying]::text[]))", name: "stock_transfers_status_matches_posting_mode"
+    t.check_constraint "posting_mode::text = ANY (ARRAY['direct'::character varying, 'via_transit'::character varying]::text[])", name: "stock_transfers_posting_mode_valid"
+    t.check_constraint "status::text <> 'cancelled'::text OR cancellation_reason IS NOT NULL AND btrim(cancellation_reason) <> ''::text", name: "stock_transfers_cancellation_reason_required"
+    t.check_constraint "status::text <> 'received'::text OR received_at IS NOT NULL", name: "stock_transfers_receipt_recorded"
+    t.check_constraint "status::text <> 'rejected'::text OR rejection_reason IS NOT NULL AND btrim(rejection_reason) <> ''::text", name: "stock_transfers_rejection_reason_required"
+    t.check_constraint "status::text = ANY (ARRAY['draft'::character varying, 'pending_approval'::character varying, 'approved'::character varying, 'rejected'::character varying, 'cancelled'::character varying, 'awaiting_dispatch'::character varying, 'in_transit'::character varying, 'discrepancy'::character varying, 'received'::character varying]::text[])", name: "stock_transfers_status_valid"
   end
 
   create_table "suppliers", force: :cascade do |t|
@@ -2840,8 +2917,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_120000) do
     t.index ["branch_id"], name: "index_warehouses_one_per_branch", unique: true, where: "(branch_id IS NOT NULL)"
     t.index ["business_id", "name"], name: "index_warehouses_on_business_id_and_name"
     t.index ["business_id"], name: "index_warehouses_on_business_id"
+    t.index ["business_id"], name: "index_warehouses_one_transit_per_business", unique: true, where: "((kind)::text = 'transit'::text)"
     t.check_constraint "(NOT kind::text IS DISTINCT FROM 'branch'::text) = (branch_id IS NOT NULL)", name: "warehouses_branch_only_for_branch_kind"
-    t.check_constraint "kind IS NULL OR (kind::text = ANY (ARRAY['central'::character varying, 'branch'::character varying]::text[]))", name: "warehouses_kind_known"
+    t.check_constraint "kind IS NULL OR (kind::text = ANY (ARRAY['central'::character varying, 'branch'::character varying, 'transit'::character varying]::text[]))", name: "warehouses_kind_known"
+    t.check_constraint "kind::text IS DISTINCT FROM 'transit'::text OR status::text = 'active'::text", name: "warehouses_transit_always_active"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
@@ -3227,8 +3306,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_120000) do
   add_foreign_key "stock_transfer_items", "product_packaging_levels", column: ["packaging_level_id", "product_id"], primary_key: ["id", "product_id"], name: "fk_stock_transfer_items_packaging_level_same_product"
   add_foreign_key "stock_transfer_items", "products"
   add_foreign_key "stock_transfer_items", "stock_transfers"
+  add_foreign_key "stock_transfer_receipt_lines", "stock_transfer_items"
+  add_foreign_key "stock_transfer_receipt_lines", "stock_transfer_receipts"
+  add_foreign_key "stock_transfer_receipts", "businesses"
+  add_foreign_key "stock_transfer_receipts", "stock_transfers"
+  add_foreign_key "stock_transfer_receipts", "users", column: "received_by_id"
+  add_foreign_key "stock_transfer_resolutions", "businesses"
+  add_foreign_key "stock_transfer_resolutions", "stock_transfer_items"
+  add_foreign_key "stock_transfer_resolutions", "stock_transfers"
+  add_foreign_key "stock_transfer_resolutions", "users", column: "resolved_by_id"
   add_foreign_key "stock_transfers", "businesses"
+  add_foreign_key "stock_transfers", "users", column: "approved_by_id"
+  add_foreign_key "stock_transfers", "users", column: "cancelled_by_id"
   add_foreign_key "stock_transfers", "users", column: "created_by_id"
+  add_foreign_key "stock_transfers", "users", column: "dispatched_by_id"
+  add_foreign_key "stock_transfers", "users", column: "rejected_by_id"
+  add_foreign_key "stock_transfers", "users", column: "submitted_by_id"
   add_foreign_key "stock_transfers", "users", column: "voided_by_id"
   add_foreign_key "stock_transfers", "warehouses", column: "destination_warehouse_id"
   add_foreign_key "stock_transfers", "warehouses", column: "source_warehouse_id"
@@ -3324,6 +3417,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_120000) do
     $function$
   SQL
   execute <<~'SQL'
+    CREATE OR REPLACE FUNCTION public.inventory_movements_transit_legs()
+     RETURNS trigger
+     LANGUAGE plpgsql
+    AS $function$
+    DECLARE
+      transit boolean;
+    BEGIN
+      SELECT kind = 'transit' INTO transit FROM warehouses WHERE id = NEW.warehouse_id;
+      IF coalesce(transit, false) <> (NEW.reason IN ('transit_in', 'transit_out', 'transfer_loss')) THEN
+        RAISE EXCEPTION 'inventory movement % in warehouse %: the transit warehouse takes only transit legs, and transit legs only go there',
+          NEW.reason, NEW.warehouse_id USING ERRCODE = 'check_violation';
+      END IF;
+      RETURN NEW;
+    END;
+    $function$
+  SQL
+  execute <<~'SQL'
     CREATE OR REPLACE FUNCTION public.inventory_packaging_entries_append_only()
      RETURNS trigger
      LANGUAGE plpgsql
@@ -3384,16 +3494,58 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_120000) do
     $function$
   SQL
   execute <<~'SQL'
+    CREATE OR REPLACE FUNCTION public.reject_transit_warehouse_reference()
+     RETURNS trigger
+     LANGUAGE plpgsql
+    AS $function$
+    DECLARE
+      column_name text;
+      referenced  bigint;
+    BEGIN
+      FOREACH column_name IN ARRAY TG_ARGV LOOP
+        referenced := (to_jsonb(NEW) ->> column_name)::bigint;
+        IF referenced IS NOT NULL AND EXISTS (SELECT 1 FROM warehouses WHERE id = referenced AND kind = 'transit') THEN
+          RAISE EXCEPTION '%.% cannot reference the system transit warehouse', TG_TABLE_NAME, column_name
+            USING ERRCODE = 'check_violation';
+        END IF;
+      END LOOP;
+      RETURN NEW;
+    END;
+    $function$
+  SQL
+  execute <<~'SQL'
+    CREATE OR REPLACE FUNCTION public.stock_transfer_ledgers_append_only()
+     RETURNS trigger
+     LANGUAGE plpgsql
+    AS $function$
+    BEGIN
+      RAISE EXCEPTION '% is append-only (% refused)', TG_TABLE_NAME, TG_OP USING ERRCODE = 'restrict_violation';
+    END;
+    $function$
+  SQL
+  execute <<~'SQL'
     CREATE TRIGGER durable_audit_receipts_append_only BEFORE DELETE OR UPDATE ON public.durable_audit_receipts FOR EACH ROW EXECUTE FUNCTION audit_append_only_guard();
   SQL
   execute <<~'SQL'
     CREATE TRIGGER employee_attendance_requirements_append_only BEFORE DELETE OR UPDATE ON public.employee_attendance_requirements FOR EACH ROW EXECUTE FUNCTION employee_attendance_requirements_append_only();
   SQL
   execute <<~'SQL'
+    CREATE TRIGGER goods_receipts_operational_warehouse_only BEFORE INSERT OR UPDATE OF warehouse_id ON public.goods_receipts FOR EACH ROW EXECUTE FUNCTION reject_transit_warehouse_reference('warehouse_id');
+  SQL
+  execute <<~'SQL'
     CREATE TRIGGER inventory_average_cost_changes_append_only BEFORE DELETE OR UPDATE ON public.inventory_average_cost_changes FOR EACH ROW EXECUTE FUNCTION inventory_average_cost_changes_append_only();
   SQL
   execute <<~'SQL'
+    CREATE TRIGGER inventory_movements_transit_legs BEFORE INSERT OR UPDATE OF warehouse_id, reason ON public.inventory_movements FOR EACH ROW EXECUTE FUNCTION inventory_movements_transit_legs();
+  SQL
+  execute <<~'SQL'
     CREATE TRIGGER inventory_packaging_entries_append_only BEFORE DELETE OR UPDATE ON public.inventory_packaging_entries FOR EACH ROW EXECUTE FUNCTION inventory_packaging_entries_append_only();
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER inventory_packaging_entries_operational_warehouse_only BEFORE INSERT OR UPDATE OF warehouse_id ON public.inventory_packaging_entries FOR EACH ROW EXECUTE FUNCTION reject_transit_warehouse_reference('warehouse_id');
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER inventory_unit_conversion_lines_operational_warehouse_only BEFORE INSERT OR UPDATE OF warehouse_id ON public.inventory_unit_conversion_lines FOR EACH ROW EXECUTE FUNCTION reject_transit_warehouse_reference('warehouse_id');
   SQL
   execute <<~'SQL'
     CREATE TRIGGER pending_audit_event_attempts_append_only BEFORE DELETE OR UPDATE ON public.pending_audit_event_attempts FOR EACH ROW EXECUTE FUNCTION audit_append_only_guard();
@@ -3403,5 +3555,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_120000) do
   SQL
   execute <<~'SQL'
     CREATE TRIGGER product_packaging_levels_immutable BEFORE UPDATE ON public.product_packaging_levels FOR EACH ROW EXECUTE FUNCTION product_packaging_levels_immutable();
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER product_warehouse_settings_operational_warehouse_only BEFORE INSERT OR UPDATE OF warehouse_id ON public.product_warehouse_settings FOR EACH ROW EXECUTE FUNCTION reject_transit_warehouse_reference('warehouse_id');
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER purchase_request_items_operational_warehouse_only BEFORE INSERT OR UPDATE OF source_warehouse_id ON public.purchase_request_items FOR EACH ROW EXECUTE FUNCTION reject_transit_warehouse_reference('source_warehouse_id');
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER purchase_requests_operational_warehouse_only BEFORE INSERT OR UPDATE OF warehouse_id ON public.purchase_requests FOR EACH ROW EXECUTE FUNCTION reject_transit_warehouse_reference('warehouse_id');
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER stock_adjustments_operational_warehouse_only BEFORE INSERT OR UPDATE OF warehouse_id ON public.stock_adjustments FOR EACH ROW EXECUTE FUNCTION reject_transit_warehouse_reference('warehouse_id');
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER stock_counts_operational_warehouse_only BEFORE INSERT OR UPDATE OF warehouse_id ON public.stock_counts FOR EACH ROW EXECUTE FUNCTION reject_transit_warehouse_reference('warehouse_id');
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER stock_issue_import_batches_operational_warehouse_only BEFORE INSERT OR UPDATE OF warehouse_id ON public.stock_issue_import_batches FOR EACH ROW EXECUTE FUNCTION reject_transit_warehouse_reference('warehouse_id');
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER stock_issues_operational_warehouse_only BEFORE INSERT OR UPDATE OF warehouse_id ON public.stock_issues FOR EACH ROW EXECUTE FUNCTION reject_transit_warehouse_reference('warehouse_id');
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER stock_transfer_receipt_lines_append_only BEFORE DELETE OR UPDATE ON public.stock_transfer_receipt_lines FOR EACH ROW EXECUTE FUNCTION stock_transfer_ledgers_append_only();
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER stock_transfer_receipts_append_only BEFORE DELETE OR UPDATE ON public.stock_transfer_receipts FOR EACH ROW EXECUTE FUNCTION stock_transfer_ledgers_append_only();
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER stock_transfer_resolutions_append_only BEFORE DELETE OR UPDATE ON public.stock_transfer_resolutions FOR EACH ROW EXECUTE FUNCTION stock_transfer_ledgers_append_only();
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER stock_transfers_operational_warehouse_only BEFORE INSERT OR UPDATE OF source_warehouse_id, destination_warehouse_id ON public.stock_transfers FOR EACH ROW EXECUTE FUNCTION reject_transit_warehouse_reference('source_warehouse_id', 'destination_warehouse_id');
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER warehouse_assignments_operational_warehouse_only BEFORE INSERT OR UPDATE OF warehouse_id ON public.warehouse_assignments FOR EACH ROW EXECUTE FUNCTION reject_transit_warehouse_reference('warehouse_id');
+  SQL
+  execute <<~'SQL'
+    CREATE TRIGGER warehouse_branch_supplies_operational_warehouse_only BEFORE INSERT OR UPDATE OF warehouse_id ON public.warehouse_branch_supplies FOR EACH ROW EXECUTE FUNCTION reject_transit_warehouse_reference('warehouse_id');
   SQL
 end

@@ -1,0 +1,73 @@
+<% content_for :title, t("inventory.transfers_in_transit.title") %>
+<% scope = "inventory.transfers_in_transit" %>
+
+<div class="admin-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title"><%= t("#{scope}.title") %></h1>
+      <p class="td-secondary"><%= t("#{scope}.subtitle") %></p>
+    </div>
+  </div>
+
+  <nav class="filter-tabs filter-tabs--scrollable" aria-label="<%= t("#{scope}.title") %>" style="margin-bottom: var(--space-4);">
+    <% Inventory::TransfersInTransitController::TABS.each do |tab| %>
+      <%= link_to inventory_transfers_in_transit_index_path(tab: tab),
+            class: "filter-tab #{'filter-tab--active' if @tab == tab}",
+            aria: { current: (@tab == tab ? "page" : nil) }, data: { tab: tab } do %>
+        <%= t("#{scope}.tabs.#{tab}") %>
+        <% if @counts.key?(tab) %>
+          <span class="badge <%= @counts[tab].positive? && tab != 'in_transit' ? 'badge-danger' : 'badge-neutral' %> badge-xs"><%= @counts[tab] %></span>
+        <% end %>
+      <% end %>
+    <% end %>
+  </nav>
+
+  <p class="td-secondary" style="margin-bottom: var(--space-3);"><%= t("#{scope}.hints.#{@tab}") %></p>
+
+  <% if @stock_transfers.empty? %>
+    <div class="empty-state" data-testid="in-transit-empty"><p class="empty-state__title"><%= t("#{scope}.empty.#{@tab}") %></p></div>
+  <% else %>
+    <div class="table-wrap table-wrap--cards">
+      <table data-testid="in-transit-list">
+        <thead><tr>
+          <th><%= t("inventory.stock_transfers.number") %></th>
+          <th><%= t("inventory.stock_transfers.source_warehouse") %></th>
+          <th><%= t("inventory.stock_transfers.destination_warehouse") %></th>
+          <th><%= @tab == "to_dispatch" ? t("inventory.stock_transfers.approved_by") : t("#{scope}.dispatched") %></th>
+          <th class="stf__num"><%= t("inventory.stock_transfers.progress.dispatched") %></th>
+          <th class="stf__num"><%= t("inventory.stock_transfers.progress.received") %></th>
+          <th class="stf__num"><%= t("inventory.stock_transfers.progress.remaining") %></th>
+          <th><%= t("#{scope}.last_receipt") %></th>
+          <th><%= t("inventory.void.status") %></th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          <% @stock_transfers.each do |transfer| %>
+            <% totals = @totals[transfer.id] %>
+            <tr data-transfer="<%= transfer.transfer_number %>">
+              <td data-label="<%= t("inventory.stock_transfers.number") %>"><%= link_to transfer.transfer_number, inventory_stock_transfer_path(transfer), class: "link" %></td>
+              <td data-label="<%= t("inventory.stock_transfers.source_warehouse") %>"><%= transfer_warehouse_label(transfer.source_warehouse) %></td>
+              <td data-label="<%= t("inventory.stock_transfers.destination_warehouse") %>"><%= transfer_warehouse_label(transfer.destination_warehouse) %></td>
+              <td class="td-secondary" data-label="<%= @tab == 'to_dispatch' ? t('inventory.stock_transfers.approved_by') : t("#{scope}.dispatched") %>">
+                <% if @tab == "to_dispatch" %>
+                  <%= transfer.approved_by&.full_name || "—" %><% if transfer.approved_at %> · <%= l(transfer.approved_at, format: :short) %><% end %>
+                <% else %>
+                  <%= transfer.dispatched_by&.full_name || "—" %><% if transfer.dispatched_on %> · <%= local_date(transfer.dispatched_on) %><% end %>
+                <% end %>
+              </td>
+              <td class="stf__num" data-label="<%= t("inventory.stock_transfers.progress.dispatched") %>"><%= totals ? inventory_quantity(totals.dispatched) : "—" %></td>
+              <td class="stf__num" data-label="<%= t("inventory.stock_transfers.progress.received") %>"><%= totals ? inventory_quantity(totals.received) : "—" %></td>
+              <td class="stf__num" data-label="<%= t("inventory.stock_transfers.progress.remaining") %>"><strong><%= totals ? inventory_quantity(totals.remaining) : "—" %></strong></td>
+              <td class="td-secondary" data-label="<%= t("#{scope}.last_receipt") %>"><%= totals&.last_received_at ? l(totals.last_received_at, format: :short) : "—" %></td>
+              <td data-label="<%= t("inventory.void.status") %>"><%= stock_transfer_status_badge(transfer) %></td>
+              <td class="td-actions">
+                <%= link_to t("#{scope}.actions.#{@tab}", default: t("#{scope}.actions.open")), inventory_stock_transfer_path(transfer),
+                      class: "btn #{%w[to_dispatch to_receive discrepancies].include?(@tab) ? 'btn-primary' : 'btn-ghost'} btn-sm" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

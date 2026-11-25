@@ -88,7 +88,7 @@ module Inventory
     # ── Availability ─────────────────────────────────────────────────────────
     def apply_availability
       manager  = ProductAvailabilityManager.new(actor: @actor)
-      warehouses = Warehouse.where(business_id: @actor.business_id, id: @availability.keys).index_by { |w| w.id.to_s }
+      warehouses = Warehouse.operational.where(business_id: @actor.business_id, id: @availability.keys).index_by { |w| w.id.to_s }
       rows = ProductWarehouseSetting.where(product_id: @product.id, warehouse_id: warehouses.values.map(&:id)).index_by(&:warehouse_id)
 
       @availability.each do |warehouse_id, input|

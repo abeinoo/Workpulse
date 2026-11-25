@@ -16514,3 +16514,51 @@ td .pcombo { min-width: 220px; }
     padding: var(--space-3) var(--space-4) var(--space-4);
   }
 }
+
+/* ── Stock transfers: form (stf), transfer page (stt), dashboard stages ──
+   Logical properties only, so RTL mirrors without overrides. */
+.stf__items-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.stf__num, .stf__table .stf__num { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stf__qty { min-width: 7rem; }
+.stf__qty .form-control { min-width: 6rem; }
+.stf__col-product { min-width: 14rem; }
+.stf__line-warning { margin: var(--space-1) 0 0; font-size: var(--text-xs); color: var(--color-danger, #dc2626); }
+.stf__row--short td { background: rgba(220, 38, 38, 0.06); }
+.stf__notice { color: var(--accent); }
+.stf__summary { margin-top: var(--space-5); padding: var(--space-4); }
+.stf__warnings { margin: var(--space-3) 0 0; padding-inline-start: var(--space-5); }
+.stt__details, .stt__panel { padding: var(--space-5); margin-bottom: var(--space-5); }
+.stt__panel .table-wrap { margin-bottom: var(--space-4); }
+.stt__removed td { opacity: 0.7; }
+.stt__ledger-entry { padding-block: var(--space-3); border-block-end: 1px solid var(--border); }
+.stt__ledger-entry:last-child { border-block-end: 0; }
+.stt__ledger-entry ul { margin: var(--space-1) 0; padding-inline-start: var(--space-5); }
+.stt__stage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: var(--space-3); }
+.stt__stage { text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-4); }
+.stt__stage:hover { text-decoration: none; border-color: var(--accent); }
+.stt__stage--discrepancy .stat-card__value { color: var(--color-danger, #dc2626); }
+.stt__replenish-hint { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin: var(--space-4) 0 0; }
+.lsp__row--disabled td { opacity: 0.6; }
+.form-page.stf-page { max-width: 1240px; }
+.modal-card.lsp.stf__modal { max-width: min(1180px, 96vw); }
+
+/* Transfer replenishment modal: 10 columns readable at desktop widths
+   (no 55% product column, wrapping headers, compact cells, fixed qty input);
+   below 640px each row becomes a labelled card (data-label), no sideways scroll. */
+.stf__modal .lsp__table { min-width: 0; width: 100%; }
+.stf__modal .lsp__col-product { width: auto; min-width: 11rem; }
+.stf__modal .lsp__table thead th { white-space: normal; padding-inline: var(--space-2); line-height: 1.25; }
+.stf__modal .lsp__table td { padding-inline: var(--space-2); }
+.stf__modal .lsp__table td:first-child, .stf__modal .lsp__table th:first-child { padding-inline-start: var(--space-4); }
+.stf__modal-qty { width: 6.5rem; min-width: 5rem; text-align: end; }
+@media (max-width: 640px) {
+  .stf__modal .lsp__table thead { display: none; }
+  .stf__modal .lsp__table, .stf__modal .lsp__table tbody, .stf__modal .lsp__table tr, .stf__modal .lsp__table td { display: block; width: 100%; }
+  .stf__modal .lsp__table tr { padding-block: var(--space-2); border-block-end: 1px solid var(--border); }
+  .stf__modal .lsp__table td { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
+                               border: 0; padding: var(--space-1) var(--space-4); text-align: start; }
+  .stf__modal .lsp__table td::before { content: attr(data-label); color: var(--text-2); font-size: var(--text-xs); }
+  .stf__modal .lsp__table td.lsp__col-product { display: block; }
+  .stf__modal .lsp__table td.lsp__col-product::before { content: none; }
+  .stf__modal-qty { width: 8rem; }
+}

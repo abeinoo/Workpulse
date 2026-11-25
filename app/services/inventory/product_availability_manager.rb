@@ -64,7 +64,7 @@ module Inventory
 
       batch_id = SecureRandom.uuid
       ActiveRecord::Base.transaction do
-        warehouse = Warehouse.where(business_id: @actor.business_id).lock.find_by(id: warehouse_id)
+        warehouse = Warehouse.operational.where(business_id: @actor.business_id).lock.find_by(id: warehouse_id)
         return failure(:not_authorized) unless warehouse && policy(warehouse).manage?
         return failure(:inactive_warehouse) unless warehouse.active?
 
@@ -218,7 +218,7 @@ module Inventory
     def pair_dependencies(product_id:, warehouse_id:)
       return failure(:not_authorized) if @actor.nil?
 
-      warehouse = Warehouse.where(business_id: @actor.business_id).find_by(id: warehouse_id)
+      warehouse = Warehouse.operational.where(business_id: @actor.business_id).find_by(id: warehouse_id)
       product   = Product.where(business_id: @actor.business_id).find_by(id: product_id)
       return failure(:not_authorized) unless warehouse && product && policy(warehouse).show?
 
@@ -260,7 +260,7 @@ module Inventory
       return failure(:not_authorized) if @actor.nil?
 
       ActiveRecord::Base.transaction do
-        warehouse = Warehouse.where(business_id: @actor.business_id).lock.find_by(id: warehouse_id)
+        warehouse = Warehouse.operational.where(business_id: @actor.business_id).lock.find_by(id: warehouse_id)
         return failure(:not_authorized, warehouse) unless warehouse && policy(warehouse).manage?
 
         product = Product.where(business_id: @actor.business_id).find_by(id: product_id)

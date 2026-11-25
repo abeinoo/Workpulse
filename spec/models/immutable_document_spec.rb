@@ -29,7 +29,7 @@ RSpec.describe ImmutableDocument, type: :model do
                                        destination_warehouse: warehouse_b,
                                        transferred_on: Date.current)
     t.items.build(product: product, quantity: 3)
-    Inventory::StockTransferPoster.new(t).call.transfer
+    post_stock_transfer(t).transfer
   end
 
   shared_examples "an immutable document" do

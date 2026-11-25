@@ -1,0 +1,365 @@
+# Stock Transfer approval workflow and transfer reservations
+# (Inventory::StockTransfer* services, Inventory::StockAvailability).
+en:
+  admin:
+    permission_roles:
+      groups:
+        stock_transfers: Stock Transfers
+      permissions:
+        view_stock_transfers: View Stock Transfers
+        create_stock_transfers: Create Stock Transfers
+        approve_stock_transfers: Approve Stock Transfers (Post Stock Movement)
+        edit_pending_stock_transfers: Edit Pending Stock Transfers
+        reject_stock_transfers: Reject Stock Transfers
+        cancel_stock_transfers: Cancel Stock Transfers
+        dispatch_stock_transfers: Dispatch Stock Transfers
+        receive_stock_transfers: Receive Stock Transfers
+        resolve_stock_transfer_discrepancies: Resolve Transfer Discrepancies
+      permission_descriptions:
+        view_stock_transfers: View stock transfers and their history, within the warehouses you can access
+        create_stock_transfers: Create and edit draft transfers and submit them for approval — submitting reserves the requested stock in the source warehouse; nothing moves until approval
+        approve_stock_transfers: Approve a pending transfer — posts the stock movement out of the source and into the destination. You may approve your own requests. Needs access to both warehouses
+        edit_pending_stock_transfers: Change the products, quantities and notes of a pending transfer — its reservation is updated with the edit
+        reject_stock_transfers: Reject a pending transfer, releasing its reservation — a reason is required
+        cancel_stock_transfers: Cancel a draft or pending transfer, releasing any reservation — a reason is required. Posted transfers are voided instead
+        dispatch_stock_transfers: Hand an approved transfer over for delivery — moves its stock out of the source warehouse into transit. Needs access to the source warehouse
+        receive_stock_transfers: Confirm the quantities that actually arrived (partial receipts allowed) — moves them from transit into the destination warehouse. Needs access to the destination warehouse
+        resolve_stock_transfer_discrepancies: 'Settle quantities reported as not received: return them to the source warehouse or write them off as lost — a reason is required. Needs access to both warehouses'
+  activerecord:
+    attributes:
+      stock_transfer:
+        status: Status
+        rejection_reason: Rejection reason
+        cancellation_reason: Cancellation reason
+    errors:
+      messages:
+        reserved: is reserved for the system transit warehouse
+        system_only: is a system warehouse type that is created automatically
+        transit_warehouse_locked: The system transit warehouse is managed automatically and cannot be changed or removed
+        transit_warehouse: cannot be the system transit warehouse
+        transit_leg_mismatch: 'is not allowed in this warehouse: the system transit warehouse takes only transit movements, and transit movements only go there'
+        transit_direction_mismatch: does not match this transfer movement
+        void_not_posted: Only a posted (approved) transfer can be voided. Cancel a draft or pending transfer instead.
+        reserved_stock_conflict_documents: "%{product} (%{sku}) in %{warehouse}: removing %{removal} would leave less than the %{reserved} reserved by %{documents} (on hand: %{on_hand}). Complete, reject or cancel those first, or remove less."
+        immutable: cannot be changed
+      models:
+        stock_transfer:
+          attributes:
+            base:
+              insufficient_stock_reserved: 'Not enough available stock for %{product} (%{sku}) in %{warehouse}. Available: %{available}, requested: %{requested}. %{reserved} of the %{on_hand} on hand is already reserved by %{documents}.'
+              warehouses_fixed: The warehouses of a submitted transfer cannot change
+              decided_transfer_locked: This transfer has been decided and can no longer change
+            status:
+              invalid_transition: cannot change from %{from} to %{to}
+        stock_transfer_item:
+          attributes:
+            base:
+              transfer_locked: Lines of a decided transfer cannot change
+        stock_issue:
+          attributes:
+            base:
+              insufficient_stock_reserved_documents: 'Not enough available stock for %{product} (%{sku}) in %{warehouse}. Available to issue: %{available}, requested: %{requested}. %{reserved} of the %{on_hand} on hand is already reserved by %{documents}.'
+  inventory:
+    transit_warehouse:
+      name: In Transit
+    warehouses:
+      kinds:
+        transit: In Transit (system)
+    movements:
+      reasons:
+        transit_in: Into transit
+        transit_out: Out of transit
+        transfer_loss: Transfer loss (written off)
+        transfer_return: Transfer returned to source
+    stock_transfer_approvals:
+      title: Transfer Approvals
+      subtitle: Pending stock transfers waiting for your approval, in warehouses you can access. Open a request to review, edit, approve or reject it.
+      empty: No transfers are waiting for your approval.
+      lines: Lines
+      review: Review
+    stock_availability:
+      holders:
+        stock_issues: approved stock issues %{numbers}
+        stock_transfers: pending stock transfers %{numbers}
+    stock_transfers:
+      statuses:
+        draft: Draft
+        pending_approval: Pending Approval
+        approved: Approved
+        rejected: Rejected
+        cancelled: Cancelled
+        awaiting_dispatch: Approved — awaiting dispatch
+        in_transit: In transit
+        partially_received: Partially received
+        discrepancy: Discrepancy
+        received: Received
+        posted_direct: Posted
+      legacy_posting: Posted on creation (before approval workflow)
+      all_statuses: All
+      pending_approval_count: 'Waiting for your approval: %{count}'
+      save_draft: Save Draft
+      edit_action: Edit
+      edit_title: Edit Stock Transfer
+      edit_pending_title: Edit Pending Transfer
+      submit_action: Submit for Approval
+      approve_action: Approve and Post
+      reject_action: Reject
+      cancel_action: Cancel Transfer
+      rejection_reason: Rejection reason
+      cancellation_reason: Cancellation reason
+      reason_required_hint: A reason is required.
+      draft_saved: Draft transfer saved. Submit it for approval to reserve the stock.
+      updated: Stock transfer updated.
+      submitted: Transfer submitted for approval — the requested stock is now reserved.
+      approved: Transfer approved — stock moved between warehouses.
+      rejected: Transfer rejected — its reservation was released.
+      cancelled: Transfer cancelled — any reservation was released.
+      requested_by: Requested by
+      submitted_at: Submitted
+      approved_by: Approved by
+      rejected_by: Rejected by
+      cancelled_by: Cancelled by
+      source_on_hand: Source on hand
+      source_reserved: Reserved by others
+      source_available: Available
+      history:
+        status_filter: Filter by status
+        search: Search
+        search_placeholder: Transfer number, product or SKU
+        any: Any
+        person: Person
+        from: From
+        to: To
+        apply: Filter
+        clear: Clear
+        no_match: No transfer matches these filters.
+        count:
+          one: "%{count} transfer"
+          other: "%{count} transfers"
+      history_empty: No recorded activity.
+      audit_actions:
+        create: Draft created
+        update: Draft edited
+        submit_for_approval: Submitted for approval
+        update_pending: Pending transfer edited
+        approve: Approved and posted
+        reject: Rejected
+        cancel: Cancelled
+        void: Voided
+        post: Posted
+      errors:
+        not_permitted: You don't have permission to do this with stock transfers.
+        invalid_transition: This transfer is no longer in a state that allows this action. Reload the page to see its current status.
+        not_editable: Only a draft transfer can be edited here.
+        stale_edit: Someone else changed this transfer after you opened it. Reload the page and apply your changes again.
+        warehouses_fixed: The warehouses of a submitted transfer cannot change.
+        warehouse_missing: One of this transfer's warehouses no longer exists.
+        warehouse_inactive: The warehouse %{warehouse} is inactive.
+        audit_failed: The change could not be recorded in the audit trail, so nothing was saved. Try again; if it keeps failing, contact support.
+        invalid_quantity: Enter valid quantities (zero or more).
+        unknown_line: A quantity was given for a line that is not on this transfer.
+        nothing_to_receive: Enter at least one quantity received.
+        receive_exceeds_remaining: "%{product}: %{requested} is more than the %{remaining} still in transit. Record any extra with a Stock Adjustment at the destination."
+        transit_missing: This transfer has no stock in transit.
+        transit_balance_short: The transit stock does not cover these quantities. Reload the page — another receipt may have been recorded.
+        resolution_reason_required: A reason is required to resolve a discrepancy.
+        nothing_to_resolve: Enter at least one quantity to return or write off.
+        resolve_exceeds_remaining: "%{product}: %{requested} is more than the %{remaining} still outstanding."
+      posting_modes:
+        direct: Posted directly (without transit)
+        via_transit: 'Through transit: approve → dispatch → receive'
+      approve_action_transit: Approve
+      dispatch_action: Dispatch
+      dispatched: Transfer dispatched — the stock left the source warehouse and is now in transit.
+      outcomes:
+        awaiting_dispatch: Transfer approved — the stock stays reserved until it is dispatched.
+        approved: Transfer approved — stock moved between warehouses.
+        in_transit: Receipt recorded — the rest of the transfer is still in transit.
+        discrepancy: Receipt recorded with a shortfall — the missing quantities await a resolution.
+        received: Transfer complete — every dispatched unit is received or resolved.
+      confirm:
+        approve: Approve this transfer? Its quantities stay reserved until it is dispatched.
+        dispatch: Dispatch this transfer now? Its stock leaves the source warehouse and goes into transit. This cannot be cancelled afterwards.
+        reject: Reject this transfer? Its reservation is released.
+        cancel: Cancel this transfer? Any reservation is released.
+      awaiting_dispatch_hint: Approved. Waiting to be dispatched from %{warehouse}.
+      in_transit_hint: On its way. Waiting to be received at %{warehouse}.
+      discrepancy_hint: The receiver reported missing quantities. A user allowed to resolve discrepancies must return or write them off.
+      dispatched_by: Dispatched by
+      completed_at: Completed
+      legacy_short: Posted on creation
+      form:
+        short_by: 'Only available: short by %{quantity}'
+        no_warnings: No stock warnings.
+        warning_line: "%{product}: %{quantity} more than available"
+        load_failed: Could not load the figures. Try again.
+        loading: Loading…
+        merged_duplicate: This product was already on the transfer — the quantities were merged into one line.
+        same_warehouse: Choose two different warehouses.
+        date_hint: 'Set automatically: the transfer is dated on the day it is dispatched.'
+        low_stock_button: Get Low-Stock Products
+        availability_hint: 'Figures are the source warehouse''s: on hand, reserved by other documents and available. Scan a barcode again to add one more.'
+        on_hand: On hand
+        reserved: Reserved
+        available: Available
+        destination_on_hand: Destination on hand
+        incoming: Incoming
+        after_transfer: Destination after
+        summary_title: Transfer summary
+        summary_lines: Products
+        summary_quantity: Total quantity
+        server_checks: Stock is checked again, under lock, when the transfer is submitted, approved and dispatched.
+        save_and_submit: Save and Submit for Approval
+        submit_confirm: Submit this transfer for approval? Its quantities will be reserved in the source warehouse.
+        low_stock_title: Low-stock products at the destination
+        low_stock_intro: Products at or below their low-stock level, counting stock already on its way. Quantities are capped at what the source can supply.
+        refresh: Refresh
+        add_selected: Add selected
+      replenishment:
+        empty: No product at the destination is at or below its low-stock level.
+        select_all: Select all available
+        on_hand: On hand
+        reserved: Reserved
+        incoming: Incoming
+        position: Position
+        low_stock_level: Low-stock level
+        suggested: Suggested
+        source_available: Source available
+        quantity: Quantity
+        select_product: Select %{product}
+        quantity_for: Quantity of %{product}
+        unavailable: The source has none available
+        partial: Source can supply only %{available}
+        footnote: Position = on hand − reserved + incoming. Suggested = the reorder quantity, or what is needed to reach the low-stock level.
+        select: Select
+      review:
+        requested: Requested
+        current: Current
+        change: Change
+        short: Only %{available} available
+        added: Added by approver
+        changed: Changed
+        removed: Removed
+      progress:
+        requested: Requested
+        dispatched: Dispatched
+        received: Received
+        returned: Returned
+        written_off: Written off
+        remaining: In transit
+      receive:
+        title: Receive
+        intro: Enter what actually arrived. You can receive part now and the rest later.
+        receive_now: Receiving now
+        receive_now_for: Quantity of %{product} received now
+        notes: Receipt notes
+        close_shortfall: Nothing more will arrive — close this receipt with a shortfall
+        close_shortfall_hint: The quantities not received stay in transit until they are returned to the source or written off.
+        excess_hint: Received more than was sent? Record the extra with a Stock Adjustment at the destination.
+        submit: Confirm Receipt
+        confirm: Confirm these received quantities? They are added to the destination warehouse.
+      resolve:
+        title: Resolve Discrepancy
+        intro: 'Settle what will not be received: return it to %{source}, or write it off as lost.'
+        return_to_source: Return to source
+        write_off: Write off
+        return_for: Quantity of %{product} returned to the source
+        write_off_for: Quantity of %{product} written off
+        reason: Reason
+        reason_hint: Required. It is kept with the resolution permanently.
+        submit: Record Resolution
+        confirm: Record this resolution? It cannot be changed or undone.
+      ledger:
+        title: Receipts and resolutions
+        receipt: Receipt
+        closed_with_shortfall: Closed with shortfall
+        reason: 'Reason: %{reason}'
+        kinds:
+          return_to_source: Returned to source
+          write_off: Written off
+      timeline:
+        title: Activity
+        unknown_actor: Unknown
+        detail: 'Note: %{detail}'
+        events:
+          created: Draft created
+          draft_edited: Draft edited
+          submitted: Submitted for approval
+          edited: Edited by approver
+          approved: Approved
+          approved_posted: Approved and posted
+          rejected: Rejected
+          cancelled: Cancelled
+          dispatched: Dispatched — in transit
+          received_partially: Partially received
+          received_in_full: Received in full
+          received_with_shortfall: Received with a shortfall
+          resolved: Discrepancy resolved
+          voided: Voided
+          posted: Posted
+          legacy_posted: Posted on creation (before the approval workflow)
+    transfers_in_transit:
+      title: Transfers in Transit
+      subtitle: Transfers to dispatch, goods on their way, receipts and discrepancies — in the warehouses you can access.
+      tabs:
+        to_receive: To receive
+        to_dispatch: To dispatch
+        discrepancies: Discrepancies
+        in_transit: On the way
+        completed: Completed (30 days)
+      hints:
+        to_receive: Transfers on their way to a warehouse you can receive into. Open one to confirm the quantities that arrived.
+        to_dispatch: Approved transfers waiting to leave a warehouse you dispatch from. Dispatching moves the stock into transit.
+        discrepancies: Transfers whose receiver reported missing quantities. Return them to the source or write them off.
+        in_transit: Every dispatched transfer not fully received yet, from or to your warehouses.
+        completed: Transfers fully received or resolved in the last 30 days.
+      empty:
+        to_receive: Nothing to receive.
+        to_dispatch: Nothing waiting to be dispatched.
+        discrepancies: No discrepancies to resolve.
+        in_transit: No transfers are on the way.
+        completed: No transfers completed in the last 30 days.
+      dispatched: Dispatched
+      last_receipt: Last receipt
+      actions:
+        to_receive: Receive
+        to_dispatch: Dispatch
+        discrepancies: Resolve
+        open: Open
+    dashboard:
+      transfers:
+        title: Stock Transfers
+        history: Transfer history
+        stages:
+          pending_approval: Pending approval
+          awaiting_dispatch: Awaiting dispatch
+          in_transit: In transit
+          partially_received: Partially received
+          discrepancy: Discrepancies
+          completed: Completed (30 days)
+        replenishment:
+          one: "%{count} product is at or below its low-stock level."
+          other: "%{count} products are at or below their low-stock level."
+        replenishment_cta: Replenish with a transfer
+      overview:
+        actions:
+          transfer_approvals:
+            title: Transfers to approve
+            desc: Requests waiting for your approval
+            cta: Review
+          transfers_to_dispatch:
+            title: Transfers to dispatch
+            desc: Approved transfers waiting to leave your warehouse
+            cta: Dispatch
+          transfers_to_receive:
+            title: Transfers to receive
+            desc: Goods on their way to your warehouse
+            cta: Receive
+          transfer_discrepancies:
+            title: Transfer discrepancies
+            desc: Missing quantities waiting for a resolution
+            cta: Resolve
+        in_transit_hint: "(dispatched, not yet received)"
+        summary_total: Total
+    products:
+      in_transit_share: incl. %{quantity} in transit between warehouses

@@ -102,8 +102,11 @@ module Inventory
 
     # Another business's warehouse keeps its historical error (RecordInvalid
     # from WarehouseAssignment#same_business), never a reach refusal.
+    # Another business's warehouse, or the system transit warehouse (never
+    # assignable — OperationalWarehouseReference), is refused the same way:
+    # the assignment's own validation raises RecordInvalid, nothing changes.
     def refuse_other_business!(user, warehouses)
-      foreign = warehouses.find { |warehouse| warehouse.business_id != user.business_id }
+      foreign = warehouses.find { |warehouse| warehouse.business_id != user.business_id || warehouse.transit? }
       WarehouseAssignment.new(user: user, warehouse: foreign).validate! if foreign
     end
 

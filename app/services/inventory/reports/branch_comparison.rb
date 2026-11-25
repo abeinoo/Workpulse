@@ -209,7 +209,7 @@ module Inventory
       end
 
       def warehouses
-        rel = @business.warehouses.ordered
+        rel = @business.warehouses.operational.ordered
         @warehouse_ids ? rel.where(id: @warehouse_ids) : rel
       end
 

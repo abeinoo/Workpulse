@@ -34,7 +34,7 @@ module Inventory
 
     def alerts
       levels      = movement_levels                       # { [product_id, wh_id] => qty }
-      warehouses  = @business.warehouses.pluck(:id, :name).to_h
+      warehouses  = @business.warehouses.operational.pluck(:id, :name).to_h
 
       results = []
 

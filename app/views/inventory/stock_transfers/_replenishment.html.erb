@@ -1,0 +1,70 @@
+<%#
+  The "Get Low-Stock Products" modal body (StockTransfersController#replenishment,
+  Inventory::TransferReplenishment). Every figure is the server's; the inputs
+  carry no `name` — the stock-transfer-form controller copies the checked rows
+  into real lines (merging a product already on the form). A product the source
+  cannot supply is listed, disabled, with the reason — never left out (D8).
+
+  Locals: suggestions
+%>
+<% scope = "inventory.stock_transfers.replenishment" %>
+<% if suggestions.empty? %>
+  <p class="lsp__empty" data-testid="replenishment-empty"><%= t("#{scope}.empty") %></p>
+<% else %>
+  <div class="lsp__scroll">
+    <table class="lsp__table" data-testid="replenishment-table">
+      <thead>
+        <tr>
+          <th class="td-check" scope="col">
+            <input type="checkbox" data-replenishment-select-all data-action="change->stock-transfer-form#toggleAllSuggestions"
+                   aria-label="<%= t("#{scope}.select_all") %>" title="<%= t("#{scope}.select_all") %>">
+          </th>
+          <th scope="col" class="lsp__col-product"><%= t("inventory.products.name") %></th>
+          <th scope="col" class="lsp__num"><%= t("#{scope}.on_hand") %></th>
+          <th scope="col" class="lsp__num"><%= t("#{scope}.reserved") %></th>
+          <th scope="col" class="lsp__num"><%= t("#{scope}.incoming") %></th>
+          <th scope="col" class="lsp__num"><%= t("#{scope}.position") %></th>
+          <th scope="col" class="lsp__num"><%= t("#{scope}.low_stock_level") %></th>
+          <th scope="col" class="lsp__num"><%= t("#{scope}.suggested") %></th>
+          <th scope="col" class="lsp__num"><%= t("#{scope}.source_available") %></th>
+          <th scope="col" class="lsp__num"><%= t("#{scope}.quantity") %></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% suggestions.each do |s| %>
+          <% product = s.product %>
+          <tr data-replenishment-row data-product="<%= product_picker_json(product).to_json %>"
+              data-status="<%= s.status %>" class="<%= 'lsp__row--disabled' unless s.selectable? %>">
+            <td class="td-check" data-label="<%= t("#{scope}.select") %>">
+              <input type="checkbox" data-replenishment-check <%= "disabled" unless s.selectable? %>
+                     aria-label="<%= t("#{scope}.select_product", product: product.name) %>">
+            </td>
+            <td class="lsp__col-product" data-label="<%= t("inventory.products.name") %>">
+              <strong><%= product.name %></strong>
+              <span class="td-secondary" style="display: block;"><%= product.sku %></span>
+              <% case s.status %>
+              <% when :unavailable %>
+                <span class="badge badge-danger badge-xs" data-testid="replenishment-unavailable"><%= t("#{scope}.unavailable") %></span>
+              <% when :partial %>
+                <span class="badge badge-warning badge-xs"><%= t("#{scope}.partial", available: inventory_quantity(s.source_available)) %></span>
+              <% end %>
+            </td>
+            <td class="lsp__num" data-label="<%= t("#{scope}.on_hand") %>"><%= inventory_quantity(s.on_hand) %></td>
+            <td class="lsp__num" data-label="<%= t("#{scope}.reserved") %>"><%= inventory_quantity(s.reserved) %></td>
+            <td class="lsp__num" data-label="<%= t("#{scope}.incoming") %>"><%= inventory_quantity(s.incoming) %></td>
+            <td class="lsp__num" data-label="<%= t("#{scope}.position") %>"><%= inventory_quantity(s.position) %></td>
+            <td class="lsp__num" data-label="<%= t("#{scope}.low_stock_level") %>"><%= inventory_quantity(s.low_stock_level) %></td>
+            <td class="lsp__num" data-label="<%= t("#{scope}.suggested") %>"><%= inventory_quantity(s.suggested) %></td>
+            <td class="lsp__num" data-label="<%= t("#{scope}.source_available") %>"><%= inventory_quantity(s.source_available) %></td>
+            <td class="lsp__num" data-label="<%= t("#{scope}.quantity") %>">
+              <input type="number" class="form-control stf__modal-qty" min="0" step="0.001" inputmode="decimal" data-replenishment-quantity
+                     value="<%= inventory_quantity(s.proposed) %>" max="<%= inventory_quantity(s.source_available) %>"
+                     <%= "disabled" unless s.selectable? %> aria-label="<%= t("#{scope}.quantity_for", product: product.name) %>">
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+  <p class="lsp__note"><%= t("#{scope}.footnote") %></p>
+<% end %>

@@ -14,7 +14,18 @@ class InventoryMovement < ApplicationRecord
 
   DIRECTIONS = %w[in out].freeze
   REASONS    = %w[goods_receipt stock_issue opening_balance adjustment
-                  transfer_in transfer_out reversal laundry_consumption].freeze
+                  transfer_in transfer_out reversal laundry_consumption
+                  transit_in transit_out transfer_loss transfer_return].freeze
+
+  # Legs of a via-transit stock transfer (Stock Transfer redesign, D2/D3).
+  # Only these may touch the system transit warehouse, and these may touch
+  # nothing else — the database enforces the same pairing
+  # (inventory_movements_transit_legs trigger).
+  TRANSIT_REASONS = %w[transit_in transit_out transfer_loss].freeze
+  # The direction every transit-workflow reason must have.
+  TRANSIT_WORKFLOW_DIRECTIONS = {
+    "transit_in" => "in", "transit_out" => "out", "transfer_loss" => "out", "transfer_return" => "in"
+  }.freeze
 
   # Reasons whose IN movements establish/blend the product's moving-average cost.
   # Everything else (issues, transfers, count corrections, reversals) only moves
@@ -33,7 +44,18 @@ class InventoryMovement < ApplicationRecord
     # Material consumed by a completed LaundryBatch, posted OUT of the Laundry
     # Warehouse. Valued at the current average cost like stock_issue; never
     # cost-bearing (see COST_BEARING_REASONS) and never re-averages the product.
-    laundry_consumption: "laundry_consumption"
+    laundry_consumption: "laundry_consumption",
+    # Stock Transfer redesign (used from Phase B): dispatch moves stock from
+    # the source into the system transit warehouse (transfer_out + transit_in);
+    # a receipt moves it from transit into the destination (transit_out +
+    # transfer_in); an unreceived quantity is returned (transit_out +
+    # transfer_return into the source) or written off as lost
+    # (transfer_loss out of transit). All valued at the dispatch-time unit
+    # cost; none is cost-bearing, so the moving average never changes.
+    transit_in:      "transit_in",
+    transit_out:     "transit_out",
+    transfer_loss:   "transfer_loss",
+    transfer_return: "transfer_return"
   }
 
   def cost_bearing?
@@ -55,6 +77,7 @@ class InventoryMovement < ApplicationRecord
   # of a void are accepted, so historical documents stay correctable. The
   # documents refuse earlier with their own message (RequiresActiveWarehouse).
   validate  :warehouse_active_for_new_stock, on: :create
+  validate  :transit_legs_paired, on: :create
 
   scope :for_business, ->(business) { where(business: business) }
   scope :chronological, -> { order(:occurred_on, :id) }
@@ -70,6 +93,14 @@ class InventoryMovement < ApplicationRecord
   end
 
   private
+
+  def transit_legs_paired
+    return if warehouse.nil? || reason.nil?
+
+    errors.add(:reason, :transit_leg_mismatch) if warehouse.transit? != TRANSIT_REASONS.include?(reason)
+    expected = TRANSIT_WORKFLOW_DIRECTIONS[reason]
+    errors.add(:direction, :transit_direction_mismatch) if expected && direction != expected
+  end
 
   def warehouse_active_for_new_stock
     return if reversal? || warehouse.nil? || warehouse.active?

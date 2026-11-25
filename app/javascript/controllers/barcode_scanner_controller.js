@@ -18,7 +18,10 @@ import { selectProduct } from "lib/product_option"
 // coupling is required and the same input works on any line-items form.
 export default class extends Controller {
   static targets = ["input", "feedback"]
-  static values  = { lookupUrl: String, mode: { type: String, default: "select" } }
+  // increment (opt-in, e.g. the stock transfer form): scanning a product that
+  // is already on a line adds one to that line instead of only focusing it,
+  // so repeated scans count units. Every other form keeps the default.
+  static values  = { lookupUrl: String, mode: { type: String, default: "select" }, increment: { type: Boolean, default: false } }
 
   // Scanner's Enter suffix: swallow it so the form doesn't submit, then process.
   scan(event) {
@@ -37,7 +40,18 @@ export default class extends Controller {
     const code = this.inputTarget.value.trim()
     if (!code) return
     if (this.modeValue === "rows") return this.#processRows(code)
+    if (this.incrementValue) {
+      // Increment mode: a hardware scanner fires scans faster than a remote
+      // lookup returns — take the code now and handle the scans strictly in
+      // order, so the second scan of a product finds its line and adds one.
+      this.inputTarget.value = ""
+      this._queue = (this._queue || Promise.resolve()).then(() => this.#processCode(code)).catch(() => {})
+      return this._queue
+    }
+    return this.#processCode(code)
+  }
 
+  async #processCode(code) {
     const local = this.#matchLocally(code)
     if (local) { this.#useProduct(local); return }
 
@@ -151,7 +165,11 @@ export default class extends Controller {
 
     // Already on a visible row → just focus its quantity (no duplicate row).
     const existing = selects().find(s => s.value === productId)
-    if (existing) { this.#selectRow(existing); return }
+    if (existing) {
+      if (this.incrementValue) this.#incrementRow(existing)
+      this.#selectRow(existing)
+      return
+    }
 
     // Otherwise reuse the first empty row, or add a fresh one from the template.
     let select = selects().find(s => !s.value)
@@ -163,6 +181,7 @@ export default class extends Controller {
       select.value = productId
       select.dispatchEvent(new Event("change", { bubbles: true }))
     }
+    if (this.incrementValue) this.#incrementRow(select) // the first scan of a product counts one unit
     this.#selectRow(select)
   }
 
@@ -174,9 +193,29 @@ export default class extends Controller {
     return this.#rowsContainer().lastElementChild
   }
 
+  // One more unit on the line (empty counts as 0), announced like a user edit.
+  #incrementRow(select) {
+    const row = select.closest("[data-line-row]")
+    const qty = row?.querySelector("[data-quantity-field]") || row?.querySelector('input[type="number"]')
+    if (!qty) return
+    const current = Number.parseFloat(qty.value || "0")
+    qty.value = String((Number.isFinite(current) ? current : 0) + 1)
+    qty.dispatchEvent(new Event("input", { bubbles: true }))
+  }
+
   #selectRow(select) {
     const row = select.closest("[data-line-row]")
     const qty = row.querySelector("[data-quantity-field]") || row.querySelector('input[type="number"]')
+    if (this.incrementValue) {
+      // Consecutive scans: keep the focus on the scan input (a hardware
+      // scanner types wherever the focus is), and show which line changed.
+      // The input was cleared when this scan was taken; clearing it again
+      // here would wipe the NEXT scan the scanner is already typing.
+      row.scrollIntoView?.({ block: "nearest" })
+      if (this.hasFeedbackTarget) this.feedbackTarget.hidden = true
+      this.inputTarget.focus()
+      return
+    }
     qty?.focus()
     qty?.select?.()
     this.#reset()

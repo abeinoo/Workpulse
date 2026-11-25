@@ -5,6 +5,8 @@ class StockAdjustment < ApplicationRecord
 
   belongs_to :business
   belongs_to :warehouse
+  include OperationalWarehouseReference
+  operational_warehouse :warehouse # never the system transit warehouse
   belongs_to :created_by, class_name: "User", optional: true
 
   has_many :items, class_name: "StockAdjustmentItem", dependent: :destroy

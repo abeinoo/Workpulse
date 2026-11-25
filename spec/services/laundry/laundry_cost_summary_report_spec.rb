@@ -166,7 +166,7 @@ RSpec.describe Finance::Reports::LaundryCostSummary, type: :model do
       transfer = business.stock_transfers.build(source_warehouse: warehouse, destination_warehouse: other_warehouse,
                                                 transferred_on: Date.current)
       transfer.items.build(product: product, quantity: 5)
-      Inventory::StockTransferPoster.new(transfer).call
+      post_stock_transfer(transfer)
 
       expect(run.material_cost).to eq(0)
     end

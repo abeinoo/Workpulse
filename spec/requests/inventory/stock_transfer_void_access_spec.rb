@@ -17,7 +17,7 @@ RSpec.describe "Inventory::StockTransfers#void — warehouse access", type: :req
     business.stock_transfers.build(source_warehouse: source, destination_warehouse: destination,
                                    transferred_on: Date.new(2026, 1, 2)).tap do |t|
       t.items.build(product: product, quantity: 4)
-      expect(Inventory::StockTransferPoster.new(t).call).to be_ok
+      expect(post_stock_transfer(t)).to be_ok
     end
   end
 
