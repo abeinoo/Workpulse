@@ -1,6 +1,7 @@
 <%# Products index "Stock on hand" cell.
     locals: product, stock, low_stock
-    The quantity is inventory units over the viewer's warehouses, shown
+    The quantity is inventory units in the page's warehouse context (one
+    selected warehouse, or every warehouse the viewer reaches), shown
     exactly (never truncated). Low = the per-warehouse low-stock badge
     (.badge-warning carries the quantity only); Out = on-hand <= 0. %>
 <% state = product_stock_state(product, stock, low_stock) %>

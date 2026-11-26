@@ -10,6 +10,10 @@ class Inventory::StockTransfersController < Inventory::BaseController
     scope    = policy_scope(StockTransfer)
     @history = Inventory::StockTransferHistory.new(scope, params.permit(*Inventory::StockTransferHistory::FILTERS))
     @status_counts = scope.active.group(:status).count
+    # Summary cards: the viewer's whole (policy-scoped) list, before filters —
+    # stored statuses only, from the counts above plus one COUNT.
+    @summary = { "total" => scope.count }
+               .merge(%w[pending_approval awaiting_dispatch in_transit discrepancy received].index_with { |s| @status_counts.fetch(s, 0) })
     filtered = @history.relation.recent
     @total_filtered = filtered.count
     @total_pages    = [ (@total_filtered.to_f / PER_PAGE).ceil, 1 ].max

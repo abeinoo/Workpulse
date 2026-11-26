@@ -18,10 +18,16 @@ en:
         select_hint: "Select products to print their barcodes."
         selected_count: "Selected: {count}"
         clear_selection: "Clear selection"
+        warehouse_context:
+          label: "Warehouse"
+          all: "All warehouses"
+          showing_one: "Stock, value and statuses for %{warehouse} only."
+          showing_all: "Stock, value and statuses across all your warehouses."
         summary:
           total: "Products"
           low_stock: "Low stock"
           out_of_stock: "Out of stock"
+          stock_value: "Inventory value"
         stock_status:
           label: "Stock status"
           all: "All stock statuses"
