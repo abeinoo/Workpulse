@@ -6,6 +6,25 @@ module InventoryHelper
     "rejected" => "badge-danger", "cancelled" => "badge-neutral"
   }.freeze
 
+  # The Stock Transfers index status navigation: every filter of
+  # Inventory::StockTransferHistory::STATUS_FILTERS, in lifecycle order, split
+  # into still-moving and finished. Presentation only — the statuses, their
+  # transitions and the filtering stay in StockTransfer / StockTransferHistory.
+  STOCK_TRANSFER_STATUS_GROUPS = {
+    "open"   => %w[draft pending_approval awaiting_dispatch in_transit partially_received discrepancy],
+    "closed" => %w[received approved rejected cancelled]
+  }.freeze
+
+  # A transfer's warehouse for the index route: its name, with the owning
+  # branch (if any) as the secondary line.
+  def transfer_route_end(warehouse, role)
+    branch = warehouse.owning_branch
+    tag.span(class: "stt-route__end stt-route__end--#{role}") do
+      safe_join([ tag.span(warehouse.display_name, class: "stt-route__name", dir: "auto", title: transfer_warehouse_label(warehouse)),
+                  (tag.span(branch.name, class: "stt-route__branch", dir: "auto") if branch) ].compact)
+    end
+  end
+
   # A warehouse as offered on the transfer form: its name with the owning
   # branch's ("North Store — North Branch"); central / unclassified by name only.
   def transfer_warehouse_label(warehouse)

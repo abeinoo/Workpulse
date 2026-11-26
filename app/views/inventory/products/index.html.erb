@@ -40,6 +40,27 @@
     <% end %>
   </div>
 
+  <%# ── Warehouse context: every figure below (summary, value, stock
+       column, low / out-of-stock, filters, count) is for this warehouse —
+       or, for All warehouses, for every warehouse the viewer can reach.
+       Changing it keeps the tab, search and filters. %>
+  <%= form_with url: inventory_products_path, method: :get, class: "products-context",
+        data: { controller: "auto-submit", testid: "warehouse-context" } do |f| %>
+    <% products_index_query(warehouse_id: nil).each do |key, value| %>
+      <%= hidden_field_tag key, value, id: nil %>
+    <% end %>
+    <%= f.label :warehouse_id, t("#{scope}.warehouse_context.label"), class: "products-context__label" %>
+    <%= f.select :warehouse_id,
+          options_for_select([ [ t("#{scope}.warehouse_context.all"), "" ] ] + @warehouse_options.map { |w| [ w.name, w.id ] },
+                             @warehouse&.id),
+          {}, class: "form-control products-context__select",
+          data: { action: "change->auto-submit#submit", testid: "warehouse-select" } %>
+    <span class="products-context__hint" data-testid="warehouse-context-hint" dir="auto">
+      <%= @warehouse ? t("#{scope}.warehouse_context.showing_one", warehouse: @warehouse.name) : t("#{scope}.warehouse_context.showing_all") %>
+    </span>
+    <noscript><%= f.submit t("common.search"), class: "btn btn-secondary btn-sm", name: nil %></noscript>
+  <% end %>
+
   <%# ── Summary (tab's whole catalogue, before search/filters) — each card
        is a shortcut to its stock-status filter. %>
   <div class="products-summary" data-testid="products-summary">
@@ -60,6 +81,10 @@
       <span class="products-summary__label"><%= t("#{scope}.summary.out_of_stock") %></span>
       <span class="products-summary__value" dir="ltr"><%= @summary[:out_of_stock] %></span>
     <% end %>
+    <div class="products-summary__card products-summary__card--static" data-testid="summary-stock-value">
+      <span class="products-summary__label"><%= t("#{scope}.summary.stock_value") %></span>
+      <span class="products-summary__value" dir="ltr"><%= format_currency(@summary[:stock_value]) %></span>
+    </div>
   </div>
 
   <%# ── Status tabs ──────────────────────────────────────────────────────── %>
@@ -93,6 +118,7 @@
     <%= form_with url: inventory_products_path, method: :get, class: "products-filters", role: "search",
           data: { testid: "products-filters" } do |f| %>
       <%= f.hidden_field :status, value: @status_filter %>
+      <%= f.hidden_field :warehouse_id, value: @warehouse&.id if @warehouse %>
       <div class="barcode-input-group products-filters__search">
         <%= f.label :q, t("#{scope}.search_label"), class: "visually-hidden" %>
         <%= f.search_field :q, value: params[:q], placeholder: t("inventory.products.search_placeholder"),
@@ -122,7 +148,7 @@
       <div class="products-filters__buttons">
         <%= f.submit t("common.search"), class: "btn btn-secondary btn-sm", name: nil %>
         <% if products_index_filtered? %>
-          <%= link_to t("#{scope}.clear_filters"), inventory_products_path(status: @status_filter),
+          <%= link_to t("#{scope}.clear_filters"), inventory_products_path(products_index_unfiltered_query),
                 class: "btn btn-ghost btn-sm", data: { testid: "clear-filters" } %>
         <% end %>
       </div>
@@ -145,7 +171,7 @@
     <div class="empty-state products-index__empty" data-testid="products-empty">
       <p class="empty-state__title"><%= products_index_filtered? ? t("#{scope}.empty_filtered") : t("inventory.products.empty") %></p>
       <% if products_index_filtered? %>
-        <%= link_to t("#{scope}.clear_filters"), inventory_products_path(status: @status_filter), class: "btn btn-secondary btn-sm" %>
+        <%= link_to t("#{scope}.clear_filters"), inventory_products_path(products_index_unfiltered_query), class: "btn btn-secondary btn-sm" %>
       <% elsif can_manage %>
         <%= link_to t("inventory.products.add"), new_inventory_product_path, class: "btn btn-primary btn-sm" %>
       <% end %>

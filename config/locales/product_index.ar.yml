@@ -22,10 +22,16 @@ ar:
         select_hint: "حدد منتجات لطباعة الباركود الخاص بها."
         selected_count: "المحدد: {count}"
         clear_selection: "إلغاء التحديد"
+        warehouse_context:
+          label: "المستودع"
+          all: "جميع المستودعات"
+          showing_one: "المخزون والقيمة والحالات لمستودع %{warehouse} فقط."
+          showing_all: "المخزون والقيمة والحالات عبر جميع مستودعاتك."
         summary:
           total: "المنتجات"
           low_stock: "مخزون منخفض"
           out_of_stock: "نفد المخزون"
+          stock_value: "قيمة المخزون"
         stock_status:
           label: "حالة المخزون"
           all: "كل حالات المخزون"

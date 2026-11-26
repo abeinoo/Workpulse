@@ -1,115 +1,181 @@
 <% content_for :title, t("inventory.stock_transfers.title") %>
-<% scope = "inventory.stock_transfers" %>
+<% scope   = "inventory.stock_transfers" %>
+<% iscope  = "#{scope}.index" %>
 <% filters = @history.filters %>
+<% advanced_active = filters.slice(:person_id, :from, :to).any? %>
 
-<div class="admin-page">
-  <div class="page-header">
-    <h1 class="page-title"><%= t("#{scope}.title") %></h1>
-    <% if policy(StockTransfer).create? %>
-      <%= link_to t("#{scope}.new_action"), new_inventory_stock_transfer_path, class: "btn btn-primary btn-sm" %>
+<div class="admin-page stt-index">
+  <%# ── Header: title, purpose, the one primary action ─────────────────── %>
+  <div class="page-header stt-index__header">
+    <div>
+      <h1 class="page-title"><%= t("#{scope}.title") %></h1>
+      <p class="page-subtitle stt-index__subtitle"><%= t("#{iscope}.subtitle") %></p>
+    </div>
+    <div class="stt-index__header-actions">
+      <% if @pending_stock_transfer_approvals_count.positive? %>
+        <%= link_to inventory_stock_transfer_approvals_path, class: "badge badge-warning stt-index__approvals",
+              data: { testid: "pending-approval-count" } do %>
+          <%= t("#{scope}.pending_approval_count", count: @pending_stock_transfer_approvals_count) %>
+        <% end %>
+      <% end %>
+      <% if policy(StockTransfer).create? %>
+        <%= link_to new_inventory_stock_transfer_path, class: "btn btn-primary btn-sm", data: { testid: "new-transfer" } do %>
+          <span aria-hidden="true">+</span><span><%= t("#{iscope}.new_transfer") %></span>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+
+  <%# ── Summary: the viewer's whole list (policy scope), before filters;
+       each card opens its status. Stored statuses only. %>
+  <div class="stt-summary" data-testid="transfer-summary">
+    <% @summary.each do |key, count| %>
+      <% status = key == "total" ? nil : key %>
+      <% current = filters[:status] == status %>
+      <%= link_to inventory_stock_transfers_path(filters.except(:status).merge(status: status).compact),
+            class: "stt-summary__card stt-summary__card--#{key} #{"is-active" if current}",
+            aria: { current: (current ? "page" : nil) }, data: { summary: key } do %>
+        <span class="stt-summary__label"><%= key == "total" ? t("#{iscope}.summary.total") : t("inventory.dashboard.transfers.stages.#{key}", default: t("#{scope}.statuses.#{key}")) %></span>
+        <span class="stt-summary__value" dir="ltr"><%= count %></span>
+      <% end %>
     <% end %>
   </div>
 
-  <% if @pending_stock_transfer_approvals_count.positive? %>
-    <p style="margin-bottom: var(--space-4);">
-      <%= link_to inventory_stock_transfer_approvals_path, class: "badge badge-warning", data: { testid: "pending-approval-count" } do %>
-        <%= t("#{scope}.pending_approval_count", count: @pending_stock_transfer_approvals_count) %>
+  <%# ── Status navigation: lifecycle order, open then finished ──────────── %>
+  <nav class="stt-status-nav" aria-label="<%= t("#{scope}.history.status_filter") %>">
+    <div class="filter-tabs filter-tabs--scrollable stt-status-nav__tabs">
+      <% all_current = filters[:status].blank? %>
+      <%= link_to inventory_stock_transfers_path(filters.except(:status)),
+            class: "filter-tab #{'filter-tab--active' if all_current}",
+            aria: { current: (all_current ? "page" : nil) }, data: { status_filter: "all" } do %>
+        <%= t("#{scope}.all_statuses") %>
+        <span class="badge badge-neutral badge-xs"><%= @summary["total"] %></span>
       <% end %>
-    </p>
-  <% end %>
-
-  <nav class="filter-tabs filter-tabs--scrollable" aria-label="<%= t("#{scope}.history.status_filter") %>" style="margin-bottom: var(--space-4);">
-    <%= link_to inventory_stock_transfers_path(filters.except(:status)),
-          class: "filter-tab #{'filter-tab--active' if filters[:status].blank?}",
-          aria: { current: (filters[:status].blank? ? "page" : nil) } do %>
-      <%= t("#{scope}.all_statuses") %>
-    <% end %>
-    <% Inventory::StockTransferHistory::STATUS_FILTERS.each do |status| %>
-      <% count = status == "partially_received" ? nil : @status_counts.fetch(status, 0) %>
-      <%= link_to inventory_stock_transfers_path(filters.merge(status: status)),
-            class: "filter-tab #{'filter-tab--active' if filters[:status] == status}",
-            aria: { current: (filters[:status] == status ? "page" : nil) }, data: { status_filter: status } do %>
-        <%= t("#{scope}.statuses.#{status}") %>
-        <% if count %><span class="badge badge-neutral badge-xs"><%= count %></span><% end %>
+      <% InventoryHelper::STOCK_TRANSFER_STATUS_GROUPS.each do |group, statuses| %>
+        <span class="stt-status-nav__group" role="separator" aria-label="<%= t("#{iscope}.status_groups.#{group}") %>">
+          <%= t("#{iscope}.status_groups.#{group}") %>
+        </span>
+        <% statuses.each do |status| %>
+          <% current = filters[:status] == status %>
+          <% count = status == "partially_received" ? nil : @status_counts.fetch(status, 0) %>
+          <%= link_to inventory_stock_transfers_path(filters.merge(status: status)),
+                class: "filter-tab #{'filter-tab--active' if current} #{'stt-status-nav__tab--empty' if count&.zero?}",
+                aria: { current: (current ? "page" : nil) }, data: { status_filter: status } do %>
+            <%= t("#{scope}.statuses.#{status}") %>
+            <% if count %><span class="badge badge-neutral badge-xs"><%= count %></span><% end %>
+          <% end %>
+        <% end %>
       <% end %>
-    <% end %>
+    </div>
   </nav>
 
-  <%= form_with url: inventory_stock_transfers_path, method: :get, class: "card", style: "padding: var(--space-4); margin-bottom: var(--space-4);",
-        data: { turbo: false, testid: "history-filters" } do |f| %>
-    <%= hidden_field_tag :status, filters[:status] if filters[:status] %>
-    <div class="form-grid">
-      <div class="form-group">
-        <%= f.label :q, t("#{scope}.history.search"), class: "form-label" %>
-        <%= f.search_field :q, value: filters[:q], class: "form-control", placeholder: t("#{scope}.history.search_placeholder") %>
+  <%# ── Filters: search + route on one row; people and dates behind
+       "More filters" (open when one is set). Submitting drops ?page. %>
+  <%= form_with url: inventory_stock_transfers_path, method: :get, class: "stt-filters", role: "search",
+        data: { testid: "history-filters" } do |f| %>
+    <%= hidden_field_tag :status, filters[:status], id: nil if filters[:status] %>
+    <div class="stt-filters__row">
+      <div class="stt-filters__field stt-filters__field--search">
+        <%= f.label :q, t("#{scope}.history.search"), class: "visually-hidden" %>
+        <%= f.search_field :q, value: filters[:q], class: "form-control", dir: "auto", autocomplete: "off",
+              placeholder: t("#{scope}.history.search_placeholder") %>
       </div>
-      <div class="form-group">
-        <%= f.label :source_warehouse_id, t("#{scope}.source_warehouse"), class: "form-label" %>
+      <div class="stt-filters__field">
+        <%= f.label :source_warehouse_id, t("#{scope}.source_warehouse"), class: "visually-hidden" %>
         <%= f.select :source_warehouse_id, transfer_warehouse_options(@filter_warehouses, filters[:source_warehouse_id]),
-              { include_blank: t("#{scope}.history.any") }, class: "form-control" %>
+              { include_blank: t("#{iscope}.any_source") }, class: "form-control" %>
       </div>
-      <div class="form-group">
-        <%= f.label :destination_warehouse_id, t("#{scope}.destination_warehouse"), class: "form-label" %>
+      <div class="stt-filters__field">
+        <%= f.label :destination_warehouse_id, t("#{scope}.destination_warehouse"), class: "visually-hidden" %>
         <%= f.select :destination_warehouse_id, transfer_warehouse_options(@filter_warehouses, filters[:destination_warehouse_id]),
-              { include_blank: t("#{scope}.history.any") }, class: "form-control" %>
+              { include_blank: t("#{iscope}.any_destination") }, class: "form-control" %>
       </div>
-      <div class="form-group">
-        <%= f.label :person_id, t("#{scope}.history.person"), class: "form-label" %>
-        <%= f.select :person_id, options_for_select(@filter_people.map { |u| [ u.full_name, u.id ] }, filters[:person_id]),
-              { include_blank: t("#{scope}.history.any") }, class: "form-control" %>
-      </div>
-      <div class="form-group">
-        <%= f.label :from, t("#{scope}.history.from"), class: "form-label" %>
-        <%= f.date_field :from, value: filters[:from], class: "form-control" %>
-      </div>
-      <div class="form-group">
-        <%= f.label :to, t("#{scope}.history.to"), class: "form-label" %>
-        <%= f.date_field :to, value: filters[:to], class: "form-control" %>
+      <div class="stt-filters__buttons">
+        <%= f.submit t("#{scope}.history.apply"), class: "btn btn-primary btn-sm", name: nil,
+              data: { turbo_submits_with: t("#{iscope}.applying") } %>
+        <% if @history.active? %>
+          <%= link_to t("#{iscope}.reset"), inventory_stock_transfers_path(filters.slice(:status)),
+                class: "btn btn-ghost btn-sm", data: { testid: "reset-filters" } %>
+        <% end %>
       </div>
     </div>
-    <div class="form-actions">
-      <%= f.submit t("#{scope}.history.apply"), class: "btn btn-primary btn-sm", name: nil %>
-      <% if @history.active? %>
-        <%= link_to t("#{scope}.history.clear"), inventory_stock_transfers_path, class: "btn btn-ghost btn-sm" %>
-      <% end %>
-    </div>
+    <details class="stt-filters__more" <%= "open" if advanced_active %> data-testid="more-filters">
+      <summary class="stt-filters__toggle">
+        <%= t("#{iscope}.more_filters") %>
+        <% if advanced_active %>
+          <span class="badge badge-accent badge-xs"><%= filters.slice(:person_id, :from, :to).size %></span>
+        <% end %>
+      </summary>
+      <div class="stt-filters__row stt-filters__row--more">
+        <div class="stt-filters__field">
+          <%= f.label :person_id, t("#{scope}.history.person"), class: "form-label" %>
+          <%= f.select :person_id, options_for_select(@filter_people.map { |u| [ u.full_name, u.id ] }, filters[:person_id]),
+                { include_blank: t("#{scope}.history.any") }, class: "form-control" %>
+        </div>
+        <div class="stt-filters__field">
+          <%= f.label :from, t("#{scope}.history.from"), class: "form-label" %>
+          <%= f.date_field :from, value: filters[:from], class: "form-control" %>
+        </div>
+        <div class="stt-filters__field">
+          <%= f.label :to, t("#{scope}.history.to"), class: "form-label" %>
+          <%= f.date_field :to, value: filters[:to], class: "form-control" %>
+        </div>
+      </div>
+    </details>
   <% end %>
 
-  <% if @stock_transfers.empty? %>
-    <div class="empty-state"><p class="empty-state__title"><%= @history.active? ? t("#{scope}.history.no_match") : t("#{scope}.empty") %></p></div>
-  <% else %>
-    <p class="td-secondary"><%= t("#{scope}.history.count", count: @total_filtered) %></p>
-    <div class="table-wrap table-wrap--cards">
-      <table data-testid="transfer-history">
-        <thead><tr>
-          <th><%= t("#{scope}.number") %></th>
-          <th><%= t("#{scope}.date") %></th>
-          <th><%= t("#{scope}.source_warehouse") %></th>
-          <th><%= t("#{scope}.destination_warehouse") %></th>
-          <th><%= t("#{scope}.requested_by") %></th>
-          <th><%= t("#{scope}.approved_by") %></th>
-          <th><%= t("#{scope}.dispatched_by") %></th>
-          <th><%= t("inventory.stock_transfer_approvals.lines") %></th>
-          <th><%= t("inventory.void.status") %></th>
-        </tr></thead>
-        <tbody>
-          <% @stock_transfers.each do |transfer| %>
-            <tr data-transfer="<%= transfer.transfer_number %>">
-              <td data-label="<%= t("#{scope}.number") %>"><%= link_to transfer.transfer_number, inventory_stock_transfer_path(transfer), class: "link" %></td>
-              <td class="td-secondary" data-label="<%= t("#{scope}.date") %>"><%= local_date(transfer.transferred_on) %></td>
-              <td class="td-secondary" data-label="<%= t("#{scope}.source_warehouse") %>"><%= transfer_warehouse_label(transfer.source_warehouse) %></td>
-              <td class="td-secondary" data-label="<%= t("#{scope}.destination_warehouse") %>"><%= transfer_warehouse_label(transfer.destination_warehouse) %></td>
-              <td class="td-secondary" data-label="<%= t("#{scope}.requested_by") %>"><%= transfer.created_by&.full_name || "—" %></td>
-              <td class="td-secondary" data-label="<%= t("#{scope}.approved_by") %>"><%= transfer.legacy_posting? ? t("#{scope}.legacy_short") : (transfer.approved_by&.full_name || "—") %></td>
-              <td class="td-secondary" data-label="<%= t("#{scope}.dispatched_by") %>"><%= transfer.dispatched_by&.full_name || "—" %></td>
-              <td data-label="<%= t("inventory.stock_transfer_approvals.lines") %>"><%= transfer.items.size %></td>
-              <td data-label="<%= t("inventory.void.status") %>"><%= stock_transfer_status_badge(transfer) %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-    <%= render "shared/pagination", page: @page, total_pages: @total_pages,
-          path_proc: ->(page) { inventory_stock_transfers_path(filters.merge(page: page)) } %>
-  <% end %>
+  <div class="stt-index__results" data-testid="transfer-results">
+    <% if @stock_transfers.empty? %>
+      <div class="empty-state stt-index__empty" data-testid="transfers-empty">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/></svg>
+        <p class="empty-state__title"><%= @history.active? ? t("#{scope}.history.no_match") : t("#{scope}.empty") %></p>
+        <% if @history.active? %>
+          <%= link_to t("#{iscope}.reset"), inventory_stock_transfers_path, class: "btn btn-secondary btn-sm" %>
+        <% elsif policy(StockTransfer).create? %>
+          <%= link_to t("#{iscope}.new_transfer"), new_inventory_stock_transfer_path, class: "btn btn-primary btn-sm" %>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="td-secondary stt-index__count" data-testid="transfer-count"><%= t("#{scope}.history.count", count: @total_filtered) %></p>
+      <div class="table-wrap table-wrap--cards stt-table-wrap">
+        <table class="stt-table" data-testid="transfer-history">
+          <thead><tr>
+            <th><%= t("#{scope}.number") %></th>
+            <th><%= t("#{iscope}.route") %></th>
+            <th><%= t("#{scope}.date") %></th>
+            <th><%= t("#{scope}.requested_by") %></th>
+            <th class="stt-table__num"><%= t("inventory.stock_transfer_approvals.lines") %></th>
+            <th><%= t("inventory.void.status") %></th>
+            <th class="stt-table__actions"><span class="visually-hidden"><%= t("#{iscope}.actions.label") %></span></th>
+          </tr></thead>
+          <tbody>
+            <% @stock_transfers.each do |transfer| %>
+              <tr class="stt-table__row" data-transfer="<%= transfer.transfer_number %>">
+                <td class="stt-table__number" data-label="<%= t("#{scope}.number") %>">
+                  <%= link_to transfer.transfer_number, inventory_stock_transfer_path(transfer),
+                        class: "stt-table__link", dir: "ltr", data: { testid: "transfer-link" } %>
+                </td>
+                <td data-label="<%= t("#{iscope}.route") %>">
+                  <span class="stt-route">
+                    <%= transfer_route_end(transfer.source_warehouse, :source) %>
+                    <svg class="stt-route__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="<%= t("#{iscope}.to") %>" role="img"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                    <%= transfer_route_end(transfer.destination_warehouse, :destination) %>
+                  </span>
+                </td>
+                <td class="td-secondary" data-label="<%= t("#{scope}.date") %>"><%= local_date(transfer.transferred_on) %></td>
+                <td class="td-secondary" data-label="<%= t("#{scope}.requested_by") %>" dir="auto"><%= transfer.created_by&.full_name || "—" %></td>
+                <td class="stt-table__num" data-label="<%= t("inventory.stock_transfer_approvals.lines") %>" dir="ltr"><%= transfer.items.size %></td>
+                <td data-label="<%= t("inventory.void.status") %>"><%= stock_transfer_status_badge(transfer) %></td>
+                <td class="td-actions stt-table__actions">
+                  <%= render "inventory/stock_transfers/row_actions", transfer: transfer %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <%= render "shared/pagination", page: @page, total_pages: @total_pages,
+            path_proc: ->(page) { inventory_stock_transfers_path(filters.merge(page: page)) } %>
+    <% end %>
+  </div>
 </div>

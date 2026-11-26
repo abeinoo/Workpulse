@@ -1,0 +1,34 @@
+<%#
+  Stock Transfers index — the row's actions menu (⋮). locals: transfer
+  Each entry appears only when StockTransferPolicy allows it for THIS transfer
+  (status, permission, warehouse side) and leads to the page where the action
+  already lives: the edit form, or the transfer's page with its confirmation
+  and reason forms. Nothing is performed from the list; every controller
+  action authorizes again.
+%>
+<% scope  = "inventory.stock_transfers" %>
+<% ascope = "#{scope}.index.actions" %>
+<% tp     = policy(transfer) %>
+<% show   = ->(anchor = nil) { inventory_stock_transfer_path(transfer, anchor: anchor) } %>
+<% items = [
+     ([ t("#{ascope}.view"), show.call, "view" ]),
+     ([ t("#{scope}.edit_action"), edit_inventory_stock_transfer_path(transfer), "edit" ] if tp.edit? || tp.edit_pending?),
+     ([ t("#{scope}.submit_action"), show.call, "submit" ] if tp.submit?),
+     ([ t("#{ascope}.review"), show.call, "review" ] if tp.approve? || tp.reject?),
+     ([ t("#{scope}.dispatch_action"), show.call, "dispatch" ] if tp.dispatch?),
+     ([ t("#{ascope}.receive"), show.call("receive-title"), "receive" ] if tp.receive?),
+     ([ t("#{ascope}.resolve"), show.call("resolve-title"), "resolve" ] if tp.resolve?),
+     ([ t("#{scope}.cancel_action"), show.call("cancel-transfer"), "cancel" ] if tp.cancel?)
+   ].compact %>
+<div class="row-actions stt-row-actions" data-controller="dropdown">
+  <button type="button" class="row-actions__btn" data-action="click->dropdown#toggle"
+          data-dropdown-target="button" aria-haspopup="menu" aria-expanded="false"
+          aria-label="<%= t("#{ascope}.label") %> — <%= transfer.transfer_number %>"
+          title="<%= t("#{ascope}.label") %>" data-testid="transfer-row-actions">&#8942;</button>
+  <div class="row-actions__menu" data-dropdown-target="menu" role="menu" hidden>
+    <% items.each do |label, path, key| %>
+      <%= link_to label, path, class: "row-actions__item #{"row-actions__item--danger" if key == "cancel"}",
+            role: "menuitem", data: { transfer_action: key } %>
+    <% end %>
+  </div>
+</div>

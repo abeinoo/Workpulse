@@ -122,6 +122,27 @@ en:
       source_on_hand: Source on hand
       source_reserved: Reserved by others
       source_available: Available
+      index:
+        subtitle: Move stock between warehouses — follow each transfer from request to receipt.
+        new_transfer: New Transfer
+        route: Route
+        to: to
+        any_source: Any source warehouse
+        any_destination: Any destination warehouse
+        more_filters: More filters
+        reset: Reset filters
+        applying: Applying…
+        summary:
+          total: Total transfers
+        status_groups:
+          open: In progress
+          closed: Finished
+        actions:
+          label: Transfer actions
+          view: View details
+          review: Review approval
+          receive: Receive goods
+          resolve: Resolve discrepancy
       history:
         status_filter: Filter by status
         search: Search

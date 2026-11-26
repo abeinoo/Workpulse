@@ -7,7 +7,12 @@ class Inventory::ProductsController < Inventory::BaseController
 
   def index
     authorize Product
-    wh_ids = accessible_warehouse_ids
+    # ── Warehouse context — ONE warehouse id set for every figure on the
+    #    page (KPIs, value, stock column, low / out-of-stock, filters, count).
+    #    nil = All warehouses: the viewer's whole reach, as before.
+    @warehouse_options = accessible_warehouses.to_a
+    @warehouse         = selected_warehouse
+    wh_ids             = @warehouse ? [ @warehouse.id ] : accessible_warehouse_ids
 
     # ── Status tab (active / archived / all) — default: active ─────────────
     @status_filter = params[:status].presence&.inquiry || "active"
@@ -30,7 +35,8 @@ class Inventory::ProductsController < Inventory::BaseController
     @summary = {
       total:        base.count,
       low_stock:    base.where(id: @low_stock_product_ids.to_a).count,
-      out_of_stock: base.inventory_tracked.where.not(id: in_stock_ids).count
+      out_of_stock: base.inventory_tracked.where.not(id: in_stock_ids).count,
+      stock_value:  stock_value(base, @stock_totals)
     }
 
     @products = base.ordered.includes(:brand, :product_category, Product::IMAGE_PRELOAD)
@@ -366,6 +372,27 @@ class Inventory::ProductsController < Inventory::BaseController
       next unless values.is_a?(Hash)
 
       acc[warehouse_id.to_s] = values.slice("low_stock_level", "reorder_quantity", "excluded", "reason").transform_values(&:to_s)
+    end
+  end
+
+  # The index's warehouse context: a warehouse the viewer may reach
+  # (business-scoped, operational, active — accessible_warehouses), or nil
+  # for All warehouses. Any other id — another business's, an inactive or
+  # transit warehouse, one outside the viewer's assignment — is refused, so
+  # the parameter can never widen what the viewer sees.
+  def selected_warehouse
+    return if params[:warehouse_id].blank?
+
+    @warehouse_options.find { |w| w.id.to_s == params[:warehouse_id].to_s } ||
+      raise(Pundit::NotAuthorizedError)
+  end
+
+  # Inventory value of the tab's tracked products in the warehouse context:
+  # on-hand × average cost — the Current Stock report's stock value
+  # (Inventory::Reports::CurrentStock), over the same totals as the list.
+  def stock_value(base, totals)
+    base.inventory_tracked.pluck(:id, :average_cost_price).sum(0.to_d) do |id, cost|
+      totals[id].to_d * cost.to_d
     end
   end
 

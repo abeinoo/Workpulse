@@ -122,6 +122,27 @@ ar:
       source_on_hand: المتوفر في المصدر
       source_reserved: محجوز لمستندات أخرى
       source_available: المتاح
+      index:
+        subtitle: نقل المخزون بين المستودعات — تابع كل تحويل من الطلب حتى الاستلام.
+        new_transfer: تحويل جديد
+        route: المسار
+        to: إلى
+        any_source: أي مستودع مصدر
+        any_destination: أي مستودع وجهة
+        more_filters: مرشحات إضافية
+        reset: إعادة تعيين المرشحات
+        applying: جارٍ التطبيق…
+        summary:
+          total: إجمالي التحويلات
+        status_groups:
+          open: قيد التنفيذ
+          closed: منتهية
+        actions:
+          label: إجراءات التحويل
+          view: عرض التفاصيل
+          review: مراجعة الاعتماد
+          receive: استلام البضاعة
+          resolve: معالجة الفرق
       history:
         status_filter: التصفية حسب الحالة
         search: بحث

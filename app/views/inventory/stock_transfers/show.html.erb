@@ -112,7 +112,7 @@
   <% end %>
 
   <% if transfer_policy.cancel? %>
-    <div class="card stt__panel">
+    <div class="card stt__panel" id="cancel-transfer">
       <%= form_with url: cancel_inventory_stock_transfer_path(transfer), method: :patch, data: { turbo_confirm: t("#{scope}.confirm.cancel") } do |f| %>
         <%= f.label :cancellation_reason, t("#{scope}.cancellation_reason"), class: "form-label form-label--required" %>
         <%= f.text_area :cancellation_reason, rows: 2, required: true, class: "form-control" %>

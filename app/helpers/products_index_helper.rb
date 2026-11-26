@@ -4,10 +4,19 @@
 module ProductsIndexHelper
   PRODUCTS_INDEX_FILTERS = %i[q category_id brand_id stock_status].freeze
 
-  # The index's current query (status tab + filters), with overrides; blank
-  # values dropped so links stay clean.
+  # The page's inventory context (not a filter): kept by the status tabs,
+  # the filter chips and "Clear filters" — and never counted as filtered.
+  PRODUCTS_INDEX_CONTEXT = %i[status warehouse_id].freeze
+
+  # The index's current query (status tab, warehouse + filters), with
+  # overrides; blank values dropped so links stay clean.
   def products_index_query(overrides = {})
-    params.permit(:status, *PRODUCTS_INDEX_FILTERS).to_h.symbolize_keys.merge(overrides).compact_blank
+    params.permit(*PRODUCTS_INDEX_CONTEXT, *PRODUCTS_INDEX_FILTERS).to_h.symbolize_keys.merge(overrides).compact_blank
+  end
+
+  # The query with every filter removed but the context (tab + warehouse) kept.
+  def products_index_unfiltered_query
+    products_index_query(PRODUCTS_INDEX_FILTERS.index_with(nil))
   end
 
   def products_index_filtered?
